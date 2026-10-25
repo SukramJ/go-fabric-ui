@@ -94,6 +94,15 @@ func (e *Events) Publish(ev Event) {
 	}
 }
 
+// Observers returns next unchanged.
+//
+// Deprecated: the stream observes the node itself (Node.Observe, per open
+// stream), so a handler mounted after Node.Start reports every fabric and
+// window transition once. Wiring this into node.Config.Observers is no
+// longer needed; it is kept so that hosts built against v0.1.1 compile,
+// and goes in v0.2.0.
+func (e *Events) Observers(next node.Observers) node.Observers { return next }
+
 // nodeObservers turns the node's fabric and window transitions into
 // stream events for push: fabric_added, fabric_removed, window_opened and
 // window_closed. open is the window state the subscriber last saw, so a

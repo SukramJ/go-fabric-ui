@@ -190,6 +190,23 @@ func TestSubscribe_ObservesTheNodeOnce(t *testing.T) {
 	}
 }
 
+// The deprecated Events.Observers chains nothing: a host that still wires
+// it keeps its own observers and the stream does not see a transition twice.
+func TestEvents_ObserversIsAPassThrough(t *testing.T) {
+	var ran bool
+	next := node.Observers{OnFabricAdded: func(node.FabricInfo) error { ran = true; return nil }}
+	ev := NewEvents()
+	got := ev.Observers(next)
+	rec := &recorder{}
+	ev.Subscribe(rec.add)
+	if err := got.OnFabricAdded(node.FabricInfo{FabricIndex: 1}); err != nil || !ran {
+		t.Fatalf("the host's observer did not run: %v", err)
+	}
+	if got.OnFabricRemoved != nil || got.OnWindowTransition != nil || len(rec.types()) != 0 {
+		t.Fatalf("Observers chained something: events %v", rec.types())
+	}
+}
+
 func TestMount_RegistersTheRoutesAndRefusesABadPrefix(t *testing.T) {
 	mux := http.NewServeMux()
 	if err := Mount(mux, Options{Prefix: "/ui-api"}); err != nil {

@@ -11,7 +11,7 @@ All notable changes to this project are documented here. The format follows
 
 The handlers read go-fabric v0.12.2's facade routes instead of the U1
 workarounds (brief U1b, go-fabric report CK Q2). The HTTP contract only
-gains optional fields; the Go API drops the config-time observer wiring.
+gains optional fields; the config-time observer wiring is deprecated.
 
 ### Added
 
@@ -46,11 +46,13 @@ gains optional fields; the Go API drops the config-time observer wiring.
   `Node.Window` reports that basic window (its discriminator, before its
   deadline), not on a timer of the handler's own.
 
-### Removed
+### Deprecated
 
-- `Events.Observers`: `Node.Observe` replaces it. A host that wired it
-  into `node.Config.Observers` deletes that line; `Options.Events` stays
-  for the host's own events.
+- `Events.Observers` returns its argument unchanged: `Node.Observe`
+  replaces it, and a stream reports each transition once whether or not
+  the host still wires it into `node.Config.Observers`. Delete that line;
+  the method goes in v0.2.0. `Options.Events` stays for the host's own
+  events.
 
 ## [0.1.1] - 2026-10-25
 
