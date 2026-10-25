@@ -1,0 +1,2 @@
+* text=auto eol=lf
+fabricui/dist/** -diff linguist-generated=true
