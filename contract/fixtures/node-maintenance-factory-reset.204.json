@@ -1,0 +1,16 @@
+{
+  "route": "POST /node/maintenance/factory-reset",
+  "request": {
+    "method": "POST",
+    "path": "/node/maintenance/factory-reset",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "confirm": "remove-all-fabrics"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

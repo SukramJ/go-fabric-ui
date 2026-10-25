@@ -1,0 +1,21 @@
+{
+  "route": "GET /node/pairing",
+  "request": {
+    "method": "GET",
+    "path": "/node/pairing",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 503,
+    "body": {
+      "code": "service_unready",
+      "detail": "the node has no valid commissioning credentials configured",
+      "instance": "/api/v1/node/pairing",
+      "status": 503,
+      "title": "Pairing codes not available",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-service_unready"
+    }
+  }
+}

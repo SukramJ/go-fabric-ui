@@ -11,9 +11,9 @@ and diagnostics on the node side; commissioning, discovery and the
 commissioned nodes on the controller side. Maintained once, embedded by
 each project.
 
-> **Status: concept.** This repository was created from
-> [concept v9](https://github.com/SukramJ/go-fabric/blob/main/docs/concept-v9-fabric-ui.md)
-> on 2026-10-25; wave U1 delivers the node page family. Nothing runs yet.
+> **Status: first release, `v0.1.0`** (wave U1 of
+> [concept v9](https://github.com/SukramJ/go-fabric/blob/main/docs/concept-v9-fabric-ui.md)):
+> the node page family. The controller family follows in `v0.2.0`.
 
 ## Two artefacts, one version
 
@@ -27,11 +27,37 @@ each project.
 - **npm package** `@sukramj/fabric-ui`: the Svelte 5 pages, the UI kit,
   the design tokens (Home Assistant's variable names, with a theme bridge
   that adopts the live theme inside an Ingress panel) and the generated
-  TypeScript client, for a project with its own single-page app
-  (openccu-loom).
+  TypeScript client, for a project with its own single-page app.
 
-The contract between them is `contract/openapi.yaml`; both sides are tested
-against the same fixtures.
+A Go daemon embeds the whole interface in three lines:
+
+```go
+ev := fabricui.NewEvents()
+cfg.Observers = ev.Observers(cfg.Observers) // before node.New
+mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Exposure: provider, Events: ev}))
+```
+
+[`docs/embedding.md`](docs/embedding.md) covers the options, the npm
+package and running behind an Ingress; [`docs/provider.md`](docs/provider.md)
+how to write the selection's provider.
+
+## The contract
+
+`contract/openapi.yaml` is the single source of the API (routes under
+`/api/v1/node/`, the controller routes listed as planned). The Go handlers
+and the TypeScript client are tested against the same golden fixtures in
+`contract/fixtures/`, and a guard fails on any removal against the last
+release's copy. [`docs/contract.md`](docs/contract.md) has the route
+table, the admin modes, the problem codes and the versioning rule.
+
+## Building
+
+```sh
+make ci          # build vet test lint web-check dist-check
+make race        # the Go tests with the race detector
+make web-install # npm ci in ui/
+make web         # rebuild fabricui/dist (committed; dist-check fails on any byte of difference)
+```
 
 ## Consumers
 

@@ -1,0 +1,23 @@
+{
+  "route": "POST /node/pairing/window",
+  "request": {
+    "method": "POST",
+    "path": "/node/pairing/window",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "duration_seconds": 300
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "discriminator": 1234,
+      "duration_seconds": 300,
+      "manual_code": "00020202021",
+      "passcode": 20202021,
+      "qr_code": "MT:FRESH1234"
+    }
+  }
+}

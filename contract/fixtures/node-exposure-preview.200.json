@@ -1,0 +1,45 @@
+{
+  "route": "POST /node/exposure/preview",
+  "request": {
+    "method": "POST",
+    "path": "/node/exposure/preview",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "items": [
+        {
+          "key": "sensor-2",
+          "enabled": true
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "enabled": true,
+          "fields": {
+            "kind": "sensor",
+            "room": "Hall"
+          },
+          "group": "Hall",
+          "key": "sensor-2",
+          "name": "Hall sensor",
+          "source": "override",
+          "verdict": {
+            "clusters": [
+              1026
+            ],
+            "device_type": 770,
+            "device_type_name": "Temperature Sensor",
+            "reason": "the battery level is not mapped",
+            "state": "partially_mappable"
+          }
+        }
+      ]
+    }
+  }
+}

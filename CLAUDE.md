@@ -8,20 +8,30 @@ One web interface for every daemon built on
 [go-fabric](https://github.com/SukramJ/go-fabric), maintained here and
 embedded by the projects (go-ha2fabric, go-fabric-server, openccu-loom).
 `CONCEPT.md` is the short design; the full one is go-fabric's
-`docs/concept-v9-fabric-ui.md`. **State: concept** (created 2026-10-25);
-wave U1 delivers the node page family as `v0.1.0`.
+`docs/concept-v9-fabric-ui.md`. **State:** wave U1 (the node page family)
+is `v0.1.0`; wave U2 adds the controller family.
 
 ## Commands
 
 ```sh
-make ci        # build vet test lint — what the pipeline runs for the Go module
-make race      # go test -race (CGO_ENABLED=1 for this run only)
-make fmt       # gofumpt -w .
+make ci              # build vet test lint web-check dist-check — what the pipeline runs
+make race            # go test -race (CGO_ENABLED=1 for this run only)
+make e2e             # the end-to-end test: a fabrictest controller commissions through the handler
+make fmt             # gofumpt -w .
+make web-install     # npm ci in ui/
+make web             # rebuild the committed bundle fabricui/dist
+make dist-check      # rebuild into a temp dir, fail on any byte of difference
+make contract-check  # no removal against contract/previous, every fixture used on both sides
+make notices-check   # every bundled npm package is in THIRD-PARTY-NOTICES.md
+make version-check   # internal/version == ui/package.json == changelog section
 ```
 
 The web half lives under `ui/` (npm scripts: `dev`, `build`, `check`,
-`test`); `make web` builds it into `fabricui/dist/`, `make dist-check`
-fails when the committed bundle differs from a fresh build. (U1 adds them.)
+`test`, `gen:types`). A change under `ui/src/lib` or `ui/src/shell` is
+followed by `make web` in the same commit, or `dist-check` fails. A change
+to `contract/openapi.yaml` is followed by `make gen-types`; the fixtures'
+responses are recorded from the handlers with
+`go test ./fabricui -run <Test> -update` and reviewed before committing.
 
 ## Rules
 
@@ -36,11 +46,19 @@ fails when the committed bundle differs from a fresh build. (U1 adds them.)
 - **No host knowledge.** What is exposable, how it is named and grouped,
   comes through `ExposureProvider`; the pages render schema and items.
   Home Assistant, CCU and MQTT terms do not appear in this repository.
+  Two exceptions, decided 2026-10-25 (brief U1): the design tokens keep
+  Home Assistant's CSS variable names and the theme bridge detects an
+  Ingress panel, because that is how the pages adopt a host theme; and the
+  ecosystem labels on the compatibility page name the controller vendors
+  (Apple Home, Google Home, Amazon Alexa, Home Assistant) as go-fabric's
+  vendor table names them.
 - **The bundle is committed** (`fabricui/dist/`) and guarded: pinned
   versions, `npm ci`, byte-identical rebuild in CI. Sourcemaps are not
   committed.
 - **Dependencies are decisions.** Go: go-fabric and the standard library.
-  npm: MIT/Apache-2.0/BSD only; every package that lands in the bundle is
+  npm: MIT/Apache-2.0/BSD/ISC only (ISC accepted 2026-10-25 for
+  `@lucide/svelte`, as the family accepted it for coder/websocket); every
+  package that lands in the bundle is
   listed in `THIRD-PARTY-NOTICES.md`.
 - **Security.** Writing routes only with `Options.Admin`; the standalone
   shell sends a header token on writes; secrets (passcodes) appear only in

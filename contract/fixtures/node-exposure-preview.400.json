@@ -1,0 +1,29 @@
+{
+  "route": "POST /node/exposure/preview",
+  "request": {
+    "method": "POST",
+    "path": "/node/exposure/preview",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "items": [
+        {
+          "key": "nope",
+          "enabled": true
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "code": "bad_request",
+      "detail": "fabricui: unknown item: \"nope\"",
+      "instance": "/api/v1/node/exposure/preview",
+      "status": 400,
+      "title": "Failed to preview the selection",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-bad_request"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "route": "DELETE /node/fabrics/{index}",
+  "request": {
+    "method": "DELETE",
+    "path": "/node/fabrics/2"
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "code": "forbidden",
+      "detail": "this route writes or reads a pairing secret",
+      "instance": "/api/v1/node/fabrics/2",
+      "status": 403,
+      "title": "Admin rights required",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-forbidden"
+    }
+  }
+}

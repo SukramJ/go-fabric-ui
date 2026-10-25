@@ -1,0 +1,13 @@
+{
+  "route": "POST /node/pairing/window/close",
+  "request": {
+    "method": "POST",
+    "path": "/node/pairing/window/close",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "route": "GET /node/mdns",
+  "request": {
+    "method": "GET",
+    "path": "/node/mdns"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "advertising": true,
+      "findings": [
+        {
+          "code": "link_local_only",
+          "message": "Only a link-local address is advertised.",
+          "service": "_matter._tcp",
+          "severity": "warning"
+        }
+      ],
+      "services": [
+        {
+          "addresses": [
+            "fe80::1"
+          ],
+          "host_name": "node-host",
+          "instance_name": "9C71D38FBE48F2E5-B2C3D4E5F6071829",
+          "port": 5540,
+          "service_type": "_matter._tcp",
+          "subtypes": [
+            "_I9C71D38FBE48F2E5"
+          ],
+          "txt": {
+            "SAI": "300",
+            "SII": "5000"
+          }
+        }
+      ]
+    }
+  }
+}

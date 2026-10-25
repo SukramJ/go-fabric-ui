@@ -1,0 +1,19 @@
+{
+  "route": "GET /node/status",
+  "request": {
+    "method": "GET",
+    "path": "/node/status"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "advertising": false,
+      "commissioning_window_open": false,
+      "enabled": false,
+      "endpoint_count": 0,
+      "exposure": false,
+      "fabric_count": 0,
+      "listening": false
+    }
+  }
+}

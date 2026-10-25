@@ -1,0 +1,24 @@
+{
+  "route": "POST /node/maintenance/factory-reset",
+  "request": {
+    "method": "POST",
+    "path": "/node/maintenance/factory-reset",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "confirm": "yes"
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "code": "bad_request",
+      "detail": "send {\"confirm\":\"remove-all-fabrics\"} — this removes every fabric and each paired controller has to commission the node again",
+      "instance": "/api/v1/node/maintenance/factory-reset",
+      "status": 400,
+      "title": "Factory reset not confirmed",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-bad_request"
+    }
+  }
+}

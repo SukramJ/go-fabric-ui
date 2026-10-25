@@ -1,0 +1,41 @@
+{
+  "route": "GET /node/exposure/schema",
+  "request": {
+    "method": "GET",
+    "path": "/node/exposure/schema"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "columns": [
+        {
+          "filter": true,
+          "key": "room",
+          "label": "Room"
+        },
+        {
+          "filter": false,
+          "key": "kind",
+          "label": "Kind"
+        }
+      ],
+      "filters": [
+        {
+          "field": "kind",
+          "label": "Kind",
+          "options": [
+            {
+              "label": "Light",
+              "value": "light"
+            },
+            {
+              "label": "Sensor",
+              "value": "sensor"
+            }
+          ]
+        }
+      ],
+      "groups": true
+    }
+  }
+}

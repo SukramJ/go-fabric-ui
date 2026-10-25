@@ -1,0 +1,73 @@
+{
+  "route": "GET /node/exposure",
+  "request": {
+    "method": "GET",
+    "path": "/node/exposure"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "enabled": false,
+          "fields": {
+            "kind": "light",
+            "room": "Kitchen"
+          },
+          "group": "Kitchen",
+          "key": "lamp-1",
+          "name": "Kitchen lamp",
+          "source": "rule",
+          "verdict": {
+            "clusters": [
+              6,
+              8
+            ],
+            "device_type": 256,
+            "device_type_name": "On/Off Light",
+            "reason": "",
+            "state": "mappable"
+          }
+        },
+        {
+          "enabled": true,
+          "fields": {
+            "kind": "sensor",
+            "room": "Hall"
+          },
+          "group": "Hall",
+          "key": "sensor-2",
+          "name": "Hall sensor",
+          "source": "override",
+          "verdict": {
+            "clusters": [
+              1026
+            ],
+            "device_type": 770,
+            "device_type_name": "Temperature Sensor",
+            "reason": "the battery level is not mapped",
+            "state": "partially_mappable"
+          }
+        },
+        {
+          "enabled": false,
+          "fields": {
+            "kind": "remote",
+            "room": "Hall"
+          },
+          "group": "Hall",
+          "key": "remote-3",
+          "name": "Hall remote",
+          "source": "rule",
+          "verdict": {
+            "clusters": [],
+            "device_type": 0,
+            "device_type_name": "",
+            "reason": "no cluster covers a remote",
+            "state": "unmappable"
+          }
+        }
+      ]
+    }
+  }
+}

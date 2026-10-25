@@ -1,0 +1,50 @@
+{
+  "route": "GET /node/endpoints",
+  "request": {
+    "method": "GET",
+    "path": "/node/endpoints"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "endpoints": [
+        {
+          "clusters": [],
+          "device_type": 256,
+          "device_type_name": "On/Off Light",
+          "endpoint_id": 2,
+          "name": "Kitchen lamp",
+          "parent_endpoint_id": 1,
+          "reachable": true,
+          "source": {
+            "key": "lamp-1"
+          }
+        },
+        {
+          "clusters": [],
+          "device_type": 770,
+          "device_type_name": "Temperature Sensor",
+          "endpoint_id": 3,
+          "name": "Hall sensor",
+          "parent_endpoint_id": 1,
+          "reachable": false,
+          "source": {
+            "key": "sensor-2"
+          }
+        },
+        {
+          "clusters": [],
+          "device_type": 775,
+          "device_type_name": "Humidity Sensor",
+          "endpoint_id": 4,
+          "name": "Hall humidity",
+          "parent_endpoint_id": 3,
+          "reachable": true,
+          "source": {
+            "key": "sensor-2/humidity"
+          }
+        }
+      ]
+    }
+  }
+}

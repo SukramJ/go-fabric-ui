@@ -1,0 +1,29 @@
+{
+  "route": "GET /node/events",
+  "request": {
+    "method": "GET",
+    "path": "/node/events"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "events": [
+        {
+          "at": "2026-10-25T11:59:00Z",
+          "detail": {
+            "reason": "busy"
+          },
+          "kind": "pairing",
+          "message": "A controller's pairing attempt was refused.",
+          "severity": "error"
+        },
+        {
+          "at": "2026-10-25T11:58:00Z",
+          "kind": "session",
+          "message": "A controller opened a session.",
+          "severity": "info"
+        }
+      ]
+    }
+  }
+}

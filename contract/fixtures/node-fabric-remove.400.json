@@ -1,0 +1,21 @@
+{
+  "route": "DELETE /node/fabrics/{index}",
+  "request": {
+    "method": "DELETE",
+    "path": "/node/fabrics/0",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "code": "bad_request",
+      "detail": "fabric_index must be 1..254",
+      "instance": "/api/v1/node/fabrics/0",
+      "status": 400,
+      "title": "Invalid fabric index",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-bad_request"
+    }
+  }
+}
