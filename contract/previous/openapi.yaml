@@ -1,0 +1,651 @@
+openapi: 3.1.0
+info:
+  title: go-fabric-ui
+  version: 0.1.0
+  summary: The HTTP API behind the go-fabric web interface.
+  description: |
+    Routes of the node page family (this version) and, planned, of the
+    controller page family. Every path is relative to the mount prefix
+    (default `/api/v1`). Errors are RFC 9457 problem+json (`Problem`).
+
+    Versioning: a minor version adds paths, methods, response fields and
+    optional request fields; it never removes or renames one, and never
+    makes an optional request field required. `contract/previous/` holds
+    the last released copy, and a test fails on a removal.
+
+    64-bit identifiers travel exactly as 16-digit uppercase hex strings
+    (`*_hex`); their numeric twins are informational, since a JSON number
+    carries 53 bits and a browser rounds larger ids.
+
+    Admin routes (`x-admin: true`) answer 403 unless the host's admin
+    check admits the request, or, in token mode, the request carries the
+    `X-Fabric-UI-Token` header with the `csrf_token` of `GET /node/status`.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+tags:
+  - name: node
+    description: The node page family — the device side of a go-fabric node.
+  - name: controller
+    description: The controller page family. Planned (wave U2); no schemas yet.
+paths:
+  /node/status:
+    get:
+      tags: [node]
+      operationId: getNodeStatus
+      summary: Health, counts and the commissioning window.
+      responses:
+        "200":
+          description: The status; `enabled` is false when the host serves no node.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+  /node/fabrics:
+    get:
+      tags: [node]
+      operationId: listFabrics
+      summary: The commissioned fabrics.
+      responses:
+        "200":
+          description: The fabrics.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FabricList" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/fabrics/{index}:
+    delete:
+      tags: [node]
+      operationId: removeFabric
+      summary: Remove one fabric.
+      x-admin: true
+      parameters:
+        - name: index
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 254 }
+      responses:
+        "204": { description: Removed. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/pairing:
+    get:
+      tags: [node]
+      operationId: getPairing
+      summary: The pairing codes — of the window this handler opened while it is open, else the configured ones.
+      x-admin: true
+      responses:
+        "200":
+          description: The codes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pairing" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/pairing/window:
+    post:
+      tags: [node]
+      operationId: openWindow
+      summary: Open a commissioning window.
+      x-admin: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WindowRequest" }
+      responses:
+        "200":
+          description: The window is open; the codes commission through it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Window" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/pairing/window/close:
+    post:
+      tags: [node]
+      operationId: closeWindow
+      summary: Close the open commissioning window.
+      x-admin: true
+      responses:
+        "204": { description: Closed. }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/endpoints:
+    get:
+      tags: [node]
+      operationId: listEndpoints
+      summary: The bridged endpoints a controller sees.
+      responses:
+        "200":
+          description: The endpoints.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EndpointList" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/sessions:
+    get:
+      tags: [node]
+      operationId: listSessions
+      summary: The open secure sessions and the session-id occupancy.
+      responses:
+        "200":
+          description: The sessions.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionList" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/mdns:
+    get:
+      tags: [node]
+      operationId: getMdns
+      summary: The live DNS-SD advertisement and its diagnosis.
+      responses:
+        "200":
+          description: The advertisement.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Mdns" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/compatibility:
+    get:
+      tags: [node]
+      operationId: getCompatibility
+      summary: The commissioned ecosystems and known incompatibilities.
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Compatibility" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/events:
+    get:
+      tags: [node]
+      operationId: listDiagnosticEvents
+      summary: The pairing, session and discovery trace, newest first.
+      responses:
+        "200":
+          description: The trace.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DiagnosticEventList" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/exposure/schema:
+    get:
+      tags: [node]
+      operationId: getExposureSchema
+      summary: How the selection page shows the host's items.
+      responses:
+        "200":
+          description: The schema.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExposureSchema" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/exposure:
+    get:
+      tags: [node]
+      operationId: listExposure
+      summary: Every item the host could expose.
+      responses:
+        "200":
+          description: The items.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ItemList" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+    put:
+      tags: [node]
+      operationId: applyExposure
+      summary: Apply a batch of item changes and reassemble the endpoints.
+      x-admin: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateList" }
+      responses:
+        "200":
+          description: Applied.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Applied" }
+        "204": { description: The batch was empty. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/exposure/preview:
+    post:
+      tags: [node]
+      operationId: previewExposure
+      summary: The items as a batch of changes would leave them; nothing is written.
+      x-admin: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateList" }
+      responses:
+        "200":
+          description: The touched items after the changes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ItemList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/maintenance/reassemble:
+    post:
+      tags: [node]
+      operationId: reassemble
+      summary: Rebuild the endpoints from the host's current selection; pairings are untouched.
+      x-admin: true
+      responses:
+        "204": { description: Reassembled. }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/maintenance/factory-reset:
+    post:
+      tags: [node]
+      operationId: factoryReset
+      summary: Remove every fabric. The body must name the action.
+      x-admin: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FactoryResetRequest" }
+      responses:
+        "204": { description: Every fabric is removed. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /node/stream:
+    get:
+      tags: [node]
+      operationId: stream
+      summary: Server-sent events.
+      description: |
+        `event:` is one of fabric_added, fabric_removed, window_opened,
+        window_closed, endpoints_changed, exposure_changed; `data:` is the
+        JSON payload (`FabricEvent`, `WindowEvent`, `{}`, `ExposureEvent`).
+        A comment line arrives every 15 s. No payload carries a passcode.
+      responses:
+        "200":
+          description: The event stream.
+          content:
+            text/event-stream:
+              schema: { type: string }
+  /controller/commission:
+    post:
+      tags: [controller]
+      x-status: planned
+      summary: Commission a device from a code or QR payload, with progress.
+      responses:
+        "501": { description: Planned. }
+  /controller/discovery:
+    get:
+      tags: [controller]
+      x-status: planned
+      summary: Commissionable devices on the network.
+      responses:
+        "501": { description: Planned. }
+  /controller/nodes:
+    get:
+      tags: [controller]
+      x-status: planned
+      summary: The commissioned nodes.
+      responses:
+        "501": { description: Planned. }
+  /controller/nodes/{id}:
+    get:
+      tags: [controller]
+      x-status: planned
+      summary: One node — endpoints, attributes, subscriptions, bindings, ACL, window, OTA, Thread dataset.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "501": { description: Planned. }
+  /controller/fabric/label:
+    put:
+      tags: [controller]
+      x-status: planned
+      summary: The controller's fabric label.
+      responses:
+        "501": { description: Planned. }
+components:
+  responses:
+    Problem:
+      description: An RFC 9457 problem.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        code:
+          type: string
+          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large]
+    Status:
+      type: object
+      required: [enabled, listening, endpoint_count, fabric_count, advertising, commissioning_window_open, exposure]
+      properties:
+        enabled: { type: boolean }
+        listening: { type: boolean }
+        listen_addr: { type: string }
+        healthy: { type: boolean, description: Absent when the node runs no health probe. }
+        health_note: { type: string }
+        endpoint_count: { type: integer }
+        fabric_count: { type: integer }
+        enabled_count: { type: integer, description: Enabled selection items; absent without a selection. }
+        advertising: { type: boolean }
+        commissioning_window_open: { type: boolean }
+        commissioning_window_duration_seconds: { type: integer }
+        exposure: { type: boolean, description: Whether the host serves a selection. }
+        csrf_token: { type: string, description: The admin token of token mode; absent when the host decides admin rights. }
+    Fabric:
+      type: object
+      required: [fabric_index, fabric_id, fabric_id_hex, node_id, node_id_hex, vendor_id, vendor_name, compressed_id, root_public_key]
+      properties:
+        fabric_index: { type: integer }
+        fabric_id: { type: integer, description: Informational; use fabric_id_hex. }
+        fabric_id_hex: { type: string }
+        node_id: { type: integer, description: Informational; use node_id_hex. }
+        node_id_hex: { type: string }
+        vendor_id: { type: integer }
+        vendor_name: { type: string }
+        label: { type: string }
+        compressed_id: { type: string }
+        root_public_key: { type: string }
+    FabricList:
+      type: object
+      required: [fabrics]
+      properties:
+        fabrics:
+          type: array
+          items: { $ref: "#/components/schemas/Fabric" }
+    Pairing:
+      type: object
+      required: [qr_code, manual_code, source, window_open]
+      properties:
+        discriminator: { type: integer, description: Only for a window this handler opened on fresh credentials; the codes carry it. }
+        passcode: { type: integer, description: Only for a window this handler opened on fresh credentials. }
+        qr_code: { type: string }
+        manual_code: { type: string }
+        source: { type: string, enum: [configured, window] }
+        window_open: { type: boolean }
+        duration_seconds: { type: integer }
+    WindowRequest:
+      type: object
+      properties:
+        duration_seconds: { type: integer, description: "180..900; 0 or absent is 900." }
+    Window:
+      type: object
+      required: [duration_seconds, qr_code, manual_code]
+      properties:
+        discriminator: { type: integer, description: Absent for a window on the configured credentials. }
+        passcode: { type: integer, description: Absent for a window on the configured credentials. }
+        duration_seconds: { type: integer }
+        qr_code: { type: string }
+        manual_code: { type: string }
+    Cluster:
+      type: object
+      required: [id]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        revision: { type: integer }
+    Endpoint:
+      type: object
+      required: [endpoint_id, parent_endpoint_id, device_type, device_type_name, reachable, name, source, clusters]
+      properties:
+        endpoint_id: { type: integer }
+        parent_endpoint_id: { type: integer }
+        device_type: { type: integer }
+        device_type_name: { type: string }
+        reachable: { type: boolean }
+        name: { type: string }
+        source:
+          type: object
+          description: Opaque identity of the host's source; `key` is the endpoint's stable key.
+          additionalProperties: { type: string }
+        clusters:
+          type: array
+          items: { $ref: "#/components/schemas/Cluster" }
+    EndpointList:
+      type: object
+      required: [endpoints]
+      properties:
+        endpoints:
+          type: array
+          items: { $ref: "#/components/schemas/Endpoint" }
+    Session:
+      type: object
+      required: [session_id, fabric_index, peer_node_id, peer_node_id_hex, local_node_id, local_node_id_hex, is_pase, subscriptions, last_activity, last_peer_activity, idle_seconds, peer_idle_seconds]
+      properties:
+        session_id: { type: integer }
+        fabric_index: { type: integer }
+        peer_node_id: { type: integer, description: Informational; use peer_node_id_hex. }
+        peer_node_id_hex: { type: string }
+        local_node_id: { type: integer, description: Informational; use local_node_id_hex. }
+        local_node_id_hex: { type: string }
+        is_pase: { type: boolean }
+        subscriptions: { type: integer }
+        last_activity: { type: string, format: date-time }
+        last_peer_activity: { type: string, format: date-time }
+        idle_seconds: { type: integer }
+        peer_idle_seconds: { type: integer }
+    Occupancy:
+      type: object
+      required: [live, reserved, capacity, free]
+      properties:
+        live: { type: integer }
+        reserved: { type: integer }
+        capacity: { type: integer }
+        free: { type: integer }
+    SessionList:
+      type: object
+      required: [sessions, occupancy]
+      properties:
+        sessions:
+          type: array
+          items: { $ref: "#/components/schemas/Session" }
+        occupancy: { $ref: "#/components/schemas/Occupancy" }
+    MdnsService:
+      type: object
+      required: [service_type, instance_name, host_name, port, addresses, subtypes, txt]
+      properties:
+        service_type: { type: string }
+        instance_name: { type: string }
+        host_name: { type: string }
+        port: { type: integer }
+        addresses: { type: array, items: { type: string } }
+        subtypes: { type: array, items: { type: string } }
+        txt: { type: object, additionalProperties: { type: string } }
+    MdnsFinding:
+      type: object
+      required: [severity, code, message]
+      properties:
+        severity: { type: string, enum: [error, warning] }
+        code: { type: string }
+        message: { type: string }
+        service: { type: string }
+    Mdns:
+      type: object
+      required: [advertising, services, findings]
+      properties:
+        advertising: { type: boolean }
+        services:
+          type: array
+          items: { $ref: "#/components/schemas/MdnsService" }
+        findings:
+          type: array
+          items: { $ref: "#/components/schemas/MdnsFinding" }
+    Ecosystem:
+      type: object
+      required: [ecosystem, vendor_id, fabric_index]
+      properties:
+        ecosystem: { type: string }
+        vendor_id: { type: integer }
+        fabric_index: { type: integer }
+        label: { type: string }
+    CompatFinding:
+      type: object
+      required: [ecosystem, code, message]
+      properties:
+        ecosystem: { type: string }
+        code: { type: string }
+        message: { type: string }
+        device_type: { type: integer }
+    Compatibility:
+      type: object
+      required: [ecosystems, endpoint_count, findings]
+      properties:
+        ecosystems:
+          type: array
+          items: { $ref: "#/components/schemas/Ecosystem" }
+        endpoint_count: { type: integer }
+        findings:
+          type: array
+          items: { $ref: "#/components/schemas/CompatFinding" }
+    DiagnosticEvent:
+      type: object
+      required: [at, kind, severity, message]
+      properties:
+        at: { type: string, format: date-time }
+        kind: { type: string, enum: [pairing, session, discovery] }
+        severity: { type: string, enum: [info, warning, error] }
+        message: { type: string }
+        detail: { type: object, additionalProperties: { type: string } }
+    DiagnosticEventList:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/DiagnosticEvent" }
+    Column:
+      type: object
+      required: [key, label, filter]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        filter: { type: boolean, description: Offer a value filter built from the listed values. }
+    FilterOption:
+      type: object
+      required: [value, label]
+      properties:
+        value: { type: string }
+        label: { type: string }
+    Filter:
+      type: object
+      required: [field, label, options]
+      properties:
+        field: { type: string }
+        label: { type: string }
+        options:
+          type: array
+          items: { $ref: "#/components/schemas/FilterOption" }
+    ExposureSchema:
+      type: object
+      required: [columns, groups, filters]
+      properties:
+        columns:
+          type: array
+          items: { $ref: "#/components/schemas/Column" }
+        groups: { type: boolean }
+        filters:
+          type: array
+          items: { $ref: "#/components/schemas/Filter" }
+    Verdict:
+      type: object
+      required: [state, device_type, device_type_name, clusters, reason]
+      properties:
+        state: { type: string, enum: [mappable, partially_mappable, unmappable] }
+        device_type: { type: integer }
+        device_type_name: { type: string }
+        clusters: { type: array, items: { type: integer } }
+        reason: { type: string }
+    Item:
+      type: object
+      required: [key, name, group, fields, verdict, enabled, source]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        group: { type: string }
+        fields: { type: object, additionalProperties: { type: string } }
+        verdict: { $ref: "#/components/schemas/Verdict" }
+        enabled: { type: boolean }
+        source: { type: string, description: Where the verdict comes from, in the host's words. }
+    ItemList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Item" }
+    Update:
+      type: object
+      required: [key, enabled]
+      properties:
+        key: { type: string }
+        enabled: { type: boolean }
+        name: { type: string, description: Renames the item; absent leaves the name. }
+    UpdateList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Update" }
+    Applied:
+      type: object
+      required: [applied]
+      properties:
+        applied: { type: integer }
+    FactoryResetRequest:
+      type: object
+      required: [confirm]
+      properties:
+        confirm: { type: string, const: remove-all-fabrics }
+    FabricEvent:
+      type: object
+      required: [fabric_index]
+      properties:
+        fabric_index: { type: integer }
+        vendor_id: { type: integer }
+        vendor_name: { type: string }
+        label: { type: string }
+    WindowEvent:
+      type: object
+      properties:
+        discriminator: { type: integer }
+        duration_seconds: { type: integer }
+    ExposureEvent:
+      type: object
+      required: [keys]
+      properties:
+        keys: { type: array, items: { type: string } }

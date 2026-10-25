@@ -1,0 +1,21 @@
+{
+  "route": "POST /node/maintenance/reassemble",
+  "request": {
+    "method": "POST",
+    "path": "/node/maintenance/reassemble",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 503,
+    "body": {
+      "code": "service_unready",
+      "detail": "the host wires no Options.Reassemble",
+      "instance": "/api/v1/node/maintenance/reassemble",
+      "status": 503,
+      "title": "Reassembly not available",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-service_unready"
+    }
+  }
+}

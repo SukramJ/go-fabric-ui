@@ -1,0 +1,27 @@
+{
+  "route": "GET /node/compatibility",
+  "request": {
+    "method": "GET",
+    "path": "/node/compatibility"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "ecosystems": [
+        {
+          "ecosystem": "apple",
+          "fabric_index": 1,
+          "label": "Home",
+          "vendor_id": 4937
+        },
+        {
+          "ecosystem": "google",
+          "fabric_index": 2,
+          "vendor_id": 24582
+        }
+      ],
+      "endpoint_count": 3,
+      "findings": []
+    }
+  }
+}

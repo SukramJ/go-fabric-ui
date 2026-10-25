@@ -1,0 +1,29 @@
+{
+  "route": "PUT /node/exposure",
+  "request": {
+    "method": "PUT",
+    "path": "/node/exposure",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "items": [
+        {
+          "key": "lamp-1",
+          "enabled": true
+        },
+        {
+          "key": "sensor-2",
+          "enabled": false,
+          "name": "Hall sensor"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "applied": 2
+    }
+  }
+}

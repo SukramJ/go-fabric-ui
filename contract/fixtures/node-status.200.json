@@ -1,0 +1,24 @@
+{
+  "route": "GET /node/status",
+  "request": {
+    "method": "GET",
+    "path": "/node/status"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "advertising": true,
+      "commissioning_window_duration_seconds": 300,
+      "commissioning_window_open": true,
+      "enabled": true,
+      "enabled_count": 1,
+      "endpoint_count": 2,
+      "exposure": true,
+      "fabric_count": 2,
+      "health_note": "listener ok",
+      "healthy": true,
+      "listen_addr": "[::]:5540",
+      "listening": true
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "route": "POST /node/pairing/window",
+  "request": {
+    "method": "POST",
+    "path": "/node/pairing/window",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "duration_seconds": 300
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "code": "conflict",
+      "detail": "a commissioning window is already open",
+      "instance": "/api/v1/node/pairing/window",
+      "status": 409,
+      "title": "Failed to open commissioning window",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-conflict"
+    }
+  }
+}

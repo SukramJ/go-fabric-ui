@@ -1,0 +1,26 @@
+{
+  "route": "PUT /node/exposure",
+  "request": {
+    "method": "PUT",
+    "path": "/node/exposure",
+    "body": {
+      "items": [
+        {
+          "key": "lamp-1",
+          "enabled": true
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "code": "forbidden",
+      "detail": "this route writes or reads a pairing secret",
+      "instance": "/api/v1/node/exposure",
+      "status": 403,
+      "title": "Admin rights required",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-forbidden"
+    }
+  }
+}

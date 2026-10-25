@@ -1,0 +1,37 @@
+{
+  "route": "GET /node/fabrics",
+  "request": {
+    "method": "GET",
+    "path": "/node/fabrics"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "fabrics": [
+        {
+          "compressed_id": "9c71d38fbe48f2e5",
+          "fabric_id": 1,
+          "fabric_id_hex": "0000000000000001",
+          "fabric_index": 1,
+          "label": "Home",
+          "node_id": 12881373443350009897,
+          "node_id_hex": "B2C3D4E5F6071829",
+          "root_public_key": "04aabb",
+          "vendor_id": 4937,
+          "vendor_name": "Apple Home"
+        },
+        {
+          "compressed_id": "0102030405060708",
+          "fabric_id": 171,
+          "fabric_id_hex": "00000000000000AB",
+          "fabric_index": 2,
+          "node_id": 66,
+          "node_id_hex": "0000000000000042",
+          "root_public_key": "0401",
+          "vendor_id": 24582,
+          "vendor_name": "Google"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "route": "POST /node/maintenance/reassemble",
+  "request": {
+    "method": "POST",
+    "path": "/node/maintenance/reassemble",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

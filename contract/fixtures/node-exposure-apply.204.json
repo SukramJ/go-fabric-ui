@@ -1,0 +1,16 @@
+{
+  "route": "PUT /node/exposure",
+  "request": {
+    "method": "PUT",
+    "path": "/node/exposure",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "items": []
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

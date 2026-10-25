@@ -1,0 +1,48 @@
+{
+  "route": "GET /node/sessions",
+  "request": {
+    "method": "GET",
+    "path": "/node/sessions"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "occupancy": {
+        "capacity": 65535,
+        "free": 65532,
+        "live": 2,
+        "reserved": 1
+      },
+      "sessions": [
+        {
+          "fabric_index": 1,
+          "idle_seconds": 5,
+          "is_pase": false,
+          "last_activity": "2026-10-25T11:59:55Z",
+          "last_peer_activity": "2026-10-25T11:59:15Z",
+          "local_node_id": 12881373443350009897,
+          "local_node_id_hex": "B2C3D4E5F6071829",
+          "peer_idle_seconds": 45,
+          "peer_node_id": 112233,
+          "peer_node_id_hex": "000000000001B669",
+          "session_id": 17,
+          "subscriptions": 2
+        },
+        {
+          "fabric_index": 0,
+          "idle_seconds": 2,
+          "is_pase": true,
+          "last_activity": "2026-10-25T11:59:58Z",
+          "last_peer_activity": "2026-10-25T11:59:58Z",
+          "local_node_id": 0,
+          "local_node_id_hex": "0000000000000000",
+          "peer_idle_seconds": 2,
+          "peer_node_id": 0,
+          "peer_node_id_hex": "0000000000000000",
+          "session_id": 18,
+          "subscriptions": 0
+        }
+      ]
+    }
+  }
+}

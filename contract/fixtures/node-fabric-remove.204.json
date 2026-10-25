@@ -1,0 +1,13 @@
+{
+  "route": "DELETE /node/fabrics/{index}",
+  "request": {
+    "method": "DELETE",
+    "path": "/node/fabrics/2",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

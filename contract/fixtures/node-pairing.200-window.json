@@ -1,0 +1,22 @@
+{
+  "route": "GET /node/pairing",
+  "request": {
+    "method": "GET",
+    "path": "/node/pairing",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "discriminator": 1234,
+      "duration_seconds": 300,
+      "manual_code": "00020202021",
+      "passcode": 20202021,
+      "qr_code": "MT:FRESH1234",
+      "source": "window",
+      "window_open": true
+    }
+  }
+}
