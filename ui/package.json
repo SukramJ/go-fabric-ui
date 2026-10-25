@@ -1,0 +1,94 @@
+{
+  "name": "@sukramj/fabric-ui",
+  "version": "0.1.0",
+  "description": "The web interface of go-fabric nodes: Svelte 5 pages, UI kit, design tokens with a Home Assistant theme bridge, and the generated API client.",
+  "license": "Apache-2.0",
+  "author": "SukramJ",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SukramJ/go-fabric-ui.git",
+    "directory": "ui"
+  },
+  "homepage": "https://github.com/SukramJ/go-fabric-ui#readme",
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "svelte": "./src/lib/index.ts",
+  "types": "./src/lib/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/lib/index.ts",
+      "svelte": "./src/lib/index.ts",
+      "default": "./src/lib/index.ts"
+    },
+    "./pages": {
+      "types": "./src/lib/pages/index.ts",
+      "svelte": "./src/lib/pages/index.ts",
+      "default": "./src/lib/pages/index.ts"
+    },
+    "./kit": {
+      "types": "./src/lib/kit/index.ts",
+      "svelte": "./src/lib/kit/index.ts",
+      "default": "./src/lib/kit/index.ts"
+    },
+    "./theme": {
+      "types": "./src/lib/theme/index.ts",
+      "default": "./src/lib/theme/index.ts"
+    },
+    "./theme/tokens.css": "./src/lib/theme/tokens.css",
+    "./client": {
+      "types": "./src/lib/api/index.ts",
+      "default": "./src/lib/api/index.ts"
+    },
+    "./i18n": {
+      "types": "./src/lib/i18n/index.ts",
+      "default": "./src/lib/i18n/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/lib",
+    "!src/lib/**/*.test.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
+    "test": "vitest run",
+    "gen:types": "node scripts/gen-types.mjs",
+    "contract:check": "node scripts/contract-guard.mjs ../contract/previous/openapi.yaml ../contract/openapi.yaml"
+  },
+  "peerDependencies": {
+    "svelte": "^5.57.0"
+  },
+  "dependencies": {
+    "@lucide/svelte": "1.57.0",
+    "clsx": "2.1.1",
+    "qrcode": "1.5.4",
+    "tailwind-merge": "3.7.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/svelte": "5.4.2",
+    "@tsconfig/svelte": "5.0.8",
+    "@types/node": "26.6.5",
+    "@types/qrcode": "1.5.6",
+    "happy-dom": "20.14.6",
+    "js-yaml": "4.3.2",
+    "openapi-typescript": "7.13.0",
+    "svelte": "5.57.2",
+    "svelte-check": "4.7.6",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vite": "8.3.4",
+    "vitest": "5.0.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

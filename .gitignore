@@ -35,3 +35,9 @@ go.work.sum
 # Editor/IDE
 .idea/
 # .vscode/
+
+# Web half
+/ui/node_modules/
+/ui/.svelte-kit/
+/ui/coverage/
+.npm/
