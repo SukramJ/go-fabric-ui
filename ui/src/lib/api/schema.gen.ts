@@ -501,6 +501,19 @@ export interface components {
             exposure: boolean;
             /** @description The admin token of token mode; absent when the host decides admin rights. */
             csrf_token?: string;
+            /** @description The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing. */
+            warnings?: components["schemas"]["Warning"][];
+        };
+        Warning: {
+            /** @description The kind of finding, stable across host releases. */
+            code: string;
+            /** @description What is wrong, in the host's language. */
+            message: string;
+            /**
+             * Format: date-time
+             * @description When the host first saw it; absent when unknown.
+             */
+            since?: string;
         };
         Fabric: {
             fabric_index: number;
@@ -653,6 +666,8 @@ export interface components {
             label: string;
             /** @description Offer a value filter built from the listed values. */
             filter: boolean;
+            /** @description Default false. The field is a comma-separated list: shown as chips, filtered by membership, the filter's options built from the individual values. */
+            multi?: boolean;
         };
         FilterOption: {
             value: string;
@@ -662,6 +677,8 @@ export interface components {
             field: string;
             label: string;
             options: components["schemas"]["FilterOption"][];
+            /** @description Default false. Match by membership in the field's comma-separated list (values trimmed; an empty value never matches) instead of equality. */
+            multi?: boolean;
         };
         ExposureSchema: {
             columns: components["schemas"]["Column"][];

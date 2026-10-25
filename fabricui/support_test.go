@@ -312,6 +312,7 @@ type testOptions struct {
 	events     EventSource
 	configured bool
 	allowEmpty bool
+	warnings   func(context.Context) []Warning
 	log        *bytes.Buffer
 }
 
@@ -326,6 +327,7 @@ func newTestHandler(t *testing.T, o testOptions) (*handler, *http.ServeMux) {
 	h, err := newHandler(Options{
 		Exposure: o.exposure, Admin: o.admin, Reassemble: o.reassemble, Events: o.events,
 		Logger: logger, ConfiguredWindow: o.configured, AllowEmptyTopology: o.allowEmpty,
+		Warnings: o.warnings,
 	})
 	if err != nil {
 		t.Fatal(err)

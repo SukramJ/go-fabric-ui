@@ -12,6 +12,7 @@
           "enabled": false,
           "fields": {
             "kind": "light",
+            "labels": "Evening, Ceiling",
             "room": "Kitchen"
           },
           "group": "Kitchen",
@@ -33,6 +34,7 @@
           "enabled": true,
           "fields": {
             "kind": "sensor",
+            "labels": "Evening",
             "room": "Hall"
           },
           "group": "Hall",
@@ -53,6 +55,7 @@
           "enabled": false,
           "fields": {
             "kind": "remote",
+            "labels": "",
             "room": "Hall"
           },
           "group": "Hall",

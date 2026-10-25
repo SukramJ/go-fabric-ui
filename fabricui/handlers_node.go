@@ -32,6 +32,9 @@ type statusResponse struct {
 	WindowDuration uint16 `json:"commissioning_window_duration_seconds,omitempty"`
 	Exposure       bool   `json:"exposure"`
 	CSRFToken      string `json:"csrf_token,omitempty"`
+	// Warnings is nil, and omitted, without Options.Warnings; with the
+	// hook it is a list, empty when the host finds nothing.
+	Warnings []Warning `json:"warnings,omitzero"`
 }
 
 // status serves GET /node/status. A host without a node is answered with
@@ -39,6 +42,14 @@ type statusResponse struct {
 // family is off (loom matter_exposures.go:363-372).
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	res := statusResponse{Exposure: h.exposure != nil, CSRFToken: h.token}
+	if h.warnings != nil {
+		// The host's findings are about its configuration, not the node,
+		// so a host without a node reports them too.
+		res.Warnings = h.warnings(r.Context())
+		if res.Warnings == nil {
+			res.Warnings = []Warning{}
+		}
+	}
 	if h.node == nil {
 		writeJSON(w, res)
 		return

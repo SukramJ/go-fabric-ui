@@ -23,6 +23,7 @@
           "enabled": true,
           "fields": {
             "kind": "sensor",
+            "labels": "Evening",
             "room": "Hall"
           },
           "group": "Hall",

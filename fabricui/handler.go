@@ -29,6 +29,7 @@ type handler struct {
 	// set.
 	token      string
 	reassemble func(context.Context) error
+	warnings   func(context.Context) []Warning
 	// hub carries the handler's own events; extra is the host's source
 	// when it is not an *Events.
 	hub   *Events
@@ -64,6 +65,7 @@ func newHandler(o Options) (*handler, error) {
 		exposure:   o.Exposure,
 		admin:      o.Admin,
 		reassemble: o.Reassemble,
+		warnings:   o.Warnings,
 		prefix:     prefix,
 		log:        o.Logger,
 		configured: o.ConfiguredWindow,

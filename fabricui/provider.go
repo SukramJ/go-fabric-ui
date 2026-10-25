@@ -64,6 +64,12 @@ type Column struct {
 	// Filter offers a value filter for the column, built by the page from
 	// the distinct values the listed items carry.
 	Filter bool `json:"filter"`
+	// Multi marks a list-valued field: [Item].Fields carries the values
+	// as one comma-separated string ("Kitchen, Upstairs"). The page shows
+	// each value as a chip, a value filter on the column offers the
+	// individual values across all items rather than their combinations,
+	// and it matches an item that holds the chosen value in its list.
+	Multi bool `json:"multi,omitempty"`
 }
 
 // Filter is a fixed filter with the options the host names.
@@ -73,8 +79,12 @@ type Filter struct {
 	// Label is the filter's name.
 	Label string `json:"label"`
 	// Options are the values the filter offers. An item matches an option
-	// when its field equals the option's value.
+	// when its field equals the option's value, or, with Multi, when the
+	// option's value is one of the field's comma-separated values.
 	Options []FilterOption `json:"options"`
+	// Multi matches by membership in the field's comma-separated list:
+	// each value is trimmed of spaces and an empty value never matches.
+	Multi bool `json:"multi,omitempty"`
 }
 
 // FilterOption is one value of a [Filter].

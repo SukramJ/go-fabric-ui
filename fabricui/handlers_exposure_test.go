@@ -50,6 +50,23 @@ func TestExposureSchema_FillsEmptyLists(t *testing.T) {
 	}
 }
 
+// Multi travels only when set: a v0.1.0 schema answers byte for byte as
+// before, and a list-valued column or filter says so.
+func TestExposureSchema_MultiIsOptional(t *testing.T) {
+	p := newMemoryProvider()
+	p.schema = Schema{
+		Columns: []Column{{Key: "room", Label: "Room"}, {Key: "labels", Label: "Labels", Filter: true, Multi: true}},
+		Filters: []Filter{{Field: "labels", Label: "Labels", Multi: true, Options: []FilterOption{{Value: "a", Label: "A"}}}},
+	}
+	_, mux := newTestHandler(t, testOptions{exposure: p})
+	body := strings.TrimSpace(do(t, mux, http.MethodGet, "/node/exposure/schema", "").Body.String())
+	want := `{"columns":[{"key":"room","label":"Room","filter":false},{"key":"labels","label":"Labels","filter":true,"multi":true}],` +
+		`"groups":false,"filters":[{"field":"labels","label":"Labels","options":[{"value":"a","label":"A"}],"multi":true}]}`
+	if body != want {
+		t.Fatalf("schema %s\nwant   %s", body, want)
+	}
+}
+
 // Ports TestMatterExposable_HappyPath_Returns200_MergesData.
 func TestExposureList_Returns200(t *testing.T) {
 	_, mux := newTestHandler(t, testOptions{exposure: newMemoryProvider()})

@@ -5,7 +5,9 @@
      assets/ui/src/routes/matter/MatterExposureList.svelte:1-584 at
      b40b289a: the host's fixed columns, kind filter and per-item conflict
      hints become the schema's columns and filters; the class chips become a
-     value filter per filterable column; Preview before Apply is new. -->
+     value filter per filterable column; Preview before Apply is new, and so
+     are list-valued fields (Column.multi, Filter.multi) and the host's
+     warnings above the list. -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -24,6 +26,8 @@
   import Input from "../../kit/Input.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
   import Select from "../../kit/Select.svelte";
+  import HostWarnings from "./HostWarnings.svelte";
+  import { distinctValues, fieldMatches, listValues } from "./fields";
 
   const { t, toast, node } = useFabricUI();
 
@@ -32,6 +36,9 @@
   const unavailable = $derived(node.status !== null && !node.status.exposure);
 
   onMount(() => {
+    // The status carries the host's warnings; a host page that mounts the
+    // selection alone has not loaded it yet.
+    if (node.status === null && !node.statusLoading) void node.loadStatus();
     if (!unavailable) void node.loadExposure();
   });
 
@@ -49,19 +56,21 @@
   const schema = $derived(node.schema);
 
   // The value filters: the host's fixed filters, then one per filterable
-  // column with the distinct values the items carry.
-  type ValueFilter = { field: string; label: string; options: { value: string; label: string }[] };
+  // column with the distinct values the items carry — for a list-valued
+  // column the individual values, not their combinations.
+  type ValueFilter = { field: string; label: string; multi: boolean; options: { value: string; label: string }[] };
   const valueFilters = $derived.by<ValueFilter[]>(() => {
     if (!schema) return [];
-    const out: ValueFilter[] = schema.filters.map((f) => ({ field: f.field, label: f.label, options: f.options }));
+    const out: ValueFilter[] = schema.filters.map((f) => ({ field: f.field, label: f.label, multi: !!f.multi, options: f.options }));
     for (const col of schema.columns) {
       if (!col.filter || out.some((f) => f.field === col.key)) continue;
-      const values = [...new Set(node.items.map((i) => i.fields[col.key]).filter((v): v is string => !!v))];
-      values.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
-      out.push({ field: col.key, label: col.label, options: values.map((v) => ({ value: v, label: v })) });
+      const values = distinctValues(node.items.map((i) => i.fields[col.key]), !!col.multi);
+      out.push({ field: col.key, label: col.label, multi: !!col.multi, options: values.map((v) => ({ value: v, label: v })) });
     }
     return out;
   });
+  const multiField = $derived(new Set(valueFilters.filter((f) => f.multi).map((f) => f.field)));
+  const multiColumn = $derived(new Set((schema?.columns ?? []).filter((c) => c.multi).map((c) => "field:" + c.key)));
 
   // The item as the page shows it: with its pending change applied.
   function current(item: Item): Item {
@@ -74,7 +83,7 @@
     const match = makeTextMatcher(search);
     return node.items.filter((item) => {
       for (const [field, value] of Object.entries(filterValues)) {
-        if (value !== ALL && item.fields[field] !== value) return false;
+        if (value !== ALL && !fieldMatches(item.fields[field], value, multiField.has(field))) return false;
       }
       if (!search.trim()) return true;
       const it = current(item);
@@ -218,6 +227,15 @@
     </button>
   {:else if col.key === "device_type"}
     <span class="text-[var(--ha-secondary-text-color)]">{item.verdict.device_type_name || "—"}</span>
+  {:else if multiColumn.has(col.key)}
+    {@const values = listValues(item.fields[col.key.slice("field:".length)])}
+    {#if values.length === 0}
+      <span class="text-[var(--ha-secondary-text-color)]">—</span>
+    {:else}
+      <span class="inline-flex flex-wrap gap-1">
+        {#each values as v, i (i)}<Badge variant="muted">{v}</Badge>{/each}
+      </span>
+    {/if}
   {:else}
     <span class="text-[var(--ha-secondary-text-color)]">{col.get?.(item) || "—"}</span>
   {/if}
@@ -230,6 +248,7 @@
 {:else if node.exposureError}
   <ErrorState message={node.exposureError} onRetry={() => void node.loadExposure()} />
 {:else if schema}
+  <HostWarnings warnings={node.status?.warnings ?? []} collapsed />
   <div class="mb-3 flex flex-col gap-2">
     <div class="flex flex-wrap items-center gap-2">
       <Input placeholder={t("node.selection.search_placeholder")} bind:value={search} class="w-full sm:w-64" />

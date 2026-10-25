@@ -152,6 +152,9 @@
   "node.tab.selection": "Auswahl",
   "node.tab.status": "Status",
   "node.title": "Knoten",
+  "node.warnings.since": "seit {time}",
+  "node.warnings.summary": "{count} Konfigurationswarnungen",
+  "node.warnings.title": "Konfigurationswarnungen",
   "select.placeholder": "Auswählen…",
   "shell.language": "Sprache"
 }

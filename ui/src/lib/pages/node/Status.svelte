@@ -1,7 +1,8 @@
 <!-- The node's status: whether it runs, listens, is healthy and
      advertised, its counts and the commissioning window. Ported from the
      status card of openccu-loom assets/ui/src/routes/matter/Matter.svelte:47-100
-     at b40b289a, without the tabs (the shell or the host navigates). -->
+     at b40b289a, without the tabs (the shell or the host navigates). The
+     host's configuration warnings come first, in their own card. -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -9,6 +10,7 @@
   import Card from "../../kit/Card.svelte";
   import ErrorState from "../../kit/ErrorState.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
+  import HostWarnings from "./HostWarnings.svelte";
 
   const { t, node } = useFabricUI();
 
@@ -24,10 +26,12 @@
 {:else if node.statusError && !s}
   <ErrorState message={node.statusError} onRetry={() => void node.loadStatus()} />
 {:else if s && !s.enabled}
+  <HostWarnings warnings={s.warnings ?? []} />
   <Card class="p-4">
     <p class="text-sm font-medium text-[var(--ha-secondary-text-color)]">{t("node.status.disabled")}</p>
   </Card>
 {:else if s}
+  <HostWarnings warnings={s.warnings ?? []} />
   <Card class="p-4" data-testid="node-status">
     <div class="flex flex-wrap items-center gap-4">
       <span class="font-medium text-[var(--ha-primary-text-color)]">{t("node.status.enabled")}</span>

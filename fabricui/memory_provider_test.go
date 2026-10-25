@@ -33,6 +33,7 @@ func newMemoryProvider() *memoryProvider {
 			Columns: []Column{
 				{Key: "room", Label: "Room", Filter: true},
 				{Key: "kind", Label: "Kind", Filter: false},
+				{Key: "labels", Label: "Labels", Filter: true, Multi: true},
 			},
 			Groups: true,
 			Filters: []Filter{{Field: "kind", Label: "Kind", Options: []FilterOption{
@@ -42,13 +43,13 @@ func newMemoryProvider() *memoryProvider {
 		items: []Item{
 			{
 				Key: "lamp-1", Name: "Kitchen lamp", Group: "Kitchen",
-				Fields:  map[string]string{"room": "Kitchen", "kind": "light"},
+				Fields:  map[string]string{"room": "Kitchen", "kind": "light", "labels": "Evening, Ceiling"},
 				Verdict: Verdict{State: contract.EligibilityMappable, DeviceType: 0x0100, Clusters: []uint32{0x0006, 0x0008}},
 				Enabled: false, Source: "rule",
 			},
 			{
 				Key: "sensor-2", Name: "Hall sensor", Group: "Hall",
-				Fields: map[string]string{"room": "Hall", "kind": "sensor"},
+				Fields: map[string]string{"room": "Hall", "kind": "sensor", "labels": "Evening"},
 				Verdict: Verdict{
 					State: contract.EligibilityPartial, DeviceType: 0x0302, Clusters: []uint32{0x0402},
 					Reason: "the battery level is not mapped",
@@ -57,7 +58,7 @@ func newMemoryProvider() *memoryProvider {
 			},
 			{
 				Key: "remote-3", Name: "Hall remote", Group: "Hall",
-				Fields:  map[string]string{"room": "Hall", "kind": "remote"},
+				Fields:  map[string]string{"room": "Hall", "kind": "remote", "labels": ""},
 				Verdict: Verdict{State: contract.EligibilityUnmappable, Reason: "no cluster covers a remote"},
 				Enabled: false, Source: "rule",
 			},
