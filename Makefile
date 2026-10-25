@@ -1,27 +1,13 @@
 # go-fabric-ui — make targets. `make help` lists them.
-GO ?= go
+GO  ?= go
+NPM ?= npm
 
-MODULE   := github.com/SukramJ/go-fabric-ui
-PKG_VER  := $(MODULE)/internal/version
-BIN_DIR  := bin
-DIST_DIR := dist
+UI_DIR   := ui
+DIST_DIR := fabricui/dist
+# dist-check and notices-check build here, never into the committed bundle.
+CHECK_DIR := $(or $(TMPDIR),/tmp)/go-fabric-ui-check
 
-VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-COMMIT     ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
-BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-LDFLAGS    := -s -w -X $(PKG_VER).Version=$(VERSION) -X $(PKG_VER).Commit=$(COMMIT) -X $(PKG_VER).BuildDate=$(BUILD_DATE)
-
-# The release matrix: linux/amd64, linux/arm64, linux/arm/v7 (CONCEPT.md,
-# Packaging). RELEASE_VERSION is internal/version's default — bumping it, the
-# changelog section and addon/config.yaml's version happen in one commit.
-RELEASE_TARGETS ?= linux/amd64 linux/arm64 linux/arm/v7
-RELEASE_VERSION ?= $(shell awk -F'"' '/^[[:space:]]*Version = /{print $$2; exit}' internal/version/version.go)
-RELEASE_PAYLOAD := README.md LICENSE changelog.md THIRD-PARTY-NOTICES.md
-
-DOCKER       ?= docker
-DOCKER_IMAGE ?= go-fabric-ui
-ADDON_BASE   ?= ghcr.io/home-assistant/amd64-base:latest
-FUZZTIME     ?= 10000x
+FUZZTIME ?= 10000x
 
 GOFUMPT_VERSION       ?= v0.12.0
 GOLANGCI_LINT_VERSION ?= v2.14.0
@@ -29,10 +15,16 @@ GOVULNCHECK_VERSION   ?= v1.8.0
 GOLICENSES_VERSION    ?= v1.6.0
 GITLEAKS_VERSION      ?= v8.30.1
 
+# The one release version: internal/version, ui/package.json and the
+# changelog's newest section must agree (version-check).
+VERSION_GO   = $(shell sed -n 's/^const Version = "\(.*\)"$$/\1/p' internal/version/version.go)
+VERSION_NPM  = $(shell node -p 'require("./$(UI_DIR)/package.json").version' 2>/dev/null)
+VERSION_LOG  = $(shell sed -n 's/^## \[\([0-9][^]]*\)\].*/\1/p' changelog.md | head -1)
+
 .DEFAULT_GOAL := help
 
 help: ## show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
 setup: ## install the pinned gofumpt, golangci-lint, govulncheck and go-licenses
 	$(GO) install mvdan.cc/gofumpt@$(GOFUMPT_VERSION)
@@ -46,11 +38,14 @@ build: ## go build ./...
 vet: ## go vet ./...
 	$(GO) vet ./...
 
-test: ## go test -count=1 ./...
+test: ## go test -count=1 ./... (handlers, fixtures, import guard, end-to-end on fabrictest)
 	CGO_ENABLED=0 $(GO) test -count=1 -timeout 300s ./...
 
 race: ## go test -race (CGO_ENABLED=1 for this run only)
 	CGO_ENABLED=1 $(GO) test -race -count=1 -timeout 600s ./...
+
+e2e: ## the end-to-end test alone: a fabrictest site commissioned through the handler
+	CGO_ENABLED=0 $(GO) test -count=1 -run 'TestEndToEnd' -v ./fabricui/
 
 fmt: ## gofumpt -w .
 	gofumpt -w .
@@ -68,37 +63,57 @@ tidy-check: ## verify go.mod/go.sum are tidy and the module checksums verify
 	$(GO) mod tidy -diff
 	$(GO) mod verify
 
-cover: ## coverage profile of every package, as the floors count it
+cover: ## coverage profile of every package
 	CGO_ENABLED=0 $(GO) test -count=1 -timeout 300s -coverpkg=./... -coverprofile=coverage.out ./...
 
-cover-check: cover ## fail when a package is below its floor (script/coverfloor/floors.txt)
+cover-check: cover ## fail when a package is below its floor (script/coverfloor)
 	$(GO) run ./script/coverfloor coverage.out
-
-fuzz-smoke: ## every fuzz target, $(FUZZTIME) each
-	$(GO) test -run '^$$' -fuzz '^FuzzDecode$$' -fuzztime $(FUZZTIME) ./internal/ha/
 
 vuln: ## govulncheck ./...
 	govulncheck ./...
 
 # GOROOT explicit: go-licenses tells the standard library by its GOROOT.
-# modernc.org/mathutil's LICENSE is BSD-3-Clause; the classifier does not
-# recognise its wording and logs it without failing the check (go-fabric's
-# cookbook §1).
-licenses: ## fail on a forbidden, restricted or reciprocal dependency licence (go-licenses)
+licenses: ## fail on a forbidden, restricted or reciprocal Go dependency licence (go-licenses)
 	GOROOT=$$($(GO) env GOROOT) go-licenses check ./... --disallowed_types=forbidden,restricted,reciprocal
 
-# The daemon reads a Home Assistant token; the fixtures carry none.
 secrets: ## scan the tracked git history for committed secrets (gitleaks)
 	$(GO) run github.com/zricethezav/gitleaks/v8@$(GITLEAKS_VERSION) git --no-banner --redact .
 
-ci: build vet test lint ## everything the pipeline's main jobs run
+web-install: ## npm ci in ui/
+	cd $(UI_DIR) && $(NPM) ci --no-audit --no-fund
 
-clean: ## remove build artefacts
-	rm -rf $(BIN_DIR) $(DIST_DIR) coverage.out
+web: ## build the standalone bundle into fabricui/dist
+	cd $(UI_DIR) && $(NPM) run build
 
-version: ## print the resolved build metadata
-	@echo "VERSION    = $(VERSION)"
-	@echo "COMMIT     = $(COMMIT)"
-	@echo "BUILD_DATE = $(BUILD_DATE)"
+web-check: ## svelte-check + vitest (pages, kit, client against the fixtures, contract guard)
+	cd $(UI_DIR) && $(NPM) run check && $(NPM) test
 
-.PHONY: help setup build vet test race fmt fmt-check lint tidy-check cover cover-check fuzz-smoke vuln licenses secrets docker addon-image version-check release ci clean version
+dist-check: ## rebuild the bundle into a temporary directory and fail on any byte of difference
+	rm -rf $(CHECK_DIR)/dist && mkdir -p $(CHECK_DIR)
+	cd $(UI_DIR) && FABRIC_UI_OUT_DIR=$(CHECK_DIR)/dist $(NPM) run build >/dev/null
+	diff -r $(DIST_DIR) $(CHECK_DIR)/dist && echo "dist-check: fabricui/dist is the build of this tree"
+
+notices-check: ## fail when a bundled npm package is missing from THIRD-PARTY-NOTICES.md
+	rm -rf $(CHECK_DIR)/notices && mkdir -p $(CHECK_DIR)
+	cd $(UI_DIR) && FABRIC_UI_OUT_DIR=$(CHECK_DIR)/notices FABRIC_UI_VENDOR_LIST=$(CHECK_DIR)/vendor.json $(NPM) run build >/dev/null
+	node $(UI_DIR)/scripts/check-notices.mjs $(CHECK_DIR)/vendor.json THIRD-PARTY-NOTICES.md licenses/npm
+
+contract-check: ## the contract guard (no removal against contract/previous) and fixture use on both sides
+	cd $(UI_DIR) && $(NPM) run contract:check
+	CGO_ENABLED=0 $(GO) test -count=1 -run 'TestEveryFixtureIsUsedByTheGoTests' ./fabricui/
+	cd $(UI_DIR) && npx vitest run src/lib/api/fixtures.test.ts scripts/contract-guard.test.mjs
+
+gen-types: ## regenerate ui/src/lib/api/schema.gen.ts from contract/openapi.yaml
+	cd $(UI_DIR) && $(NPM) run gen:types
+
+version-check: ## internal/version, ui/package.json and the changelog's newest section agree
+	@if [ -z "$(VERSION_GO)" ] || [ "$(VERSION_GO)" != "$(VERSION_NPM)" ] || [ "$(VERSION_GO)" != "$(VERSION_LOG)" ]; then \
+		echo "version-check: internal/version=$(VERSION_GO) ui/package.json=$(VERSION_NPM) changelog=$(VERSION_LOG)"; exit 1; fi
+	@echo "version-check: $(VERSION_GO)"
+
+ci: build vet test lint web-check dist-check ## everything the pipeline's main jobs run
+
+clean: ## remove local build artefacts (never the committed bundle)
+	rm -rf coverage.out $(CHECK_DIR)
+
+.PHONY: help setup build vet test race e2e fmt fmt-check lint tidy-check cover cover-check vuln licenses secrets web-install web web-check dist-check notices-check contract-check gen-types version-check ci clean

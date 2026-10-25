@@ -2,11 +2,14 @@
  * `.dark` class, the package's tokens, and the sources Tailwind scans. A
  * host embedding the library does the same in its own stylesheet (see
  * ui/README.md). */
-@import "tailwindcss";
+/* source(none): only the sources named below are scanned, so a test file's
+ * class strings never change the committed bundle. */
+@import "tailwindcss" source(none);
 @import "../lib/theme/tokens.css";
 
 @source "../lib";
 @source "./";
+@source not "../lib/**/*.test.ts";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
