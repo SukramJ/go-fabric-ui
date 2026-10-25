@@ -46,11 +46,19 @@ responses are recorded from the handlers with
 - **No host knowledge.** What is exposable, how it is named and grouped,
   comes through `ExposureProvider`; the pages render schema and items.
   Home Assistant, CCU and MQTT terms do not appear in this repository.
+  Two exceptions, decided 2026-10-25 (brief U1): the design tokens keep
+  Home Assistant's CSS variable names and the theme bridge detects an
+  Ingress panel, because that is how the pages adopt a host theme; and the
+  ecosystem labels on the compatibility page name the controller vendors
+  (Apple Home, Google Home, Amazon Alexa, Home Assistant) as go-fabric's
+  vendor table names them.
 - **The bundle is committed** (`fabricui/dist/`) and guarded: pinned
   versions, `npm ci`, byte-identical rebuild in CI. Sourcemaps are not
   committed.
 - **Dependencies are decisions.** Go: go-fabric and the standard library.
-  npm: MIT/Apache-2.0/BSD only; every package that lands in the bundle is
+  npm: MIT/Apache-2.0/BSD/ISC only (ISC accepted 2026-10-25 for
+  `@lucide/svelte`, as the family accepted it for coder/websocket); every
+  package that lands in the bundle is
   listed in `THIRD-PARTY-NOTICES.md`.
 - **Security.** Writing routes only with `Options.Admin`; the standalone
   shell sends a header token on writes; secrets (passcodes) appear only in
