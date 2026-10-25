@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SukramJ/go-fabric/clock"
 	"github.com/SukramJ/go-fabric/node"
 )
 
@@ -28,12 +29,14 @@ type NodeSource interface {
 	FabricInfos(ctx context.Context) ([]node.FabricInfo, error)
 	RemoveFabric(ctx context.Context, fabricIndex uint8) error
 	CommissioningWindow() *node.CommissioningWindow
+	Window() node.WindowSnapshot
 	OpenBasicWindow(ctx context.Context, creds node.WindowCredentials) error
-	PairingCodes() (qr, manual string, err error)
+	SetupPayload() (node.SetupPayload, error)
 	PairingCodesFor(creds node.WindowCredentials) (qr, manual string, err error)
 	Topology() node.BridgeTopology
-	Sessions() *node.SessionManager
-	Subscriptions() *node.SubscriptionManager
+	SessionDiagnostics() node.SessionDiagnostics
+	Clock() clock.Clock
+	Observe(o node.Observers) (unsubscribe func())
 	MDNSEnabled() bool
 	MDNSServices() []node.MDNSService
 	DiagnoseMDNS() []node.MDNSFinding
@@ -61,10 +64,11 @@ type Options struct {
 	// change. Nil answers 503 on the maintenance route and skips the
 	// rebuild after an exposure change.
 	Reassemble func(ctx context.Context) error
-	// Events is a source of events beside the handler's own. An [*Events]
-	// whose Observers the host wired into node.Config carries the node's
-	// fabric and window transitions; the handler then does not publish
-	// them a second time.
+	// Events is a source of events beside the handler's own and the
+	// node's: what the host publishes (an exposure change it made outside
+	// the page). The node's fabric and window transitions reach the
+	// stream through Node.Observe, registered for each stream while it is
+	// open, so a handler mounted after the node started sees them too.
 	Events EventSource
 	// Prefix is the path the API is mounted under; empty is
 	// [DefaultPrefix]. It starts with "/" and does not end with one.

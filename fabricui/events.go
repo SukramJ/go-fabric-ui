@@ -5,7 +5,6 @@ package fabricui
 
 import (
 	"sync"
-	"sync/atomic"
 
 	"github.com/SukramJ/go-fabric/eligibility"
 	"github.com/SukramJ/go-fabric/node"
@@ -57,16 +56,12 @@ type EventSource interface {
 
 // Events is an in-process [EventSource]. A host publishes its own changes
 // (an exposure change it made outside the page, a reassembly) with
-// [Events.Publish], and wires the node's fabric and window transitions
-// into it with [Events.Observers]. It is safe for concurrent use.
+// [Events.Publish]; the node's transitions reach the stream through
+// Node.Observe and need no wiring. It is safe for concurrent use.
 type Events struct {
-	mu        sync.Mutex
-	next      uint64
-	subs      map[uint64]func(Event)
-	observing atomic.Bool
-	// windowOpen is the last window state an observer reported, so a
-	// repeated snapshot of the same state is not a transition.
-	windowOpen atomic.Bool
+	mu   sync.Mutex
+	next uint64
+	subs map[uint64]func(Event)
 }
 
 // NewEvents returns an empty event source.
@@ -99,51 +94,52 @@ func (e *Events) Publish(ev Event) {
 	}
 }
 
-// Observers returns next with the fabric and window observers chained so
-// that every transition also reaches this source: fabric_added,
-// fabric_removed, window_opened and window_closed. next's own observers
-// run first and their error is returned. A host assigns the result to
-// node.Config.Observers before node.New.
+// Observers returns next unchanged.
 //
-// Once Observers has been called the handler stops publishing these
-// events itself, so a route that removes a fabric or opens a window does
-// not report the transition twice.
-func (e *Events) Observers(next node.Observers) node.Observers {
-	e.observing.Store(true)
-	out := next
-	out.OnFabricAdded = func(f node.FabricInfo) error {
-		err := call(next.OnFabricAdded, f)
-		e.Publish(Event{Type: EventFabricAdded, Data: fabricEvent(f)})
-		return err
-	}
-	out.OnFabricRemoved = func(f node.FabricInfo) error {
-		err := call(next.OnFabricRemoved, f)
-		e.Publish(Event{Type: EventFabricRemoved, Data: FabricEvent{FabricIndex: f.FabricIndex}})
-		return err
-	}
-	out.OnWindowTransition = func(w node.WindowSnapshot) error {
-		err := call(next.OnWindowTransition, w)
-		if e.windowOpen.Swap(w.Open) != w.Open {
-			if w.Open {
-				e.Publish(Event{Type: EventWindowOpened, Data: WindowEvent{Discriminator: w.Discriminator}})
-			} else {
-				e.Publish(Event{Type: EventWindowClosed, Data: WindowEvent{}})
+// Deprecated: the stream observes the node itself (Node.Observe, per open
+// stream), so a handler mounted after Node.Start reports every fabric and
+// window transition once. Wiring this into node.Config.Observers is no
+// longer needed; it is kept so that hosts built against v0.1.1 compile,
+// and goes in v0.2.0.
+func (e *Events) Observers(next node.Observers) node.Observers { return next }
+
+// nodeObservers turns the node's fabric and window transitions into
+// stream events for push: fabric_added, fabric_removed, window_opened and
+// window_closed. open is the window state the subscriber last saw, so a
+// repeated snapshot of the same state (an administrator's AdminFabricIndex
+// cleared) is not a transition. A commissioning is fabric_added: the
+// AddNOC that installs the fabric is its last step a page can name.
+func nodeObservers(push func(Event), open bool) node.Observers {
+	var mu sync.Mutex
+	return node.Observers{
+		OnFabricAdded: func(f node.FabricInfo) error {
+			push(Event{Type: EventFabricAdded, Data: fabricEvent(f)})
+			return nil
+		},
+		OnFabricRemoved: func(f node.FabricInfo) error {
+			push(Event{Type: EventFabricRemoved, Data: FabricEvent{FabricIndex: f.FabricIndex}})
+			return nil
+		},
+		OnWindowTransition: func(w node.WindowSnapshot) error {
+			mu.Lock()
+			changed := open != w.Open
+			open = w.Open
+			mu.Unlock()
+			switch {
+			case !changed:
+			case w.Open:
+				push(Event{Type: EventWindowOpened, Data: windowEvent(w)})
+			default:
+				push(Event{Type: EventWindowClosed, Data: WindowEvent{}})
 			}
-		}
-		return err
+			return nil
+		},
 	}
-	return out
 }
 
-// observingNode reports whether [Events.Observers] wired the node into
-// this source.
-func (e *Events) observingNode() bool { return e.observing.Load() }
-
-func call[T any](fn func(T) error, v T) error {
-	if fn == nil {
-		return nil
-	}
-	return fn(v)
+// windowEvent is window_opened's payload for an open window.
+func windowEvent(w node.WindowSnapshot) WindowEvent {
+	return WindowEvent{Discriminator: w.Discriminator, DurationSeconds: durationSeconds(w.Timeout)}
 }
 
 func fabricEvent(f node.FabricInfo) FabricEvent {

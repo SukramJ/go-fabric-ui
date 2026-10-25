@@ -147,8 +147,12 @@ type fakeNode struct {
 	removeFailAt uint8
 	removed      []uint8
 
+	// open, duration, kind and disc are the window node.Window reports;
+	// an open window without a kind is the node's own.
 	open     bool
 	duration uint16
+	kind     node.WindowKind
+	disc     uint16
 	openErr  error
 	basic    []node.WindowCredentials
 	own      []time.Duration
@@ -159,10 +163,60 @@ type fakeNode struct {
 	codesErr   error
 
 	topo   node.BridgeTopology
-	sess   []sessionInfo
-	occ    occupancyResponse
+	sess   node.SessionDiagnostics
 	md     mdnsResponse
 	events []node.DiagnosticEvent
+
+	// observers are what node.Observe registered; the fake reports its
+	// route-caused transitions to them as the node does.
+	observers map[int]node.Observers
+	nextObs   int
+}
+
+// notify runs fn on every registered observer set, outside the lock.
+func (f *fakeNode) notify(fn func(node.Observers)) {
+	f.mu.Lock()
+	list := make([]node.Observers, 0, len(f.observers))
+	for _, o := range f.observers {
+		list = append(list, o)
+	}
+	f.mu.Unlock()
+	for _, o := range list {
+		fn(o)
+	}
+}
+
+func (f *fakeNode) observe(o node.Observers) (unsubscribe func()) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.observers == nil {
+		f.observers = map[int]node.Observers{}
+	}
+	id := f.nextObs
+	f.nextObs++
+	f.observers[id] = o
+	return func() {
+		f.mu.Lock()
+		delete(f.observers, id)
+		f.mu.Unlock()
+	}
+}
+
+// observerCount is how many observer sets are registered.
+func (f *fakeNode) observerCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.observers)
+}
+
+// transition reports the current window to the observers.
+func (f *fakeNode) transition() {
+	w := f.window()
+	f.notify(func(o node.Observers) {
+		if o.OnWindowTransition != nil {
+			_ = o.OnWindowTransition(w)
+		}
+	})
 }
 
 func (f *fakeNode) health() (healthy bool, note string, ok bool) {
@@ -178,66 +232,108 @@ func (f *fakeNode) fabrics(context.Context) ([]node.FabricInfo, error) {
 
 func (f *fakeNode) removeFabric(_ context.Context, idx uint8) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	if f.removeErr != nil || (f.removeFailAt != 0 && idx == f.removeFailAt) {
+		defer f.mu.Unlock()
 		if f.removeErr != nil {
 			return f.removeErr
 		}
 		return errors.New("store: disk /var/lib/node.db is read-only")
 	}
 	f.removed = append(f.removed, idx)
+	f.mu.Unlock()
+	f.notify(func(o node.Observers) {
+		if o.OnFabricRemoved != nil {
+			_ = o.OnFabricRemoved(node.FabricInfo{FabricIndex: idx})
+		}
+	})
 	return nil
 }
 
-func (f *fakeNode) window() (open bool, durationSeconds uint16) {
+// fakeDiscriminator and fakePasscode are the fake's configured
+// credentials, the ones its configured codes encode.
+const (
+	fakeDiscriminator = 3840
+	fakePasscode      = 20202021
+)
+
+func (f *fakeNode) window() node.WindowSnapshot {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.open, f.duration
+	if !f.open {
+		return node.WindowSnapshot{}
+	}
+	w := node.WindowSnapshot{
+		Open: true, Own: true, Kind: f.kind, Discriminator: f.disc,
+		Timeout: time.Duration(f.duration) * time.Second,
+	}
+	if w.Kind == node.WindowNone {
+		w.Kind, w.Discriminator = node.WindowOwn, fakeDiscriminator
+	}
+	w.OpenedAt = testNow
+	w.Deadline = testNow.Add(w.Timeout)
+	return w
 }
 
 func (f *fakeNode) openBasicWindow(_ context.Context, creds node.WindowCredentials) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	if f.openErr != nil {
+		defer f.mu.Unlock()
 		return f.openErr
 	}
 	f.basic = append(f.basic, creds)
 	f.open, f.duration = true, uint16(creds.Timeout/time.Second)
+	f.kind, f.disc = node.WindowBasic, creds.Discriminator
+	f.mu.Unlock()
+	f.transition()
 	return nil
 }
 
 func (f *fakeNode) openOwnWindow(_ context.Context, timeout time.Duration) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	if f.openErr != nil {
+		defer f.mu.Unlock()
 		return f.openErr
 	}
 	f.own = append(f.own, timeout)
 	f.open, f.duration = true, uint16(timeout/time.Second)
+	f.kind, f.disc = node.WindowOwn, fakeDiscriminator
+	f.mu.Unlock()
+	f.transition()
 	return nil
 }
 
 func (f *fakeNode) closeWindow(context.Context) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	if f.closeErr != nil {
+		defer f.mu.Unlock()
 		return f.closeErr
 	}
 	f.closed++
-	f.open, f.duration = false, 0
+	f.open, f.duration, f.kind, f.disc = false, 0, node.WindowNone, 0
+	f.mu.Unlock()
+	f.transition()
 	return nil
 }
 
-func (f *fakeNode) pairingCodes() (qr, manual string, err error) { return f.qr, f.manual, f.codesErr }
+func (f *fakeNode) setupPayload() (node.SetupPayload, error) {
+	if f.codesErr != nil {
+		return node.SetupPayload{}, f.codesErr
+	}
+	return node.SetupPayload{
+		Discriminator: fakeDiscriminator, Passcode: fakePasscode, VendorID: 0xFFF1, ProductID: 0x8000,
+		QR: f.qr, Manual: f.manual,
+	}, nil
+}
 
 func (f *fakeNode) pairingCodesFor(creds node.WindowCredentials) (qr, manual string, err error) {
 	return fmt.Sprintf("MT:FRESH%04d", creds.Discriminator), fmt.Sprintf("%011d", creds.Passcode), nil
 }
 
-func (f *fakeNode) topology() node.BridgeTopology                { return f.topo }
-func (f *fakeNode) sessions() ([]sessionInfo, occupancyResponse) { return f.sess, f.occ }
-func (f *fakeNode) mdns() mdnsResponse                           { return f.md }
-func (f *fakeNode) diagnosticEvents() []node.DiagnosticEvent     { return f.events }
+func (f *fakeNode) topology() node.BridgeTopology            { return f.topo }
+func (f *fakeNode) sessions() node.SessionDiagnostics        { return f.sess }
+func (f *fakeNode) now() time.Time                           { return testNow }
+func (f *fakeNode) mdns() mdnsResponse                       { return f.md }
+func (f *fakeNode) diagnosticEvents() []node.DiagnosticEvent { return f.events }
 
 // stringKey is a node.BridgedDevice key.
 type stringKey string
@@ -268,24 +364,45 @@ func sampleNode() *fakeNode {
 		topo: node.BridgeTopology{
 			Aggregator: 1,
 			Devices: []node.BridgedDevice{
-				{Key: stringKey("lamp-1"), Endpoint: 2, DeviceType: 0x0100, Name: "Kitchen lamp", Reachable: true},
 				{
-					Key: stringKey("sensor-2"), Endpoint: 3, DeviceType: 0x0302, Name: "Hall sensor", Reachable: false,
-					Parts: []node.BridgedDevice{{Key: stringKey("sensor-2/humidity"), Endpoint: 4, DeviceType: 0x0307, Name: "Hall humidity", Reachable: true}},
+					Key: stringKey("lamp-1"), Endpoint: 2, DeviceType: 0x0100, DeviceTypeRevision: 4, Name: "Kitchen lamp", Reachable: true,
+					Clusters: []node.ClusterInfo{
+						{ID: 0x0003, Name: "Identify", Revision: 6},
+						{ID: 0x0006, Name: "OnOff", Revision: 6},
+						{ID: 0x001D, Name: "Descriptor", Revision: 3},
+						{ID: 0x0039, Name: "BridgedDeviceBasicInformation", Revision: 6},
+					},
+				},
+				{
+					Key: stringKey("sensor-2"), Endpoint: 3, DeviceType: 0x0302, DeviceTypeRevision: 3, Name: "Hall sensor", Reachable: false,
+					Clusters: []node.ClusterInfo{
+						{ID: 0x001D, Name: "Descriptor", Revision: 3},
+						{ID: 0x0039, Name: "BridgedDeviceBasicInformation", Revision: 6},
+						{ID: 0x0402, Name: "TemperatureMeasurement", Revision: 6},
+					},
+					Parts: []node.BridgedDevice{{
+						Key: stringKey("sensor-2/humidity"), Endpoint: 4, DeviceType: 0x0307, DeviceTypeRevision: 3, Name: "Hall humidity", Reachable: true,
+						Clusters: []node.ClusterInfo{{ID: 0x001D, Name: "Descriptor", Revision: 3}, {ID: 0x0405, Name: "RelativeHumidityMeasurement", Revision: 5}},
+					}},
 				},
 			},
 		},
-		sess: []sessionInfo{
-			{
-				SessionID: 17, FabricIndex: 1, PeerNodeID: 0x000000000001B669, LocalNodeID: 0xB2C3D4E5F6071829,
-				Subscriptions: 2, LastActivity: testNow.Add(-5 * time.Second), LastPeerActivity: testNow.Add(-45 * time.Second),
+		sess: node.SessionDiagnostics{
+			AsOf: testNow,
+			Sessions: []node.SessionInfo{
+				{
+					ID: 17, FabricIndex: 1, PeerNodeID: 0x000000000001B669, LocalNodeID: 0xB2C3D4E5F6071829,
+					Subscriptions: 2, LastActivity: testNow.Add(-5 * time.Second), LastPeerActivity: testNow.Add(-45 * time.Second),
+					Idle: 5 * time.Second, PeerIdle: 45 * time.Second,
+				},
+				{
+					ID: 18, FabricIndex: 0, PASE: true,
+					LastActivity: testNow.Add(-2 * time.Second), LastPeerActivity: testNow.Add(-2 * time.Second),
+					Idle: 2 * time.Second, PeerIdle: 2 * time.Second,
+				},
 			},
-			{
-				SessionID: 18, FabricIndex: 0, IsPASE: true,
-				LastActivity: testNow.Add(-2 * time.Second), LastPeerActivity: testNow.Add(-2 * time.Second),
-			},
+			Occupancy: node.Occupancy{Live: 2, Reserved: 1, Capacity: 65535, Free: 65532},
 		},
-		occ: occupancyResponse{Live: 2, Reserved: 1, Capacity: 65535, Free: 65532},
 		md: mdnsResponse{
 			Advertising: true,
 			Services: []mdnsService{{
@@ -341,10 +458,9 @@ func newTestHandler(t *testing.T, o testOptions) (*handler, *http.ServeMux) {
 	if o.admin == nil {
 		h.token = testToken
 	}
-	h.now = func() time.Time { return testNow }
 	h.fresh = func(timeout time.Duration) (node.WindowCredentials, error) {
 		return node.WindowCredentials{
-			Discriminator: 1234, Passcode: 20202021, Iterations: ephemeralIterations,
+			Discriminator: 1234, Passcode: 20202021, Iterations: node.PBKDFIterationsMin,
 			Salt: bytes.Repeat([]byte{7}, 32), Timeout: timeout,
 		}, nil
 	}
@@ -402,8 +518,10 @@ func (r *recorder) types() []string {
 	return out
 }
 
+// record subscribes as a stream does: the handler's own events, the
+// host's source and the node's observers.
 func record(h *handler) *recorder {
 	r := &recorder{}
-	h.hub.Subscribe(r.add)
+	h.subscribe(r.add)
 	return r
 }

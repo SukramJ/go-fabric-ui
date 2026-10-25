@@ -2,7 +2,7 @@ module github.com/SukramJ/go-fabric-ui
 
 go 1.27.3
 
-require github.com/SukramJ/go-fabric v0.12.0
+require github.com/SukramJ/go-fabric v0.12.2
 
 require (
 	filippo.io/nistec v0.0.4 // indirect
