@@ -3,7 +3,7 @@
      bulk selection, a dirty map, a preview of the verdicts before anything
      is written, and the save/discard bar. Ported from openccu-loom
      assets/ui/src/routes/matter/MatterExposureList.svelte:1-584 at
-     b40b289a: the host's fixed columns, kind filter and channel conflict
+     b40b289a: the host's fixed columns, kind filter and per-item conflict
      hints become the schema's columns and filters; the class chips become a
      value filter per filterable column; Preview before Apply is new. -->
 <script lang="ts">

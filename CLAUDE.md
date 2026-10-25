@@ -8,20 +8,30 @@ One web interface for every daemon built on
 [go-fabric](https://github.com/SukramJ/go-fabric), maintained here and
 embedded by the projects (go-ha2fabric, go-fabric-server, openccu-loom).
 `CONCEPT.md` is the short design; the full one is go-fabric's
-`docs/concept-v9-fabric-ui.md`. **State: concept** (created 2026-10-25);
-wave U1 delivers the node page family as `v0.1.0`.
+`docs/concept-v9-fabric-ui.md`. **State:** wave U1 (the node page family)
+is `v0.1.0`; wave U2 adds the controller family.
 
 ## Commands
 
 ```sh
-make ci        # build vet test lint — what the pipeline runs for the Go module
-make race      # go test -race (CGO_ENABLED=1 for this run only)
-make fmt       # gofumpt -w .
+make ci              # build vet test lint web-check dist-check — what the pipeline runs
+make race            # go test -race (CGO_ENABLED=1 for this run only)
+make e2e             # the end-to-end test: a fabrictest controller commissions through the handler
+make fmt             # gofumpt -w .
+make web-install     # npm ci in ui/
+make web             # rebuild the committed bundle fabricui/dist
+make dist-check      # rebuild into a temp dir, fail on any byte of difference
+make contract-check  # no removal against contract/previous, every fixture used on both sides
+make notices-check   # every bundled npm package is in THIRD-PARTY-NOTICES.md
+make version-check   # internal/version == ui/package.json == changelog section
 ```
 
 The web half lives under `ui/` (npm scripts: `dev`, `build`, `check`,
-`test`); `make web` builds it into `fabricui/dist/`, `make dist-check`
-fails when the committed bundle differs from a fresh build. (U1 adds them.)
+`test`, `gen:types`). A change under `ui/src/lib` or `ui/src/shell` is
+followed by `make web` in the same commit, or `dist-check` fails. A change
+to `contract/openapi.yaml` is followed by `make gen-types`; the fixtures'
+responses are recorded from the handlers with
+`go test ./fabricui -run <Test> -update` and reviewed before committing.
 
 ## Rules
 
