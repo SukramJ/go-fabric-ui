@@ -364,6 +364,11 @@ components:
         advertising: { type: boolean }
         commissioning_window_open: { type: boolean }
         commissioning_window_duration_seconds: { type: integer }
+        window_kind:
+          type: string
+          enum: [none, own, basic, enhanced]
+          description: Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one; absent without a node.
+        window_deadline: { type: string, format: date-time, description: When the open window's timer closes it, on the node's clock; absent while no window is open. }
         exposure: { type: boolean, description: Whether the host serves a selection. }
         csrf_token: { type: string, description: The admin token of token mode; absent when the host decides admin rights. }
         warnings:
@@ -402,8 +407,8 @@ components:
       type: object
       required: [qr_code, manual_code, source, window_open]
       properties:
-        discriminator: { type: integer, description: Only for a window this handler opened on fresh credentials; the codes carry it. }
-        passcode: { type: integer, description: Only for a window this handler opened on fresh credentials. }
+        discriminator: { type: integer, description: "The discriminator the codes encode: of the window this handler opened on fresh credentials, else the configured one. Absent from servers before 0.1.2 for the configured source." }
+        passcode: { type: integer, description: "The passcode the codes encode: of the window this handler opened on fresh credentials, else the configured one. Absent from servers before 0.1.2 for the configured source." }
         qr_code: { type: string }
         manual_code: { type: string }
         source: { type: string, enum: [configured, window] }
@@ -417,18 +422,19 @@ components:
       type: object
       required: [duration_seconds, qr_code, manual_code]
       properties:
-        discriminator: { type: integer, description: Absent for a window on the configured credentials. }
-        passcode: { type: integer, description: Absent for a window on the configured credentials. }
+        discriminator: { type: integer, description: "The window's discriminator; absent from servers before 0.1.2 for a window on the configured credentials." }
+        passcode: { type: integer, description: "The window's passcode; absent from servers before 0.1.2 for a window on the configured credentials." }
         duration_seconds: { type: integer }
         qr_code: { type: string }
         manual_code: { type: string }
     Cluster:
       type: object
+      description: One cluster server mounted on the endpoint, in its Descriptor's ServerList order.
       required: [id]
       properties:
         id: { type: integer }
-        name: { type: string }
-        revision: { type: integer }
+        name: { type: string, description: The schema's cluster name; absent for a cluster the schema does not know. }
+        revision: { type: integer, description: The schema's ClusterRevision; absent for a cluster the schema does not know. }
     Endpoint:
       type: object
       required: [endpoint_id, parent_endpoint_id, device_type, device_type_name, reachable, name, source, clusters]
@@ -437,6 +443,7 @@ components:
         parent_endpoint_id: { type: integer }
         device_type: { type: integer }
         device_type_name: { type: string }
+        device_type_revision: { type: integer, description: The revision the endpoint's Descriptor serves for its device type; absent for a type the schema does not know. }
         reachable: { type: boolean }
         name: { type: string }
         source:

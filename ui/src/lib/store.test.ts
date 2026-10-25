@@ -57,6 +57,15 @@ describe("node store", () => {
     expect(ui.node.commissioning.phase).toBe("idle");
   });
 
+  it("hydrates an open window with what is left until its deadline", async () => {
+    vi.setSystemTime(new Date("2026-10-25T12:02:00Z"));
+    const ui = testUI({ fixtures: ["node-status.200", "node-pairing.200"] });
+    await ui.node.hydrateCommissioning();
+    expect(ui.node.commissioning).toMatchObject({ phase: "open", remaining: 180 });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(ui.node.commissioning.remaining).toBe(177);
+  });
+
   it("drops a pending change that returns to the item's state", () => {
     const ui = testUI();
     const item = { key: "a", name: "A", group: "", fields: {}, enabled: false, source: "", verdict: { state: "mappable" as const, device_type: 0, device_type_name: "", clusters: [], reason: "" } };

@@ -9,11 +9,9 @@ single-page app of its own.
 ```go
 import "github.com/SukramJ/go-fabric-ui/fabricui"
 
-ev := fabricui.NewEvents()
-cfg.Observers = ev.Observers(cfg.Observers) // before node.New
 n, err := node.New(cfg)
-// …
-mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Exposure: provider, Events: ev}))
+// … n.Start(ctx) — before or after the handler is built
+mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Exposure: provider}))
 ```
 
 `Handler` serves the API under `/api/v1` and the standalone shell at `/`
@@ -30,7 +28,7 @@ an unknown path under the API prefix answers a 404 problem.
 | `Exposure` | The host's `ExposureProvider` ([provider.md](provider.md)); nil hides the selection page. |
 | `Admin` | Who may write and read the pairing secret; nil selects token mode ([contract.md](contract.md#admin-rights)). |
 | `Reassemble` | Rebuilds the endpoints from the current selection (maintenance route, and after an exposure change). |
-| `Events` | Events beside the handler's own; an `*Events` wired into `node.Config.Observers` carries fabric and window transitions. |
+| `Events` | Events the host publishes beside the handler's own and the node's (an exposure change made outside the page). |
 | `Prefix` | The API prefix; default `/api/v1`. |
 | `Logger` | The handlers' logger; nothing it receives carries a passcode. |
 | `ConfiguredWindow` | Open the window on the node's configured passcode instead of fresh credentials. |
@@ -48,11 +46,20 @@ selection page shows the same list collapsed above the table. `Code` is
 the host's stable identifier for the kind of finding, `Message` is already
 in the host's language, and a zero `Since` is left out.
 
-`node.Config.Observers` is set before `node.New`; the facade offers no
-registration afterwards, so a host that wants the stream to report
-fabrics and windows wires `Events.Observers` there. Without it the stream
-still reports what the handler's own routes do (a removed fabric, an
-opened or closed window), but not a controller commissioning the node.
+The node's transitions need no wiring: each open stream registers an
+observer with `Node.Observe` and removes it when the connection closes, so
+a handler built after `Node.Start` reports a controller commissioning the
+node, a fabric removed over the wire or from a route, and every window
+opened or closed — each once, whoever caused it. `node.Config.Observers`
+stays the host's own.
+
+Everything the handlers read is on the node facade: the window from
+`Node.Window` (its kind, discriminator and deadline on the node's clock),
+the configured codes from `Node.SetupPayload`, the clusters of every
+endpoint, parts included, from `Topology`, fresh window credentials from
+`node.NewWindowCredentials`, and the session table from
+`Node.SessionDiagnostics`. A host wrapping its node in its own
+`NodeSource` implements those methods.
 
 A daemon with a mux of its own and a different layout mounts only the API:
 

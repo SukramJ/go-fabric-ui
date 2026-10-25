@@ -29,12 +29,11 @@ each project.
   that adopts the live theme inside an Ingress panel) and the generated
   TypeScript client, for a project with its own single-page app.
 
-A Go daemon embeds the whole interface in three lines:
+A Go daemon embeds the whole interface in one line, before or after the
+node started:
 
 ```go
-ev := fabricui.NewEvents()
-cfg.Observers = ev.Observers(cfg.Observers) // before node.New
-mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Exposure: provider, Events: ev}))
+mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Exposure: provider}))
 ```
 
 [`docs/embedding.md`](docs/embedding.md) covers the options, the npm

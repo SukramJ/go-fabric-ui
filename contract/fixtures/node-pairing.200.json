@@ -10,7 +10,9 @@
   "response": {
     "status": 200,
     "body": {
+      "discriminator": 3840,
       "manual_code": "34970112332",
+      "passcode": 20202021,
       "qr_code": "MT:Y.K9042C00KA0648G00",
       "source": "configured",
       "window_open": false

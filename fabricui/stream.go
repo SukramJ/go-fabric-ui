@@ -16,9 +16,9 @@ import (
 const streamBuffer = 64
 
 // stream serves GET /node/stream: server-sent events from the handler's
-// own routes, the node's observers (an [*Events] in Options.Events) and the
-// host's source, with a comment line every 15 s so a proxy keeps the
-// connection open. It replaces loom's WebSocket topics
+// own routes, the node's transitions (node.Observe) and the host's
+// source, with a comment line every 15 s so a proxy keeps the connection
+// open. It replaces loom's WebSocket topics
 // (internal/north/rest/handlers/matter_events.go:62-82 at b40b289a).
 func (h *handler) stream(w http.ResponseWriter, r *http.Request) {
 	rc := http.NewResponseController(w)
@@ -29,11 +29,9 @@ func (h *handler) stream(w http.ResponseWriter, r *http.Request) {
 		default:
 		}
 	}
-	unsub := h.hub.Subscribe(push)
-	defer unsub()
-	if h.extra != nil {
-		defer h.extra.Subscribe(push)()
-	}
+	// The node's observers are registered for this stream while it is
+	// open (node.Observe) and removed when it closes.
+	defer h.subscribe(push)()
 
 	hdr := w.Header()
 	hdr.Set("Content-Type", "text/event-stream")

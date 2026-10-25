@@ -9,9 +9,31 @@
     "body": {
       "endpoints": [
         {
-          "clusters": [],
+          "clusters": [
+            {
+              "id": 3,
+              "name": "Identify",
+              "revision": 6
+            },
+            {
+              "id": 6,
+              "name": "OnOff",
+              "revision": 6
+            },
+            {
+              "id": 29,
+              "name": "Descriptor",
+              "revision": 3
+            },
+            {
+              "id": 57,
+              "name": "BridgedDeviceBasicInformation",
+              "revision": 6
+            }
+          ],
           "device_type": 256,
           "device_type_name": "On/Off Light",
+          "device_type_revision": 4,
           "endpoint_id": 2,
           "name": "Kitchen lamp",
           "parent_endpoint_id": 1,
@@ -21,9 +43,26 @@
           }
         },
         {
-          "clusters": [],
+          "clusters": [
+            {
+              "id": 29,
+              "name": "Descriptor",
+              "revision": 3
+            },
+            {
+              "id": 57,
+              "name": "BridgedDeviceBasicInformation",
+              "revision": 6
+            },
+            {
+              "id": 1026,
+              "name": "TemperatureMeasurement",
+              "revision": 6
+            }
+          ],
           "device_type": 770,
           "device_type_name": "Temperature Sensor",
+          "device_type_revision": 3,
           "endpoint_id": 3,
           "name": "Hall sensor",
           "parent_endpoint_id": 1,
@@ -33,9 +72,21 @@
           }
         },
         {
-          "clusters": [],
+          "clusters": [
+            {
+              "id": 29,
+              "name": "Descriptor",
+              "revision": 3
+            },
+            {
+              "id": 1029,
+              "name": "RelativeHumidityMeasurement",
+              "revision": 5
+            }
+          ],
           "device_type": 775,
           "device_type_name": "Humidity Sensor",
+          "device_type_revision": 3,
           "endpoint_id": 4,
           "name": "Hall humidity",
           "parent_endpoint_id": 3,

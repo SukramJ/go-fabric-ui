@@ -4,11 +4,10 @@
 package fabricui
 
 import (
-	"crypto/rand"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"time"
 
@@ -24,24 +23,18 @@ const (
 	windowDefaultSeconds = 900
 )
 
-// ephemeralIterations is the PBKDF2 iteration count of a window opened on
-// fresh credentials — loom's default (cmd/openccu-loom/matter_window_adapter.go:
-// 159-162), the minimum the spec allows.
-const ephemeralIterations = 1000
-
 // ephemeralWindow is a window this handler opened on fresh credentials.
 type ephemeralWindow struct {
-	creds   node.WindowCredentials
-	qr      string
-	manual  string
-	expires time.Time
+	creds  node.WindowCredentials
+	qr     string
+	manual string
 }
 
-// pairingResponse is the body of GET /node/pairing. Discriminator and
-// passcode are set only for a window this handler opened on fresh
-// credentials: the facade hands out neither the configured passcode nor the
-// discriminator of the node's own window (CK questions); the codes carry
-// both.
+// pairingResponse is the body of GET /node/pairing: the codes with the
+// discriminator and passcode they encode — of the window this handler
+// opened on fresh credentials, else the configured ones
+// (node.SetupPayload). Loom's setup payload served the same
+// (matter.go:51-85 at b40b289a).
 type pairingResponse struct {
 	Discriminator   *uint16 `json:"discriminator,omitempty"`
 	Passcode        *uint32 `json:"passcode,omitempty"`
@@ -59,16 +52,20 @@ const (
 )
 
 // pairing serves GET /node/pairing (admin): the codes of the window this
-// handler opened while it is open, else the node's configured codes
-// (node.PairingCodes). Mirrors loom matter.go:51-85 (MatterSetupPayload),
+// handler opened while it is open, else the node's configured setup
+// payload (node.SetupPayload). Mirrors loom matter.go:51-85 (MatterSetupPayload),
 // whose 503 for a node without commissioning credentials it keeps.
 func (h *handler) pairing(w http.ResponseWriter, r *http.Request) {
 	if h.node == nil {
 		nodeUnready(w, r)
 		return
 	}
-	open, duration := h.node.window()
-	if eph := h.activeEphemeral(open); eph != nil {
+	win := h.node.window()
+	var duration uint16
+	if win.Open {
+		duration = durationSeconds(win.Timeout)
+	}
+	if eph := h.activeEphemeral(win); eph != nil {
 		pc, disc := eph.creds.Passcode, eph.creds.Discriminator
 		writeJSON(w, pairingResponse{
 			Discriminator: &disc, Passcode: &pc,
@@ -77,34 +74,35 @@ func (h *handler) pairing(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	qr, manual, err := h.node.pairingCodes()
+	sp, err := h.node.setupPayload()
 	if err != nil {
 		h.log.WarnContext(r.Context(), "fabricui.pairing.codes_unavailable", slog.String("error", err.Error()))
 		unready(w, r, "Pairing codes not available", "the node has no valid commissioning credentials configured")
 		return
 	}
-	res := pairingResponse{
-		QRCode: qr, ManualCode: manual,
-		Source: sourceConfigured, WindowOpen: open,
-	}
-	if open {
-		res.DurationSeconds = duration
-	}
-	writeJSON(w, res)
+	pc, disc := sp.Passcode, sp.Discriminator
+	writeJSON(w, pairingResponse{
+		Discriminator: &disc, Passcode: &pc,
+		QRCode: sp.QR, ManualCode: sp.Manual,
+		Source: sourceConfigured, WindowOpen: win.Open, DurationSeconds: duration,
+	})
 }
 
-// activeEphemeral returns the window this handler opened while a window is
-// open and its time has not run out, and forgets it otherwise. A window
-// closed meanwhile is forgotten when the route closes it or the node's
-// observers report the close (forgetOnClose).
-func (h *handler) activeEphemeral(open bool) *ephemeralWindow {
+// activeEphemeral returns the window this handler opened while the node
+// still serves it — a basic window (node.WindowBasic) on its
+// discriminator whose deadline has not passed on the node's clock — and
+// forgets it otherwise: a window the node closed meanwhile (commissioned,
+// timed out, revoked over the wire) is no longer the one GET /node/pairing
+// serves.
+func (h *handler) activeEphemeral(win node.WindowSnapshot) *ephemeralWindow {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	eph := h.ephemeral
 	if eph == nil {
 		return nil
 	}
-	if !open || !h.now().Before(eph.expires) {
+	if !win.Open || win.Kind != node.WindowBasic || win.Discriminator != eph.creds.Discriminator ||
+		(!win.Deadline.IsZero() && !h.node.now().Before(win.Deadline)) {
 		h.ephemeral = nil
 		return nil
 	}
@@ -117,8 +115,7 @@ type windowRequest struct {
 }
 
 // windowResponse is its answer: what a controller needs to commission the
-// node through the window. Discriminator and passcode are absent for a
-// window on the configured credentials, which the facade does not report.
+// node through the window, the discriminator and passcode included.
 type windowResponse struct {
 	Discriminator   *uint16 `json:"discriminator,omitempty"`
 	Passcode        *uint32 `json:"passcode,omitempty"`
@@ -162,7 +159,7 @@ func (h *handler) openWindow(w http.ResponseWriter, r *http.Request) {
 		unready(w, r, title, "the node exposes no endpoint yet; retry once the host has assembled its endpoints")
 		return
 	}
-	if open, _ := h.node.window(); open {
+	if h.node.window().Open {
 		writeProblem(w, r, http.StatusConflict, codeConflict, title, "a commissioning window is already open")
 		return
 	}
@@ -190,37 +187,37 @@ func (h *handler) openWindow(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	_, res.DurationSeconds = h.node.window()
+	if win := h.node.window(); win.Open {
+		res.DurationSeconds = durationSeconds(win.Timeout)
+	}
 	if res.DurationSeconds == 0 {
 		res.DurationSeconds = duration
 	}
-	ev := WindowEvent{DurationSeconds: res.DurationSeconds}
-	if res.Discriminator != nil {
-		ev.Discriminator = *res.Discriminator
-	}
+	// window_opened reaches the stream through the node's observer.
 	h.log.InfoContext(r.Context(), "fabricui.window.opened",
-		slog.Int("discriminator", int(ev.Discriminator)), slog.Int("duration_seconds", int(res.DurationSeconds)),
+		slog.Int("discriminator", int(*res.Discriminator)), slog.Int("duration_seconds", int(res.DurationSeconds)),
 		slog.Bool("configured", h.configured))
-	h.publishNodeEvent(Event{Type: EventWindowOpened, Data: ev})
 	writeJSON(w, res)
 }
 
-// openConfigured opens the node's own window on its configured credentials.
+// openConfigured opens the node's own window on its configured
+// credentials and answers with its setup payload (node.SetupPayload).
 func (h *handler) openConfigured(r *http.Request, timeout time.Duration) (windowResponse, error) {
 	if err := h.node.openOwnWindow(r.Context(), timeout); err != nil {
 		return windowResponse{}, err
 	}
-	qr, manual, err := h.node.pairingCodes()
+	sp, err := h.node.setupPayload()
 	if err != nil {
 		_ = h.node.closeWindow(r.Context())
 		return windowResponse{}, err
 	}
-	return windowResponse{QRCode: qr, ManualCode: manual}, nil
+	pc, disc := sp.Passcode, sp.Discriminator
+	return windowResponse{Discriminator: &disc, Passcode: &pc, QRCode: sp.QR, ManualCode: sp.Manual}, nil
 }
 
-// openFresh opens the node's own window on credentials drawn for it: a
-// fresh discriminator, passcode and salt. Mirrors loom
-// matter_window_adapter.go:143-200 (openEphemeral).
+// openFresh opens the node's own window on credentials drawn for it by
+// node.NewWindowCredentials: a fresh discriminator, passcode and salt.
+// Mirrors loom matter_window_adapter.go:143-200 (openEphemeral).
 func (h *handler) openFresh(r *http.Request, timeout time.Duration) (windowResponse, error) {
 	creds, err := h.fresh(timeout)
 	if err != nil {
@@ -234,7 +231,7 @@ func (h *handler) openFresh(r *http.Request, timeout time.Duration) (windowRespo
 		return windowResponse{}, err
 	}
 	h.mu.Lock()
-	h.ephemeral = &ephemeralWindow{creds: creds, qr: qr, manual: manual, expires: h.now().Add(timeout)}
+	h.ephemeral = &ephemeralWindow{creds: creds, qr: qr, manual: manual}
 	h.mu.Unlock()
 	pc, disc := creds.Passcode, creds.Discriminator
 	return windowResponse{Discriminator: &disc, Passcode: &pc, QRCode: qr, ManualCode: manual}, nil
@@ -252,43 +249,22 @@ func (h *handler) closeWindow(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r, "Failed to close commissioning window", err)
 		return
 	}
+	// window_closed reaches the stream through the node's observer.
 	h.forgetEphemeral()
-	h.publishNodeEvent(Event{Type: EventWindowClosed, Data: WindowEvent{}})
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// freshCredentials draws a window's credentials: a 12-bit discriminator, a
-// passcode setup.IsValidSetupPIN accepts and a 32-byte salt.
-func freshCredentials(timeout time.Duration) (node.WindowCredentials, error) {
-	var b [4 + 4 + 32]byte
-	for {
-		if _, err := rand.Read(b[:]); err != nil {
-			return node.WindowCredentials{}, err
-		}
-		disc := uint16(binary.BigEndian.Uint32(b[0:4]) & uint32(node.MaxDiscriminator))
-		pc := binary.BigEndian.Uint32(b[4:8])%99999998 + 1
-		if !validPasscode(pc) {
-			continue
-		}
-		return node.WindowCredentials{
-			Discriminator: disc,
-			Passcode:      pc,
-			Iterations:    ephemeralIterations,
-			Salt:          append([]byte(nil), b[8:]...),
-			Timeout:       timeout,
-		}, nil
+// durationSeconds is a window's timeout in whole seconds, clamped to the
+// uint16 the contract carries.
+func durationSeconds(d time.Duration) uint16 {
+	sec := d / time.Second
+	switch {
+	case sec <= 0:
+		return 0
+	case sec > math.MaxUint16:
+		return math.MaxUint16
 	}
-}
-
-// validPasscode applies the setup PIN rule of Matter §5.1.7.1: 1..99999998
-// and none of the trivial values. OpenBasicWindow checks it again.
-func validPasscode(pc uint32) bool {
-	switch pc {
-	case 0, 11111111, 22222222, 33333333, 44444444, 55555555, 66666666, 77777777, 88888888, 99999999,
-		12345678, 87654321:
-		return false
-	}
-	return pc <= 99999998
+	return uint16(sec)
 }
 
 // forgetEphemeral drops the credentials of the window this handler opened.

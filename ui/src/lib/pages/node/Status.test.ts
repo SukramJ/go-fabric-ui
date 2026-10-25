@@ -1,12 +1,15 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
 import { body, testUI } from "../../../test/support";
 import type { Status as StatusT } from "../../api/client";
 import Status from "./Status.svelte";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("Status", () => {
   it("shows the snapshot: listening, healthy, counts, advertising, the open window", async () => {
@@ -15,7 +18,23 @@ describe("Status", () => {
     for (const text of ["node.status.listening", "node.status.healthy", 'node.status.fabrics:{"count":2}', 'node.status.exposed:{"count":1}', "node.status.advertising"]) {
       expect(card).toHaveTextContent(text);
     }
-    expect(card).toHaveTextContent("(300s)");
+  });
+
+  it("counts the open window down from its deadline", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-10-25T12:01:00Z"));
+    render(Harness, { ui: testUI({ fixtures: ["node-status.200"] }), page: Status });
+    const left = await screen.findByTestId("window-left");
+    expect(left).toHaveTextContent("(240s)");
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(left).toHaveTextContent(/\((23[45])s\)/);
+  });
+
+  it("shows the duration when the server reports no deadline", async () => {
+    const s = body<StatusT>("node-status.200");
+    delete s.window_deadline;
+    render(Harness, { ui: testUI({ answers: { "GET /node/status": { status: 200, body: s } } }), page: Status });
+    expect(await screen.findByTestId("window-left")).toHaveTextContent("(300s)");
   });
 
   it("shows the host's warnings in a card above the status, code as a chip", async () => {

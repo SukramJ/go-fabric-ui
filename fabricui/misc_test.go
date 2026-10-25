@@ -69,11 +69,13 @@ func TestAdmin_HostCheckDecides(t *testing.T) {
 }
 
 // Ports TestPublishMatterEventTypeCarriesTheMatterPrefix: the stream names
-// events by the contract's types, delivers the handler's own and the
-// host's, and keeps the connection alive with comments.
+// events by the contract's types, delivers the handler's own, the host's
+// and the node's (an observer registered while the stream is open), and
+// keeps the connection alive with comments.
 func TestStream_DeliversEventsAndHeartbeats(t *testing.T) {
 	host := &recordingSource{}
-	h, mux := newTestHandler(t, testOptions{events: host})
+	n := sampleNode()
+	h, mux := newTestHandler(t, testOptions{events: host, node: n})
 	h.heartbeat = 20 * time.Millisecond
 	base := h.hub.subscribers()
 	srv := httptest.NewServer(mux)
@@ -103,7 +105,7 @@ func TestStream_DeliversEventsAndHeartbeats(t *testing.T) {
 	if line := next(); line != ": connected" {
 		t.Fatalf("first line %q", line)
 	}
-	waitFor(t, func() bool { return h.hub.subscribers() == base+1 && host.subscribers() == 1 })
+	waitFor(t, func() bool { return h.hub.subscribers() == base+1 && host.subscribers() == 1 && n.observerCount() == 1 })
 	h.publish(Event{Type: EventFabricAdded, Data: FabricEvent{FabricIndex: 3, Label: "Home"}})
 	if a, b := next(), next(); a != "event: fabric_added" || b != `data: {"fabric_index":3,"label":"Home"}` {
 		t.Fatalf("event lines %q %q", a, b)
@@ -112,11 +114,15 @@ func TestStream_DeliversEventsAndHeartbeats(t *testing.T) {
 	if a, b := next(), next(); a != "event: exposure_changed" || b != `data: {"keys":["lamp-1"]}` {
 		t.Fatalf("event lines %q %q", a, b)
 	}
+	n.notify(func(o node.Observers) { _ = o.OnFabricRemoved(node.FabricInfo{FabricIndex: 2}) })
+	if a, b := next(), next(); a != "event: fabric_removed" || b != `data: {"fabric_index":2}` {
+		t.Fatalf("event lines %q %q", a, b)
+	}
 	if line := next(); line != ": heartbeat" {
 		t.Fatalf("line %q, want a heartbeat", line)
 	}
 	cancel()
-	waitFor(t, func() bool { return h.hub.subscribers() == base && host.subscribers() == 0 })
+	waitFor(t, func() bool { return h.hub.subscribers() == base && host.subscribers() == 0 && n.observerCount() == 0 })
 }
 
 // recordingSource is a host EventSource that is not an *Events.
@@ -148,34 +154,39 @@ func waitFor(t *testing.T, cond func() bool) {
 	}
 }
 
-// Observers wired: the observers report the node's transitions, and a
-// route does not report them a second time.
-func TestEvents_ObserversReplaceTheRoutesNodeEvents(t *testing.T) {
-	ev := NewEvents()
-	var chained []string
-	obs := ev.Observers(node.Observers{
-		OnFabricAdded: func(node.FabricInfo) error { chained = append(chained, "added"); return nil },
-	})
-	h, mux := newTestHandler(t, testOptions{events: ev})
-	rec := record(h)
-	if err := obs.OnFabricAdded(node.FabricInfo{FabricIndex: 4, VendorID: 0x1349, Label: "Home"}); err != nil {
-		t.Fatal(err)
+// The node's observers report its transitions — a commissioning's
+// fabric_added, a removal, a window opened and closed — once each: a
+// repeated snapshot of the same window state is no transition, and a route
+// that causes one does not publish it a second time. The unsubscribe
+// removes the observer from the node.
+func TestSubscribe_ObservesTheNodeOnce(t *testing.T) {
+	n := sampleNode()
+	h, mux := newTestHandler(t, testOptions{node: n})
+	rec := &recorder{}
+	unsub := h.subscribe(rec.add)
+	if n.observerCount() != 1 {
+		t.Fatalf("%d observers registered, want 1", n.observerCount())
 	}
-	_ = obs.OnFabricRemoved(node.FabricInfo{FabricIndex: 4})
-	_ = obs.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77})
-	_ = obs.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77})
-	_ = obs.OnWindowTransition(node.WindowSnapshot{Open: false})
-	do(t, mux, http.MethodDelete, "/node/fabrics/1", "")
+	n.notify(func(o node.Observers) {
+		_ = o.OnFabricAdded(node.FabricInfo{FabricIndex: 4, VendorID: 0x1349, Label: "Home"})
+	})
+	n.notify(func(o node.Observers) { _ = o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77}) })
+	n.notify(func(o node.Observers) { _ = o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77}) })
 	do(t, mux, http.MethodPost, "/node/pairing/window/close", "")
-	want := []string{EventFabricAdded, EventFabricRemoved, EventWindowOpened, EventWindowClosed}
+	do(t, mux, http.MethodDelete, "/node/fabrics/1", "")
+	want := []string{EventFabricAdded, EventWindowOpened, EventWindowClosed, EventFabricRemoved}
 	if !slices.Equal(rec.types(), want) {
 		t.Fatalf("events %v, want %v", rec.types(), want)
 	}
-	if !slices.Equal(chained, []string{"added"}) {
-		t.Fatalf("the host's own observer ran %v", chained)
-	}
 	if fe, ok := rec.events[0].Data.(FabricEvent); !ok || fe.VendorName == "" {
 		t.Fatalf("fabric_added payload %+v", rec.events[0].Data)
+	}
+	if we, ok := rec.events[1].Data.(WindowEvent); !ok || we.Discriminator != 77 {
+		t.Fatalf("window_opened payload %+v", rec.events[1].Data)
+	}
+	unsub()
+	if n.observerCount() != 0 {
+		t.Fatalf("%d observers left after the unsubscribe", n.observerCount())
 	}
 }
 
