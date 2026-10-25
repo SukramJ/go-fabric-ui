@@ -1,0 +1,86 @@
+name: "Release: Create from Tag"
+# A tag vX.Y.Z releases both artefacts of one version: the Go module (the
+# tag itself; the committed bundle travels with it) and the npm package
+# @sukramj/fabric-ui. The tag must equal internal/version, ui/package.json
+# and changelog.md's newest section (make version-check), and the committed
+# bundle must be the build of the tagged tree (make dist-check); the job
+# refuses the tag otherwise. The GitHub release's notes are the changelog
+# section. The npm publish runs only while the NPM_TOKEN secret is set and
+# says so in the job summary when it is skipped. The template is the
+# sibling repositories' release-on-tag.yml (go-ha2fabric, go-fabric-server).
+# yamllint disable-line rule:truthy
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write # npm provenance
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GO_VERSION: "1.27.3"
+  NODE_VERSION: "22.22.1"
+
+jobs:
+  release:
+    if: github.repository_owner == 'SukramJ'
+    name: Release (${{ github.ref_name }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Determine version from tag
+        run: |
+          echo "TAG_NAME=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+          registry-url: https://registry.npmjs.org
+      - name: The tag matches internal/version, ui/package.json and changelog.md
+        run: |
+          want=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' internal/version/version.go)
+          test "$want" = "$VERSION" || { echo "tag $VERSION, internal/version $want"; exit 1; }
+          make version-check
+      - name: npm ci
+        run: make web-install
+      - name: The committed bundle is the build of the tag
+        run: make dist-check
+      - name: Release notes from the changelog
+        run: script/extract-release-notes.sh "$VERSION" > RELEASE_NOTES.md
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64  # v3
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: ${{ env.TAG_NAME }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish @sukramj/fabric-ui to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::notice::NPM_TOKEN is not set; the npm publish was skipped."
+            echo "### npm publish skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "The repository secret \`NPM_TOKEN\` is not set, so \`@sukramj/fabric-ui@${VERSION}\` was not published. Add the token and re-run this job." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          cd ui
+          npm publish --access public --provenance
+          echo "### npm publish" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published \`@sukramj/fabric-ui@${VERSION}\`." >> "$GITHUB_STEP_SUMMARY"

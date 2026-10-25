@@ -1,7 +1,12 @@
 # GitHub Actions CI for go-fabric-ui, the form of the sibling repositories
-# (go-ha2fabric, go-fabric-server): lint, security, the OS test triplet and
-# build. The web build, the dist guard, coverage and the npm publish join
-# with wave U1 (concept v9).
+# (go-ha2fabric, go-fabric-server): lint, security, the OS test triplet
+# (race detector on, the end-to-end test on fabrictest included), coverage
+# (the per-package floors), build, web (svelte-check, vitest, the build,
+# the byte-identical dist guard and the bundled-package notices) and
+# contract (fixture use on both sides, no removal against the last
+# release). No fuzz-smoke job: the module has no decoder of its own; the
+# request bodies are encoding/json with DisallowUnknownFields and a size
+# bound.
 name: ci
 
 on:
@@ -26,6 +31,9 @@ env:
   GOLANGCI_LINT_VERSION: "v2.14.0"
   GOVULNCHECK_VERSION: "v1.8.0"
   GOLICENSES_VERSION: "v1.6.0"
+  # The Node.js the committed bundle is built with; dist-check rebuilds on
+  # the same one, so a bump is a commit that also rebuilds fabricui/dist.
+  NODE_VERSION: "22.22.1"
 
 jobs:
   lint:
@@ -102,3 +110,55 @@ jobs:
           cache: true
       - name: build
         run: make build
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: cover-check
+        run: make cover-check
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: npm ci
+        run: make web-install
+      - name: svelte-check + vitest
+        run: make web-check
+      - name: dist-check (the committed bundle is the build of this tree)
+        run: make dist-check
+      - name: notices-check (every bundled package is in THIRD-PARTY-NOTICES.md)
+        run: make notices-check
+      - name: version-check
+        run: make version-check
+
+  contract:
+    name: contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: npm ci
+        run: make web-install
+      - name: openapi guard and fixture use (Go and TypeScript)
+        run: make contract-check

@@ -39,3 +39,24 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+
+  # npm (the Svelte library and the shell). Every bump rebuilds the
+  # committed bundle: dist-check fails until fabricui/dist is rebuilt in
+  # the same pull request.
+  - package-ecosystem: npm
+    directory: "/ui"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 10
+    reviewers:
+      - "SukramJ"
+    labels:
+      - "dependencies"
+      - "javascript"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
