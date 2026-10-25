@@ -35,6 +35,18 @@ an unknown path under the API prefix answers a 404 problem.
 | `Logger` | The handlers' logger; nothing it receives carries a passcode. |
 | `ConfiguredWindow` | Open the window on the node's configured passcode instead of fresh credentials. |
 | `AllowEmptyTopology` | Allow a window while no endpoint is exposed. |
+| `Warnings` | The host's findings about its own configuration, shown on the status and selection pages. |
+
+A provider's configuration can be half-valid — a label name that resolves
+to nothing, a rule that matches no item — and a log line is where nobody
+looks. `Options.Warnings` returns those findings as `Warning{Code,
+Message, Since}`; it is called on every `GET /node/status`, which answers
+them as `warnings` (absent without the hook, `[]` when it finds nothing,
+also when the host serves no node). The status page shows them in a card
+above the status, the code as a chip and the message as text; the
+selection page shows the same list collapsed above the table. `Code` is
+the host's stable identifier for the kind of finding, `Message` is already
+in the host's language, and a zero `Since` is left out.
 
 `node.Config.Observers` is set before `node.New`; the facade offers no
 registration afterwards, so a host that wants the stream to report

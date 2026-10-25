@@ -90,6 +90,44 @@ describe("Selection — empty, search and filters", () => {
     expect(within(room).getAllByRole("option").map((o) => o.textContent)).toEqual(["Room: node.selection.filter_all", "Hall", "Kitchen"]);
   });
 
+  it("shows a list-valued column as chips and filters it by membership", async () => {
+    const { container } = render(Harness, { ui: testUI({ fixtures: BASE }), page: Selection });
+    await screen.findByText("Kitchen lamp");
+    const cells = [...container.querySelectorAll("tbody td[data-label='Labels']")];
+    expect(cells.map((c) => [...c.querySelectorAll("span span")].map((s) => s.textContent?.trim()))).toEqual([["Evening", "Ceiling"], ["Evening"], []]);
+    const labels = screen.getByLabelText("Labels");
+    expect(within(labels).getAllByRole("option").map((o) => o.textContent)).toEqual(["Labels: node.selection.filter_all", "Ceiling", "Evening"]);
+    await fireEvent.change(labels, { target: { value: "Evening" } });
+    await waitFor(() => expect(screen.queryByText("Hall remote")).toBeNull());
+    expect(screen.getByText("Kitchen lamp")).toBeInTheDocument();
+    expect(screen.getByText("Hall sensor")).toBeInTheDocument();
+  });
+
+  it("matches a host filter marked multi by membership, an unmarked one by equality", async () => {
+    const schema = body<ExposureSchema>("node-exposure-schema.200");
+    schema.filters = [{ field: "labels", label: "Tag", multi: true, options: [{ value: "Ceiling", label: "Ceiling" }] }];
+    renderSel({ answers: { "GET /node/exposure/schema": { status: 200, body: schema } } });
+    await screen.findByText("Kitchen lamp");
+    await fireEvent.change(screen.getByLabelText("Tag"), { target: { value: "Ceiling" } });
+    await waitFor(() => expect(screen.queryByText("Hall sensor")).toBeNull());
+    expect(screen.getByText("Kitchen lamp")).toBeInTheDocument();
+    cleanup();
+    schema.filters[0].multi = false;
+    renderSel({ answers: { "GET /node/exposure/schema": { status: 200, body: schema } } });
+    await screen.findByText("Kitchen lamp");
+    await fireEvent.change(screen.getByLabelText("Tag"), { target: { value: "Ceiling" } });
+    expect(await screen.findByText("node.selection.empty")).toBeInTheDocument();
+  });
+
+  it("shows the host's warnings collapsed above the list", async () => {
+    renderSel({ fixtures: ["node-status.200"] });
+    const box = await screen.findByTestId("host-warnings");
+    expect(box.tagName).toBe("DETAILS");
+    expect((box as HTMLDetailsElement).open).toBe(false);
+    expect(box).toHaveTextContent('node.warnings.summary:{"count":2}');
+    expect(within(box).getByText("rule_unused")).toBeInTheDocument();
+  });
+
   it("says so when the host serves no selection", async () => {
     const ui = testUI({ fixtures: ["node-exposure-schema.503", "node-exposure.200"] });
     render(Harness, { ui, page: Selection });

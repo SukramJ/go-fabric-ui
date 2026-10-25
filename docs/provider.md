@@ -25,6 +25,16 @@ type ExposureProvider interface {
 - `Filters` — fixed filters with the options the host names; an item
   matches an option when `Item.Fields[Field]` equals its value.
 
+A field can hold several values — the labels an item carries. `Item.Fields`
+stays one string, the values separated by commas (`"Kitchen, Evening"`),
+and `Multi: true` on the column says so: the page shows each value as a
+chip, and a value filter on the column (`Filter: true`) offers the
+individual values across all items, not the combinations, and matches an
+item whose list holds the chosen value. `Multi: true` on a fixed `Filter`
+makes it match the same way. Values are trimmed of spaces; an empty value
+never matches. Without `Multi` a comma is an ordinary character and the
+filter compares the whole string.
+
 The page always shows, beside the host's columns, a select box, the state
 icon (exposed, partially mappable, available, cannot be mapped), the name
 and the verdict's device type. The search matches the name, the group, the

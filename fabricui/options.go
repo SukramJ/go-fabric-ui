@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/SukramJ/go-fabric/node"
 )
@@ -82,6 +83,23 @@ type Options struct {
 	// with 503 and Retry-After: a controller that subscribes before the
 	// first endpoint appears caches an empty parts list.
 	AllowEmptyTopology bool
+	// Warnings reports what the host found half-valid in its own
+	// configuration — a label that resolves to nothing, a rule that
+	// matches no item — so the status and selection pages show it rather
+	// than only the host's log. It is called on every GET /node/status;
+	// nil omits the status response's warnings.
+	Warnings func(ctx context.Context) []Warning
+}
+
+// Warning is one finding of the host about its own configuration.
+type Warning struct {
+	// Code identifies the kind of finding, stable across releases of the
+	// host ("label_unresolved"); the page shows it as a chip.
+	Code string `json:"code"`
+	// Message says what is wrong, already in the host's language.
+	Message string `json:"message"`
+	// Since is when the host first saw the finding; zero omits it.
+	Since time.Time `json:"since,omitzero"`
 }
 
 // Mount registers the API routes on mux under o.Prefix. It fails on an

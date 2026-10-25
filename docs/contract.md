@@ -16,7 +16,7 @@ Paths are relative to the mount prefix (`Options.Prefix`, default
 
 | Route | Method | Admin | Answers | Reads in go-fabric |
 | --- | --- | --- | --- | --- |
-| `/node/status` | GET | – | 200 | `Health`, `LocalAddr`, `Topology`, `MDNSEnabled`, `CommissioningWindow`, `FabricInfos`; the provider's `List` for `enabled_count` |
+| `/node/status` | GET | – | 200 | `Health`, `LocalAddr`, `Topology`, `MDNSEnabled`, `CommissioningWindow`, `FabricInfos`; the provider's `List` for `enabled_count`; `Options.Warnings` for `warnings` |
 | `/node/fabrics` | GET | – | 200, 500, 503 | `FabricInfos`, `eligibility.VendorName` |
 | `/node/fabrics/{index}` | DELETE | yes | 204, 400, 403, 500, 503 | `RemoveFabric` |
 | `/node/pairing` | GET | yes | 200, 403, 503 | `PairingCodes`, or the codes of the window this handler opened |

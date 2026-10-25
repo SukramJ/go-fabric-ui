@@ -17,6 +17,12 @@
           "filter": false,
           "key": "kind",
           "label": "Kind"
+        },
+        {
+          "filter": true,
+          "key": "labels",
+          "label": "Labels",
+          "multi": true
         }
       ],
       "filters": [

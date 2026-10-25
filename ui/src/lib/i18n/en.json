@@ -152,6 +152,9 @@
   "node.tab.selection": "Selection",
   "node.tab.status": "Status",
   "node.title": "Node",
+  "node.warnings.since": "since {time}",
+  "node.warnings.summary": "{count} configuration warnings",
+  "node.warnings.title": "Configuration warnings",
   "select.placeholder": "Select…",
   "shell.language": "Language"
 }

@@ -18,7 +18,18 @@
       "health_note": "listener ok",
       "healthy": true,
       "listen_addr": "[::]:5540",
-      "listening": true
+      "listening": true,
+      "warnings": [
+        {
+          "code": "label_unresolved",
+          "message": "The label \"Basement\" names no item.",
+          "since": "2026-10-25T11:00:00Z"
+        },
+        {
+          "code": "rule_unused",
+          "message": "The rule for remotes matches no item."
+        }
+      ]
     }
   }
 }

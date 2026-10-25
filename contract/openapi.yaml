@@ -366,6 +366,17 @@ components:
         commissioning_window_duration_seconds: { type: integer }
         exposure: { type: boolean, description: Whether the host serves a selection. }
         csrf_token: { type: string, description: The admin token of token mode; absent when the host decides admin rights. }
+        warnings:
+          type: array
+          description: The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing.
+          items: { $ref: "#/components/schemas/Warning" }
+    Warning:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, description: "The kind of finding, stable across host releases." }
+        message: { type: string, description: "What is wrong, in the host's language." }
+        since: { type: string, format: date-time, description: "When the host first saw it; absent when unknown." }
     Fabric:
       type: object
       required: [fabric_index, fabric_id, fabric_id_hex, node_id, node_id_hex, vendor_id, vendor_name, compressed_id, root_public_key]
@@ -554,6 +565,7 @@ components:
         key: { type: string }
         label: { type: string }
         filter: { type: boolean, description: Offer a value filter built from the listed values. }
+        multi: { type: boolean, description: "Default false. The field is a comma-separated list: shown as chips, filtered by membership, the filter's options built from the individual values." }
     FilterOption:
       type: object
       required: [value, label]
@@ -569,6 +581,7 @@ components:
         options:
           type: array
           items: { $ref: "#/components/schemas/FilterOption" }
+        multi: { type: boolean, description: "Default false. Match by membership in the field's comma-separated list (values trimmed; an empty value never matches) instead of equality." }
     ExposureSchema:
       type: object
       required: [columns, groups, filters]

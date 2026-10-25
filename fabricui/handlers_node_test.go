@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/SukramJ/go-fabric/node"
 )
@@ -31,8 +32,46 @@ func TestStatus_NoNode_Returns200Disabled(t *testing.T) {
 func TestStatus_WithNode_Returns200WithSnapshot(t *testing.T) {
 	n := sampleNode()
 	n.open, n.duration = true, 300
-	_, mux := newTestHandler(t, testOptions{node: n, exposure: newMemoryProvider(), admin: func(*http.Request) bool { return true }})
+	_, mux := newTestHandler(t, testOptions{
+		node: n, exposure: newMemoryProvider(), admin: func(*http.Request) bool { return true },
+		warnings: sampleWarnings,
+	})
 	runFixture(t, mux, "node-status.200")
+}
+
+// sampleWarnings are the host findings of the node-status.200 fixture:
+// one with the time the host first saw it, one without.
+func sampleWarnings(context.Context) []Warning {
+	return []Warning{
+		{Code: "label_unresolved", Message: `The label "Basement" names no item.`, Since: testNow.Add(-time.Hour)},
+		{Code: "rule_unused", Message: "The rule for remotes matches no item."},
+	}
+}
+
+// The warnings are omitted without the hook, an empty list when the hook
+// finds nothing, and reported by a host without a node too.
+func TestStatus_Warnings(t *testing.T) {
+	get := func(o testOptions) map[string]json.RawMessage {
+		t.Helper()
+		o.admin = func(*http.Request) bool { return true }
+		_, mux := newTestHandler(t, o)
+		rec := do(t, mux, http.MethodGet, "/node/status", "")
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal(rec.Body.Bytes(), &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	if w, ok := get(testOptions{})["warnings"]; ok {
+		t.Fatalf("warnings without the hook: %s, want absent", w)
+	}
+	if w := string(get(testOptions{warnings: func(context.Context) []Warning { return nil }})["warnings"]); w != "[]" {
+		t.Fatalf("warnings of an empty hook: %q, want []", w)
+	}
+	var ws []Warning
+	if err := json.Unmarshal(get(testOptions{noNode: true, warnings: sampleWarnings})["warnings"], &ws); err != nil || len(ws) != 2 {
+		t.Fatalf("warnings without a node: %v %v, want the two findings", ws, err)
+	}
 }
 
 func TestStatus_TokenModeIssuesTheToken(t *testing.T) {
