@@ -7,6 +7,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-25
+
+The first consumer's findings (go-ha2fabric, report H3): list-valued
+fields and the host's configuration warnings (brief U1a). Additions only;
+contract v1 keeps every field.
+
+### Added
+
+- **List-valued fields:** `Column.Multi` and `Filter.Multi` (JSON
+  `multi`, optional, default false). A multi column shows its
+  comma-separated value as chips; its value filter offers the individual
+  values across all items instead of their combinations; a multi filter
+  matches an item whose list holds the chosen value (values trimmed, an
+  empty value never matches).
+- **Host warnings:** `Options.Warnings func(ctx) []Warning` with
+  `Warning{Code, Message, Since}`. `GET /node/status` answers them as
+  `warnings` (absent without the hook, `[]` when it finds nothing); the
+  Status page shows them in a card above the status card, the Selection
+  page collapsed above the table. The npm client exports the `Warning`
+  type.
+
 ## [0.1.0] - 2026-10-25
 
 The node page family (wave U1 of concept v9), extracted from openccu-loom

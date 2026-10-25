@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.1.0
+  version: 0.1.1
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family (this version) and, planned, of the

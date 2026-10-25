@@ -9,7 +9,7 @@ One web interface for every daemon built on
 embedded by the projects (go-ha2fabric, go-fabric-server, openccu-loom).
 `CONCEPT.md` is the short design; the full one is go-fabric's
 `docs/concept-v9-fabric-ui.md`. **State:** wave U1 (the node page family)
-is `v0.1.0`; wave U2 adds the controller family.
+is `v0.1.0`, patched in `v0.1.1` (brief U1a); wave U2 adds the controller family.
 
 ## Commands
 
