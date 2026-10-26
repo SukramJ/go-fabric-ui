@@ -7,6 +7,29 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-26
+
+List-valued item fields travel as JSON arrays, so a value with a comma —
+a label named "Living, dining" — stays one chip and one filter option
+(issue #10, brief F2). The HTTP contract only gains an optional field;
+hosts that fill `Fields` alone keep working unchanged.
+
+### Added
+
+- `Item.Lists map[string][]string`, answered as `lists` on
+  `GET /node/exposure` and `POST /node/exposure/preview` (absent when the
+  provider leaves it empty): the values of a list-valued field, one entry
+  per value, no separator semantics. A `Multi` column or filter reads
+  `Lists[key]`; when the key is in both `Lists` and `Fields`, `Lists`
+  wins.
+- `Item.ListValues(key)` returns the list as the page reads it.
+
+### Deprecated
+
+- The comma-separated `Item.Fields[key]` for a `Multi` column or filter.
+  It stays accepted as the fallback when `Lists` has no such key until
+  v0.2.0; `Fields[key]` may keep carrying a display string.
+
 ## [0.1.2] - 2026-10-25
 
 The handlers read go-fabric v0.12.2's facade routes instead of the U1

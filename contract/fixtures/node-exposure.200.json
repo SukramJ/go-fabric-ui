@@ -34,11 +34,17 @@
           "enabled": true,
           "fields": {
             "kind": "sensor",
-            "labels": "Evening",
+            "labels": "Evening, Living, dining",
             "room": "Hall"
           },
           "group": "Hall",
           "key": "sensor-2",
+          "lists": {
+            "labels": [
+              "Evening",
+              "Living, dining"
+            ]
+          },
           "name": "Hall sensor",
           "source": "override",
           "verdict": {

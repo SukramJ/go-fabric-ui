@@ -25,15 +25,25 @@ type ExposureProvider interface {
 - `Filters` — fixed filters with the options the host names; an item
   matches an option when `Item.Fields[Field]` equals its value.
 
-A field can hold several values — the labels an item carries. `Item.Fields`
-stays one string, the values separated by commas (`"Kitchen, Evening"`),
-and `Multi: true` on the column says so: the page shows each value as a
-chip, and a value filter on the column (`Filter: true`) offers the
-individual values across all items, not the combinations, and matches an
-item whose list holds the chosen value. `Multi: true` on a fixed `Filter`
-makes it match the same way. Values are trimmed of spaces; an empty value
-never matches. Without `Multi` a comma is an ordinary character and the
-filter compares the whole string.
+A field can hold several values — the labels an item carries. The host
+puts them in `Item.Lists[key]`, one entry per value (`[]string{"Evening",
+"Living, dining"}`), and `Multi: true` on the column says so: the page
+shows each value as a chip, and a value filter on the column (`Filter:
+true`) offers the individual values across all items, not the
+combinations, and matches an item whose list holds the chosen value.
+`Multi: true` on a fixed `Filter` makes it match the same way. An entry
+has no separator semantics, so a value may contain a comma; an empty
+entry is dropped and an empty value never matches. `Item.Fields[key]` may
+still carry a display string for the same key; for a `Multi` column or
+filter `Lists` wins whenever it has the key. `Item.ListValues(key)`
+returns the list as the page reads it.
+
+Deprecated, accepted until v0.2.0: a host that leaves `Lists` without the
+key carries the values in `Item.Fields[key]` as one comma-separated
+string (`"Kitchen, Evening"`); the page splits it on commas and trims
+each value of spaces, so a value with a comma splits into two. Without
+`Multi` a comma is an ordinary character and the filter compares the
+whole string.
 
 The page always shows, beside the host's columns, a select box, the state
 icon (exposed, partially mappable, available, cannot be mapped), the name
@@ -48,6 +58,7 @@ device type and every field.
 | `Name` | The name the item is exposed under. The page can rename it. |
 | `Group` | The section under `Schema.Groups`. |
 | `Fields` | The values of the schema's columns. |
+| `Lists` | The values of the list-valued (`Multi`) columns and filters, one entry per value; wins over `Fields` for the same key. Optional. |
 | `Verdict` | go-fabric's `eligibility.Verdict`: state, device type, clusters, reason. An unmappable item cannot be selected. |
 | `Enabled` | Whether the item is exposed. |
 | `Source` | Where the verdict comes from (a rule, an override, a label, a suggestion), in the host's words; the detail drawer shows it. |

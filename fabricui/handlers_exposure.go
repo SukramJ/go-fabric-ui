@@ -24,13 +24,16 @@ type verdictResponse struct {
 
 // itemResponse is one item of GET /node/exposure and of a preview.
 type itemResponse struct {
-	Key     string            `json:"key"`
-	Name    string            `json:"name"`
-	Group   string            `json:"group"`
-	Fields  map[string]string `json:"fields"`
-	Verdict verdictResponse   `json:"verdict"`
-	Enabled bool              `json:"enabled"`
-	Source  string            `json:"source"`
+	Key    string            `json:"key"`
+	Name   string            `json:"name"`
+	Group  string            `json:"group"`
+	Fields map[string]string `json:"fields"`
+	// Lists travels only when the provider fills it, so a host on Fields
+	// alone answers byte for byte as before.
+	Lists   map[string][]string `json:"lists,omitempty"`
+	Verdict verdictResponse     `json:"verdict"`
+	Enabled bool                `json:"enabled"`
+	Source  string              `json:"source"`
 }
 
 type itemList struct {
@@ -43,6 +46,19 @@ type updateList struct {
 	Items []Update `json:"items"`
 }
 
+// listsOf copies an item's lists for the response: a nil list answers
+// [] rather than null, so every entry the page reads is an array.
+func listsOf(in map[string][]string) map[string][]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string][]string, len(in))
+	for k, v := range in {
+		out[k] = append([]string{}, v...)
+	}
+	return out
+}
+
 func itemsOf(items []Item) []itemResponse {
 	out := make([]itemResponse, 0, len(items))
 	for i := range items {
@@ -53,7 +69,7 @@ func itemsOf(items []Item) []itemResponse {
 		}
 		clusters := append([]uint32{}, it.Verdict.Clusters...)
 		out = append(out, itemResponse{
-			Key: it.Key, Name: it.Name, Group: it.Group, Fields: fields,
+			Key: it.Key, Name: it.Name, Group: it.Group, Fields: fields, Lists: listsOf(it.Lists),
 			Verdict: verdictResponse{
 				State:          it.Verdict.State.String(),
 				DeviceType:     it.Verdict.DeviceType,

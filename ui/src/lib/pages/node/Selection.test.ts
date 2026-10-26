@@ -94,13 +94,26 @@ describe("Selection — empty, search and filters", () => {
     const { container } = render(Harness, { ui: testUI({ fixtures: BASE }), page: Selection });
     await screen.findByText("Kitchen lamp");
     const cells = [...container.querySelectorAll("tbody td[data-label='Labels']")];
-    expect(cells.map((c) => [...c.querySelectorAll("span span")].map((s) => s.textContent?.trim()))).toEqual([["Evening", "Ceiling"], ["Evening"], []]);
+    expect(cells.map((c) => [...c.querySelectorAll("span span")].map((s) => s.textContent?.trim()))).toEqual([["Evening", "Ceiling"], ["Evening", "Living, dining"], []]);
     const labels = screen.getByLabelText("Labels");
-    expect(within(labels).getAllByRole("option").map((o) => o.textContent)).toEqual(["Labels: node.selection.filter_all", "Ceiling", "Evening"]);
+    expect(within(labels).getAllByRole("option").map((o) => o.textContent)).toEqual(["Labels: node.selection.filter_all", "Ceiling", "Evening", "Living, dining"]);
     await fireEvent.change(labels, { target: { value: "Evening" } });
     await waitFor(() => expect(screen.queryByText("Hall remote")).toBeNull());
     expect(screen.getByText("Kitchen lamp")).toBeInTheDocument();
     expect(screen.getByText("Hall sensor")).toBeInTheDocument();
+  });
+
+  it("keeps a listed value with a comma one chip and one filter option (issue #10)", async () => {
+    const { container } = render(Harness, { ui: testUI({ fixtures: BASE }), page: Selection });
+    await screen.findByText("Kitchen lamp");
+    const chips = [...container.querySelectorAll("tbody td[data-label='Labels'] span span")].map((s) => s.textContent?.trim());
+    expect(chips).toContain("Living, dining");
+    expect(chips).not.toContain("Living");
+    expect(chips).not.toContain("dining");
+    await fireEvent.change(screen.getByLabelText("Labels"), { target: { value: "Living, dining" } });
+    await waitFor(() => expect(screen.queryByText("Kitchen lamp")).toBeNull());
+    expect(screen.getByText("Hall sensor")).toBeInTheDocument();
+    expect(screen.queryByText("Hall remote")).toBeNull();
   });
 
   it("matches a host filter marked multi by membership, an unmarked one by equality", async () => {
