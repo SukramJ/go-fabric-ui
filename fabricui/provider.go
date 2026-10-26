@@ -6,6 +6,7 @@ package fabricui
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/SukramJ/go-fabric/eligibility"
 )
@@ -64,11 +65,12 @@ type Column struct {
 	// Filter offers a value filter for the column, built by the page from
 	// the distinct values the listed items carry.
 	Filter bool `json:"filter"`
-	// Multi marks a list-valued field: [Item].Fields carries the values
-	// as one comma-separated string ("Kitchen, Upstairs"). The page shows
-	// each value as a chip, a value filter on the column offers the
-	// individual values across all items rather than their combinations,
-	// and it matches an item that holds the chosen value in its list.
+	// Multi marks a list-valued field: [Item].Lists carries the values,
+	// one entry per value. The page shows each value as a chip, a value
+	// filter on the column offers the individual values across all items
+	// rather than their combinations, and it matches an item that holds
+	// the chosen value in its list. See [Item.ListValues] for the
+	// deprecated comma-separated form in [Item].Fields.
 	Multi bool `json:"multi,omitempty"`
 }
 
@@ -80,10 +82,10 @@ type Filter struct {
 	Label string `json:"label"`
 	// Options are the values the filter offers. An item matches an option
 	// when its field equals the option's value, or, with Multi, when the
-	// option's value is one of the field's comma-separated values.
+	// option's value is one of the item's [Item.ListValues] for the field.
 	Options []FilterOption `json:"options"`
-	// Multi matches by membership in the field's comma-separated list:
-	// each value is trimmed of spaces and an empty value never matches.
+	// Multi matches by membership in the item's list for the field
+	// ([Item.ListValues]); an empty value never matches.
 	Multi bool `json:"multi,omitempty"`
 }
 
@@ -107,8 +109,15 @@ type Item struct {
 	// Group is the group the page lists the item under when
 	// [Schema].Groups is set.
 	Group string
-	// Fields are the values of the schema's columns, by column key.
+	// Fields are the values of the schema's columns, by column key. For
+	// a list-valued (Multi) column it may carry the display string; the
+	// values themselves travel in Lists.
 	Fields map[string]string
+	// Lists are the values of the list-valued (Multi) columns and filters,
+	// by field key: one entry per value, with no separator semantics, so
+	// a value may contain a comma ("Living, dining"). When a key is in
+	// both Lists and Fields, Lists wins for a Multi column or filter.
+	Lists map[string][]string
 	// Verdict is the item's eligibility.
 	Verdict Verdict
 	// Enabled reports whether the item is exposed.
@@ -127,4 +136,30 @@ type Update struct {
 	Enabled bool `json:"enabled"`
 	// Name, when set, renames the item; nil leaves its name alone.
 	Name *string `json:"name,omitempty"`
+}
+
+// ListValues is the list a Multi column or filter reads for key, as the
+// page reads it: Lists[key] when the key is present there, its empty
+// entries dropped; otherwise the comma split of Fields[key], each value
+// trimmed of spaces, empty ones dropped.
+//
+// Deprecated form: the comma-separated Fields[key] for a Multi column is
+// accepted until v0.2.0; a host fills Lists instead.
+func (it *Item) ListValues(key string) []string {
+	if list, ok := it.Lists[key]; ok {
+		out := make([]string, 0, len(list))
+		for _, v := range list {
+			if v != "" {
+				out = append(out, v)
+			}
+		}
+		return out
+	}
+	out := []string{}
+	for v := range strings.SplitSeq(it.Fields[key], ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }

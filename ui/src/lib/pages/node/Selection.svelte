@@ -27,7 +27,7 @@
   import LoadingState from "../../kit/LoadingState.svelte";
   import Select from "../../kit/Select.svelte";
   import HostWarnings from "./HostWarnings.svelte";
-  import { distinctValues, fieldMatches, listValues } from "./fields";
+  import { distinctValues, fieldMatches, itemValues } from "./fields";
 
   const { t, toast, node } = useFabricUI();
 
@@ -64,7 +64,7 @@
     const out: ValueFilter[] = schema.filters.map((f) => ({ field: f.field, label: f.label, multi: !!f.multi, options: f.options }));
     for (const col of schema.columns) {
       if (!col.filter || out.some((f) => f.field === col.key)) continue;
-      const values = distinctValues(node.items.map((i) => i.fields[col.key]), !!col.multi);
+      const values = distinctValues(node.items, col.key, !!col.multi);
       out.push({ field: col.key, label: col.label, multi: !!col.multi, options: values.map((v) => ({ value: v, label: v })) });
     }
     return out;
@@ -83,11 +83,11 @@
     const match = makeTextMatcher(search);
     return node.items.filter((item) => {
       for (const [field, value] of Object.entries(filterValues)) {
-        if (value !== ALL && !fieldMatches(item.fields[field], value, multiField.has(field))) return false;
+        if (value !== ALL && !fieldMatches(item, field, value, multiField.has(field))) return false;
       }
       if (!search.trim()) return true;
       const it = current(item);
-      return [it.name, it.group, it.verdict.device_type_name, ...Object.values(it.fields)].some((v) => v && match(v));
+      return [it.name, it.group, it.verdict.device_type_name, ...Object.values(it.fields), ...Object.values(it.lists ?? {}).flat()].some((v) => v && match(v));
     });
   });
 
@@ -184,7 +184,12 @@
     { key: "select", label: t("node.selection.col_select") },
     { key: "state", label: t("node.selection.col_state"), align: "center", get: (i) => stateInfo(i).label },
     { key: "name", label: t("node.selection.col_name"), sortable: true, title: true, get: (i) => current(i).name },
-    ...(schema?.columns ?? []).map((c) => ({ key: "field:" + c.key, label: c.label, sortable: true, get: (i: Item) => i.fields[c.key] ?? "" })),
+    ...(schema?.columns ?? []).map((c) => ({
+      key: "field:" + c.key,
+      label: c.label,
+      sortable: true,
+      get: (i: Item) => (c.multi ? itemValues(i, c.key).join(", ") : (i.fields[c.key] ?? "")),
+    })),
     { key: "device_type", label: t("node.selection.col_device_type"), sortable: true, get: (i) => i.verdict.device_type_name || "—" },
   ]);
 </script>
@@ -228,7 +233,7 @@
   {:else if col.key === "device_type"}
     <span class="text-[var(--ha-secondary-text-color)]">{item.verdict.device_type_name || "—"}</span>
   {:else if multiColumn.has(col.key)}
-    {@const values = listValues(item.fields[col.key.slice("field:".length)])}
+    {@const values = itemValues(item, col.key.slice("field:".length))}
     {#if values.length === 0}
       <span class="text-[var(--ha-secondary-text-color)]">—</span>
     {:else}

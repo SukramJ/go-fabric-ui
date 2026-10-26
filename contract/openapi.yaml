@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.1.2
+  version: 0.1.3
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family (this version) and, planned, of the
@@ -572,7 +572,7 @@ components:
         key: { type: string }
         label: { type: string }
         filter: { type: boolean, description: Offer a value filter built from the listed values. }
-        multi: { type: boolean, description: "Default false. The field is a comma-separated list: shown as chips, filtered by membership, the filter's options built from the individual values." }
+        multi: { type: boolean, description: "Default false. The field is list-valued: its values are the item's lists entry for the key (or, deprecated until v0.2.0, the comma split of its fields entry when lists has no such key); shown as chips, filtered by membership, the filter's options built from the individual values." }
     FilterOption:
       type: object
       required: [value, label]
@@ -588,7 +588,7 @@ components:
         options:
           type: array
           items: { $ref: "#/components/schemas/FilterOption" }
-        multi: { type: boolean, description: "Default false. Match by membership in the field's comma-separated list (values trimmed; an empty value never matches) instead of equality." }
+        multi: { type: boolean, description: "Default false. Match by membership in the item's list for the field (its lists entry, or, deprecated until v0.2.0, the comma split of its fields entry, values trimmed; an empty value never matches) instead of equality." }
     ExposureSchema:
       type: object
       required: [columns, groups, filters]
@@ -617,6 +617,10 @@ components:
         name: { type: string }
         group: { type: string }
         fields: { type: object, additionalProperties: { type: string } }
+        lists:
+          type: object
+          description: "Optional. The values of list-valued (multi) fields, by field key: one entry per value, no separator semantics, so a value may contain a comma. Wins over the comma-separated fields entry of the same key."
+          additionalProperties: { type: array, items: { type: string } }
         verdict: { $ref: "#/components/schemas/Verdict" }
         enabled: { type: boolean }
         source: { type: string, description: Where the verdict comes from, in the host's words. }

@@ -25,7 +25,7 @@ an unknown path under the API prefix answers a 404 problem.
 | Field | Purpose |
 | --- | --- |
 | `Node` | The node (`*node.Node` satisfies `NodeSource`); nil serves the family as disabled. |
-| `Exposure` | The host's `ExposureProvider` ([provider.md](provider.md)); nil hides the selection page. |
+| `Exposure` | The host's `ExposureProvider` ([provider.md](provider.md)); nil hides the selection page. A list-valued (`Multi`) column reads `Item.Lists`, one entry per value; the comma-separated `Item.Fields` form is deprecated until v0.2.0. |
 | `Admin` | Who may write and read the pairing secret; nil selects token mode ([contract.md](contract.md#admin-rights)). |
 | `Reassemble` | Rebuilds the endpoints from the current selection (maintenance route, and after an exposure change). |
 | `Events` | Events the host publishes beside the handler's own and the node's (an exposure change made outside the page). |

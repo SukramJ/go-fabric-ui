@@ -681,7 +681,7 @@ export interface components {
             label: string;
             /** @description Offer a value filter built from the listed values. */
             filter: boolean;
-            /** @description Default false. The field is a comma-separated list: shown as chips, filtered by membership, the filter's options built from the individual values. */
+            /** @description Default false. The field is list-valued: its values are the item's lists entry for the key (or, deprecated until v0.2.0, the comma split of its fields entry when lists has no such key); shown as chips, filtered by membership, the filter's options built from the individual values. */
             multi?: boolean;
         };
         FilterOption: {
@@ -692,7 +692,7 @@ export interface components {
             field: string;
             label: string;
             options: components["schemas"]["FilterOption"][];
-            /** @description Default false. Match by membership in the field's comma-separated list (values trimmed; an empty value never matches) instead of equality. */
+            /** @description Default false. Match by membership in the item's list for the field (its lists entry, or, deprecated until v0.2.0, the comma split of its fields entry, values trimmed; an empty value never matches) instead of equality. */
             multi?: boolean;
         };
         ExposureSchema: {
@@ -714,6 +714,10 @@ export interface components {
             group: string;
             fields: {
                 [key: string]: string;
+            };
+            /** @description Optional. The values of list-valued (multi) fields, by field key: one entry per value, no separator semantics, so a value may contain a comma. Wins over the comma-separated fields entry of the same key. */
+            lists?: {
+                [key: string]: string[];
             };
             verdict: components["schemas"]["Verdict"];
             enabled: boolean;

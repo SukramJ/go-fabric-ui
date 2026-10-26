@@ -49,7 +49,10 @@ func newMemoryProvider() *memoryProvider {
 			},
 			{
 				Key: "sensor-2", Name: "Hall sensor", Group: "Hall",
-				Fields: map[string]string{"room": "Hall", "kind": "sensor", "labels": "Evening"},
+				// Lists carries the labels, one of them with a comma;
+				// Fields keeps the display string, and Lists wins.
+				Fields: map[string]string{"room": "Hall", "kind": "sensor", "labels": "Evening, Living, dining"},
+				Lists:  map[string][]string{"labels": {"Evening", "Living, dining"}},
 				Verdict: Verdict{
 					State: contract.EligibilityPartial, DeviceType: 0x0302, Clusters: []uint32{0x0402},
 					Reason: "the battery level is not mapped",
@@ -140,6 +143,13 @@ func cloneItems(in []Item) []Item {
 	out := slices.Clone(in)
 	for i := range out {
 		out[i].Fields = maps.Clone(out[i].Fields)
+		if out[i].Lists != nil {
+			lists := make(map[string][]string, len(out[i].Lists))
+			for k, v := range out[i].Lists {
+				lists[k] = slices.Clone(v)
+			}
+			out[i].Lists = lists
+		}
 		out[i].Verdict.Clusters = slices.Clone(out[i].Verdict.Clusters)
 	}
 	return out
