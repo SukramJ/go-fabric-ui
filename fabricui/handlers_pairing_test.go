@@ -62,8 +62,8 @@ func TestPairing_ForgetsAClosedFreshWindow(t *testing.T) {
 	if err := json.Unmarshal(do(t, mux, http.MethodGet, "/node/pairing", "").Body.Bytes(), &p); err != nil {
 		t.Fatal(err)
 	}
-	if p.Source != sourceConfigured || p.Passcode != nil {
-		t.Fatalf("pairing %+v, want the configured codes without a passcode", p)
+	if p.Source != sourceConfigured || p.Passcode == nil || *p.Passcode != fakePasscode || *p.Discriminator != fakeDiscriminator {
+		t.Fatalf("pairing %+v, want the configured setup payload", p)
 	}
 	if h.ephemeral != nil {
 		t.Fatal("the closed window's credentials are still held")
@@ -164,7 +164,7 @@ func TestOpenWindow_HappyPath_Returns200(t *testing.T) {
 	n := sampleNode()
 	_, mux := newTestHandler(t, testOptions{node: n})
 	runFixture(t, mux, "node-pairing-window.200")
-	if len(n.basic) != 1 || n.basic[0].Passcode != 20202021 || n.basic[0].Iterations != ephemeralIterations {
+	if len(n.basic) != 1 || n.basic[0].Passcode != 20202021 || n.basic[0].Iterations != node.PBKDFIterationsMin {
 		t.Fatalf("opened %+v", n.basic)
 	}
 }
@@ -200,9 +200,37 @@ func TestOpenWindow_PublishesWindowOpenedWithoutThePasscode(t *testing.T) {
 	}
 }
 
+// A fresh window is served only while node.Window still reports it: a
+// basic window on its discriminator before its deadline on the node's
+// clock. Another window in its place, or a deadline reached, forgets it.
+func TestPairing_ForgetsAFreshWindowTheNodeNoLongerServes(t *testing.T) {
+	for name, change := range map[string]func(n *fakeNode){
+		"replaced by the own window": func(n *fakeNode) { n.kind, n.disc = node.WindowOwn, fakeDiscriminator },
+		"another basic window":       func(n *fakeNode) { n.disc = 99 },
+		"deadline reached":           func(n *fakeNode) { n.duration = 0 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			n := sampleNode()
+			h, mux := newTestHandler(t, testOptions{node: n})
+			do(t, mux, http.MethodPost, "/node/pairing/window", `{"duration_seconds":300}`)
+			n.mu.Lock()
+			change(n)
+			n.mu.Unlock()
+			var p pairingResponse
+			if err := json.Unmarshal(do(t, mux, http.MethodGet, "/node/pairing", "").Body.Bytes(), &p); err != nil {
+				t.Fatal(err)
+			}
+			if p.Source != sourceConfigured || h.ephemeral != nil {
+				t.Fatalf("pairing %+v, want the configured payload and no held credentials", p)
+			}
+		})
+	}
+}
+
 // Ports TestMatterShare_HappyPath_RecordsAuditUnderShareAction: sharing the
 // node with a further controller is the same route; with ConfiguredWindow
-// it opens the node's own window on its configured codes.
+// it opens the node's own window on its configured codes and answers with
+// the setup payload's passcode and discriminator.
 func TestOpenWindow_ConfiguredOpensTheOwnWindow(t *testing.T) {
 	n := sampleNode()
 	_, mux := newTestHandler(t, testOptions{node: n, configured: true})
@@ -214,7 +242,8 @@ func TestOpenWindow_ConfiguredOpensTheOwnWindow(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &w); err != nil {
 		t.Fatal(err)
 	}
-	if w.Passcode != nil || w.Discriminator != nil || w.QRCode != n.qr || w.DurationSeconds != 600 {
+	if w.Passcode == nil || *w.Passcode != fakePasscode || w.Discriminator == nil || *w.Discriminator != fakeDiscriminator ||
+		w.QRCode != n.qr || w.DurationSeconds != 600 {
 		t.Fatalf("window %+v", w)
 	}
 	if len(n.own) != 1 || n.own[0] != 600*time.Second || len(n.basic) != 0 {
@@ -265,9 +294,12 @@ func TestCloseWindow_Error_Returns500(t *testing.T) {
 	}
 }
 
-// Ports TestMatterCommissioningClose_HappyPath_PublishesCommissioningProgress.
+// Ports TestMatterCommissioningClose_HappyPath_PublishesCommissioningProgress:
+// the node's observer reports the close, the route does not add a second.
 func TestCloseWindow_PublishesWindowClosed(t *testing.T) {
-	h, mux := newTestHandler(t, testOptions{})
+	n := sampleNode()
+	n.open, n.duration = true, 300
+	h, mux := newTestHandler(t, testOptions{node: n})
 	rec := record(h)
 	do(t, mux, http.MethodPost, "/node/pairing/window/close", "")
 	if !slices.Equal(rec.types(), []string{EventWindowClosed}) {
@@ -275,25 +307,26 @@ func TestCloseWindow_PublishesWindowClosed(t *testing.T) {
 	}
 }
 
-func TestFreshCredentials_AreValidAndDistinct(t *testing.T) {
+// The default fresh credentials are node.NewWindowCredentials': the
+// module draws no passcode of its own.
+func TestFreshCredentials_ComeFromTheNode(t *testing.T) {
+	h, err := newHandler(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	seen := map[uint32]bool{}
-	for range 200 {
-		c, err := freshCredentials(time.Minute)
+	for range 50 {
+		c, err := h.fresh(time.Minute)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !validPasscode(c.Passcode) || c.Passcode == 0 || c.Discriminator > node.MaxDiscriminator ||
-			len(c.Salt) != 32 || c.Iterations != ephemeralIterations || c.Timeout != time.Minute {
-			t.Fatalf("credentials %+v", c)
+		if err := node.ValidateSetupPIN(c.Passcode); err != nil || c.Discriminator > node.MaxDiscriminator ||
+			len(c.Salt) != 32 || c.Iterations != node.PBKDFIterationsMin || c.Timeout != time.Minute {
+			t.Fatalf("credentials %+v: %v", c, err)
 		}
 		seen[c.Passcode] = true
 	}
-	if len(seen) < 190 {
-		t.Fatalf("only %d distinct passcodes in 200 draws", len(seen))
-	}
-	for _, bad := range []uint32{0, 11111111, 12345678, 87654321, 99999999, 100000000} {
-		if validPasscode(bad) {
-			t.Fatalf("passcode %d accepted", bad)
-		}
+	if len(seen) < 45 {
+		t.Fatalf("only %d distinct passcodes in 50 draws", len(seen))
 	}
 }

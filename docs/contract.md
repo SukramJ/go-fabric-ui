@@ -16,14 +16,14 @@ Paths are relative to the mount prefix (`Options.Prefix`, default
 
 | Route | Method | Admin | Answers | Reads in go-fabric |
 | --- | --- | --- | --- | --- |
-| `/node/status` | GET | – | 200 | `Health`, `LocalAddr`, `Topology`, `MDNSEnabled`, `CommissioningWindow`, `FabricInfos`; the provider's `List` for `enabled_count`; `Options.Warnings` for `warnings` |
+| `/node/status` | GET | – | 200 | `Health`, `LocalAddr`, `Topology`, `MDNSEnabled`, `Window` (open, duration, `window_kind`, `window_deadline`), `FabricInfos`; the provider's `List` for `enabled_count`; `Options.Warnings` for `warnings` |
 | `/node/fabrics` | GET | – | 200, 500, 503 | `FabricInfos`, `eligibility.VendorName` |
 | `/node/fabrics/{index}` | DELETE | yes | 204, 400, 403, 500, 503 | `RemoveFabric` |
-| `/node/pairing` | GET | yes | 200, 403, 503 | `PairingCodes`, or the codes of the window this handler opened |
-| `/node/pairing/window` | POST | yes | 200, 400, 403, 409, 500, 503 | `OpenBasicWindow` on fresh credentials and `PairingCodesFor`, or `CommissioningWindow().OpenOwnWindow` with `Options.ConfiguredWindow` |
+| `/node/pairing` | GET | yes | 200, 403, 503 | `SetupPayload`, or the credentials of the window this handler opened while `Window` still reports it |
+| `/node/pairing/window` | POST | yes | 200, 400, 403, 409, 500, 503 | `NewWindowCredentials`, `PairingCodesFor` and `OpenBasicWindow`, or `CommissioningWindow().OpenOwnWindow` and `SetupPayload` with `Options.ConfiguredWindow`; `Window` for the duration |
 | `/node/pairing/window/close` | POST | yes | 204, 403, 500, 503 | `CommissioningWindow().RevokeWindow` |
-| `/node/endpoints` | GET | – | 200, 503 | `Topology` |
-| `/node/sessions` | GET | – | 200, 503 | `Sessions` (session table, occupancy), `Subscriptions` (per session) |
+| `/node/endpoints` | GET | – | 200, 503 | `Topology` (`Clusters`, `DeviceTypeRevision` of every endpoint, parts included) |
+| `/node/sessions` | GET | – | 200, 503 | `SessionDiagnostics` (sessions with subscription counts and idle ages on the node's clock, occupancy) |
 | `/node/mdns` | GET | – | 200, 503 | `MDNSEnabled`, `MDNSServices`, `DiagnoseMDNS` |
 | `/node/compatibility` | GET | – | 200, 503 | `FabricInfos`, `Topology`, `eligibility.Compat` |
 | `/node/events` | GET | – | 200, 503 | `DiagnosticEvents` (newest first) |
@@ -33,7 +33,7 @@ Paths are relative to the mount prefix (`Options.Prefix`, default
 | `/node/exposure/preview` | POST | yes | 200, 400, 403, 500, 503 | provider `Preview` |
 | `/node/maintenance/reassemble` | POST | yes | 204, 403, 500, 503 | `Options.Reassemble` |
 | `/node/maintenance/factory-reset` | POST | yes | 204, 400, 403, 500, 503 | `FabricInfos`, `RemoveFabric` for each |
-| `/node/stream` | GET | – | 200 (`text/event-stream`) | `Options.Events`, the handler's own events |
+| `/node/stream` | GET | – | 200 (`text/event-stream`) | `Observe` (per stream), `Options.Events`, the handler's own events |
 
 A route whose dependency the host did not wire answers
 `503 service_unready`: no node (`Options.Node` nil), no selection
@@ -64,13 +64,15 @@ Details the fixtures pin:
   are informational — a JSON number carries 53 bits and a browser rounds
   larger ids.
 - **Secrets**: the passcode appears only in the answers of the admin routes
-  `GET /node/pairing` and `POST /node/pairing/window`, and only for a
-  window this handler opened on fresh credentials. No event and no log
-  line carries it; the tests assert both.
+  `GET /node/pairing` and `POST /node/pairing/window` — the configured one
+  (`Node.SetupPayload`) or that of the window this handler opened on fresh
+  credentials. No event and no log line carries it; the tests assert both.
 - **Stream**: `event:` is `fabric_added`, `fabric_removed`,
   `window_opened`, `window_closed`, `endpoints_changed` or
   `exposure_changed`; `data:` is JSON (`FabricEvent`, `WindowEvent`, `{}`,
-  `ExposureEvent`). A comment line arrives every 15 s.
+  `ExposureEvent`). A comment line arrives every 15 s. The fabric and
+  window events come from the node (`Node.Observe`, registered per stream),
+  once per transition, whoever caused it.
 
 ## Admin rights
 

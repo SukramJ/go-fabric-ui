@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/SukramJ/go-fabric/eligibility"
 )
@@ -30,6 +31,12 @@ type statusResponse struct {
 	Advertising    bool   `json:"advertising"`
 	WindowOpen     bool   `json:"commissioning_window_open"`
 	WindowDuration uint16 `json:"commissioning_window_duration_seconds,omitempty"`
+	// WindowKind is which window is open (node.WindowKind: none, own,
+	// basic, enhanced); absent without a node.
+	WindowKind string `json:"window_kind,omitempty"`
+	// WindowDeadline is when the open window's timer closes it, on the
+	// node's clock (node.Window); absent while none is open.
+	WindowDeadline string `json:"window_deadline,omitempty"`
 	Exposure       bool   `json:"exposure"`
 	CSRFToken      string `json:"csrf_token,omitempty"`
 	// Warnings is nil, and omitted, without Options.Warnings; with the
@@ -63,10 +70,14 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	res.EndpointCount = len(h.node.topology().Devices)
 	res.Advertising = h.node.mdns().Advertising
-	open, duration := h.node.window()
-	res.WindowOpen = open
-	if open {
-		res.WindowDuration = duration
+	win := h.node.window()
+	res.WindowOpen = win.Open
+	res.WindowKind = win.Kind.String()
+	if win.Open {
+		res.WindowDuration = durationSeconds(win.Timeout)
+		if !win.Deadline.IsZero() {
+			res.WindowDeadline = win.Deadline.UTC().Format(time.RFC3339)
+		}
 	}
 	if fabrics, err := h.node.fabrics(r.Context()); err == nil {
 		res.FabricCount = len(fabrics)
@@ -154,8 +165,8 @@ func (h *handler) removeFabric(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r, "Failed to remove fabric", err)
 		return
 	}
+	// fabric_removed reaches the stream through the node's observer.
 	h.log.InfoContext(r.Context(), "fabricui.fabric.removed", slog.Int("fabric_index", int(idx)))
-	h.publishNodeEvent(Event{Type: EventFabricRemoved, Data: FabricEvent{FabricIndex: uint8(idx)}})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -219,7 +230,6 @@ func (h *handler) factoryReset(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		removed = append(removed, f.FabricIndex)
-		h.publishNodeEvent(Event{Type: EventFabricRemoved, Data: FabricEvent{FabricIndex: f.FabricIndex}})
 	}
 	h.log.InfoContext(r.Context(), "fabricui.factory_reset.done", slog.Int("removed", len(removed)))
 	w.WriteHeader(http.StatusNoContent)

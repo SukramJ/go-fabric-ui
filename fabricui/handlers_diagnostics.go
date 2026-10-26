@@ -5,7 +5,6 @@ package fabricui
 
 import (
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/SukramJ/go-fabric/contract"
@@ -50,32 +49,36 @@ type sessionList struct {
 // sessions serves GET /node/sessions: whether a commissioned controller is
 // still talking to the node. A controller that vanished without closing
 // its session only stops sending, so the peer idle age is the load-bearing
-// field. Mirrors loom matter.go:374-400 (MatterSessions).
+// field. Mirrors loom matter.go:374-400 (MatterSessions), on
+// node.SessionDiagnostics: the idle ages are measured on the node's clock,
+// 0 for a session that has not carried traffic yet.
 func (h *handler) sessions(w http.ResponseWriter, r *http.Request) {
 	if h.node == nil {
 		nodeUnready(w, r)
 		return
 	}
-	now := h.now()
-	infos, occ := h.node.sessions()
-	out := make([]sessionResponse, 0, len(infos))
-	for _, s := range infos {
+	diag := h.node.sessions()
+	out := make([]sessionResponse, 0, len(diag.Sessions))
+	for _, s := range diag.Sessions {
 		out = append(out, sessionResponse{
-			SessionID:        s.SessionID,
+			SessionID:        s.ID,
 			FabricIndex:      s.FabricIndex,
 			PeerNodeID:       s.PeerNodeID,
 			PeerNodeIDHex:    hex64(s.PeerNodeID),
 			LocalNodeID:      s.LocalNodeID,
 			LocalNodeIDHex:   hex64(s.LocalNodeID),
-			IsPASE:           s.IsPASE,
+			IsPASE:           s.PASE,
 			Subscriptions:    s.Subscriptions,
 			LastActivity:     s.LastActivity.UTC().Format(time.RFC3339),
 			LastPeerActivity: s.LastPeerActivity.UTC().Format(time.RFC3339),
-			IdleSeconds:      int64(now.Sub(s.LastActivity).Seconds()),
-			PeerIdleSeconds:  int64(now.Sub(s.LastPeerActivity).Seconds()),
+			IdleSeconds:      int64(s.Idle.Seconds()),
+			PeerIdleSeconds:  int64(s.PeerIdle.Seconds()),
 		})
 	}
-	writeJSON(w, sessionList{Sessions: out, Occupancy: occ})
+	occ := diag.Occupancy
+	writeJSON(w, sessionList{Sessions: out, Occupancy: occupancyResponse{
+		Live: occ.Live, Reserved: occ.Reserved, Capacity: occ.Capacity, Free: occ.Free,
+	}})
 }
 
 // mdnsService is one advertised record (loom matter.go:404-413).
@@ -116,8 +119,9 @@ func (h *handler) mdns(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, h.node.mdns())
 }
 
-// clusterResponse is one cluster of an endpoint. Name and revision are
-// absent: the facade does not name clusters (a CK question).
+// clusterResponse is one cluster server of an endpoint, named and revised
+// from go-fabric's generated schema (node.ClusterInfo); name and revision
+// are absent for a cluster the schema does not know.
 type clusterResponse struct {
 	ID       uint32 `json:"id"`
 	Name     string `json:"name,omitempty"`
@@ -129,14 +133,17 @@ type clusterResponse struct {
 // the host's name for the endpoint is name, and its identity travels as
 // the opaque source map ({"key": the stable key}).
 type endpointResponse struct {
-	EndpointID       uint16            `json:"endpoint_id"`
-	ParentEndpointID uint16            `json:"parent_endpoint_id"`
-	DeviceType       uint16            `json:"device_type"`
-	DeviceTypeName   string            `json:"device_type_name"`
-	Reachable        bool              `json:"reachable"`
-	Name             string            `json:"name"`
-	Source           map[string]string `json:"source"`
-	Clusters         []clusterResponse `json:"clusters"`
+	EndpointID       uint16 `json:"endpoint_id"`
+	ParentEndpointID uint16 `json:"parent_endpoint_id"`
+	DeviceType       uint16 `json:"device_type"`
+	DeviceTypeName   string `json:"device_type_name"`
+	// DeviceTypeRevision is the revision the endpoint's Descriptor serves
+	// for its device type; absent for a type the schema does not know.
+	DeviceTypeRevision uint16            `json:"device_type_revision,omitempty"`
+	Reachable          bool              `json:"reachable"`
+	Name               string            `json:"name"`
+	Source             map[string]string `json:"source"`
+	Clusters           []clusterResponse `json:"clusters"`
 }
 
 type endpointList struct {
@@ -164,14 +171,15 @@ func flattenTopology(topo node.BridgeTopology) []endpointResponse {
 		for i := range devs {
 			d := &devs[i]
 			ep := endpointResponse{
-				EndpointID:       d.Endpoint,
-				ParentEndpointID: parent,
-				DeviceType:       d.DeviceType,
-				DeviceTypeName:   contract.DeviceTypeName(d.DeviceType),
-				Reachable:        d.Reachable,
-				Name:             d.Name,
-				Source:           map[string]string{},
-				Clusters:         clustersOf(d.Added),
+				EndpointID:         d.Endpoint,
+				ParentEndpointID:   parent,
+				DeviceType:         d.DeviceType,
+				DeviceTypeName:     contract.DeviceTypeName(d.DeviceType),
+				DeviceTypeRevision: d.DeviceTypeRevision,
+				Reachable:          d.Reachable,
+				Name:               d.Name,
+				Source:             map[string]string{},
+				Clusters:           clustersOf(d.Clusters),
 			}
 			if d.Key != nil {
 				ep.Source["key"] = d.Key.String()
@@ -184,30 +192,14 @@ func flattenTopology(topo node.BridgeTopology) []endpointResponse {
 	return out
 }
 
-// clustersOf lists the server clusters an added endpoint's source serves,
-// by id and sorted; empty for a part and for a host's own snapshotter
-// endpoint, which carry no Added.
-func clustersOf(ep node.Endpoint) []clusterResponse {
-	out := []clusterResponse{}
-	if ep == nil {
-		return out
-	}
-	src := ep.Spec().Source
-	if src == nil {
-		return out
-	}
-	var ids []uint32
-	for _, cs := range src.MatterClusterServers() {
-		if cs == nil {
-			continue
-		}
-		if id := cs.MatterClusterID(); !slices.Contains(ids, id) {
-			ids = append(ids, id)
-		}
-	}
-	slices.Sort(ids)
-	for _, id := range ids {
-		out = append(out, clusterResponse{ID: id})
+// clustersOf lists the cluster servers mounted on an endpoint
+// (node.BridgedDevice.Clusters) in the order its Descriptor's ServerList
+// lists them — for every endpoint, parts and a host's own snapshotter
+// endpoints included.
+func clustersOf(infos []node.ClusterInfo) []clusterResponse {
+	out := make([]clusterResponse, 0, len(infos))
+	for _, c := range infos {
+		out = append(out, clusterResponse{ID: c.ID, Name: c.Name, Revision: c.Revision})
 	}
 	return out
 }

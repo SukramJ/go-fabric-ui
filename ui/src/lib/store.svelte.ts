@@ -7,6 +7,7 @@
 // host-readiness gate dropped.
 import { ApiError, type FabricClient, type FabricList, type ExposureSchema, type Item, type Status, type Update, type Window } from "./api/client";
 import { subscribeStream, type StreamEvent } from "./api/stream";
+import { secondsUntil } from "./countdown";
 import type { Translate } from "./i18n";
 
 export interface Toast {
@@ -172,6 +173,9 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     if (!st.enabled || !st.commissioning_window_open) return;
     const p = await client.pairing();
     const duration = p.duration_seconds ?? st.commissioning_window_duration_seconds ?? 0;
+    // The deadline says what is left; without one (a server before 0.1.2)
+    // the full duration is the upper bound.
+    const left = secondsUntil(st.window_deadline) ?? (duration > 0 ? duration : null);
     commissioning = {
       phase: "open",
       window: {
@@ -181,11 +185,10 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         qr_code: p.qr_code,
         manual_code: p.manual_code,
       },
-      // Without a server-side remaining time the full duration is the upper bound.
-      remaining: duration > 0 ? duration : null,
+      remaining: left,
       addedFabricLabel: null,
     };
-    if (duration > 0) startCountdown(duration);
+    if (left !== null && left > 0) startCountdown(left);
   }
 
   async function closeWindow() {

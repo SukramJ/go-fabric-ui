@@ -31,20 +31,17 @@ type handler struct {
 	reassemble func(context.Context) error
 	warnings   func(context.Context) []Warning
 	// hub carries the handler's own events; extra is the host's source
-	// when it is not an *Events.
-	hub   *Events
-	extra EventSource
-	// publishNode reports whether the handler publishes the fabric and
-	// window transitions its routes cause: false when the host wired the
-	// node's observers into hub.
-	publishNode bool
-	prefix      string
-	log         *slog.Logger
-	configured  bool
-	allowEmpty  bool
-	now         func() time.Time
-	heartbeat   time.Duration
-	// fresh draws the credentials of a window on fresh credentials.
+	// when it is not an *Events. The node's transitions come from
+	// node.Observe, per stream (subscribe).
+	hub        *Events
+	extra      EventSource
+	prefix     string
+	log        *slog.Logger
+	configured bool
+	allowEmpty bool
+	heartbeat  time.Duration
+	// fresh draws the credentials of a window on fresh credentials:
+	// node.NewWindowCredentials.
 	fresh func(time.Duration) (node.WindowCredentials, error)
 
 	// mu guards ephemeral: the credentials of the window this handler
@@ -70,9 +67,8 @@ func newHandler(o Options) (*handler, error) {
 		log:        o.Logger,
 		configured: o.ConfiguredWindow,
 		allowEmpty: o.AllowEmptyTopology,
-		now:        time.Now,
 		heartbeat:  15 * time.Second,
-		fresh:      freshCredentials,
+		fresh:      node.NewWindowCredentials,
 	}
 	if h.log == nil {
 		h.log = slog.Default()
@@ -86,14 +82,6 @@ func newHandler(o Options) (*handler, error) {
 		h.hub = NewEvents()
 		h.extra = o.Events
 	}
-	h.publishNode = !h.hub.observingNode()
-	// A window the node reports closed (commissioned, timed out, revoked
-	// over the wire) is no longer the one GET /node/pairing serves.
-	h.hub.Subscribe(func(ev Event) {
-		if ev.Type == EventWindowClosed {
-			h.forgetEphemeral()
-		}
-	})
 	if h.admin == nil {
 		b := make([]byte, 16)
 		_, _ = rand.Read(b)
@@ -160,11 +148,23 @@ func (h *handler) isAdmin(r *http.Request) bool {
 // publish hands ev to the stream's subscribers.
 func (h *handler) publish(ev Event) { h.hub.Publish(ev) }
 
-// publishNodeEvent publishes a fabric or window transition a route caused,
-// unless the node's observers already report it.
-func (h *handler) publishNodeEvent(ev Event) {
-	if h.publishNode {
-		h.hub.Publish(ev)
+// subscribe registers fn for every event from now on — the handler's own,
+// the host's source and the node's transitions (node.Observe) — and
+// returns the function that unregisters it from all three. A route that
+// removes a fabric or opens a window does not publish the transition
+// itself: the node reports it through the observer, once.
+func (h *handler) subscribe(fn func(Event)) (unsubscribe func()) {
+	unsubs := []func(){h.hub.Subscribe(fn)}
+	if h.extra != nil {
+		unsubs = append(unsubs, h.extra.Subscribe(fn))
+	}
+	if h.node != nil {
+		unsubs = append(unsubs, h.node.observe(nodeObservers(fn, h.node.window().Open)))
+	}
+	return func() {
+		for _, u := range unsubs {
+			u()
+		}
 	}
 }
 

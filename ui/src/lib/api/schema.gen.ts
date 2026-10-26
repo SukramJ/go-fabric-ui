@@ -497,6 +497,16 @@ export interface components {
             advertising: boolean;
             commissioning_window_open: boolean;
             commissioning_window_duration_seconds?: number;
+            /**
+             * @description Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one; absent without a node.
+             * @enum {string}
+             */
+            window_kind?: "none" | "own" | "basic" | "enhanced";
+            /**
+             * Format: date-time
+             * @description When the open window's timer closes it
+             */
+            window_deadline?: string;
             /** @description Whether the host serves a selection. */
             exposure: boolean;
             /** @description The admin token of token mode; absent when the host decides admin rights. */
@@ -533,9 +543,9 @@ export interface components {
             fabrics: components["schemas"]["Fabric"][];
         };
         Pairing: {
-            /** @description Only for a window this handler opened on fresh credentials; the codes carry it. */
+            /** @description The discriminator the codes encode: of the window this handler opened on fresh credentials, else the configured one. Absent from servers before 0.1.2 for the configured source. */
             discriminator?: number;
-            /** @description Only for a window this handler opened on fresh credentials. */
+            /** @description The passcode the codes encode: of the window this handler opened on fresh credentials, else the configured one. Absent from servers before 0.1.2 for the configured source. */
             passcode?: number;
             qr_code: string;
             manual_code: string;
@@ -549,17 +559,20 @@ export interface components {
             duration_seconds?: number;
         };
         Window: {
-            /** @description Absent for a window on the configured credentials. */
+            /** @description The window's discriminator; absent from servers before 0.1.2 for a window on the configured credentials. */
             discriminator?: number;
-            /** @description Absent for a window on the configured credentials. */
+            /** @description The window's passcode; absent from servers before 0.1.2 for a window on the configured credentials. */
             passcode?: number;
             duration_seconds: number;
             qr_code: string;
             manual_code: string;
         };
+        /** @description One cluster server mounted on the endpoint, in its Descriptor's ServerList order. */
         Cluster: {
             id: number;
+            /** @description The schema's cluster name; absent for a cluster the schema does not know. */
             name?: string;
+            /** @description The schema's ClusterRevision; absent for a cluster the schema does not know. */
             revision?: number;
         };
         Endpoint: {
@@ -567,6 +580,8 @@ export interface components {
             parent_endpoint_id: number;
             device_type: number;
             device_type_name: string;
+            /** @description The revision the endpoint's Descriptor serves for its device type; absent for a type the schema does not know. */
+            device_type_revision?: number;
             reachable: boolean;
             name: string;
             /** @description Opaque identity of the host's source; `key` is the endpoint's stable key. */

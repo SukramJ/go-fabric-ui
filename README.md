@@ -11,7 +11,7 @@ and diagnostics on the node side; commissioning, discovery and the
 commissioned nodes on the controller side. Maintained once, embedded by
 each project.
 
-> **Status: `v0.1.1`** (wave U1 of
+> **Status: `v0.1.2`** (wave U1 of
 > [concept v9](https://github.com/SukramJ/go-fabric/blob/main/docs/concept-v9-fabric-ui.md)):
 > the node page family. The controller family follows in `v0.2.0`.
 
@@ -29,12 +29,11 @@ each project.
   that adopts the live theme inside an Ingress panel) and the generated
   TypeScript client, for a project with its own single-page app.
 
-A Go daemon embeds the whole interface in three lines:
+A Go daemon embeds the whole interface in one line, before or after the
+node started:
 
 ```go
-ev := fabricui.NewEvents()
-cfg.Observers = ev.Observers(cfg.Observers) // before node.New
-mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Exposure: provider, Events: ev}))
+mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Exposure: provider}))
 ```
 
 [`docs/embedding.md`](docs/embedding.md) covers the options, the npm
