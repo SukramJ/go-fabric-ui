@@ -14,6 +14,7 @@
 //	ctrl, err := controller.New(ctx, cfg)
 //	src := gofabric.ControllerOf(ctrl, gofabric.ControllerOptions{Hooks: hooks, Credentials: store})
 //	mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Controller: src}))
+//	// … on shutdown: hooks.Close() before ctrl.Close(ctx)
 //
 // The facade calls are those go-fabric-server's controllerapi makes per
 // WebSocket command (cmd_node.go, cmd_commission.go, cmd_interact.go,
@@ -153,7 +154,11 @@ func (s *source) nodeOf(n *client.Node) (*node, bool) {
 
 func (s *source) Nodes() []fabricui.ControllerNode {
 	var nodes []*node
-	for _, n := range s.ctrl.Registry().Commissioned() {
+	reg := s.ctrl.Registry()
+	if reg == nil {
+		return []fabricui.ControllerNode{}
+	}
+	for _, n := range reg.Commissioned() {
 		if w, ok := s.nodeOf(n); ok {
 			nodes = append(nodes, w)
 		}
@@ -177,11 +182,11 @@ func (s *source) Nodes() []fabricui.ControllerNode {
 // lookup is the commissioned node with the id — go-fabric-server's
 // Server.node (controllerapi/cmd_node.go:24-35 at v0.3.2).
 func (s *source) lookup(id uint64) (*node, bool) {
-	f := s.ctrl.Fabric()
-	if f == nil {
+	f, reg := s.ctrl.Fabric(), s.ctrl.Registry()
+	if f == nil || reg == nil {
 		return nil, false
 	}
-	n := s.ctrl.Registry().GetByAddress(f.AddressOf(id))
+	n := reg.GetByAddress(f.AddressOf(id))
 	if n == nil || !n.IsCommissioned() {
 		return nil, false
 	}
@@ -394,6 +399,9 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 		return nil, err
 	}
 	reg := s.ctrl.Registry()
+	if reg == nil {
+		return nil, fmt.Errorf("%w: the controller is closed", fabricui.ErrNodeFailed)
+	}
 	n, err := reg.ForDevice(ctx, dev)
 	if err != nil {
 		return nil, commissionError(err)
@@ -429,7 +437,11 @@ func (s *source) Decommission(ctx context.Context, id uint64) error {
 	if !ok {
 		return fabricui.ErrNodeNotFound
 	}
-	if err := s.ctrl.Registry().Decommission(ctx, n.n); err != nil {
+	reg := s.ctrl.Registry()
+	if reg == nil {
+		return fabricui.ErrNodeNotFound
+	}
+	if err := reg.Decommission(ctx, n.n); err != nil {
 		return nodeError(err)
 	}
 	return nil
@@ -458,7 +470,11 @@ func (s *source) SetFabricLabel(_ context.Context, label string) error {
 	go func() { //nolint:gosec,contextcheck // G118: the push outlives the request by design
 		ctx, cancel := context.WithTimeout(context.Background(), labelPushTimeout)
 		defer cancel()
-		if err := s.ctrl.Registry().SetFabricLabel(ctx, label); err != nil {
+		reg := s.ctrl.Registry()
+		if reg == nil {
+			return
+		}
+		if err := reg.SetFabricLabel(ctx, label); err != nil {
 			s.log.Warn("fabricui.gofabric.label_push_failed", slog.String("error", err.Error()))
 		}
 	}()

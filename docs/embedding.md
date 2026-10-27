@@ -84,13 +84,14 @@ src := gofabric.ControllerOf(ctrl, gofabric.ControllerOptions{
     Pair:        controller.PairOptions{OnAttestationFailure: policy},
 })
 mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Controller: src}))
+// … on shutdown: hooks.Close() before ctrl.Close(ctx)
 ```
 
 `ControllerOptions`:
 
 | Field | Purpose |
 | --- | --- |
-| `Hooks` | Turns the nodes' `client.Hooks` into the controller stream's events (`node_added`, `node_removed`, `connection`, `subscription`, `node_updated`, coalesced). `Wrap` chains them after the host's own `HooksFor`; nil leaves the stream with the handler's own events. |
+| `Hooks` | Turns the nodes' `client.Hooks` into the controller stream's events (`node_added`, `node_removed`, `connection`, `subscription`, `node_updated`, coalesced). `Wrap` chains them after the host's own `HooksFor`; `Close` (before the controller's) stops the pending timers; events after it, or while the controller has no registry, are dropped. Nil leaves the stream with the handler's own events. |
 | `Credentials` | The host's credential store: `fabricui.CredentialStore` (list names, set write-only, remove) plus `WiFi(id)` and `Thread(id)` for a commissioning that names one. `fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName)` is an in-memory one that checks a dataset with go-fabric's decoder. Nil answers 503 on the credential routes. |
 | `Pair` | The template of every commissioning: the attestation policy, the default subscription, the BLE central (`Capabilities().BLE`). The network a request names is set on a copy. |
 | `Logger` | The adapter's logger; nothing it logs carries a passcode or a credential. |

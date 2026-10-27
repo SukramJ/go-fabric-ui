@@ -30,7 +30,8 @@ with the controller section; the node section is unchanged.
 - `fabricui/gofabric.ControllerOf(*controller.Controller,
   ControllerOptions)`, the adapter over go-fabric's controller facade;
   `gofabric.Hooks` deliver the nodes' transitions to the stream
-  (`controller.Config.HooksFor`, `Wrap` keeps the host's own hooks);
+  (`controller.Config.HooksFor`, `Wrap` keeps the host's own hooks;
+  `Close` before the controller's stops their timers);
   `gofabric.ThreadDatasetName` names a Thread dataset by go-fabric's
   decoder.
 - The controller handlers are generated from the contract with

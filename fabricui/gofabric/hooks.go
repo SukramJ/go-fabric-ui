@@ -22,41 +22,86 @@ const updateDelay = 500 * time.Millisecond
 // on Decommissioned, connection, subscription, and node_updated for a
 // structure change or a report (coalesced). The host builds them before
 // controller.New, wires [Hooks.For] or [Hooks.Wrap] into
-// controller.Config.HooksFor, and passes them to [ControllerOf]; events
-// before that are dropped. It is safe for concurrent use.
+// controller.Config.HooksFor, passes them to [ControllerOf], and calls
+// [Hooks.Close] before it closes the controller. Events before
+// ControllerOf, after Close, or while the controller has no registry are
+// dropped. It is safe for concurrent use.
 type Hooks struct {
-	mu  sync.Mutex
-	src *source
+	mu     sync.Mutex
+	src    *source
+	closed bool
 	// ids are the node ids by local id, kept so a Decommissioned hook,
 	// which runs once the peer address is gone, still names its node.
 	ids map[string]uint64
-	// pending are the coalescing timers of node_updated, by local id.
+	// pending are the coalescing timers of node_updated, by local id. A
+	// timer's function emits only while it is still the one in pending.
 	pending map[string]*time.Timer
+	// delay is updateDelay; a test shortens it.
+	delay time.Duration
 }
 
 // NewHooks returns hooks bound to no controller yet.
-func NewHooks() *Hooks { return &Hooks{ids: map[string]uint64{}, pending: map[string]*time.Timer{}} }
+func NewHooks() *Hooks {
+	return &Hooks{ids: map[string]uint64{}, pending: map[string]*time.Timer{}, delay: updateDelay}
+}
 
+// bind sets the source the hooks publish to; from then on hooks fire
+// into it. The node ids of the commissioned nodes are learnt at once.
 func (h *Hooks) bind(s *source) {
 	h.mu.Lock()
+	if h.closed {
+		h.mu.Unlock()
+		return
+	}
 	h.src = s
 	h.mu.Unlock()
-	for _, n := range s.ctrl.Registry().Commissioned() {
-		h.nodeID(n.ID())
+	if reg := s.ctrl.Registry(); reg != nil {
+		for _, n := range reg.Commissioned() {
+			h.nodeID(n.ID())
+		}
 	}
 }
 
-// nodeID resolves a local id to the node id, remembering it; false while
-// unbound or before the node is commissioned.
-func (h *Hooks) nodeID(local string) (uint64, bool) {
+// Close stops the pending node_updated timers and drops every event from
+// now on. The host calls it before closing the controller; it is
+// idempotent.
+func (h *Hooks) Close() {
 	h.mu.Lock()
-	s := h.src
-	id, known := h.ids[local]
-	h.mu.Unlock()
+	defer h.mu.Unlock()
+	h.closed = true
+	h.src = nil
+	for local, t := range h.pending {
+		t.Stop()
+		delete(h.pending, local)
+	}
+}
+
+// source is the bound source, nil while unbound or closed.
+func (h *Hooks) source() *source {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return nil
+	}
+	return h.src
+}
+
+// nodeID resolves a local id to the node id, remembering it; false while
+// unbound, closed, without a registry, or before the node is
+// commissioned and known.
+func (h *Hooks) nodeID(local string) (uint64, bool) {
+	s := h.source()
 	if s == nil {
 		return 0, false
 	}
-	if n := s.ctrl.Registry().Get(local); n != nil {
+	h.mu.Lock()
+	id, known := h.ids[local]
+	h.mu.Unlock()
+	reg := s.ctrl.Registry()
+	if reg == nil {
+		return 0, false
+	}
+	if n := reg.Get(local); n != nil {
 		if addr, ok := n.PeerAddress(); ok {
 			h.mu.Lock()
 			h.ids[local] = addr.NodeID
@@ -72,9 +117,10 @@ func (h *Hooks) emit(local string, e fabricui.ControllerEvent) {
 	if !ok {
 		return
 	}
-	h.mu.Lock()
-	s := h.src
-	h.mu.Unlock()
+	s := h.source()
+	if s == nil {
+		return
+	}
 	e.Node = id
 	s.publish(e)
 }
@@ -83,15 +129,23 @@ func (h *Hooks) emit(local string, e fabricui.ControllerEvent) {
 func (h *Hooks) updated(local string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.src == nil || h.pending[local] != nil {
+	if h.closed || h.src == nil || h.pending[local] != nil {
 		return
 	}
-	h.pending[local] = time.AfterFunc(updateDelay, func() {
+	var t *time.Timer
+	t = time.AfterFunc(h.delay, func() {
 		h.mu.Lock()
-		delete(h.pending, local)
+		current := h.pending[local] == t
+		if current {
+			delete(h.pending, local)
+		}
 		h.mu.Unlock()
-		h.emit(local, fabricui.ControllerEvent{Type: fabricui.EventNodeUpdated})
+		// A timer Close stopped too late, or one replaced, emits nothing.
+		if current {
+			h.emit(local, fabricui.ControllerEvent{Type: fabricui.EventNodeUpdated})
+		}
 	})
+	h.pending[local] = t
 }
 
 // For is the hooks of the node with local id: controller.Config.HooksFor

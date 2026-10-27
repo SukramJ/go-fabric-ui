@@ -63,6 +63,7 @@ func newCtrlSite(t *testing.T) *ctrlSite {
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
+		hooks.Close() // before the controller goes: no timer outlives it
 		_ = site.Run(ctx, ctrl.Close)
 	})
 	src := gofabric.ControllerOf(ctrl, gofabric.ControllerOptions{
