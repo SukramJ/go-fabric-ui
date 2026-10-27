@@ -60,3 +60,11 @@ updates:
     groups:
       npm-minor-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      # TypeScript 7 (the Go-native compiler) is not supported yet by the
+      # tools that drive it here: svelte-check 4.7 accepts TypeScript 5/6
+      # only (TS 7 needs a side-by-side TS 6 install and --tsgo), and
+      # openapi-typescript 7.13 declares typescript ^5.x. Lift this once
+      # both support TypeScript 7.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
