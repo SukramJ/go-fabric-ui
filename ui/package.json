@@ -1,6 +1,6 @@
 {
   "name": "@sukramj/fabric-ui",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The web interface of go-fabric nodes: Svelte 5 pages, UI kit, design tokens with a Home Assistant theme bridge, and the generated API client.",
   "license": "Apache-2.0",
   "author": "SukramJ",

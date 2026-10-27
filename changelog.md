@@ -7,6 +7,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-27
+
+### Fixed
+
+- The module compiles on 32-bit targets again: two range checks in the
+  controller handlers compared an `int` with `0xFFFFFFFF`, which overflows
+  where `int` is 32 bits (found by go-fabric-server's armv7 add-on image,
+  report S4). CI now builds with `GOARCH=386`. The comma form of
+  `Item.Fields` for a `Multi` column stays accepted in this release; its
+  removal moves to v0.2.2, after go-fabric-server v0.4.0 has bumped.
+
 ## [0.2.0] - 2026-10-27
 
 The controller page family (wave U2, brief U2): every go-fabric

@@ -112,6 +112,8 @@ jobs:
           cache: true
       - name: build
         run: make build
+      - name: build (32-bit, the armv7 add-on and arm/386 hosts of the consumers)
+        run: GOARCH=386 make build
 
   coverage:
     name: coverage

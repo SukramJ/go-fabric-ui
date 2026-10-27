@@ -1132,7 +1132,7 @@ func (s *controllerServer) DiscoverDevices(ctx context.Context, req api.Discover
 		}
 	}
 	if f.Kind != "any" {
-		if req.Params.Value == nil || *req.Params.Value < 0 || *req.Params.Value > 0xFFFFFFFF {
+		if req.Params.Value == nil || *req.Params.Value < 0 || int64(*req.Params.Value) > 0xFFFFFFFF { // int64: int is 32 bits on arm/386
 			return nil, badRequest("value: filter %s needs a value", f.Kind)
 		}
 		f.Value = uint32(*req.Params.Value)
@@ -1313,7 +1313,7 @@ func (s *controllerServer) ConsentUpdate(ctx context.Context, req api.ConsentUpd
 	if err != nil {
 		return nil, err
 	}
-	if b.VendorID < 0 || b.VendorID > 0xFFFF || b.ProductID < 0 || b.ProductID > 0xFFFF || b.TargetSoftwareVersion < 0 || b.TargetSoftwareVersion > 0xFFFFFFFF {
+	if b.VendorID < 0 || b.VendorID > 0xFFFF || b.ProductID < 0 || b.ProductID > 0xFFFF || b.TargetSoftwareVersion < 0 || int64(b.TargetSoftwareVersion) > 0xFFFFFFFF { // int64: int is 32 bits on arm/386
 		return nil, badRequest("vendor_id, product_id or target_software_version out of range")
 	}
 	if _, ok := s.src.Node(id); !ok {
