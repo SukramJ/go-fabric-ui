@@ -9,7 +9,7 @@ One web interface for every daemon built on
 embedded by the projects (go-ha2fabric, go-fabric-server, openccu-loom).
 `CONCEPT.md` is the short design; the full one is go-fabric's
 `docs/concept-v9-fabric-ui.md`. **State:** wave U1 (the node page family)
-is `v0.1.0`, patched in `v0.1.1` (brief U1a) and `v0.1.2` (brief U1b, go-fabric v0.12.2's facade routes) and `v0.1.3` (brief F2, list-valued fields); wave U2 adds the controller family.
+is `v0.1.0`, patched in `v0.1.1` (brief U1a) and `v0.1.2` (brief U1b, go-fabric v0.12.2's facade routes) and `v0.1.3` (brief F2, list-valued fields); wave U2 (brief U2) adds the controller family in `v0.2.0`.
 
 ## Commands
 
@@ -24,6 +24,8 @@ make dist-check      # rebuild into a temp dir, fail on any byte of difference
 make contract-check  # no removal against contract/previous, every fixture used on both sides
 make notices-check   # every bundled npm package is in THIRD-PARTY-NOTICES.md
 make version-check   # internal/version == ui/package.json == changelog section
+make generate        # the controller handlers (internal/api) from the contract, pinned oapi-codegen
+make generate-check  # fail when internal/api is stale
 ```
 
 The web half lives under `ui/` (npm scripts: `dev`, `build`, `check`,
@@ -42,7 +44,16 @@ responses are recorded from the handlers with
 - **Go imports only go-fabric's facade** (`node`, `eligibility`,
   `contract`), never a package below it (`bridge`, `secure`, `im`, …). A
   facade gap is reported to go-fabric (wave CK), not worked around through
-  a seam. An import guard (`internal/arch`) holds it.
+  a seam. The one wider place is `fabricui/gofabric`, the controller
+  adapter: go-fabric's controller facade (`controller`, `controller/client`,
+  `controller/softwareupdate`, `controller/thread`, …) and the generated
+  cluster definitions it encodes ACL and Binding with. An import guard
+  (`internal/arch`) holds both.
+- **Controller handlers are generated.** `internal/api` is oapi-codegen's
+  strict server for the contract's `controller` tag; regenerate with
+  `make generate` after a contract change, never hand-edit it. The handler
+  bodies (`fabricui/handlers_controller.go`) call the port and map errors
+  to problems; the node family stays hand-written.
 - **No host knowledge.** What is exposable, how it is named and grouped,
   comes through `ExposureProvider`; the pages render schema and items.
   Home Assistant, CCU and MQTT terms do not appear in this repository.
@@ -55,7 +66,9 @@ responses are recorded from the handlers with
 - **The bundle is committed** (`fabricui/dist/`) and guarded: pinned
   versions, `npm ci`, byte-identical rebuild in CI. Sourcemaps are not
   committed.
-- **Dependencies are decisions.** Go: go-fabric and the standard library.
+- **Dependencies are decisions.** Go: go-fabric, the standard library and
+  oapi-codegen's runtime (the generated handlers; decided in brief U2);
+  the generator is a pinned `tool`.
   npm: MIT/Apache-2.0/BSD/ISC only (ISC accepted 2026-10-25 for
   `@lucide/svelte`, as the family accepted it for coder/websocket); every
   package that lands in the bundle is

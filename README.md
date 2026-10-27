@@ -11,14 +11,18 @@ and diagnostics on the node side; commissioning, discovery and the
 commissioned nodes on the controller side. Maintained once, embedded by
 each project.
 
-> **Status: `v0.1.2`** (wave U1 of
+> **Status: `v0.2.0`** (waves U1 and U2 of
 > [concept v9](https://github.com/SukramJ/go-fabric/blob/main/docs/concept-v9-fabric-ui.md)):
-> the node page family. The controller family follows in `v0.2.0`.
+> both page families — the node family (status, pairing, fabrics,
+> selection, endpoints, diagnostics) and the controller family (nodes,
+> commissioning, a node's endpoints, attributes, ACL, bindings, window,
+> ICD, fabrics and updates, settings).
 
 ## Two artefacts, one version
 
 - **Go module** `github.com/SukramJ/go-fabric-ui`, package `fabricui`:
-  `Mount(mux, Options)` puts the HTTP API on a `*node.Node`;
+  `Mount(mux, Options)` puts the HTTP API on a `*node.Node` and, through
+  `fabricui/gofabric.ControllerOf`, on a `*controller.Controller`;
   `Handler(Options)` serves the API and the built bundle, so a daemon
   without its own web app gets the whole interface from one import and
   needs no Node.js toolchain. What a host exposes is its own business: it
@@ -43,7 +47,8 @@ how to write the selection's provider.
 ## The contract
 
 `contract/openapi.yaml` is the single source of the API (routes under
-`/api/v1/node/`, the controller routes listed as planned). The Go handlers
+`/api/v1/node/` and `/api/v1/controller/`; the controller handlers are
+generated from it with oapi-codegen). The Go handlers
 and the TypeScript client are tested against the same golden fixtures in
 `contract/fixtures/`, and a guard fails on any removal against the last
 release's copy. [`docs/contract.md`](docs/contract.md) has the route
