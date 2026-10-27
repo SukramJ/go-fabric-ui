@@ -1,0 +1,13 @@
+{
+  "route": "POST /controller/nodes/{id}/interview",
+  "request": {
+    "method": "POST",
+    "path": "/controller/nodes/0000000000000011/interview",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

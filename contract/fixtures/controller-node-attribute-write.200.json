@@ -1,0 +1,22 @@
+{
+  "route": "PUT /controller/nodes/{id}/attributes",
+  "request": {
+    "method": "PUT",
+    "path": "/controller/nodes/0000000000000011/attributes",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "endpoint": 0,
+      "cluster_hex": "0x0028",
+      "attribute_hex": "0x0005",
+      "value": "Hall"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "status": 0
+    }
+  }
+}

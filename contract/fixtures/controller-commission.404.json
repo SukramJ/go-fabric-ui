@@ -1,0 +1,24 @@
+{
+  "route": "POST /controller/commission",
+  "request": {
+    "method": "POST",
+    "path": "/controller/commission",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "code": "12345678901"
+    }
+  },
+  "response": {
+    "status": 404,
+    "body": {
+      "code": "not_found",
+      "detail": "fabricui: no device answered",
+      "instance": "/api/v1/controller/commission",
+      "status": 404,
+      "title": "No device answered",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-not_found"
+    }
+  }
+}

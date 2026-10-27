@@ -1,0 +1,27 @@
+{
+  "route": "GET /controller/status",
+  "request": {
+    "method": "GET",
+    "path": "/controller/status"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "capabilities": {
+        "ble": false,
+        "credentials": true,
+        "ota": true
+      },
+      "compressed_fabric_id_hex": "87E1B004E235A130",
+      "csrf_token": "test-token",
+      "enabled": true,
+      "fabric_id_hex": "0000000000000001",
+      "fabric_index": 1,
+      "label": "fabric-ui",
+      "node_count": 2,
+      "node_id_hex": "000000000001B669",
+      "vendor_id": 65521,
+      "vendor_name": "0xFFF1"
+    }
+  }
+}

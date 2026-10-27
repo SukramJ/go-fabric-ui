@@ -1,0 +1,22 @@
+{
+  "route": "POST /controller/nodes/{id}/icd/register",
+  "request": {
+    "method": "POST",
+    "path": "/controller/nodes/0000000000000012/icd/register",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {}
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "code": "conflict",
+      "detail": "fabricui: conflict: the node has administrators from other vendors that may not support LIT",
+      "instance": "/api/v1/controller/nodes/0000000000000012/icd/register",
+      "status": 409,
+      "title": "Refused by the node",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-conflict"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "route": "POST /controller/nodes/{id}/disable",
+  "request": {
+    "method": "POST",
+    "path": "/controller/nodes/0000000000000011/disable",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

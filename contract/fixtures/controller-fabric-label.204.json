@@ -1,0 +1,16 @@
+{
+  "route": "PUT /controller/fabric/label",
+  "request": {
+    "method": "PUT",
+    "path": "/controller/fabric/label",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "label": "Home"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

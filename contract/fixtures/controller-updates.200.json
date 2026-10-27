@@ -1,0 +1,23 @@
+{
+  "route": "GET /controller/updates",
+  "request": {
+    "method": "GET",
+    "path": "/controller/updates"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "available": true,
+      "queue": [
+        {
+          "node_id_hex": "0000000000000011",
+          "product_id": 32769,
+          "progress_status": "WaitForConsent",
+          "status": "queued",
+          "target_software_version": 2,
+          "vendor_id": 65521
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "route": "DELETE /controller/nodes/{id}",
+  "request": {
+    "method": "DELETE",
+    "path": "/controller/nodes/0000000000000012",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

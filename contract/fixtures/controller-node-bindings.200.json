@@ -1,0 +1,25 @@
+{
+  "route": "GET /controller/nodes/{id}/bindings",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nodes/0000000000000011/bindings"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "endpoints": [
+        {
+          "bindings": [
+            {
+              "cluster_hex": "0x0006",
+              "endpoint": 1,
+              "fabric_index": 1,
+              "node_id_hex": "0000000000000012"
+            }
+          ],
+          "endpoint": 1
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "route": "PUT /controller/nodes/{id}/bindings",
+  "request": {
+    "method": "PUT",
+    "path": "/controller/nodes/0000000000000011/bindings",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "endpoint": 1,
+      "bindings": [
+        {
+          "group": 1,
+          "cluster_hex": "0x0006"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "status": 0
+    }
+  }
+}

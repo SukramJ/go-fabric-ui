@@ -1,0 +1,26 @@
+{
+  "route": "POST /controller/nodes/{id}/icd/unregister",
+  "request": {
+    "method": "POST",
+    "path": "/controller/nodes/0000000000000012/icd/unregister",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "force": true
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "available": true,
+      "awake": false,
+      "last_check_in": "2026-10-20T08:00:00Z",
+      "lit_supported": true,
+      "next_check_in": "2026-10-20T09:00:00Z",
+      "operating_mode": "lit",
+      "registered": false,
+      "supported": true
+    }
+  }
+}

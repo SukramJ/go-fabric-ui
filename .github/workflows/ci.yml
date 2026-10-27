@@ -58,6 +58,8 @@ jobs:
           golangci-lint run --timeout=5m ./...
       - name: go.mod tidiness
         run: make tidy-check
+      - name: generated handlers (internal/api is the generation of the contract)
+        run: make generate-check
 
   security:
     name: security (vuln + licenses + secrets)

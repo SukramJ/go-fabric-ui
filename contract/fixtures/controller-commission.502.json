@@ -1,0 +1,27 @@
+{
+  "route": "POST /controller/commission",
+  "request": {
+    "method": "POST",
+    "path": "/controller/commission",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "discovered": {
+        "instance_name": "1A2B3C4D5E6F7788"
+      },
+      "passcode": 12345678
+    }
+  },
+  "response": {
+    "status": 502,
+    "body": {
+      "code": "node_error",
+      "detail": "fabricui: the node failed: PASE failed: the device refused the passcode",
+      "instance": "/api/v1/controller/commission",
+      "status": 502,
+      "title": "The node failed",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-node_error"
+    }
+  }
+}
