@@ -87,6 +87,7 @@ export function testUI(
     toast: toastSpy,
     confirm: confirmSpy as unknown as Confirm,
     subscribe: () => () => {},
+    subscribeController: () => () => {},
   });
   return Object.assign(ui, { toastSpy, confirmSpy, sent: ff.sent });
 }

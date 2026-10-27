@@ -34,3 +34,18 @@ describe("subscribeStream", () => {
     expect(src.closed).toBe(true);
   });
 });
+
+describe("subscribeControllerStream", () => {
+  it("delivers the controller stream's event types and closes", async () => {
+    const { CONTROLLER_STREAM_EVENTS, subscribeControllerStream } = await import("./stream");
+    const src = new FakeSource();
+    const got: unknown[] = [];
+    const close = subscribeControllerStream("/api/v1/controller/stream", (ev) => got.push(ev), () => src);
+    expect([...src.listeners.keys()]).toEqual([...CONTROLLER_STREAM_EVENTS]);
+    src.emit("connection", '{"node_id_hex":"0000000000000011","connection":"disconnected"}');
+    src.emit("node_added", "broken");
+    expect(got).toEqual([{ type: "connection", data: { node_id_hex: "0000000000000011", connection: "disconnected" } }]);
+    close();
+    expect(src.closed).toBe(true);
+  });
+});
