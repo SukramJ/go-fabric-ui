@@ -65,7 +65,7 @@
     "svelte": "^5.57.0"
   },
   "dependencies": {
-    "@lucide/svelte": "1.57.0",
+    "@lucide/svelte": "1.59.0",
     "clsx": "2.1.1",
     "qrcode": "1.5.4",
     "tailwind-merge": "3.7.0"
@@ -82,11 +82,11 @@
     "js-yaml": "4.3.2",
     "openapi-typescript": "7.13.0",
     "svelte": "5.57.2",
-    "svelte-check": "4.7.6",
+    "svelte-check": "4.7.7",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "vite": "8.3.4",
-    "vitest": "5.0.4"
+    "vitest": "5.0.5"
   },
   "engines": {
     "node": ">=22"
