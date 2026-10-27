@@ -8,7 +8,7 @@
 //   node scripts/contract-guard.mjs <previous.yaml> <current.yaml>
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import yaml from "js-yaml";
+import { load as loadYAML } from "js-yaml";
 
 const METHODS = ["get", "put", "post", "delete", "patch", "head", "options", "trace"];
 
@@ -61,7 +61,7 @@ export function diffContracts(prev, cur) {
 }
 
 export function load(file) {
-  return yaml.load(fs.readFileSync(file, "utf8"));
+  return loadYAML(fs.readFileSync(file, "utf8"));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
