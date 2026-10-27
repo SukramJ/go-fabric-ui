@@ -1,0 +1,24 @@
+{
+  "route": "POST /controller/commission",
+  "request": {
+    "method": "POST",
+    "path": "/controller/commission",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "code": "not-a-code"
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "code": "bad_request",
+      "detail": "fabricui: invalid argument: not a QR payload or a manual pairing code",
+      "instance": "/api/v1/controller/commission",
+      "status": 400,
+      "title": "Invalid request",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-bad_request"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "route": "GET /controller/nodes/{id}",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nodes/00000000000000AA"
+  },
+  "response": {
+    "status": 404,
+    "body": {
+      "code": "not_found",
+      "detail": "fabricui: no such node: 00000000000000AA",
+      "instance": "/api/v1/controller/nodes/00000000000000AA",
+      "status": 404,
+      "title": "No such node",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-not_found"
+    }
+  }
+}

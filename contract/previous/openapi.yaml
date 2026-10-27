@@ -1,11 +1,10 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.1.3
+  version: 0.2.0
   summary: The HTTP API behind the go-fabric web interface.
   description: |
-    Routes of the node page family (this version) and, planned, of the
-    controller page family. Every path is relative to the mount prefix
+    Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
     (default `/api/v1`). Errors are RFC 9457 problem+json (`Problem`).
 
     Versioning: a minor version adds paths, methods, response fields and
@@ -27,7 +26,10 @@ tags:
   - name: node
     description: The node page family — the device side of a go-fabric node.
   - name: controller
-    description: The controller page family. Planned (wave U2); no schemas yet.
+    description: |
+      The controller page family — the commissioner side of a go-fabric
+      controller. Present only when the host serves it; otherwise every
+      `/controller/*` path answers 404.
 paths:
   /node/status:
     get:
@@ -289,47 +291,586 @@ paths:
           content:
             text/event-stream:
               schema: { type: string }
-  /controller/commission:
-    post:
-      tags: [controller]
-      x-status: planned
-      summary: Commission a device from a code or QR payload, with progress.
-      responses:
-        "501": { description: Planned. }
-  /controller/discovery:
+  /controller/status:
     get:
       tags: [controller]
-      x-status: planned
-      summary: Commissionable devices on the network.
+      operationId: getControllerStatus
+      summary: The controller's fabric, its node count and capabilities.
+      description: |
+        Answered only when the host serves the controller family
+        (`Options.Controller`); without it every `/controller/*` path is
+        404, which is how a page tells the family is absent.
       responses:
-        "501": { description: Planned. }
+        "200":
+          description: The status.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ControllerStatus" }
   /controller/nodes:
     get:
       tags: [controller]
-      x-status: planned
+      operationId: listControllerNodes
       summary: The commissioned nodes.
       responses:
-        "501": { description: Planned. }
+        "200":
+          description: The nodes, by node id.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ControllerNodeList" }
   /controller/nodes/{id}:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
     get:
       tags: [controller]
-      x-status: planned
-      summary: One node — endpoints, attributes, subscriptions, bindings, ACL, window, OTA, Thread dataset.
+      operationId: getControllerNode
+      summary: One node — record, properties, endpoints with clusters and device types.
+      responses:
+        "200":
+          description: The node.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ControllerNodeDetail" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [controller]
+      operationId: decommissionNode
+      x-admin: true
+      summary: Decommission the node — remove our fabric from it and forget it.
+      responses:
+        "204": { description: The node is decommissioned. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/interview:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    post:
+      tags: [controller]
+      operationId: interviewNode
+      x-admin: true
+      summary: Read the whole node again, without data version filters.
+      responses:
+        "204": { description: The node was read. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/enable:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    post:
+      tags: [controller]
+      operationId: enableNode
+      x-admin: true
+      summary: Enable a disabled node — connect and subscribe again.
+      responses:
+        "204": { description: The node is enabled. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/disable:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    post:
+      tags: [controller]
+      operationId: disableNode
+      x-admin: true
+      summary: Disable the node — no connection, no subscription, kept on the fabric.
+      responses:
+        "204": { description: The node is disabled. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/auto-subscribe:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    post:
+      tags: [controller]
+      operationId: setNodeAutoSubscribe
+      x-admin: true
+      summary: Turn the node's default subscription on or off.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AutoSubscribeRequest" }
+      responses:
+        "204": { description: The setting is applied. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/window:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    post:
+      tags: [controller]
+      operationId: openNodeWindow
+      x-admin: true
+      summary: Open an enhanced commissioning window on the node for another administrator.
+      description: The answer carries the window's passcode and codes; no event and no log line does.
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NodeWindowRequest" }
+      responses:
+        "200":
+          description: The window is open.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NodeWindow" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/window/close:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    post:
+      tags: [controller]
+      operationId: closeNodeWindow
+      x-admin: true
+      summary: Revoke the node's commissioning window.
+      responses:
+        "204": { description: No window is open any more. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/attributes:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    post:
+      tags: [controller]
+      operationId: readNodeAttributes
+      summary: Read concrete attribute paths from the node.
+      description: |
+        A targeted read: every path names its endpoint, cluster and
+        attribute (no wildcard, at most 32 paths). The value is the JSON
+        rendering of the attribute by the cluster definitions, a struct
+        keyed by field name; a path the node refused carries its status
+        instead.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReadRequest" }
+      responses:
+        "200":
+          description: One entry per path the node answered.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AttributeValueList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+    put:
+      tags: [controller]
+      operationId: writeNodeAttribute
+      x-admin: true
+      summary: Write one attribute.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WriteRequest" }
+      responses:
+        "200":
+          description: The node's status for the write; a refusal is a status, not a problem.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WriteResult" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/commands:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    post:
+      tags: [controller]
+      operationId: invokeNodeCommand
+      x-admin: true
+      summary: Invoke one command.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvokeRequest" }
+      responses:
+        "200":
+          description: The node's status and, when it answered with one, its response's fields.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvokeResult" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/acl:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    get:
+      tags: [controller]
+      operationId: getNodeAcl
+      summary: The node's access control entries of our fabric.
+      responses:
+        "200":
+          description: The entries.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AclEntryList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+    put:
+      tags: [controller]
+      operationId: setNodeAcl
+      x-admin: true
+      summary: Replace our fabric's access control entries on the node.
+      description: |
+        The whole list is written in one write of the AccessControl `ACL`
+        attribute. A list without an Administer entry for this controller
+        locks it out of the node; the page warns before it sends one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AclEntryList" }
+      responses:
+        "200":
+          description: The node's status for the write.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WriteResult" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/bindings:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    get:
+      tags: [controller]
+      operationId: getNodeBindings
+      summary: The binding targets of every endpoint with a Binding cluster.
+      responses:
+        "200":
+          description: The bindings by endpoint.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BindingList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+    put:
+      tags: [controller]
+      operationId: setNodeBindings
+      x-admin: true
+      summary: Replace our fabric's binding targets on one endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EndpointBindings" }
+      responses:
+        "200":
+          description: The node's status for the write.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WriteResult" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/icd:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    get:
+      tags: [controller]
+      operationId: getNodeIcd
+      summary: The node's intermittently-connected-device state.
+      responses:
+        "200":
+          description: The state; `supported` is false for a node without ICD Management.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IcdState" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/icd/register:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    post:
+      tags: [controller]
+      operationId: registerNodeIcd
+      x-admin: true
+      summary: Register this controller as the node's check-in client.
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IcdRegisterRequest" }
+      responses:
+        "200":
+          description: The state after the registration.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IcdState" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/icd/unregister:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    post:
+      tags: [controller]
+      operationId: unregisterNodeIcd
+      x-admin: true
+      summary: Unregister this controller; with force, forget the registration without the node.
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IcdUnregisterRequest" }
+      responses:
+        "200":
+          description: The state after the unregistration.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IcdState" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/fabrics:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    get:
+      tags: [controller]
+      operationId: listNodeFabrics
+      summary: Every fabric on the node, ours marked.
+      responses:
+        "200":
+          description: The fabrics.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NodeFabricList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/fabrics/{index}:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+      - name: index
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1, maximum: 254 }
+    delete:
+      tags: [controller]
+      operationId: removeNodeFabric
+      x-admin: true
+      summary: Remove another administrator's fabric from the node (RemoveFabric).
+      description: Our own fabric is removed with `DELETE /controller/nodes/{id}`; naming it here is 400.
+      responses:
+        "204": { description: The fabric is removed. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+  /controller/commission:
+    post:
+      tags: [controller]
+      operationId: commissionNode
+      x-admin: true
+      summary: Commission a device from a code or QR payload, or a discovered device and its passcode.
+      description: |
+        The answer arrives when the commissioning ends; the stream reports
+        `commissioning_progress` meanwhile. The passcode and the code are
+        never logged and never in an event.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommissionRequest" }
+      responses:
+        "200":
+          description: The commissioned node.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ControllerNodeDetail" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /controller/discovery:
+    get:
+      tags: [controller]
+      operationId: discoverDevices
+      x-admin: true
+      summary: Commissionable devices on the network.
       parameters:
+        - name: filter
+          in: query
+          schema: { type: string, enum: [any, long_discriminator, short_discriminator, vendor, device_type] }
+          description: What `value` selects by; absent is `any`.
+        - name: value
+          in: query
+          schema: { type: integer, minimum: 0 }
+          description: The discriminator, vendor id or device type; required with every filter but `any`.
+        - name: timeout
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 60 }
+          description: How long to listen, in seconds; absent is 3.
+      responses:
+        "200":
+          description: Every device that answered, each once.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DiscoveredList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+  /controller/credentials:
+    get:
+      tags: [controller]
+      operationId: listCredentials
+      summary: The stored Wi-Fi and Thread credentials, by name; never a secret.
+      responses:
+        "200":
+          description: The credentials.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CredentialList" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+    put:
+      tags: [controller]
+      operationId: setCredential
+      x-admin: true
+      summary: Store a Wi-Fi credential or a Thread dataset (write-only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CredentialRequest" }
+      responses:
+        "204": { description: Stored. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [controller]
+      operationId: removeCredential
+      x-admin: true
+      summary: Remove a stored credential.
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          schema: { type: string, enum: [wifi, thread] }
         - name: id
-          in: path
+          in: query
           required: true
           schema: { type: string }
       responses:
-        "501": { description: Planned. }
+        "204": { description: Removed. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
   /controller/fabric/label:
     put:
       tags: [controller]
-      x-status: planned
-      summary: The controller's fabric label.
+      operationId: setFabricLabel
+      x-admin: true
+      summary: The controller's fabric label, pushed to every node.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FabricLabelRequest" }
       responses:
-        "501": { description: Planned. }
+        "204": { description: The label is set; the nodes get it in the background. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+  /controller/updates:
+    get:
+      tags: [controller]
+      operationId: listUpdates
+      summary: The software update queue.
+      responses:
+        "200":
+          description: The queue; `available` is false when the controller runs no OTA provider.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpdateQueue" }
+  /controller/updates/consent:
+    post:
+      tags: [controller]
+      operationId: consentUpdate
+      x-admin: true
+      summary: Consent to one node's update to a version.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateConsentRequest" }
+      responses:
+        "204": { description: The consent is recorded. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /controller/updates/check:
+    post:
+      tags: [controller]
+      operationId: checkUpdates
+      x-admin: true
+      summary: Ask every node for an available update.
+      responses:
+        "200":
+          description: The updates the nodes can take.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AvailableUpdateList" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /controller/stream:
+    get:
+      tags: [controller]
+      operationId: controllerStream
+      summary: Server-sent events of the controller.
+      description: |
+        `event:` is one of node_added, node_updated, node_removed,
+        connection, subscription, commissioning_progress, update; `data:`
+        is a `ControllerEvent`. A comment line arrives every 15 s. No
+        payload carries a passcode or a credential.
+      responses:
+        "200":
+          description: The event stream.
+          content:
+            text/event-stream:
+              schema: { type: string }
 components:
+  parameters:
+    NodeID:
+      name: id
+      in: path
+      required: true
+      description: The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free.
+      schema: { type: string }
   responses:
     Problem:
       description: An RFC 9457 problem.
@@ -348,7 +889,7 @@ components:
         instance: { type: string }
         code:
           type: string
-          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large]
+          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large, node_error]
     Status:
       type: object
       required: [enabled, listening, endpoint_count, fabric_count, advertising, commissioning_window_open, exposure]
@@ -673,3 +1214,418 @@ components:
       required: [keys]
       properties:
         keys: { type: array, items: { type: string } }
+    ControllerStatus:
+      type: object
+      required: [enabled, fabric_id_hex, compressed_fabric_id_hex, fabric_index, node_id_hex, vendor_id, vendor_name, label, node_count, capabilities]
+      properties:
+        enabled: { type: boolean, description: Always true; the route is absent without a controller. }
+        fabric_id_hex: { type: string }
+        compressed_fabric_id_hex: { type: string }
+        fabric_index: { type: integer }
+        node_id_hex: { type: string, description: The controller's own operational node id. }
+        vendor_id: { type: integer }
+        vendor_name: { type: string }
+        label: { type: string }
+        node_count: { type: integer }
+        capabilities: { $ref: "#/components/schemas/ControllerCapabilities" }
+        csrf_token: { type: string, description: The admin token of token mode, as on GET /node/status; absent when the host decides admin rights. }
+    ControllerCapabilities:
+      type: object
+      required: [ota, credentials, ble]
+      properties:
+        ota: { type: boolean, description: The controller runs an OTA provider; the update routes answer. }
+        credentials: { type: boolean, description: The host stores Wi-Fi and Thread credentials; the credential routes answer. }
+        ble: { type: boolean, description: The controller can commission over Bluetooth LE. }
+    ConnectionState:
+      type: string
+      enum: [connected, disconnected, reconnecting, waiting_for_discovery]
+    ControllerNodeSummary:
+      type: object
+      required: [node_id_hex, connection, subscription_active, disabled, icd, addresses]
+      properties:
+        node_id_hex: { type: string }
+        vendor_id: { type: integer }
+        vendor_name: { type: string }
+        product_id: { type: integer }
+        product_name: { type: string }
+        node_label: { type: string }
+        connection: { $ref: "#/components/schemas/ConnectionState" }
+        subscription_active: { type: boolean }
+        disabled: { type: boolean }
+        icd: { type: boolean, description: The node has ICD Management. }
+        addresses: { type: array, items: { type: string } }
+        commissioned_at: { type: string, format: date-time }
+    ControllerNodeList:
+      type: object
+      required: [nodes]
+      properties:
+        nodes:
+          type: array
+          items: { $ref: "#/components/schemas/ControllerNodeSummary" }
+    NodeRecord:
+      type: object
+      required: [fabric_index, addresses]
+      properties:
+        fabric_index: { type: integer, description: Our fabric index. }
+        fabric_index_on_peer: { type: integer, description: The index the node gave our fabric; absent when unknown. }
+        addresses: { type: array, items: { type: string } }
+        hostname: { type: string }
+        discovered_at: { type: string, format: date-time }
+        commissioned_at: { type: string, format: date-time }
+        discriminator: { type: integer }
+        announced_vendor_id: { type: integer }
+        announced_product_id: { type: integer }
+        announced_device_type: { type: integer }
+        device_name: { type: string }
+    NodeProperties:
+      type: object
+      required: [supports_thread, supports_wifi, supports_ethernet, mains_powered, battery_powered, intermittently_connected, device_types]
+      properties:
+        supports_thread: { type: boolean }
+        supports_wifi: { type: boolean }
+        supports_ethernet: { type: boolean }
+        mains_powered: { type: boolean }
+        battery_powered: { type: boolean }
+        intermittently_connected: { type: boolean }
+        long_idle_time_operating: { type: boolean }
+        thread_sleepy_end_device: { type: boolean }
+        idle_mode_duration_seconds: { type: integer }
+        specification_version: { type: integer }
+        serial_number: { type: string }
+        software_version: { type: string }
+        device_types: { type: array, items: { type: integer } }
+    NodeDeviceType:
+      type: object
+      required: [id, id_hex, name]
+      properties:
+        id: { type: integer }
+        id_hex: { type: string }
+        name: { type: string, description: The device type's name; empty for one the schema does not know. }
+        revision: { type: integer }
+    NodeCluster:
+      type: object
+      required: [id, id_hex, name, revision, features]
+      properties:
+        id: { type: integer }
+        id_hex: { type: string }
+        name: { type: string, description: The cluster's name; empty for one the schema does not know. }
+        revision: { type: integer }
+        features: { type: array, items: { type: string } }
+    NodeEndpoint:
+      type: object
+      required: [endpoint, device_types, clusters]
+      properties:
+        endpoint: { type: integer }
+        parent: { type: integer, description: The endpoint whose parts list names this one; absent for the root and top-level endpoints. }
+        name: { type: string }
+        device_types:
+          type: array
+          items: { $ref: "#/components/schemas/NodeDeviceType" }
+        clusters:
+          type: array
+          items: { $ref: "#/components/schemas/NodeCluster" }
+    ControllerNodeDetail:
+      type: object
+      required: [node, record, properties, endpoints]
+      properties:
+        node: { $ref: "#/components/schemas/ControllerNodeSummary" }
+        record: { $ref: "#/components/schemas/NodeRecord" }
+        properties: { $ref: "#/components/schemas/NodeProperties" }
+        endpoints:
+          type: array
+          items: { $ref: "#/components/schemas/NodeEndpoint" }
+    AutoSubscribeRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled: { type: boolean }
+    NodeWindowRequest:
+      type: object
+      properties:
+        timeout_seconds: { type: integer, minimum: 0, maximum: 65535, description: "How long the window stays open; 0 or absent is the node's default (900 s)." }
+    NodeWindow:
+      type: object
+      required: [manual_code, qr_code, passcode, discriminator, vendor_id, product_id, timeout_seconds]
+      properties:
+        manual_code: { type: string }
+        qr_code: { type: string }
+        passcode: { type: integer }
+        discriminator: { type: integer }
+        vendor_id: { type: integer }
+        product_id: { type: integer }
+        timeout_seconds: { type: integer }
+    AttributePath:
+      type: object
+      required: [endpoint, cluster_hex, attribute_hex]
+      properties:
+        endpoint: { type: integer, minimum: 0, maximum: 65535 }
+        cluster_hex: { type: string, description: "The cluster id in hex, `0x` optional (\"0x0006\")." }
+        attribute_hex: { type: string, description: "The attribute id in hex, `0x` optional." }
+    ReadRequest:
+      type: object
+      required: [paths]
+      properties:
+        paths:
+          type: array
+          items: { $ref: "#/components/schemas/AttributePath" }
+        fabric_filtered: { type: boolean, description: Read fabric-scoped lists filtered to our fabric; absent is true. }
+    AttributeValue:
+      type: object
+      required: [endpoint, cluster_hex, attribute_hex]
+      properties:
+        endpoint: { type: integer }
+        cluster_hex: { type: string }
+        attribute_hex: { type: string }
+        value: { description: The attribute's value as JSON; absent when the node answered a status., x-go-type: json.RawMessage }
+        status: { type: integer, description: The node's status for the path; absent on success. }
+    AttributeValueList:
+      type: object
+      required: [values]
+      properties:
+        values:
+          type: array
+          items: { $ref: "#/components/schemas/AttributeValue" }
+    WriteRequest:
+      type: object
+      required: [endpoint, cluster_hex, attribute_hex, value]
+      properties:
+        endpoint: { type: integer, minimum: 0, maximum: 65535 }
+        cluster_hex: { type: string }
+        attribute_hex: { type: string }
+        value: { description: The value as JSON, in the shape a read answers., x-go-type: json.RawMessage }
+        timed_ms: { type: integer, minimum: 0, maximum: 65535, description: A timed write with this timeout; absent writes untimed unless the attribute needs it. }
+    WriteResult:
+      type: object
+      required: [status]
+      properties:
+        status: { type: integer, description: The node's status; 0 is success. }
+        cluster_status: { type: integer }
+    InvokeRequest:
+      type: object
+      required: [endpoint, cluster_hex, command_hex]
+      properties:
+        endpoint: { type: integer, minimum: 0, maximum: 65535 }
+        cluster_hex: { type: string }
+        command_hex: { type: string }
+        payload: { description: The command's fields by name; absent or null is the empty payload., x-go-type: json.RawMessage }
+        timed_ms: { type: integer, minimum: 0, maximum: 65535 }
+    InvokeResult:
+      type: object
+      required: [status]
+      properties:
+        status: { type: integer, description: The node's status; 0 is success. }
+        cluster_status: { type: integer }
+        response_command_hex: { type: string, description: The response command's id; absent without a response command. }
+        response: { description: The response command's fields by name; absent without one., x-go-type: json.RawMessage }
+    AclTarget:
+      type: object
+      properties:
+        cluster_hex: { type: string, description: Absent is any cluster. }
+        endpoint: { type: integer, description: Absent is any endpoint. }
+        device_type_hex: { type: string, description: Absent is any device type. }
+    AclEntry:
+      type: object
+      required: [privilege, auth_mode, subjects_hex, targets]
+      properties:
+        privilege: { type: string, enum: [view, proxy_view, operate, manage, administer] }
+        auth_mode: { type: string, enum: [pase, case, group] }
+        subjects_hex:
+          type: array
+          description: Node ids (CASE), group ids (Group) or CATs in hex; empty is every subject of the auth mode.
+          items: { type: string }
+        targets:
+          type: array
+          description: Empty is the whole node.
+          items: { $ref: "#/components/schemas/AclTarget" }
+        fabric_index: { type: integer, description: Set by the node; ignored in a write. }
+    AclEntryList:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/AclEntry" }
+    BindingTarget:
+      type: object
+      properties:
+        node_id_hex: { type: string, description: A unicast target's node; with `endpoint`. }
+        group: { type: integer, description: A groupcast target's group id. }
+        endpoint: { type: integer }
+        cluster_hex: { type: string, description: Absent is every client cluster of the endpoint. }
+        fabric_index: { type: integer, description: Set by the node; ignored in a write. }
+    EndpointBindings:
+      type: object
+      required: [endpoint, bindings]
+      properties:
+        endpoint: { type: integer, minimum: 0, maximum: 65535 }
+        bindings:
+          type: array
+          items: { $ref: "#/components/schemas/BindingTarget" }
+    BindingList:
+      type: object
+      required: [endpoints]
+      properties:
+        endpoints:
+          type: array
+          items: { $ref: "#/components/schemas/EndpointBindings" }
+    IcdState:
+      type: object
+      required: [supported, lit_supported, registered]
+      properties:
+        supported: { type: boolean }
+        lit_supported: { type: boolean }
+        registered: { type: boolean }
+        operating_mode: { type: string, enum: [sit, lit] }
+        awake: { type: boolean }
+        available: { type: boolean }
+        next_check_in: { type: string, format: date-time }
+        last_check_in: { type: string, format: date-time }
+    IcdRegisterRequest:
+      type: object
+      properties:
+        allow_multi_admin: { type: boolean, description: Register although other administrators' vendors may not support LIT. }
+    IcdUnregisterRequest:
+      type: object
+      properties:
+        force: { type: boolean, description: Forget the registration without asking the node. }
+    NodeFabric:
+      type: object
+      required: [fabric_index, fabric_id_hex, node_id_hex, vendor_id, vendor_name, label, own]
+      properties:
+        fabric_index: { type: integer }
+        fabric_id_hex: { type: string }
+        node_id_hex: { type: string }
+        vendor_id: { type: integer }
+        vendor_name: { type: string }
+        label: { type: string }
+        own: { type: boolean, description: This controller's fabric. }
+    NodeFabricList:
+      type: object
+      required: [fabrics]
+      properties:
+        fabrics:
+          type: array
+          items: { $ref: "#/components/schemas/NodeFabric" }
+    DiscoveredRef:
+      type: object
+      required: [instance_name]
+      properties:
+        instance_name: { type: string }
+        long_discriminator: { type: integer, description: Searched for again when the controller no longer holds the discovery. }
+    CommissionRequest:
+      type: object
+      description: Either `code`, or `discovered` with `passcode`.
+      properties:
+        code: { type: string, description: A QR payload ("MT:…") or a manual pairing code. }
+        discovered: { $ref: "#/components/schemas/DiscoveredRef" }
+        passcode: { type: integer, minimum: 1, maximum: 99999998 }
+        wifi_id: { type: string, description: The stored Wi-Fi credential to put the device on. }
+        thread_id: { type: string, description: The stored Thread dataset to put the device on. }
+        network_only: { type: boolean, description: Never commission over Bluetooth LE. }
+        timeout_seconds: { type: integer, minimum: 1, maximum: 600, description: The whole commissioning's bound; absent is the controller's default. }
+    Discovered:
+      type: object
+      required: [instance_name, long_discriminator, addresses, commissioning_mode]
+      properties:
+        instance_name: { type: string }
+        hostname: { type: string }
+        addresses: { type: array, items: { type: string } }
+        port: { type: integer }
+        long_discriminator: { type: integer }
+        vendor_id: { type: integer }
+        vendor_name: { type: string }
+        product_id: { type: integer }
+        device_type: { type: integer }
+        device_name: { type: string }
+        commissioning_mode: { type: integer }
+        pairing_hint: { type: integer }
+        pairing_instruction: { type: string }
+    DiscoveredList:
+      type: object
+      required: [devices]
+      properties:
+        devices:
+          type: array
+          items: { $ref: "#/components/schemas/Discovered" }
+    Credential:
+      type: object
+      required: [kind, id, name]
+      properties:
+        kind: { type: string, enum: [wifi, thread] }
+        id: { type: string }
+        name: { type: string, description: The SSID of a Wi-Fi credential, the network name of a Thread dataset. }
+    CredentialList:
+      type: object
+      required: [credentials]
+      properties:
+        credentials:
+          type: array
+          items: { $ref: "#/components/schemas/Credential" }
+    CredentialRequest:
+      type: object
+      required: [kind, id]
+      properties:
+        kind: { type: string, enum: [wifi, thread] }
+        id: { type: string, minLength: 1, maxLength: 64 }
+        ssid: { type: string, description: Wi-Fi; required for it. }
+        passphrase: { type: string, description: Wi-Fi; write-only. }
+        dataset_hex: { type: string, description: Thread; the operational dataset as hex MeshCoP TLVs, write-only. }
+    FabricLabelRequest:
+      type: object
+      required: [label]
+      properties:
+        label: { type: string, maxLength: 32 }
+    PendingUpdate:
+      type: object
+      required: [node_id_hex, vendor_id, product_id, target_software_version, status]
+      properties:
+        node_id_hex: { type: string }
+        vendor_id: { type: integer }
+        product_id: { type: integer }
+        target_software_version: { type: integer }
+        status: { type: string, enum: [queued, in_progress, stalled] }
+        progress_status: { type: string, description: The last status the node reported; absent before one. }
+        progress_at: { type: string, format: date-time }
+        transferred: { type: integer }
+        length: { type: integer }
+    UpdateQueue:
+      type: object
+      required: [available, queue]
+      properties:
+        available: { type: boolean }
+        queue:
+          type: array
+          items: { $ref: "#/components/schemas/PendingUpdate" }
+    UpdateConsentRequest:
+      type: object
+      required: [node_id_hex, vendor_id, product_id, target_software_version]
+      properties:
+        node_id_hex: { type: string }
+        vendor_id: { type: integer }
+        product_id: { type: integer }
+        target_software_version: { type: integer }
+    AvailableUpdate:
+      type: object
+      required: [node_id_hex, vendor_id, product_id, software_version, software_version_string]
+      properties:
+        node_id_hex: { type: string }
+        vendor_id: { type: integer }
+        product_id: { type: integer }
+        software_version: { type: integer }
+        software_version_string: { type: string }
+    AvailableUpdateList:
+      type: object
+      required: [updates]
+      properties:
+        updates:
+          type: array
+          items: { $ref: "#/components/schemas/AvailableUpdate" }
+    ControllerEvent:
+      type: object
+      description: The payload of every controller stream event.
+      properties:
+        node_id_hex: { type: string, description: The node the event is about; absent for a controller-wide one. }
+        connection: { $ref: "#/components/schemas/ConnectionState" }
+        active: { type: boolean, description: "subscription: whether the default subscription is up." }
+        phase: { type: string, enum: [started, succeeded, failed], description: "commissioning_progress: the commissioning's phase." }
+        detail: { type: string, description: "commissioning_progress failed: what went wrong (no secret)." }

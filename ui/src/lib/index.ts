@@ -5,6 +5,7 @@ export * from "./pages";
 export * from "./context";
 export * from "./api";
 export { createNodeStore, errorText, type NodeStore, type Commissioning, type CommissioningPhase } from "./store.svelte";
+export { createControllerStore, type ControllerStore, type CommissionProgress, type CommissionPhase } from "./controller-store.svelte";
 export { catalogs, createTranslator, defaultT, detectLocale, format, catalogKeys, type Catalog, type Translate, type Vars } from "./i18n";
 export * from "./theme";
 export { renderQrSvg } from "./qr";

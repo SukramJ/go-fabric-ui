@@ -76,8 +76,11 @@ Details the fixtures pin:
 
 ## Admin rights
 
-A writing route (POST, PUT, DELETE) and `GET /node/pairing` run only for an
-admin; anything else answers `403 forbidden`. Two modes:
+A writing route (POST, PUT, DELETE), `GET /node/pairing` and every
+controller route marked `x-admin` (among them `GET /controller/discovery`)
+run only for an admin; anything else answers `403 forbidden`, before the
+request's parameters or body are read. `GET /controller/status` serves the
+token of token mode as `csrf_token` too. Two modes:
 
 - **Host mode** — `Options.Admin` decides per request. A host behind an
   authenticating proxy (a Home Assistant Ingress, where the proxy's source
@@ -116,6 +119,10 @@ The node or the provider failed; the log has the cause.
 ### problem-payload_too_large
 The request body exceeds 1 MiB.
 
+### problem-node_error
+The interaction with a controller's node failed (502); `detail` is the
+node's answer.
+
 ## Versioning
 
 The Go module and the npm package share one version. A minor version adds
@@ -123,12 +130,85 @@ paths, methods, responses, fields and optional request fields; it never
 removes or renames one and never makes an optional request field required.
 `contract/previous/openapi.yaml` is the copy of the last release, and the
 contract guard (`make contract-check`, CI job `contract`) fails on a
-removal against it. The release commit that tags a version copies the
+removal against it. An operation marked `x-status: planned` promises no
+answer: when it is served its placeholder responses may go, its path and
+method may not. The release commit that tags a version copies the
 contract to `contract/previous/`.
 
-## Controller routes (planned)
+## Controller routes (v0.2.0)
 
-The controller family (wave U2) is listed in the contract with
-`x-status: planned` and no schemas: `/controller/commission`,
-`/controller/discovery`, `/controller/nodes`, `/controller/nodes/{id}`,
-`/controller/fabric/label`.
+Served only when the host passes `Options.Controller`; without it every
+`/controller/*` path answers `404 not_found`, which is how the shell hides
+the family. `{id}` is the node id as hex (`node_id_hex`; case and leading
+zeros free). The handlers' router, path and query binding, request bodies
+and response types are generated from the contract (`internal/api`,
+`make generate`, guarded by `make generate-check`); the handler bodies are
+hand-written.
+
+| Route | Method | Admin | Answers |
+| --- | --- | --- | --- |
+| `/controller/status` | GET | – | 200 |
+| `/controller/nodes` | GET | – | 200 |
+| `/controller/nodes/{id}` | GET | – | 200, 400, 404 |
+| `/controller/nodes/{id}` | DELETE | yes | 204, 400, 403, 404, 500, 502 |
+| `/controller/nodes/{id}/interview` | POST | yes | 204, 400, 403, 404, 502 |
+| `/controller/nodes/{id}/enable`, `/disable` | POST | yes | 204, 400, 403, 404, 500 |
+| `/controller/nodes/{id}/auto-subscribe` | POST | yes | 204, 400, 403, 404, 500 |
+| `/controller/nodes/{id}/window` | POST | yes | 200, 400, 403, 404, 502 |
+| `/controller/nodes/{id}/window/close` | POST | yes | 204, 400, 403, 404, 502 |
+| `/controller/nodes/{id}/attributes` | POST | – | 200, 400, 404, 502 |
+| `/controller/nodes/{id}/attributes` | PUT | yes | 200, 400, 403, 404, 502 |
+| `/controller/nodes/{id}/commands` | POST | yes | 200, 400, 403, 404, 502 |
+| `/controller/nodes/{id}/acl` | GET / PUT | – / yes | 200, 400, (403), 404, 502 |
+| `/controller/nodes/{id}/bindings` | GET / PUT | – / yes | 200, 400, (403), 404, 502 |
+| `/controller/nodes/{id}/icd` | GET | – | 200, 400, 404 |
+| `/controller/nodes/{id}/icd/register`, `/unregister` | POST | yes | 200, 400, 403, 404, 409, 502 |
+| `/controller/nodes/{id}/fabrics` | GET | – | 200, 400, 404, 502 |
+| `/controller/nodes/{id}/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 502 |
+| `/controller/commission` | POST | yes | 200, 400, 403, 404, 502, 503 |
+| `/controller/discovery` | GET | yes | 200, 400, 403, 500 |
+| `/controller/credentials` | GET | – | 200, 500, 503 |
+| `/controller/credentials` | PUT / DELETE | yes | 204, 400, 403, (404), 500, 503 |
+| `/controller/fabric/label` | PUT | yes | 204, 400, 403, 500 |
+| `/controller/updates` | GET | – | 200 |
+| `/controller/updates/consent`, `/check` | POST | yes | 200/204, 400, 403, 404, 500, 503 |
+| `/controller/stream` | GET | – | 200 (`text/event-stream`) |
+
+Details the fixtures pin:
+
+- **Reads are targeted** (owner decision 0.4): `POST …/attributes` takes
+  1 to 32 concrete paths (`endpoint`, `cluster_hex`, `attribute_hex`); no
+  wildcard, no inventory. A path the node refuses answers its status in
+  the entry. A generic write and an invoke are admin routes; a refusal by
+  the node is the `status` of a 200, not a problem.
+- **Values** are JSON by the generated cluster definitions, a struct
+  keyed by field name (`{"fabricIndex": 1}`); cluster, attribute, command
+  and device type ids travel as `0x`-prefixed hex.
+- **ACL and bindings** are written as one list. A subject naming the node
+  itself is left out of an ACL write, and an entry left without subjects
+  dropped, as matterjs-server does. The page warns before a list that
+  keeps no Administer entry for this controller.
+- **Our fabric** is removed with `DELETE /controller/nodes/{id}`;
+  `DELETE …/fabrics/{index}` with our index is 400.
+- **Commissioning**: `{code}` or `{discovered, passcode}`, not both; a
+  code that does not parse is 400, no device answering is 404, a node
+  that fails (PASE, attestation) is 502 with the node's error as detail.
+- **Credentials**: `GET` answers kind, id and name (SSID or Thread network
+  name), never a passphrase or a dataset.
+
+## Identifiers, secrets and events of the controller family
+
+- **Secrets**: a commissioning's code and passcode, a window's passcode
+  and a credential's passphrase or dataset appear only in admin requests
+  and the window's answer; no event and no log line carries them (the
+  tests assert it).
+- **Stream** (`GET /controller/stream`): `event:` is `node_added`,
+  `node_updated`, `node_removed`, `connection`, `subscription`,
+  `commissioning_progress` or `update`; `data:` is a `ControllerEvent`
+  (`node_id_hex`, and `connection`, `active`, `phase`/`detail` by type).
+  A commissioning's progress carries the failure's kind
+  (`invalid_argument`, `no_device`, `timeout`, `node_failed`), not its
+  text. A comment line arrives every 15 s.
+- **`node_error`** (502): the interaction with the node failed. Unlike
+  the other 5xx problems it carries a detail — the node's answer, which
+  names no host path.

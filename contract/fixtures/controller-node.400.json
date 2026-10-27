@@ -1,0 +1,18 @@
+{
+  "route": "GET /controller/nodes/{id}",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nodes/xyz"
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "code": "bad_request",
+      "detail": "id: \"xyz\" is not a 64-bit hex id",
+      "instance": "/api/v1/controller/nodes/xyz",
+      "status": 400,
+      "title": "Invalid request",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-bad_request"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "route": "PUT /controller/nodes/{id}/attributes",
+  "request": {
+    "method": "PUT",
+    "path": "/controller/nodes/0000000000000011/attributes",
+    "body": {
+      "endpoint": 0,
+      "cluster_hex": "0x0028",
+      "attribute_hex": "0x0005",
+      "value": "Hall"
+    }
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "code": "forbidden",
+      "detail": "this route writes, commissions or reads a secret",
+      "instance": "/api/v1/controller/nodes/0000000000000011/attributes",
+      "status": 403,
+      "title": "Admin rights required",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-forbidden"
+    }
+  }
+}

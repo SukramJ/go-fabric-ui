@@ -1,0 +1,21 @@
+{
+  "route": "POST /controller/nodes/{id}/commands",
+  "request": {
+    "method": "POST",
+    "path": "/controller/nodes/0000000000000011/commands",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "endpoint": 1,
+      "cluster_hex": "0x0006",
+      "command_hex": "0x02"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "status": 0
+    }
+  }
+}

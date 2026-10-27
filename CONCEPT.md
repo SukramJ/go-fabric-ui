@@ -33,4 +33,4 @@ in go-fabric (German working paper). In short:
 | Wave | Content | Result |
 | --- | --- | --- |
 | U1 | node family: contract v1, Go module with handlers and provider, Svelte library and standalone shell, dist guard, release with npm publish | `v0.1.0` |
-| U2 | controller family after go-fabric's CJ/S3 | `v0.2.0` |
+| U2 | controller family: contract 0.2.0, the `ControllerSource` port and the `gofabric.ControllerOf` adapter, handlers generated from the contract (oapi-codegen), four pages, family detection in the shell (brief U2, `docs/concept-u2-controller-family.md`) | `v0.2.0` |

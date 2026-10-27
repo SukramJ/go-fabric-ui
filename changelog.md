@@ -7,6 +7,68 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-27
+
+The controller page family (wave U2, brief U2): every go-fabric
+embedding that runs a controller gets the same pages for its nodes, as
+every node embedding gets the node pages. The HTTP contract goes to 0.2.0
+with the controller section; the node section is unchanged.
+
+### Added
+
+- **Contract 0.2.0**: the controller routes under `/api/v1/controller/`
+  (status, nodes, a node's detail, decommission, interview,
+  enable/disable, auto-subscribe, the commissioning window, targeted
+  attribute reads, a generic write and invoke, ACL, bindings, ICD, the
+  node's fabrics, commissioning, discovery, credentials, the fabric label,
+  the update queue, the stream) with request and response schemas, hex
+  ids, `x-admin` flags and the problem code `node_error` (502). Fixtures
+  for every controller response.
+- `fabricui.ControllerSource` and `ControllerNode`, the port with its own
+  value types (no go-fabric type in it), and `Options.Controller`; nil
+  serves no controller family (`/controller/*` answers 404).
+- `fabricui/gofabric.ControllerOf(*controller.Controller,
+  ControllerOptions)`, the adapter over go-fabric's controller facade;
+  `gofabric.Hooks` deliver the nodes' transitions to the stream
+  (`controller.Config.HooksFor`, `Wrap` keeps the host's own hooks;
+  `Close` before the controller's stops their timers);
+  `gofabric.ThreadDatasetName` names a Thread dataset by go-fabric's
+  decoder.
+- The controller handlers are generated from the contract with
+  oapi-codegen (pinned as a `go.mod` tool; `make generate`,
+  `make generate-check` in CI); the handler bodies are hand-written.
+- `fabricui.NewMemoryController` and `fabricui.NewMemoryCredentials`,
+  in-memory implementations for tests and demonstrations.
+- npm: the pages `ControllerNodes`, `ControllerCommission`,
+  `ControllerNode` (tabs overview, endpoints, attributes, ACL, bindings,
+  window, ICD, fabrics, updates) and `ControllerSettings`;
+  `createControllerStore` (`ui.controller`); the client's controller
+  methods; `subscribeControllerStream`; the routes `controllerNodes`,
+  `controllerCommission`, `controllerSettings`, `controllerNode`; i18n
+  keys `controller.*` and `shell.*` in English and German.
+- The standalone shell shows the families the host serves, by presence
+  (`/node/status`, `/controller/status`; a 404 hides a family, as does a
+  disabled node next to a controller), with hash routes
+  `#/controller/<page>` and `#/controller/node/<id>`.
+
+### Changed
+
+- go-fabric `v0.12.2` → `v0.13.3`.
+- The contract guard lets an operation marked `x-status: planned` drop
+  its placeholder responses when it is served; its path and method stay
+  guarded.
+
+### Deprecated
+
+- The comma-separated `Item.Fields[key]` for a `Multi` column or filter
+  is removed in v0.2.1, after go-fabric-server and go-ha2fabric have
+  bumped; fill `Item.Lists` instead.
+
+### Removed
+
+- `Events.Observers` (deprecated since v0.1.2): the stream observes the
+  node itself. A host that still calls it drops the call.
+
 ## [0.1.3] - 2026-10-26
 
 List-valued item fields travel as JSON arrays, so a value with a comma —

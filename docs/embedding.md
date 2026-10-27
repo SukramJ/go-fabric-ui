@@ -25,8 +25,9 @@ an unknown path under the API prefix answers a 404 problem.
 | Field | Purpose |
 | --- | --- |
 | `Node` | The node (`*node.Node` satisfies `NodeSource`); nil serves the family as disabled. |
-| `Exposure` | The host's `ExposureProvider` ([provider.md](provider.md)); nil hides the selection page. A list-valued (`Multi`) column reads `Item.Lists`, one entry per value; the comma-separated `Item.Fields` form is deprecated until v0.2.0. |
-| `Admin` | Who may write and read the pairing secret; nil selects token mode ([contract.md](contract.md#admin-rights)). |
+| `Exposure` | The host's `ExposureProvider` ([provider.md](provider.md)); nil hides the selection page. A list-valued (`Multi`) column reads `Item.Lists`, one entry per value; the comma-separated `Item.Fields` form is deprecated. |
+| `Controller` | The controller family's source (`gofabric.ControllerOf` over a `*controller.Controller`, see below); nil serves no controller family and every `/controller/*` path answers 404. |
+| `Admin` | Who may write, read the pairing secret and use a controller route marked admin; nil selects token mode ([contract.md](contract.md#admin-rights)). |
 | `Reassemble` | Rebuilds the endpoints from the current selection (maintenance route, and after an exposure change). |
 | `Events` | Events the host publishes beside the handler's own and the node's (an exposure change made outside the page). |
 | `Prefix` | The API prefix; default `/api/v1`. |
@@ -60,6 +61,64 @@ endpoint, parts included, from `Topology`, fresh window credentials from
 `node.NewWindowCredentials`, and the session table from
 `Node.SessionDiagnostics`. A host wrapping its node in its own
 `NodeSource` implements those methods.
+
+## The controller family
+
+A daemon that runs go-fabric's controller hands it to the handlers through
+the adapter in `fabricui/gofabric`, the one package of this module that
+knows the controller facade:
+
+```go
+import (
+    "github.com/SukramJ/go-fabric-ui/fabricui"
+    "github.com/SukramJ/go-fabric-ui/fabricui/gofabric"
+)
+
+hooks := gofabric.NewHooks()
+cfg.HooksFor = hooks.Wrap(cfg.HooksFor) // before controller.New; keeps the host's own hooks
+ctrl, err := controller.New(ctx, cfg)
+// …
+src := gofabric.ControllerOf(ctrl, gofabric.ControllerOptions{
+    Hooks:       hooks,
+    Credentials: store,                                    // the host's Wi-Fi and Thread store
+    Pair:        controller.PairOptions{OnAttestationFailure: policy},
+})
+mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Controller: src}))
+// … on shutdown: hooks.Close() before ctrl.Close(ctx)
+```
+
+`ControllerOptions`:
+
+| Field | Purpose |
+| --- | --- |
+| `Hooks` | Turns the nodes' `client.Hooks` into the controller stream's events (`node_added`, `node_removed`, `connection`, `subscription`, `node_updated`, coalesced). `Wrap` chains them after the host's own `HooksFor`; `Close` (before the controller's) stops the pending timers; events after it, or while the controller has no registry, are dropped. Nil leaves the stream with the handler's own events. |
+| `Credentials` | The host's credential store: `fabricui.CredentialStore` (list names, set write-only, remove) plus `WiFi(id)` and `Thread(id)` for a commissioning that names one. `fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName)` is an in-memory one that checks a dataset with go-fabric's decoder. Nil answers 503 on the credential routes. |
+| `Pair` | The template of every commissioning: the attestation policy, the default subscription, the BLE central (`Capabilities().BLE`). The network a request names is set on a copy. |
+| `Logger` | The adapter's logger; nothing it logs carries a passcode or a credential. |
+
+What each route calls on the facade:
+
+| Route | go-fabric |
+| --- | --- |
+| `GET /controller/status` | `Controller.Fabric` (fabric id, compressed id, index, root node id, vendor, `CurrentLabel`), `Registry().Commissioned`, `SoftwareUpdates` |
+| `GET /controller/nodes`, `/nodes/{id}` | `Registry().Commissioned`, `GetByAddress(Fabric().AddressOf(id))`; `Node.Record`, `Properties`, `ConnectionState`, `SubscriptionActive`, `Disabled`, `Endpoints`, BasicInformation from the image |
+| `DELETE /controller/nodes/{id}` | `Registry().Decommission` |
+| `POST …/interview`, `/enable`, `/disable`, `/auto-subscribe` | `Node.Read` (wildcard, no version filters), `Enable`, `Disable`, `SetAutoSubscribe` |
+| `POST …/window`, `/window/close` | `Node.OpenCommissioningWindow` (enhanced), `RevokeCommissioningWindow` |
+| `POST`/`PUT …/attributes`, `POST …/commands` | `Node.Read` / `Write` / `Invoke`, values through `client.EncodeJSON` and `DecodeJSON` by the generated cluster definitions |
+| `GET`/`PUT …/acl`, `…/bindings` | `Node.Read` and one `Node.Write` of the whole list, built from `cluster/spec/accesscontrol` and `binding` with our fabric index |
+| `…/icd`, `/icd/register`, `/icd/unregister` | `Node.ICD()` (`Register`, `Unregister`, `Forget`) |
+| `GET …/fabrics`, `DELETE …/fabrics/{index}` | `Node.Read` of OperationalCredentials `Fabrics` and `CurrentFabricIndex`, `Node.Invoke` RemoveFabric |
+| `POST /controller/commission` | `Controller.Pair`, or `Registry().ForDevice` and `Commission` for a discovered device |
+| `GET /controller/discovery` | `Controller.Discover` |
+| `PUT /controller/fabric/label` | `Fabric().SetLabel`, then `Registry().SetFabricLabel` in the background |
+| `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates`, `AddUpdateConsent` |
+
+A host without go-fabric's controller — a test, a demonstration —
+implements `fabricui.ControllerSource` itself; `fabricui.NewMemoryController()`
+is an in-memory one with two nodes, one ICD and a pending update.
+
+## Mounting the API alone
 
 A daemon with a mux of its own and a different layout mounts only the API:
 

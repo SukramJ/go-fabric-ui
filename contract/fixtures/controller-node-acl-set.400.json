@@ -1,0 +1,31 @@
+{
+  "route": "PUT /controller/nodes/{id}/acl",
+  "request": {
+    "method": "PUT",
+    "path": "/controller/nodes/0000000000000011/acl",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "entries": [
+        {
+          "privilege": "root",
+          "auth_mode": "case",
+          "subjects_hex": [],
+          "targets": []
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "code": "bad_request",
+      "detail": "entries[0].privilege: \"root\" is unknown",
+      "instance": "/api/v1/controller/nodes/0000000000000011/acl",
+      "status": 400,
+      "title": "Invalid request",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-bad_request"
+    }
+  }
+}

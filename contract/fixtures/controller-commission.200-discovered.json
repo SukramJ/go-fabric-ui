@@ -1,0 +1,98 @@
+{
+  "route": "POST /controller/commission",
+  "request": {
+    "method": "POST",
+    "path": "/controller/commission",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "discovered": {
+        "instance_name": "1A2B3C4D5E6F7788",
+        "long_discriminator": 3840
+      },
+      "passcode": 20202021
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "endpoints": [
+        {
+          "clusters": [],
+          "device_types": [
+            {
+              "id": 22,
+              "id_hex": "0x0016",
+              "name": "RootNode",
+              "revision": 4
+            }
+          ],
+          "endpoint": 0
+        },
+        {
+          "clusters": [
+            {
+              "features": [],
+              "id": 6,
+              "id_hex": "0x0006",
+              "name": "OnOff",
+              "revision": 6
+            }
+          ],
+          "device_types": [
+            {
+              "id": 266,
+              "id_hex": "0x010A",
+              "name": "OnOffPlugInUnit",
+              "revision": 4
+            }
+          ],
+          "endpoint": 1
+        }
+      ],
+      "node": {
+        "addresses": [
+          "[fd00::12]:5540"
+        ],
+        "commissioned_at": "2026-10-20T08:00:00Z",
+        "connection": "connected",
+        "disabled": false,
+        "icd": false,
+        "node_id_hex": "0000000000000013",
+        "product_id": 32770,
+        "product_name": "Plug",
+        "subscription_active": true,
+        "vendor_id": 65521,
+        "vendor_name": "Test Vendor"
+      },
+      "properties": {
+        "battery_powered": false,
+        "device_types": [
+          22,
+          266
+        ],
+        "intermittently_connected": false,
+        "mains_powered": true,
+        "supports_ethernet": true,
+        "supports_thread": false,
+        "supports_wifi": false
+      },
+      "record": {
+        "addresses": [
+          "[fd00::12]:5540"
+        ],
+        "announced_device_type": 266,
+        "announced_product_id": 32770,
+        "announced_vendor_id": 65521,
+        "commissioned_at": "2026-10-20T08:00:00Z",
+        "device_name": "Plug",
+        "discovered_at": "2026-10-20T08:00:00Z",
+        "discriminator": 3840,
+        "fabric_index": 1,
+        "fabric_index_on_peer": 1,
+        "hostname": "plug-1.local."
+      }
+    }
+  }
+}

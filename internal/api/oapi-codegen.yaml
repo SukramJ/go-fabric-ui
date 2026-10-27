@@ -1,0 +1,12 @@
+# oapi-codegen configuration of the controller family's handlers
+# (script/gen-api.sh, make generate). The node family stays hand-written.
+package: api
+generate:
+  models: true
+  std-http-server: true
+  strict-server: true
+output-options:
+  include-tags: [controller]
+  name-normalizer: ToCamelCaseWithInitialisms
+compatibility:
+  always-prefix-enum-values: true

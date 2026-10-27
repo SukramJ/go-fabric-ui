@@ -1,0 +1,19 @@
+{
+  "route": "POST /controller/updates/consent",
+  "request": {
+    "method": "POST",
+    "path": "/controller/updates/consent",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "node_id_hex": "0000000000000011",
+      "vendor_id": 65521,
+      "product_id": 32769,
+      "target_software_version": 2
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}
