@@ -7,6 +7,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-27
+
+### Changed
+
+- Build tooling: `@lucide/svelte` 1.57.0 → 1.59.0, `svelte-check` and
+  `vitest` minor updates (Dependabot #3). The rebuilt bundle is
+  byte-identical; `THIRD-PARTY-NOTICES.md` records the new `@lucide/svelte`
+  version.
+
 ## [0.2.2] - 2026-10-27
 
 The pages take Home Assistant's theme from the first frame: inside an
