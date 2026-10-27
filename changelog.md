@@ -7,6 +7,47 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-27
+
+The pages take Home Assistant's theme from the first frame: inside an
+Ingress panel they wear the live theme (colours and light/dark, a custom
+theme included), and standalone they wear Home Assistant's default light
+and dark palettes, following `prefers-color-scheme`. Checked in headless
+Firefox inside a same-origin fake Home Assistant parent with a light, a
+dark and a custom theme, and standalone.
+
+### Fixed
+
+- No flash of the wrong palette on a cold load. The shell's pre-paint
+  script sets the Home Assistant skin before the first paint and, inside
+  Home Assistant's Ingress frame, copies the parent's theme variables and
+  takes its light/dark from the parent's background — before, the first
+  frames showed the standalone teal/white palette, and dark followed the
+  operating system instead of Home Assistant until the bundle had run.
+- The theme bridge drops a variable the parent no longer defines (a custom
+  theme switched back to the default), so the token falls back to Home
+  Assistant's default instead of keeping the old theme's value.
+- The underline tabs no longer show a vertical scrollbar: the active
+  marker overlapped the list's border by one pixel, which overflowed the
+  scrollable tab list.
+
+### Added
+
+- `--ha-on-primary-color`, the label on a primary fill: white by default,
+  Home Assistant's `--text-primary-color` under the HA skin, so a light
+  primary in a custom theme keeps a readable button label. The primary
+  button uses it.
+- Under the HA skin, native controls (checkboxes, radios, scrollbars) take
+  `accent-color: var(--ha-primary-color)` and the skin's `color-scheme`.
+  A host on another skin (`data-skin` other than `ha`) is unchanged.
+
+### Deprecated
+
+- The comma form of `Item.Fields` for a `Multi` column, announced in
+  v0.2.1 for removal in this release, stays accepted; its removal moves to
+  the next release that carries breaking changes for go-fabric-server and
+  go-ha2fabric.
+
 ## [0.2.1] - 2026-10-27
 
 ### Fixed

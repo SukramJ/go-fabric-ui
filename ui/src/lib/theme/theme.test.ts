@@ -4,10 +4,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { applySkin, isEmbedded, parseRgb, relativeLuminance, resolveSkin, startHaBridge } from "./ha-bridge";
+import { HA_THEME_VARS, applySkin, isEmbedded, parseRgb, relativeLuminance, resolveSkin, startHaBridge } from "./ha-bridge";
 
 // Tests run from ui/; under happy-dom import.meta.url is not a file URL.
 const css = fs.readFileSync(path.resolve(process.cwd(), "src/lib/theme/tokens.css"), "utf8");
+const indexHtml = fs.readFileSync(path.resolve(process.cwd(), "src/shell/index.html"), "utf8");
+// The shell's pre-paint script: the first inline (non-module) <script>.
+const prepaint = indexHtml.match(/<script>([\s\S]*?)<\/script>/)![1];
+const runPrepaint = () => new Function(prepaint)();
 
 function frame(opts: { path?: string; parent?: unknown }) {
   vi.spyOn(window, "top", "get").mockReturnValue({} as Window);
@@ -15,8 +19,7 @@ function frame(opts: { path?: string; parent?: unknown }) {
   vi.spyOn(window, "parent", "get").mockReturnValue(opts.parent as Window);
 }
 
-function haParent(vars: Record<string, string>) {
-  const root = document.createElement("html");
+function haParent(vars: Record<string, string>, root: HTMLElement = document.createElement("html")) {
   const doc = { documentElement: root, querySelector: (s: string) => (s === "home-assistant" ? {} : null) };
   return {
     document: doc,
@@ -83,6 +86,21 @@ describe("startHaBridge", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     stop();
   });
+  it("drops a variable the parent no longer defines and follows a live switch", async () => {
+    const vars: Record<string, string> = { "--primary-color": "#ff6d00", "--primary-background-color": "#2a0a3d" };
+    const parentRoot = document.createElement("html");
+    frame({ parent: haParent(vars, parentRoot) });
+    const stop = startHaBridge();
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    delete vars["--primary-color"];
+    vars["--primary-background-color"] = "#fafafa";
+    parentRoot.setAttribute("style", "--primary-background-color:#fafafa");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.documentElement.style.getPropertyValue("--primary-color")).toBe("");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    expect(document.documentElement.style.colorScheme).toBe("light");
+    stop();
+  });
   it("swallows a throwing parent and returns a no-op cleanup", () => {
     vi.spyOn(window, "top", "get").mockReturnValue({} as Window);
     window.history.replaceState(null, "", "/api/hassio_ingress/abc/");
@@ -102,7 +120,65 @@ describe("startHaBridge", () => {
   });
 });
 
+describe("the pre-paint script (index.html)", () => {
+  function prefersDark(dark: boolean) {
+    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: dark } as MediaQueryList);
+  }
+  it("copies the same variables the bridge copies", () => {
+    const listed = [...prepaint.slice(prepaint.indexOf("var vars = [")).split("];")[0].matchAll(/"(--[a-z0-9-]+)"/g)].map((m) => m[1]);
+    expect(listed).toEqual([...HA_THEME_VARS]);
+  });
+  it("sets the HA skin and follows prefers-color-scheme standalone", () => {
+    prefersDark(true);
+    runPrepaint();
+    expect(document.documentElement.dataset.skin).toBe("ha");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    prefersDark(false);
+    runPrepaint();
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    expect(document.documentElement.getAttribute("style")).toBeNull();
+  });
+  it("takes Home Assistant's theme and mode inside the Ingress frame, over the OS preference", () => {
+    prefersDark(true);
+    frame({ parent: haParent({ "--primary-color": "#ff6d00", "--primary-background-color": "#fafafa" }) });
+    runPrepaint();
+    expect(document.documentElement.style.getPropertyValue("--primary-color")).toBe("#ff6d00");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    expect(document.documentElement.style.colorScheme).toBe("light");
+  });
+  it("decides dark as the bridge does", () => {
+    for (const bg of ["#111111", "#fafafa", "#2a0a3d", "#f3e8ff", "#777", "rgb(120, 120, 120)", "rgba(200, 200, 200, 0.5)", "#bcbcbc"]) {
+      vi.restoreAllMocks();
+      document.documentElement.className = "";
+      prefersDark(false);
+      frame({ parent: haParent({ "--primary-background-color": bg }) });
+      runPrepaint();
+      const want = relativeLuminance(parseRgb(bg)!) < 0.5;
+      expect(document.documentElement.classList.contains("dark"), bg).toBe(want);
+    }
+  });
+  it("keeps the OS preference for an unreadable parent", () => {
+    prefersDark(true);
+    window.history.replaceState(null, "", "/api/hassio_ingress/abc/");
+    vi.spyOn(window, "top", "get").mockReturnValue({} as Window);
+    vi.spyOn(window, "parent", "get").mockReturnValue({
+      get document(): never {
+        throw new Error("cross-origin");
+      },
+    } as unknown as Window);
+    expect(() => runPrepaint()).not.toThrow();
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(document.documentElement.dataset.skin).toBe("ha");
+  });
+});
+
 describe("tokens.css", () => {
+  it("gives the label on a primary fill a token: white standalone, Home Assistant's text-primary-color in the skin", () => {
+    expect(css).toMatch(/:root\s*\{[^}]*--ha-on-primary-color: #ffffff;/);
+    expect(css).toContain("--ha-on-primary-color: var(--text-primary-color, #ffffff);");
+    expect(css).toMatch(/html\[data-skin="ha"\]\s*\{[^}]*accent-color: var\(--ha-primary-color\);/);
+    expect(css).toMatch(/html\[data-skin="ha"\]\.dark\s*\{[^}]*color-scheme: dark;/);
+  });
   it("defines the --ha-* tokens, the dark block and the HA skin with Home Assistant fallbacks", () => {
     expect(css).toMatch(/:root\s*\{[^}]*--ha-primary-color:/);
     expect(css).toMatch(/html\.dark\s*\{[^}]*--ha-card-background-color:/);

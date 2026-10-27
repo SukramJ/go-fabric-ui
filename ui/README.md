@@ -74,7 +74,14 @@ host's stylesheet, after Tailwind:
 `.dark` on `<html>` switches the dark tokens; `data-skin="ha"` on `<html>`
 resolves the tokens from Home Assistant's variables. `applySkin("ha")` and
 `startHaBridge()` (from `@sukramj/fabric-ui/theme`) do both inside an
-Ingress frame and are inert elsewhere.
+Ingress frame and are inert elsewhere. A host on a skin of its own (any
+other `data-skin`, or none) keeps the standalone tokens; the HA skin's
+extras (`accent-color` and `color-scheme` on native controls,
+`--ha-on-primary-color` from Home Assistant's `--text-primary-color`) apply
+only under `data-skin="ha"`. The standalone shell sets the HA skin and the
+mode in a pre-paint script (`src/shell/index.html`) so the first frame
+already wears them; a host that wants the same does it in its own
+`index.html`.
 
 ### Event stream
 
