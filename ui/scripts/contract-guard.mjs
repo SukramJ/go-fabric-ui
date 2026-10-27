@@ -1,7 +1,9 @@
 // The contract guard: compares contract/openapi.yaml with the copy of the
 // last release (contract/previous/openapi.yaml) and fails on a removed
 // path, method, response status, schema or response field, and on a
-// request field that became required. A minor version only adds.
+// request field that became required. A minor version only adds. A
+// planned operation keeps its path and method; its placeholder responses
+// are no promise.
 //
 //   node scripts/contract-guard.mjs <previous.yaml> <current.yaml>
 import fs from "node:fs";
@@ -27,6 +29,9 @@ export function diffContracts(prev, cur) {
         out.push(`${m.toUpperCase()} ${path} removed`);
         continue;
       }
+      // A planned operation (`x-status: planned`) promised no answer yet:
+      // its placeholder responses may go when it is served.
+      if (item[m]["x-status"] === "planned") continue;
       for (const status of Object.keys(item[m].responses ?? {})) {
         if (!(now[m].responses ?? {})[status]) out.push(`${m.toUpperCase()} ${path}: response ${status} removed`);
       }

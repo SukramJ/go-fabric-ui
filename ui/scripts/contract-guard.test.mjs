@@ -21,6 +21,16 @@ describe("contract guard", () => {
     expect(diffContracts(base, cur)).toEqual([]);
   });
 
+  it("lets a planned operation drop its placeholder responses, not its method", () => {
+    const prev = structuredClone(base);
+    prev.paths["/p"] = { get: { "x-status": "planned", responses: { 501: {} } } };
+    const cur = structuredClone(base);
+    cur.paths["/p"] = { get: { responses: { 200: {} } } };
+    expect(diffContracts(prev, cur)).toEqual([]);
+    cur.paths["/p"] = {};
+    expect(diffContracts(prev, cur)).toEqual(["GET /p removed"]);
+  });
+
   it("fails on a removed path, method, response, schema and field, and a new requirement", () => {
     const cur = structuredClone(base);
     delete cur.paths["/a"].post;
