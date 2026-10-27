@@ -57,6 +57,12 @@ with the controller section; the node section is unchanged.
   its placeholder responses when it is served; its path and method stay
   guarded.
 
+### Deprecated
+
+- The comma-separated `Item.Fields[key]` for a `Multi` column or filter
+  is removed in v0.2.1, after go-fabric-server and go-ha2fabric have
+  bumped; fill `Item.Lists` instead.
+
 ### Removed
 
 - `Events.Observers` (deprecated since v0.1.2): the stream observes the
