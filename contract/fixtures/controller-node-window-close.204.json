@@ -1,0 +1,13 @@
+{
+  "route": "POST /controller/nodes/{id}/window/close",
+  "request": {
+    "method": "POST",
+    "path": "/controller/nodes/0000000000000011/window/close",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

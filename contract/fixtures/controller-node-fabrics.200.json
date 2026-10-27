@@ -1,0 +1,32 @@
+{
+  "route": "GET /controller/nodes/{id}/fabrics",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nodes/0000000000000011/fabrics"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "fabrics": [
+        {
+          "fabric_id_hex": "0000000000000001",
+          "fabric_index": 1,
+          "label": "fabric-ui",
+          "node_id_hex": "0000000000000011",
+          "own": true,
+          "vendor_id": 65521,
+          "vendor_name": "0xFFF1"
+        },
+        {
+          "fabric_id_hex": "0000000000000002",
+          "fabric_index": 2,
+          "label": "Home",
+          "node_id_hex": "0000000000001011",
+          "own": false,
+          "vendor_id": 4937,
+          "vendor_name": "Apple Home"
+        }
+      ]
+    }
+  }
+}

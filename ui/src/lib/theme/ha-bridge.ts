@@ -115,7 +115,10 @@ export function startHaBridge(): () => void {
         const ps = parentWin.getComputedStyle(parentRoot);
         for (const name of HA_THEME_VARS) {
           const value = ps.getPropertyValue(name).trim();
+          // A variable the parent no longer defines (a theme switched back
+          // to the default) is dropped, so the token falls back again.
           if (value) ourRoot.style.setProperty(name, value);
+          else ourRoot.style.removeProperty(name);
         }
         // Follow Home Assistant's light/dark by its background luminance;
         // this overrides the page's own choice while embedded.

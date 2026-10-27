@@ -1,0 +1,24 @@
+{
+  "route": "POST /controller/updates/check",
+  "request": {
+    "method": "POST",
+    "path": "/controller/updates/check",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "updates": [
+        {
+          "node_id_hex": "0000000000000011",
+          "product_id": 32769,
+          "software_version": 2,
+          "software_version_string": "1.1.0",
+          "vendor_id": 65521
+        }
+      ]
+    }
+  }
+}

@@ -4,6 +4,7 @@
 package fabricui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,6 +22,13 @@ const streamBuffer = 64
 // open. It replaces loom's WebSocket topics
 // (internal/north/rest/handlers/matter_events.go:62-82 at b40b289a).
 func (h *handler) stream(w http.ResponseWriter, r *http.Request) {
+	h.serveSSE(r.Context(), w, h.subscribe)
+}
+
+// serveSSE serves server-sent events from subscribe until ctx ends, with
+// a comment line every heartbeat: the node stream and the controller
+// stream (GET /controller/stream) alike.
+func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, subscribe func(func(Event)) func()) {
 	rc := http.NewResponseController(w)
 	ch := make(chan Event, streamBuffer)
 	push := func(ev Event) {
@@ -31,7 +39,7 @@ func (h *handler) stream(w http.ResponseWriter, r *http.Request) {
 	}
 	// The node's observers are registered for this stream while it is
 	// open (node.Observe) and removed when it closes.
-	defer h.subscribe(push)()
+	defer subscribe(push)()
 
 	hdr := w.Header()
 	hdr.Set("Content-Type", "text/event-stream")
@@ -47,7 +55,7 @@ func (h *handler) stream(w http.ResponseWriter, r *http.Request) {
 	defer tick.Stop()
 	for {
 		select {
-		case <-r.Context().Done():
+		case <-ctx.Done():
 			return
 		case <-tick.C:
 			if _, err := fmt.Fprint(w, ": heartbeat\n\n"); err != nil {
@@ -56,7 +64,7 @@ func (h *handler) stream(w http.ResponseWriter, r *http.Request) {
 		case ev := <-ch:
 			data, err := json.Marshal(ev.Data)
 			if err != nil {
-				h.log.WarnContext(r.Context(), "fabricui.stream.encode_failed", "type", ev.Type, "error", err.Error())
+				h.log.WarnContext(ctx, "fabricui.stream.encode_failed", "type", ev.Type, "error", err.Error())
 				continue
 			}
 			if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev.Type, data); err != nil {

@@ -1,0 +1,132 @@
+{
+  "route": "GET /controller/nodes/{id}",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nodes/0000000000000011"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "endpoints": [
+        {
+          "clusters": [
+            {
+              "features": [],
+              "id": 29,
+              "id_hex": "0x001D",
+              "name": "Descriptor",
+              "revision": 3
+            },
+            {
+              "features": [],
+              "id": 31,
+              "id_hex": "0x001F",
+              "name": "AccessControl",
+              "revision": 3
+            },
+            {
+              "features": [],
+              "id": 40,
+              "id_hex": "0x0028",
+              "name": "BasicInformation",
+              "revision": 5
+            },
+            {
+              "features": [],
+              "id": 62,
+              "id_hex": "0x003E",
+              "name": "OperationalCredentials",
+              "revision": 2
+            }
+          ],
+          "device_types": [
+            {
+              "id": 22,
+              "id_hex": "0x0016",
+              "name": "RootNode",
+              "revision": 4
+            }
+          ],
+          "endpoint": 0
+        },
+        {
+          "clusters": [
+            {
+              "features": [],
+              "id": 3,
+              "id_hex": "0x0003",
+              "name": "Identify",
+              "revision": 6
+            },
+            {
+              "features": [
+                "Lighting"
+              ],
+              "id": 6,
+              "id_hex": "0x0006",
+              "name": "OnOff",
+              "revision": 6
+            },
+            {
+              "features": [],
+              "id": 30,
+              "id_hex": "0x001E",
+              "name": "Binding",
+              "revision": 1
+            }
+          ],
+          "device_types": [
+            {
+              "id": 256,
+              "id_hex": "0x0100",
+              "name": "OnOffLight",
+              "revision": 3
+            }
+          ],
+          "endpoint": 1
+        }
+      ],
+      "node": {
+        "addresses": [
+          "[fd00::11]:5540"
+        ],
+        "commissioned_at": "2026-10-20T07:00:00Z",
+        "connection": "connected",
+        "disabled": false,
+        "icd": false,
+        "node_id_hex": "0000000000000011",
+        "node_label": "Kitchen",
+        "product_id": 32769,
+        "product_name": "Light",
+        "subscription_active": true,
+        "vendor_id": 65521,
+        "vendor_name": "Test Vendor"
+      },
+      "properties": {
+        "battery_powered": false,
+        "device_types": [
+          22,
+          256
+        ],
+        "intermittently_connected": false,
+        "mains_powered": true,
+        "serial_number": "L-0001",
+        "software_version": "1.0.0",
+        "specification_version": 17170688,
+        "supports_ethernet": false,
+        "supports_thread": false,
+        "supports_wifi": true
+      },
+      "record": {
+        "addresses": [
+          "[fd00::11]:5540"
+        ],
+        "commissioned_at": "2026-10-20T07:00:00Z",
+        "discovered_at": "2026-10-20T07:00:00Z",
+        "fabric_index": 1,
+        "fabric_index_on_peer": 1,
+        "hostname": "light-1.local."
+      }
+    }
+  }
+}

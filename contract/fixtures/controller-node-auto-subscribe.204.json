@@ -1,0 +1,16 @@
+{
+  "route": "POST /controller/nodes/{id}/auto-subscribe",
+  "request": {
+    "method": "POST",
+    "path": "/controller/nodes/0000000000000011/auto-subscribe",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "enabled": false
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

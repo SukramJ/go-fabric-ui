@@ -1,0 +1,21 @@
+{
+  "route": "GET /controller/discovery",
+  "request": {
+    "method": "GET",
+    "path": "/controller/discovery?filter=vendor",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "code": "bad_request",
+      "detail": "value: filter vendor needs a value",
+      "instance": "/api/v1/controller/discovery",
+      "status": 400,
+      "title": "Invalid request",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-bad_request"
+    }
+  }
+}

@@ -1,3 +1,4 @@
 # Statement coverage floors per package (script/coverfloor). A ratchet:
 # raise a floor with the change that raises the coverage.
 fabricui            88
+fabricui/gofabric   50

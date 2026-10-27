@@ -1,0 +1,33 @@
+{
+  "route": "GET /controller/discovery",
+  "request": {
+    "method": "GET",
+    "path": "/controller/discovery?filter=long_discriminator\u0026value=3840",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "devices": [
+        {
+          "addresses": [
+            "fd00::12"
+          ],
+          "commissioning_mode": 1,
+          "device_name": "Plug",
+          "device_type": 266,
+          "hostname": "plug-1.local.",
+          "instance_name": "1A2B3C4D5E6F7788",
+          "long_discriminator": 3840,
+          "pairing_hint": 33,
+          "port": 5540,
+          "product_id": 32770,
+          "vendor_id": 65521,
+          "vendor_name": "0xFFF1"
+        }
+      ]
+    }
+  }
+}

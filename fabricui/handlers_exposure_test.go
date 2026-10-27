@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -285,5 +286,75 @@ func TestExposurePreview_ChangesNothing(t *testing.T) {
 	}
 	if body := do(t, mux, http.MethodPost, "/node/exposure/preview", `{"items":[]}`).Body.String(); strings.TrimSpace(body) != `{"items":[]}` {
 		t.Fatalf("empty preview %s", body)
+	}
+}
+
+// Brief F2 (issue #10): a list value with a comma travels as one entry of
+// lists, beside the display string in fields.
+func TestExposureList_ListsCarryAValueWithACommaAsOneEntry(t *testing.T) {
+	_, mux := newTestHandler(t, testOptions{exposure: newMemoryProvider()})
+	body := do(t, mux, http.MethodGet, "/node/exposure", "").Body.String()
+	if !strings.Contains(body, `"lists":{"labels":["Evening","Living, dining"]}`) {
+		t.Fatalf("lists %s", body)
+	}
+}
+
+// A host on Fields alone answers as before: no lists key at all; a nil
+// list answers [].
+func TestExposureList_ListsAreOptional(t *testing.T) {
+	p := newMemoryProvider()
+	p.items = []Item{
+		{Key: "a", Fields: map[string]string{"labels": "x, y"}},
+		{Key: "b", Lists: map[string][]string{"labels": nil}},
+	}
+	_, mux := newTestHandler(t, testOptions{exposure: p})
+	var got itemList
+	resp := do(t, mux, http.MethodGet, "/node/exposure", "")
+	if err := json.Unmarshal(resp.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Items[0].Lists != nil || strings.Count(resp.Body.String(), `"lists"`) != 1 {
+		t.Fatalf("a Fields-only item carries lists: %s", resp.Body.String())
+	}
+	if !strings.Contains(resp.Body.String(), `"lists":{"labels":[]}`) {
+		t.Fatalf("a nil list is not []: %s", resp.Body.String())
+	}
+}
+
+// ListValues: Lists wins when the key is present there (an empty list
+// included), the comma split of Fields is the deprecated fallback.
+func TestItemListValues(t *testing.T) {
+	cases := []struct {
+		name string
+		it   Item
+		want []string
+	}{
+		{"lists", Item{Lists: map[string][]string{"l": {"Living, dining", "", "Evening"}}}, []string{"Living, dining", "Evening"}},
+		{"lists win", Item{Fields: map[string]string{"l": "a, b"}, Lists: map[string][]string{"l": {"Living, dining"}}}, []string{"Living, dining"}},
+		{"empty list wins", Item{Fields: map[string]string{"l": "a, b"}, Lists: map[string][]string{"l": {}}}, []string{}},
+		{"fallback split", Item{Fields: map[string]string{"l": " Kitchen, Evening ,, "}}, []string{"Kitchen", "Evening"}},
+		{"other key falls back", Item{Fields: map[string]string{"l": "a"}, Lists: map[string][]string{"m": {"b"}}}, []string{"a"}},
+		{"nothing", Item{}, []string{}},
+	}
+	for _, c := range cases {
+		if got := c.it.ListValues("l"); !slices.Equal(got, c.want) || got == nil {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// The memory provider's filter options for the labels column: the comma
+// value is one option, the Fields-only item still splits.
+func TestMemoryProvider_LabelOptions(t *testing.T) {
+	p := newMemoryProvider()
+	seen := map[string]bool{}
+	for i := range p.items {
+		for _, v := range p.items[i].ListValues("labels") {
+			seen[v] = true
+		}
+	}
+	got := slices.Sorted(maps.Keys(seen))
+	if want := []string{"Ceiling", "Evening", "Living, dining"}; !slices.Equal(got, want) {
+		t.Fatalf("options %q, want %q", got, want)
 	}
 }

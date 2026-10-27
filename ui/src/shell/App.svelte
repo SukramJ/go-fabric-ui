@@ -1,15 +1,21 @@
-<!-- The standalone shell the Go module serves at "/": hash routing over the
-     node pages, the header with their tabs, toasts and the confirm dialog,
-     the theme bridge. The API is "./api/v1" relative to the page, so the
-     shell works under any base path (an Ingress among them). -->
+<!-- The standalone shell the Go module serves at "/": the page families the
+     host serves, found by presence — GET /node/status and GET
+     /controller/status; a 404 hides a family, as does a disabled node next
+     to a controller —, hash routing (#/node/<page>, #/controller/<page>,
+     #/controller/node/<id>), the header with the family's tabs, toasts and
+     the confirm dialog, the theme bridge. The API is "./api/v1" relative
+     to the page, so the shell works under any base path (an Ingress among
+     them). -->
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { createClient } from "../lib/api/client";
+  import { ApiError, createClient } from "../lib/api/client";
   import { createFabricUI, provideFabricUI } from "../lib/context";
   import { createTranslator, detectLocale } from "../lib/i18n";
   import { applySkin, isEmbedded, startHaBridge } from "../lib/theme/ha-bridge";
   import PageHeader from "../lib/kit/PageHeader.svelte";
   import PageShell from "../lib/kit/PageShell.svelte";
+  import LoadingState from "../lib/kit/LoadingState.svelte";
+  import EmptyState from "../lib/kit/EmptyState.svelte";
   import Select from "../lib/kit/Select.svelte";
   import Tabs from "../lib/kit/Tabs.svelte";
   import NodeStatus from "../lib/pages/node/Status.svelte";
@@ -18,10 +24,15 @@
   import NodeSelection from "../lib/pages/node/Selection.svelte";
   import NodeEndpoints from "../lib/pages/node/Endpoints.svelte";
   import NodeDiagnostics from "../lib/pages/node/Diagnostics.svelte";
+  import ControllerNodes from "../lib/pages/controller/Nodes.svelte";
+  import ControllerCommission from "../lib/pages/controller/Commission.svelte";
+  import ControllerNode from "../lib/pages/controller/Node.svelte";
+  import ControllerSettings from "../lib/pages/controller/Settings.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import Toaster from "./Toaster.svelte";
   import { createConfirm } from "./confirm.svelte";
   import { createToasts } from "./toast.svelte";
+  import { routeOf, type Route } from "./route";
 
   let locale = $state(detectLocale());
   const t = createTranslator(() => locale);
@@ -29,23 +40,53 @@
   const confirm = createConfirm();
   const ui = provideFabricUI(createFabricUI({ client: createClient("./api/v1"), t, toast: toasts.toast, confirm: confirm.ask }));
   const node = ui.node;
+  const controller = ui.controller;
 
-  const pages = { status: NodeStatus, pair: NodePair, fabrics: NodeFabrics, selection: NodeSelection, endpoints: NodeEndpoints, diagnostics: NodeDiagnostics };
-  type Page = keyof typeof pages;
+  const nodePages = { status: NodeStatus, pair: NodePair, fabrics: NodeFabrics, selection: NodeSelection, endpoints: NodeEndpoints, diagnostics: NodeDiagnostics };
+  const controllerPages = { nodes: ControllerNodes, commission: ControllerCommission, settings: ControllerSettings };
 
-  function pageOf(hash: string): Page {
-    const key = hash.replace(/^#\/node\//, "").split(/[/?]/)[0];
-    return key in pages ? (key as Page) : "status";
-  }
+  // null until probed: whether GET /node/status answered (not 404).
+  let nodeServed = $state<boolean | null>(null);
+  let route = $state<Route>(routeOf(location.hash));
+  const onHash = () => (route = routeOf(location.hash));
 
-  let page = $state<Page>(pageOf(location.hash));
-  const onHash = () => (page = pageOf(location.hash));
+  // The node family shows when the node route answers and either serves a
+  // node or no controller is there to show instead.
+  const nodeFamily = $derived(nodeServed === true && (node.status?.enabled !== false || controller.present !== true));
+  const controllerFamily = $derived(controller.present === true);
+  const probed = $derived(nodeServed !== null && controller.present !== null);
+  const family = $derived<"node" | "controller" | null>(
+    route.family === "controller" && controllerFamily ? "controller" : nodeFamily ? "node" : controllerFamily ? "controller" : null,
+  );
 
-  const tabs = $derived(
-    (Object.keys(pages) as Page[])
+  const familyTabs = $derived([
+    ...(nodeFamily ? [{ key: "node", label: t("shell.family.node"), href: ui.routes.status }] : []),
+    ...(controllerFamily ? [{ key: "controller", label: t("shell.family.controller"), href: ui.routes.controllerNodes }] : []),
+  ]);
+
+  const nodeTabs = $derived(
+    (Object.keys(nodePages) as (keyof typeof nodePages)[])
       .filter((p) => p !== "selection" || node.status?.exposure)
       .map((p) => ({ key: p, label: t(`node.tab.${p}`), href: ui.routes[p] })),
   );
+  const controllerTabs = $derived([
+    { key: "nodes", label: t("controller.tab.nodes"), href: ui.routes.controllerNodes },
+    { key: "commission", label: t("controller.tab.commission"), href: ui.routes.controllerCommission },
+    { key: "settings", label: t("controller.tab.settings"), href: ui.routes.controllerSettings },
+  ]);
+
+  const nodePage = $derived(route.family === "node" && route.page in nodePages ? (route.page as keyof typeof nodePages) : "status");
+  const controllerPage = $derived(route.family === "controller" && route.page in controllerPages ? (route.page as keyof typeof controllerPages) : "nodes");
+
+  async function probeNode() {
+    try {
+      await ui.client.status();
+      nodeServed = true;
+    } catch (err) {
+      nodeServed = !(err instanceof ApiError && err.status === 404);
+    }
+    if (nodeServed) void node.loadStatus();
+  }
 
   let stopBridge = () => {};
   let media: MediaQueryList | null = null;
@@ -59,8 +100,16 @@
       media = window.matchMedia("(prefers-color-scheme: dark)");
       media.addEventListener("change", onScheme);
     }
-    void node.loadStatus();
-    node.connect();
+    void probeNode();
+    void controller.loadStatus();
+  });
+
+  // Each family's stream opens once the family is known to be there.
+  $effect(() => {
+    if (nodeFamily) node.connect();
+  });
+  $effect(() => {
+    if (controllerFamily) controller.connect();
   });
 
   onDestroy(() => {
@@ -68,13 +117,18 @@
     media?.removeEventListener("change", onScheme);
     stopBridge();
     node.close();
+    controller.close();
   });
 
-  const Current = $derived(pages[page]);
+  const NodeCurrent = $derived(nodePages[nodePage]);
+  const ControllerCurrent = $derived(controllerPages[controllerPage]);
 </script>
 
 <PageShell>
-  <PageHeader title={t("node.title")} subtitle={t("node.subtitle")}>
+  <PageHeader
+    title={family === "controller" ? t("controller.title") : t("node.title")}
+    subtitle={family === "controller" ? t("controller.subtitle") : t("node.subtitle")}
+  >
     {#snippet actions()}
       <Select
         class="w-auto"
@@ -88,10 +142,30 @@
       />
     {/snippet}
   </PageHeader>
-  <Tabs items={tabs} active={page} />
-  <div class="mt-4">
-    <Current />
-  </div>
+  {#if !probed && family === null}
+    <LoadingState message={t("common.loading")} />
+  {:else if family === null}
+    <EmptyState message={t("shell.no_family")} />
+  {:else}
+    {#if familyTabs.length > 1}
+      <Tabs items={familyTabs} active={family} variant="segmented" class="mb-3" ariaLabel={t("shell.families")} />
+    {/if}
+    {#if family === "node"}
+      <Tabs items={nodeTabs} active={nodePage} />
+      <div class="mt-4"><NodeCurrent /></div>
+    {:else}
+      <Tabs items={controllerTabs} active={route.nodeId ? "nodes" : controllerPage} />
+      <div class="mt-4">
+        {#if route.nodeId}
+          {#key route.nodeId}
+            <ControllerNode nodeId={route.nodeId} tab={route.tab} />
+          {/key}
+        {:else}
+          <ControllerCurrent />
+        {/if}
+      </div>
+    {/if}
+  {/if}
 </PageShell>
 
 <Toaster entries={toasts.entries} dismiss={toasts.dismiss} closeLabel={t("common.close")} />

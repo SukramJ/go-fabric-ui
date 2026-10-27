@@ -1,0 +1,105 @@
+{
+  "route": "GET /controller/nodes/{id}",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nodes/0000000000000012"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "endpoints": [
+        {
+          "clusters": [
+            {
+              "features": [],
+              "id": 29,
+              "id_hex": "0x001D",
+              "name": "Descriptor",
+              "revision": 3
+            },
+            {
+              "features": [
+                "CheckInProtocolSupport",
+                "LongIdleTimeSupport"
+              ],
+              "id": 70,
+              "id_hex": "0x0046",
+              "name": "IcdManagement",
+              "revision": 3
+            }
+          ],
+          "device_types": [
+            {
+              "id": 22,
+              "id_hex": "0x0016",
+              "name": "RootNode",
+              "revision": 4
+            }
+          ],
+          "endpoint": 0
+        },
+        {
+          "clusters": [
+            {
+              "features": [],
+              "id": 69,
+              "id_hex": "0x0045",
+              "name": "BooleanState",
+              "revision": 2
+            }
+          ],
+          "device_types": [
+            {
+              "id": 21,
+              "id_hex": "0x0015",
+              "name": "ContactSensor",
+              "revision": 2
+            }
+          ],
+          "endpoint": 1
+        }
+      ],
+      "node": {
+        "addresses": [
+          "[fd00::12:1]:5540"
+        ],
+        "commissioned_at": "2026-10-20T06:00:00Z",
+        "connection": "waiting_for_discovery",
+        "disabled": false,
+        "icd": true,
+        "node_id_hex": "0000000000000012",
+        "product_id": 32771,
+        "product_name": "Contact Sensor",
+        "subscription_active": false,
+        "vendor_id": 65521,
+        "vendor_name": "Test Vendor"
+      },
+      "properties": {
+        "battery_powered": true,
+        "device_types": [
+          22,
+          21
+        ],
+        "idle_mode_duration_seconds": 3600,
+        "intermittently_connected": true,
+        "long_idle_time_operating": true,
+        "mains_powered": false,
+        "software_version": "2.3",
+        "specification_version": 17039360,
+        "supports_ethernet": false,
+        "supports_thread": true,
+        "supports_wifi": false,
+        "thread_sleepy_end_device": true
+      },
+      "record": {
+        "addresses": [
+          "[fd00::12:1]:5540"
+        ],
+        "commissioned_at": "2026-10-20T06:00:00Z",
+        "discovered_at": "2026-10-20T06:00:00Z",
+        "fabric_index": 1,
+        "fabric_index_on_peer": 1
+      }
+    }
+  }
+}

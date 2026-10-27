@@ -7,15 +7,89 @@
     <title>Node</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <script>
-      // Dark before the first paint, so a cold load in dark mode does not
-      // flash light; the theme bridge takes over inside an Ingress frame.
-      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        document.documentElement.classList.add("dark");
-      }
+      // Before the first paint: the Home Assistant skin and the light/dark
+      // mode, so a cold load does not flash the wrong palette. Inside Home
+      // Assistant's Ingress frame the parent's theme variables are copied
+      // and its background decides dark, as the theme bridge (ha-bridge.ts)
+      // does once the page runs; elsewhere prefers-color-scheme decides.
+      // The list is HA_THEME_VARS and the colour maths parseRgb /
+      // relativeLuminance (theme.test.ts holds them together).
+      (function () {
+        var root = document.documentElement;
+        root.dataset.skin = "ha";
+        var dark = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        var vars = [
+          "--primary-color",
+          "--accent-color",
+          "--primary-background-color",
+          "--secondary-background-color",
+          "--card-background-color",
+          "--primary-text-color",
+          "--secondary-text-color",
+          "--disabled-text-color",
+          "--divider-color",
+          "--error-color",
+          "--warning-color",
+          "--success-color",
+          "--info-color",
+          "--ha-card-border-radius",
+          "--ha-card-box-shadow",
+          "--app-header-background-color",
+          "--app-header-text-color",
+          "--sidebar-background-color",
+          "--rgb-primary-color",
+          "--text-primary-color",
+          "--ha-font-family-body",
+          "--header-height",
+          "--rgb-accent-color",
+          "--rgb-primary-text-color",
+          "--rgb-error-color",
+          "--rgb-success-color",
+          "--rgb-info-color",
+          "--shadow-color",
+          "--ha-color-text-primary",
+          "--ha-color-text-secondary",
+          "--ha-color-surface-default",
+        ];
+        try {
+          if (window.self !== window.top) {
+            var parentWin = window.parent;
+            var parentDoc = parentWin.document;
+            if (location.pathname.indexOf("/api/hassio_ingress/") !== -1 || parentDoc.querySelector("home-assistant")) {
+              var ps = parentWin.getComputedStyle(parentDoc.documentElement);
+              for (var i = 0; i < vars.length; i++) {
+                var value = ps.getPropertyValue(vars[i]).trim();
+                if (value) root.style.setProperty(vars[i], value);
+              }
+              var bg = ps.getPropertyValue("--primary-background-color").trim() || ps.backgroundColor;
+              var rgb = null;
+              if (bg && bg.charAt(0) === "#") {
+                var hex = bg.slice(1);
+                if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+                if (hex.length >= 6) rgb = [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
+              } else if (bg) {
+                var m = bg.match(/rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
+                if (m) rgb = [Number(m[1]), Number(m[2]), Number(m[3])];
+              }
+              if (rgb && !isNaN(rgb[0]) && !isNaN(rgb[1]) && !isNaN(rgb[2])) {
+                var lin = function (c) {
+                  var x = c / 255;
+                  return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+                };
+                dark = 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]) < 0.5;
+                root.style.colorScheme = dark ? "dark" : "light";
+              }
+            }
+          }
+        } catch (e) {
+          // A cross-origin or unreadable parent: prefers-color-scheme stays.
+        }
+        root.classList.toggle("dark", dark);
+      })();
     </script>
-    <script type="module" crossorigin src="./assets/index-cAoSmQeo.js"></script>
-    <link rel="modulepreload" crossorigin href="./assets/vendor-digtcC3c.js">
-    <link rel="stylesheet" crossorigin href="./assets/index-C2qVqKCm.css">
+    <script type="module" crossorigin src="./assets/index-DumjFyOt.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/vendor-CRZRT8PA.js">
+    <link rel="stylesheet" crossorigin href="./assets/index-DnNAKRPv.css">
   </head>
   <body>
     <div id="app"></div>

@@ -1,0 +1,23 @@
+{
+  "route": "GET /controller/nodes/{id}/acl",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nodes/0000000000000011/acl"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "entries": [
+        {
+          "auth_mode": "case",
+          "fabric_index": 1,
+          "privilege": "administer",
+          "subjects_hex": [
+            "000000000001B669"
+          ],
+          "targets": []
+        }
+      ]
+    }
+  }
+}

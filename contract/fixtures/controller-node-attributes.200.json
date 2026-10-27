@@ -1,0 +1,40 @@
+{
+  "route": "POST /controller/nodes/{id}/attributes",
+  "request": {
+    "method": "POST",
+    "path": "/controller/nodes/0000000000000011/attributes",
+    "body": {
+      "paths": [
+        {
+          "endpoint": 1,
+          "cluster_hex": "0x0006",
+          "attribute_hex": "0x0000"
+        },
+        {
+          "endpoint": 1,
+          "cluster_hex": "0x0006",
+          "attribute_hex": "0x4000"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "values": [
+        {
+          "attribute_hex": "0x0000",
+          "cluster_hex": "0x0006",
+          "endpoint": 1,
+          "value": true
+        },
+        {
+          "attribute_hex": "0x4000",
+          "cluster_hex": "0x0006",
+          "endpoint": 1,
+          "status": 134
+        }
+      ]
+    }
+  }
+}

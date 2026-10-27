@@ -431,6 +431,7 @@ type testOptions struct {
 	allowEmpty bool
 	warnings   func(context.Context) []Warning
 	log        *bytes.Buffer
+	controller ControllerSource
 }
 
 // newTestHandler builds a handler on the fake node and returns it with its
@@ -444,7 +445,7 @@ func newTestHandler(t *testing.T, o testOptions) (*handler, *http.ServeMux) {
 	h, err := newHandler(Options{
 		Exposure: o.exposure, Admin: o.admin, Reassemble: o.reassemble, Events: o.events,
 		Logger: logger, ConfiguredWindow: o.configured, AllowEmptyTopology: o.allowEmpty,
-		Warnings: o.warnings,
+		Warnings: o.warnings, Controller: o.controller,
 	})
 	if err != nil {
 		t.Fatal(err)

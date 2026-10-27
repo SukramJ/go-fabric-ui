@@ -1,0 +1,20 @@
+{
+  "route": "GET /controller/nodes/{id}/icd",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nodes/0000000000000012/icd"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "available": true,
+      "awake": false,
+      "last_check_in": "2026-10-20T08:00:00Z",
+      "lit_supported": true,
+      "next_check_in": "2026-10-20T09:00:00Z",
+      "operating_mode": "lit",
+      "registered": true,
+      "supported": true
+    }
+  }
+}

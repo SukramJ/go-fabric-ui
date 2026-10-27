@@ -4,7 +4,10 @@
 // Package arch holds the import guard: this module reaches go-fabric only
 // through its facade, and depends on nothing but go-fabric and the
 // standard library. A facade gap is a question for go-fabric, not a
-// reason to import a package below it.
+// reason to import a package below it. Two places are wider by decision
+// (brief U2, 0.1): the controller adapter fabricui/gofabric is the one
+// package that knows go-fabric's controller facade, and internal/api, the
+// handlers generated from the contract, uses oapi-codegen's runtime.
 package arch
 
 import (
@@ -31,6 +34,32 @@ var facade = map[string]bool{
 	goFabric + "/clock":       true,
 }
 
+// adapterDir is the controller adapter; adapter is what it may import
+// beside the facade: the controller facade and the generated cluster
+// definitions it encodes ACL and Binding entries with.
+const adapterDir = "fabricui/gofabric"
+
+var adapter = map[string]bool{
+	goFabric + "/controller":                          true,
+	goFabric + "/controller/client":                   true,
+	goFabric + "/controller/commissioner":             true,
+	goFabric + "/controller/softwareupdate":           true,
+	goFabric + "/controller/thread":                   true,
+	goFabric + "/client/discovery":                    true,
+	goFabric + "/cluster/spec":                        true,
+	goFabric + "/cluster/spec/accesscontrol":          true,
+	goFabric + "/cluster/spec/basicinformation":       true,
+	goFabric + "/cluster/spec/binding":                true,
+	goFabric + "/cluster/spec/icdmanagement":          true,
+	goFabric + "/cluster/spec/operationalcredentials": true,
+}
+
+// generatedDir holds the generated handlers; generated is the runtime
+// they import.
+const generatedDir = "internal/api"
+
+var generated = map[string]bool{"github.com/oapi-codegen/runtime": true}
+
 // testOnly is what a test may import beside the facade: the site the
 // end-to-end test runs on, the device constructors it bridges, and the
 // commissioner options fabrictest's Commission edits.
@@ -38,6 +67,8 @@ var testOnly = map[string]bool{
 	goFabric + "/fabrictest":              true,
 	goFabric + "/device":                  true,
 	goFabric + "/controller/commissioner": true,
+	goFabric + "/controller":              true,
+	goFabric + "/controller/attestation":  true,
 }
 
 func TestImportsStayOnTheFacade(t *testing.T) {
@@ -72,7 +103,7 @@ func TestImportsStayOnTheFacade(t *testing.T) {
 		isTest := strings.HasSuffix(path, "_test.go")
 		for _, imp := range f.Imports {
 			p, _ := strconv.Unquote(imp.Path.Value)
-			if msg := check(p, isTest); msg != "" {
+			if msg := check(filepath.ToSlash(filepath.Dir(rel)), p, isTest); msg != "" {
 				t.Errorf("%s imports %s: %s", rel, p, msg)
 			}
 		}
@@ -86,10 +117,14 @@ func TestImportsStayOnTheFacade(t *testing.T) {
 	}
 }
 
-// check returns why an import is not allowed, or "".
-func check(p string, isTest bool) string {
+// check returns why an import of p by a file of dir is not allowed, or "".
+func check(dir, p string, isTest bool) string {
 	first, _, _ := strings.Cut(p, "/")
 	switch {
+	case dir == adapterDir && adapter[p]:
+		return ""
+	case dir == generatedDir && generated[p]:
+		return ""
 	case !strings.Contains(first, "."):
 		return "" // the standard library
 	case p == module || strings.HasPrefix(p, module+"/"):
@@ -107,22 +142,28 @@ func check(p string, isTest bool) string {
 
 func TestCheckClassifies(t *testing.T) {
 	for _, c := range []struct {
+		dir    string
 		path   string
 		isTest bool
 		ok     bool
 	}{
-		{"net/http", false, true},
-		{goFabric + "/node", false, true},
-		{goFabric + "/bridge", false, false},
-		{goFabric + "/secure/setup", false, false},
-		{goFabric + "/fabrictest", false, false},
-		{goFabric + "/fabrictest", true, true},
-		{goFabric + "/mdns", true, false},
-		{"github.com/go-chi/chi/v5", false, false},
-		{module + "/fabricui", false, true},
+		{"fabricui/gofabric", goFabric + "/controller", false, true},
+		{"fabricui", goFabric + "/controller", false, false},
+		{"fabricui/gofabric", goFabric + "/secure/setup", false, false},
+		{"internal/api", "github.com/oapi-codegen/runtime", false, true},
+		{"fabricui", "github.com/oapi-codegen/runtime", false, false},
+		{"", "net/http", false, true},
+		{"fabricui", goFabric + "/node", false, true},
+		{"fabricui", goFabric + "/bridge", false, false},
+		{"fabricui", goFabric + "/secure/setup", false, false},
+		{"fabricui", goFabric + "/fabrictest", false, false},
+		{"fabricui", goFabric + "/fabrictest", true, true},
+		{"fabricui", goFabric + "/mdns", true, false},
+		{"fabricui", "github.com/go-chi/chi/v5", false, false},
+		{"fabricui", module + "/fabricui", false, true},
 	} {
-		if got := check(c.path, c.isTest) == ""; got != c.ok {
-			t.Errorf("check(%q, test=%v) allowed=%v, want %v", c.path, c.isTest, got, c.ok)
+		if got := check(c.dir, c.path, c.isTest) == ""; got != c.ok {
+			t.Errorf("check(%q, %q, test=%v) allowed=%v, want %v", c.dir, c.path, c.isTest, got, c.ok)
 		}
 	}
 }

@@ -19,6 +19,7 @@ const (
 	codeServiceUnready = "service_unready"
 	codeInternal       = "internal"
 	codeTooLarge       = "payload_too_large"
+	codeNodeError      = "node_error"
 )
 
 // problemTypeBase is the base of every problem's type URI: the contract

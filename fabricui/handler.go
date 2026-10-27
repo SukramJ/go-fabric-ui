@@ -24,7 +24,12 @@ const TokenHeader = "X-Fabric-UI-Token" //nolint:gosec // a header name, not a c
 type handler struct {
 	node     nodePort
 	exposure ExposureProvider
-	admin    func(*http.Request) bool
+	// ctrl is the controller family's source; nil serves no controller
+	// routes. ctrlHub carries the handler's own controller events
+	// (commissioning progress, update).
+	ctrl    ControllerSource
+	ctrlHub *Events
+	admin   func(*http.Request) bool
 	// token is the admin token of token mode; empty when Options.Admin is
 	// set.
 	token      string
@@ -60,6 +65,8 @@ func newHandler(o Options) (*handler, error) {
 	}
 	h := &handler{
 		exposure:   o.Exposure,
+		ctrl:       o.Controller,
+		ctrlHub:    NewEvents(),
 		admin:      o.Admin,
 		reassemble: o.Reassemble,
 		warnings:   o.Warnings,
@@ -116,6 +123,9 @@ func (h *handler) register(mux *http.ServeMux) {
 	write("POST "+p+"/maintenance/reassemble", h.maintenanceReassemble)
 	write("POST "+p+"/maintenance/factory-reset", h.factoryReset)
 	read("GET "+p+"/stream", h.stream)
+	if h.ctrl != nil {
+		h.mountController(mux)
+	}
 	// Anything else under the prefix is an API 404, not the web
 	// interface's index.
 	mux.HandleFunc(h.prefix+"/", func(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,18 @@
+{
+  "route": "GET /controller/{unknown}",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nope"
+  },
+  "response": {
+    "status": 404,
+    "body": {
+      "code": "not_found",
+      "detail": "GET /api/v1/controller/nope",
+      "instance": "/api/v1/controller/nope",
+      "status": 404,
+      "title": "No such route",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-not_found"
+    }
+  }
+}

@@ -29,7 +29,9 @@ tools (Vite, Tailwind CSS, TypeScript, the test stack) are not shipped.
 
 ## Go modules
 
-The Go module depends on go-fabric and, through it, on the modules below.
+The Go module depends on go-fabric and, through it, on the modules below,
+and on oapi-codegen's runtime, which the generated controller handlers
+(`internal/api`) bind parameters with (brief U2, decision 0.1).
 They are fetched by the Go toolchain from their own repositories with
 their own licence files; none is vendored here. `make licenses` (go-licenses)
 fails on a forbidden, restricted or reciprocal licence.
@@ -37,6 +39,8 @@ fails on a forbidden, restricted or reciprocal licence.
 | Module | Licence |
 | --- | --- |
 | `github.com/SukramJ/go-fabric` | Apache-2.0 |
+| `github.com/oapi-codegen/runtime` | Apache-2.0 |
+| `github.com/apapsch/go-jsonmerge/v2` (through the runtime) | MIT |
 | `filippo.io/nistec` | BSD-3-Clause |
 | `github.com/cenkalti/backoff` | MIT |
 | `github.com/dustin/go-humanize` | MIT |
@@ -52,6 +56,10 @@ fails on a forbidden, restricted or reciprocal licence.
 | `modernc.org/mathutil` | BSD-3-Clause |
 | `modernc.org/memory` | BSD-3-Clause |
 | `modernc.org/sqlite` | BSD-3-Clause |
+
+The generator `github.com/oapi-codegen/oapi-codegen/v2` (Apache-2.0) is a
+pinned `tool` of `go.mod` (`make generate`); it writes `internal/api` and
+is not linked into the module's packages.
 
 ## Ported source
 

@@ -1,0 +1,41 @@
+{
+  "route": "PUT /controller/nodes/{id}/acl",
+  "request": {
+    "method": "PUT",
+    "path": "/controller/nodes/0000000000000011/acl",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "entries": [
+        {
+          "privilege": "administer",
+          "auth_mode": "case",
+          "subjects_hex": [
+            "000000000001B669"
+          ],
+          "targets": []
+        },
+        {
+          "privilege": "operate",
+          "auth_mode": "case",
+          "subjects_hex": [
+            "0000000000000099"
+          ],
+          "targets": [
+            {
+              "cluster_hex": "0x0006",
+              "endpoint": 1
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "status": 0
+    }
+  }
+}

@@ -7,7 +7,9 @@
  *    on <html> flips it).
  *  - html[data-skin="ha"] — the tokens resolve from Home Assistant's own
  *    variables (var(--primary-color, …)); ha-bridge.ts copies the live values
- *    onto :root inside an Ingress frame, and the literals are the defaults.
+ *    onto :root inside an Ingress frame, and the literals are the defaults:
+ *    Home Assistant's own default light and dark palettes. The standalone
+ *    shell uses this skin too, set before the first paint (index.html).
  *  - the palette remap recolours plain Tailwind palette utilities under the
  *    HA skin.
  *  - .table-reflow turns a data table into cards on a phone.
@@ -45,6 +47,8 @@
   --ha-elevation-modal: 0 10px 25px -5px rgb(0 0 0 / 0.15);
   --ha-radius-card: 12px;
   --ha-radius-control: 8px;
+  /* The label on a primary fill. */
+  --ha-on-primary-color: #ffffff;
 }
 
 html.dark {
@@ -92,6 +96,11 @@ html[data-skin="ha"] {
   --ha-elevation-card: var(--ha-card-box-shadow, none); /* HA cards are flat */
   --ha-elevation-modal: var(--ha-card-box-shadow, 0 8px 24px rgba(0, 0, 0, 0.18));
   --font-sans: var(--ha-font-family-body, "Roboto", "Noto", "Helvetica Neue", Arial, sans-serif);
+  /* Home Assistant's text-on-primary, for a light primary in a custom theme. */
+  --ha-on-primary-color: var(--text-primary-color, #ffffff);
+  /* Native controls (checkboxes, radios, range, scrollbars) take the theme. */
+  accent-color: var(--ha-primary-color);
+  color-scheme: light;
 }
 
 html[data-skin="ha"].dark {
@@ -105,6 +114,7 @@ html[data-skin="ha"].dark {
   --ha-primary-text-color: var(--primary-text-color, #e1e1e1);
   --ha-secondary-text-color: var(--secondary-text-color, #9b9b9b);
   --ha-disabled-text-color: var(--disabled-text-color, #6f6f6f);
+  color-scheme: dark;
 }
 
 /* Base document colours track the theme tokens so the boot paint and any

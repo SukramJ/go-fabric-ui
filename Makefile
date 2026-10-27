@@ -44,8 +44,8 @@ test: ## go test -count=1 ./... (handlers, fixtures, import guard, end-to-end on
 race: ## go test -race (CGO_ENABLED=1 for this run only)
 	CGO_ENABLED=1 $(GO) test -race -count=1 -timeout 600s ./...
 
-e2e: ## the end-to-end test alone: a fabrictest site commissioned through the handler
-	CGO_ENABLED=0 $(GO) test -count=1 -run 'TestEndToEnd' -v ./fabricui/
+e2e: ## the end-to-end tests alone: a fabrictest site commissioned through the handlers, node and controller family
+	CGO_ENABLED=0 $(GO) test -count=1 -run 'TestEndToEnd' -v ./fabricui/...
 
 fmt: ## gofumpt -w .
 	gofumpt -w .
@@ -103,6 +103,14 @@ contract-check: ## the contract guard (no removal against contract/previous) and
 	CGO_ENABLED=0 $(GO) test -count=1 -run 'TestEveryFixtureIsUsedByTheGoTests' ./fabricui/
 	cd $(UI_DIR) && npx vitest run src/lib/api/fixtures.test.ts scripts/contract-guard.test.mjs
 
+generate: ## regenerate the controller family's handlers (internal/api) from contract/openapi.yaml with the pinned oapi-codegen
+	script/gen-api.sh internal/api/api.gen.go
+
+generate-check: ## fail when internal/api/api.gen.go is not the generation of contract/openapi.yaml
+	mkdir -p $(CHECK_DIR)
+	script/gen-api.sh $(CHECK_DIR)/api.gen.go
+	diff -u internal/api/api.gen.go $(CHECK_DIR)/api.gen.go && echo "generate-check: internal/api is the generation of the contract"
+
 gen-types: ## regenerate ui/src/lib/api/schema.gen.ts from contract/openapi.yaml
 	cd $(UI_DIR) && $(NPM) run gen:types
 
@@ -111,9 +119,9 @@ version-check: ## internal/version, ui/package.json and the changelog's newest s
 		echo "version-check: internal/version=$(VERSION_GO) ui/package.json=$(VERSION_NPM) changelog=$(VERSION_LOG)"; exit 1; fi
 	@echo "version-check: $(VERSION_GO)"
 
-ci: build vet test lint web-check dist-check ## everything the pipeline's main jobs run
+ci: build vet test lint generate-check web-check dist-check ## everything the pipeline's main jobs run
 
 clean: ## remove local build artefacts (never the committed bundle)
 	rm -rf coverage.out $(CHECK_DIR)
 
-.PHONY: help setup build vet test race e2e fmt fmt-check lint tidy-check cover cover-check vuln licenses secrets web-install web web-check dist-check notices-check contract-check gen-types version-check ci clean
+.PHONY: help setup build vet test race e2e fmt fmt-check lint tidy-check cover cover-check vuln licenses secrets web-install web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean

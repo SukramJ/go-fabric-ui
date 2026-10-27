@@ -43,11 +43,20 @@ Pages: `NodeStatus`, `NodePair`, `NodeFabrics` (with maintenance),
 context; none names a host concept. The selection page is driven by the
 provider's schema (see the repository's `docs/provider.md`).
 
+Controller pages (v0.2.0): `ControllerNodes`, `ControllerCommission`,
+`ControllerSettings`, and `ControllerNode` with the props `nodeId` (the
+16-digit hex `node_id_hex`) and an optional first `tab` (`overview`,
+`endpoints`, `attributes`, `acl`, `bindings`, `window`, `icd`, `fabrics`,
+`updates`). They read `ui.controller` (`createControllerStore`); the
+routes `controllerNodes`, `controllerCommission`, `controllerSettings` and
+the prefix `controllerNode` link them. `ui.controller.loadStatus()` sets
+`present` to false on a 404: the host serves no controller.
+
 ### Translator
 
 `t(key, vars)` is the host's. `createTranslator(locale, extra)` builds one
 over the package's catalogues (`catalogs.en`, `catalogs.de`, keys
-`node.*`, `common.*`) plus the host's own; a `locale` getter that reads
+`node.*`, `controller.*`, `shell.*`, `common.*`) plus the host's own; a `locale` getter that reads
 reactive state re-renders the pages on a language switch.
 
 ### Stylesheet
@@ -65,7 +74,14 @@ host's stylesheet, after Tailwind:
 `.dark` on `<html>` switches the dark tokens; `data-skin="ha"` on `<html>`
 resolves the tokens from Home Assistant's variables. `applySkin("ha")` and
 `startHaBridge()` (from `@sukramj/fabric-ui/theme`) do both inside an
-Ingress frame and are inert elsewhere.
+Ingress frame and are inert elsewhere. A host on a skin of its own (any
+other `data-skin`, or none) keeps the standalone tokens; the HA skin's
+extras (`accent-color` and `color-scheme` on native controls,
+`--ha-on-primary-color` from Home Assistant's `--text-primary-color`) apply
+only under `data-skin="ha"`. The standalone shell sets the HA skin and the
+mode in a pre-paint script (`src/shell/index.html`) so the first frame
+already wears them; a host that wants the same does it in its own
+`index.html`.
 
 ### Event stream
 
@@ -79,6 +95,10 @@ createFabricUI({ client, subscribe: (onEvent) => hub.on("fabric-ui", onEvent) })
 // or bridge the stream into the hub:
 const close = subscribeStream(client.streamUrl(), (ev) => hub.publish(ev.type, ev.data));
 ```
+
+`ui.controller.connect()` opens `GET /controller/stream` the same way;
+`subscribeControllerStream` and the `subscribeController` option of
+`createFabricUI` are its twins.
 
 ## Developing
 
