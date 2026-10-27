@@ -20,14 +20,17 @@
 
   const listClass = $derived(
     variant === "underline"
-      ? cn("flex gap-1 overflow-x-auto border-b border-[var(--ha-divider-color)]", cls)
+      ? // The divider is an inset shadow, not a border the active marker
+        // overlaps with -mb-px: that 1px overflow made the scrollable list
+        // show a vertical scrollbar.
+        cn("flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--ha-divider-color)]", cls)
       : cn("inline-flex flex-wrap gap-0.5 rounded-lg bg-[var(--ha-secondary-background-color)] p-0.5", cls),
   );
 
   function itemClass(isActive: boolean): string {
     if (variant === "underline") {
       return cn(
-        "-mb-px inline-flex items-center justify-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-center text-sm font-medium transition",
+        "inline-flex items-center justify-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-center text-sm font-medium transition",
         fill && "flex-1",
         isActive
           ? "border-[var(--ha-primary-color)] text-[var(--ha-primary-color)]"

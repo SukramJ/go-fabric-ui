@@ -151,9 +151,11 @@ path prefix it chooses:
   any prefix without configuration.
 - **Theme bridge.** Inside Home Assistant's Ingress frame the page is same
   origin with Home Assistant's frontend; `startHaBridge` copies its live
-  theme variables onto the page and follows its light and dark mode. Under
-  any other origin the bridge stays inactive and the tokens' Home
-  Assistant defaults apply.
+  theme variables onto the page and follows its light and dark mode; the
+  shell's pre-paint script does the same before the first frame, so the
+  page never shows another palette first. Under any other origin the
+  bridge stays inactive and the tokens' Home Assistant defaults apply,
+  light or dark by `prefers-color-scheme`.
 - **Admin gate by the host.** The proxy authenticates the user; the host's
   `Options.Admin` admits a request when it came through the proxy (for
   example by the proxy's source address). Token mode is for a daemon that
