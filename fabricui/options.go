@@ -52,8 +52,14 @@ type Options struct {
 	// Exposure is the host's selection; nil answers 503 on the exposure
 	// routes and hides the selection page.
 	Exposure ExposureProvider
+	// Controller is the controller the controller family reads and
+	// drives (gofabric.ControllerOf over a *controller.Controller); nil
+	// serves no controller family, and every /controller/* path answers
+	// 404 like an unknown path.
+	Controller ControllerSource
 	// Admin decides whether a request may write (every POST, PUT and
-	// DELETE route) or read a secret (GET /node/pairing). A host behind a
+	// DELETE route) or read a secret (GET /node/pairing), and whether it
+	// may use a controller route the contract marks x-admin. A host behind a
 	// proxy that authenticates (an Ingress) answers from what the proxy
 	// vouches for. Nil selects the token mode: the handler issues a
 	// per-process random token in GET /node/status (csrf_token) and
