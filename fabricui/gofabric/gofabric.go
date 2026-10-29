@@ -5,9 +5,9 @@
 // controller: [ControllerOf] is a [fabricui.ControllerSource] over a
 // *controller.Controller, the one place in this module that knows the
 // controller facade (controller, controller/client,
-// controller/softwareupdate, controller/thread and the generated cluster
-// definitions it encodes ACL and Binding entries with). A host passes it
-// in fabricui.Options.Controller:
+// controller/softwareupdate, the Thread dataset codec thread and the
+// generated cluster definitions it encodes ACL and Binding entries with).
+// A host passes it in fabricui.Options.Controller:
 //
 //	hooks := gofabric.NewHooks()
 //	cfg.HooksFor = hooks.Wrap(cfg.HooksFor) // before controller.New
@@ -34,7 +34,7 @@ import (
 	"github.com/SukramJ/go-fabric/controller"
 	"github.com/SukramJ/go-fabric/controller/client"
 	"github.com/SukramJ/go-fabric/controller/commissioner"
-	"github.com/SukramJ/go-fabric/controller/thread"
+	"github.com/SukramJ/go-fabric/thread"
 
 	"github.com/SukramJ/go-fabric-ui/fabricui"
 )
@@ -68,7 +68,7 @@ type ControllerOptions struct {
 }
 
 // ThreadDatasetName is a Thread operational dataset's network name, read
-// with go-fabric's controller/thread decoder (matter.js
+// with go-fabric's thread decoder (matter.js
 // OperationalDataset.decode); a dataset that does not decode wraps
 // fabricui.ErrInvalidCredential. It is the threadName of
 // fabricui.NewMemoryCredentials for a store that checks what it keeps.

@@ -35,8 +35,9 @@ var facade = map[string]bool{
 }
 
 // adapterDir is the controller adapter; adapter is what it may import
-// beside the facade: the controller facade and the generated cluster
-// definitions it encodes ACL and Binding entries with.
+// beside the facade: the controller facade, the Thread dataset codec and
+// the generated cluster definitions it encodes ACL and Binding entries
+// with.
 const adapterDir = "fabricui/gofabric"
 
 var adapter = map[string]bool{
@@ -44,8 +45,8 @@ var adapter = map[string]bool{
 	goFabric + "/controller/client":                   true,
 	goFabric + "/controller/commissioner":             true,
 	goFabric + "/controller/softwareupdate":           true,
-	goFabric + "/controller/thread":                   true,
 	goFabric + "/client/discovery":                    true,
+	goFabric + "/thread":                              true,
 	goFabric + "/cluster/spec":                        true,
 	goFabric + "/cluster/spec/accesscontrol":          true,
 	goFabric + "/cluster/spec/basicinformation":       true,

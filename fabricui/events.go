@@ -94,13 +94,24 @@ func (e *Events) Publish(ev Event) {
 	}
 }
 
-// nodeObservers turns the node's fabric and window transitions into
-// stream events for push: fabric_added, fabric_removed, window_opened and
-// window_closed. open is the window state the subscriber last saw, so a
-// repeated snapshot of the same state (an administrator's AdminFabricIndex
-// cleared) is not a transition. A commissioning is fabric_added: the
-// AddNOC that installs the fabric is its last step a page can name.
-func nodeObservers(push func(Event), open bool) node.Observers {
+// NodeObservers turns the node's fabric and window transitions into the
+// node page family's events for push: fabric_added, fabric_removed,
+// window_opened and window_closed, with the payloads the stream carries.
+// open is the window state the subscriber last saw, so a repeated snapshot
+// of the same state (an administrator's AdminFabricIndex cleared) is not a
+// transition. A commissioning is fabric_added: the AddNOC that installs the
+// fabric is its last step a page can name.
+//
+// The handler registers it with node.Observe for each open stream, and the
+// transitions reach those streams alone, never [Events]. A host that
+// carries the node page family's events over a channel of its own (a
+// WebSocket hub, an audit log) registers it the same way:
+//
+//	unobserve := n.Observe(fabricui.NodeObservers(push, n.Window().Open))
+//
+// Publishing the transitions into the [Events] the handler reads instead
+// would hand every stream each one twice.
+func NodeObservers(push func(Event), open bool) node.Observers {
 	var mu sync.Mutex
 	return node.Observers{
 		OnFabricAdded: func(f node.FabricInfo) error {

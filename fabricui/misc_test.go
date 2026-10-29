@@ -18,6 +18,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/SukramJ/go-fabric/eligibility"
 	"github.com/SukramJ/go-fabric/node"
 )
 
@@ -187,6 +188,43 @@ func TestSubscribe_ObservesTheNodeOnce(t *testing.T) {
 	unsub()
 	if n.observerCount() != 0 {
 		t.Fatalf("%d observers left after the unsubscribe", n.observerCount())
+	}
+}
+
+// NodeObservers is the route a host's own channel takes, and it yields
+// what the handler's stream yields: the same transitions, through the same
+// node, give the same events with the same payloads, a repeated window
+// snapshot included.
+func TestNodeObservers_YieldWhatTheStreamYields(t *testing.T) {
+	n := sampleNode()
+	h, mux := newTestHandler(t, testOptions{node: n})
+	stream, host := &recorder{}, &recorder{}
+	defer h.subscribe(stream.add)()
+	defer n.observe(NodeObservers(host.add, n.window().Open))()
+
+	n.notify(func(o node.Observers) {
+		_ = o.OnFabricAdded(node.FabricInfo{FabricIndex: 4, VendorID: 0x1349, Label: "Home"})
+	})
+	n.notify(func(o node.Observers) {
+		_ = o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77, Timeout: 300 * time.Second})
+	})
+	n.notify(func(o node.Observers) {
+		_ = o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77, Timeout: 300 * time.Second})
+	})
+	do(t, mux, http.MethodPost, "/node/pairing/window/close", "")
+	do(t, mux, http.MethodDelete, "/node/fabrics/1", "")
+
+	want := []Event{
+		{Type: EventFabricAdded, Data: FabricEvent{FabricIndex: 4, VendorID: 0x1349, VendorName: eligibility.VendorName(0x1349), Label: "Home"}},
+		{Type: EventWindowOpened, Data: WindowEvent{Discriminator: 77, DurationSeconds: 300}},
+		{Type: EventWindowClosed, Data: WindowEvent{}},
+		{Type: EventFabricRemoved, Data: FabricEvent{FabricIndex: 1}},
+	}
+	if !slices.Equal(host.events, want) {
+		t.Fatalf("NodeObservers yielded %+v, want %+v", host.events, want)
+	}
+	if !slices.Equal(stream.events, host.events) {
+		t.Fatalf("the stream yielded %+v, NodeObservers %+v", stream.events, host.events)
 	}
 }
 
