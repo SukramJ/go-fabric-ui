@@ -7,6 +7,31 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-29
+
+`fabricui/gofabric` builds against go-fabric v0.14.0, and a host gets the
+node's transitions over its own channel through an exported route
+(issue #19).
+
+### Added
+
+- `NodeObservers(push, open) node.Observers`: the node's fabric and window
+  transitions as the node page family's events, with the stream's
+  payloads — the conversion the handler registers for each open stream,
+  which since v0.2.0 is the transitions' only route. A host that carries
+  the events over a channel of its own (a WebSocket hub, an audit log)
+  registers it with `node.Observe` instead of rebuilding it, and does not
+  publish the transitions into `Events`, which would hand every stream
+  each one twice.
+
+### Changed
+
+- go-fabric `v0.13.3` → `v0.14.0`. The controller adapter decodes a Thread
+  dataset with `github.com/SukramJ/go-fabric/thread`, where go-fabric
+  v0.13.7 moved the codec from `controller/thread` (every identifier
+  unchanged); `fabricui/gofabric` did not compile against go-fabric
+  v0.13.7 or later before. The import guard allows `thread` in its place.
+
 ## [0.2.3] - 2026-10-27
 
 ### Changed

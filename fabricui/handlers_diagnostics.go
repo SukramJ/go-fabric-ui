@@ -59,7 +59,8 @@ func (h *handler) sessions(w http.ResponseWriter, r *http.Request) {
 	}
 	diag := h.node.sessions()
 	out := make([]sessionResponse, 0, len(diag.Sessions))
-	for _, s := range diag.Sessions {
+	for i := range diag.Sessions {
+		s := &diag.Sessions[i]
 		out = append(out, sessionResponse{
 			SessionID:        s.ID,
 			FabricIndex:      s.FabricIndex,

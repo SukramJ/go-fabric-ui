@@ -34,7 +34,7 @@ type threadCredential struct {
 
 // NewMemoryCredentials returns an empty store. threadName reads a Thread
 // dataset's network name and refuses a dataset no device could join
-// (gofabric.ThreadDatasetName, over go-fabric's controller/thread); nil
+// (gofabric.ThreadDatasetName, over go-fabric's thread); nil
 // names a dataset by its id and accepts any non-empty one.
 func NewMemoryCredentials(threadName func(dataset []byte) (string, error)) *MemoryCredentials {
 	return &MemoryCredentials{threadName: threadName, wifi: map[string]wifiCredential{}, thread: map[string]threadCredential{}}
