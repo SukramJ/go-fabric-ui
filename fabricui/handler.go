@@ -169,7 +169,7 @@ func (h *handler) subscribe(fn func(Event)) (unsubscribe func()) {
 		unsubs = append(unsubs, h.extra.Subscribe(fn))
 	}
 	if h.node != nil {
-		unsubs = append(unsubs, h.node.observe(nodeObservers(fn, h.node.window().Open)))
+		unsubs = append(unsubs, h.node.observe(NodeObservers(fn, h.node.window().Open)))
 	}
 	return func() {
 		for _, u := range unsubs {

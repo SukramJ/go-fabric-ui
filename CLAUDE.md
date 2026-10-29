@@ -46,8 +46,8 @@ responses are recorded from the handlers with
   facade gap is reported to go-fabric (wave CK), not worked around through
   a seam. The one wider place is `fabricui/gofabric`, the controller
   adapter: go-fabric's controller facade (`controller`, `controller/client`,
-  `controller/softwareupdate`, `controller/thread`, …) and the generated
-  cluster definitions it encodes ACL and Binding with. An import guard
+  `controller/softwareupdate`, …), the Thread dataset codec (`thread`) and
+  the generated cluster definitions it encodes ACL and Binding with. An import guard
   (`internal/arch`) holds both.
 - **Controller handlers are generated.** `internal/api` is oapi-codegen's
   strict server for the contract's `controller` tag; regenerate with
