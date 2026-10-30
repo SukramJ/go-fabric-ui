@@ -336,6 +336,7 @@
   "node.selection.state_exposed": "Freigegeben",
   "node.selection.state_partial": "Teilweise abbildbar",
   "node.selection.state_unmappable": "Nicht abbildbar",
+  "node.selection.show_unmappable": "Nicht abbildbare anzeigen ({count})",
   "node.selection.unavailable": "Dieser Host stellt keine Auswahl bereit.",
   "node.selection.unmappable_checkbox_title": "Nicht auf einen Endpunkt abbildbar",
   "node.selection.unmappable_hint": "Nicht auf einen Endpunkt abbildbar.",
