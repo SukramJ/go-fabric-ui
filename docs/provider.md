@@ -83,8 +83,8 @@ unmappable item); both answer 400 with the error's text. Any other error
 answers 500 and stays in the log. After `Apply` the handler calls
 `Options.Reassemble` so the node serves the new selection before the
 response, and publishes `exposure_changed` with the keys, then
-`endpoints_changed`, and `surface_changed` when the reassembly announced
-surface changes. A host that
+`endpoints_changed`; an endpoint whose surface the reassembly changed
+reaches the stream as `surface_changed` from the node's observer. A host that
 changes its selection elsewhere publishes the same event through its
 `fabricui.Events`.
 

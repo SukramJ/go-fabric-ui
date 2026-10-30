@@ -36,6 +36,18 @@
       ],
       "decisions": [
         {
+          "cluster": "0x0000001d",
+          "endpoint": "",
+          "id": "0x0000001d",
+          "kind": "cluster",
+          "mandatory": true,
+          "origin": "device-type",
+          "policy": "level",
+          "reason": "",
+          "reference": "",
+          "verdict": "keep"
+        },
+        {
           "cluster": "0x00000006",
           "endpoint": "lamp-1",
           "id": "0x00000006",
@@ -160,8 +172,29 @@
           }
         ],
         "root": {
-          "clusters": [],
-          "deviceTypes": [],
+          "clusters": [
+            {
+              "accepted": [],
+              "attributes": [
+                "0x00000000",
+                "0x00000001",
+                "0x00000002",
+                "0x00000003",
+                "0x0000fffd"
+              ],
+              "events": [],
+              "featureMap": "0x00000000",
+              "generated": [],
+              "id": "0x0000001d",
+              "revision": 3
+            }
+          ],
+          "deviceTypes": [
+            {
+              "id": "0x0016",
+              "revision": 5
+            }
+          ],
           "key": ""
         }
       },

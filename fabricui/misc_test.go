@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/SukramJ/go-fabric/eligibility"
 	"github.com/SukramJ/go-fabric/node"
+	"github.com/SukramJ/go-fabric/surface"
 )
 
 // *node.Node is a NodeSource: a facade change that breaks the subset fails
@@ -194,7 +196,7 @@ func TestSubscribe_ObservesTheNodeOnce(t *testing.T) {
 // NodeObservers is the route a host's own channel takes, and it yields
 // what the handler's stream yields: the same transitions, through the same
 // node, give the same events with the same payloads, a repeated window
-// snapshot included.
+// snapshot and a surface change of the root endpoint included.
 func TestNodeObservers_YieldWhatTheStreamYields(t *testing.T) {
 	n := sampleNode()
 	h, mux := newTestHandler(t, testOptions{node: n})
@@ -211,19 +213,21 @@ func TestNodeObservers_YieldWhatTheStreamYields(t *testing.T) {
 	n.notify(func(o node.Observers) {
 		_ = o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77, Timeout: 300 * time.Second})
 	})
+	n.notify(func(o node.Observers) { _ = o.OnSurfaceChanged(surface.SurfaceChange{Endpoint: "", At: testNow}) })
 	do(t, mux, http.MethodPost, "/node/pairing/window/close", "")
 	do(t, mux, http.MethodDelete, "/node/fabrics/1", "")
 
 	want := []Event{
 		{Type: EventFabricAdded, Data: FabricEvent{FabricIndex: 4, VendorID: 0x1349, VendorName: eligibility.VendorName(0x1349), Label: "Home"}},
 		{Type: EventWindowOpened, Data: WindowEvent{Discriminator: 77, DurationSeconds: 300}},
+		{Type: EventSurfaceChanged, Data: SurfaceChangedEvent{Endpoints: []string{""}}},
 		{Type: EventWindowClosed, Data: WindowEvent{}},
 		{Type: EventFabricRemoved, Data: FabricEvent{FabricIndex: 1}},
 	}
-	if !slices.Equal(host.events, want) {
+	if !reflect.DeepEqual(host.events, want) {
 		t.Fatalf("NodeObservers yielded %+v, want %+v", host.events, want)
 	}
-	if !slices.Equal(stream.events, host.events) {
+	if !reflect.DeepEqual(stream.events, host.events) {
 		t.Fatalf("the stream yielded %+v, NodeObservers %+v", stream.events, host.events)
 	}
 }

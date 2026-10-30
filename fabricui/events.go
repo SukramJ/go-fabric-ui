@@ -8,6 +8,7 @@ import (
 
 	"github.com/SukramJ/go-fabric/eligibility"
 	"github.com/SukramJ/go-fabric/node"
+	"github.com/SukramJ/go-fabric/surface"
 )
 
 // Event types the stream carries.
@@ -48,9 +49,10 @@ type ExposureEvent struct {
 	Keys []string `json:"keys"`
 }
 
-// SurfaceChangedEvent is the payload of surface_changed: the keys of the
-// endpoints a reassembly announced a new surface change for — the keys of
-// surface.Report.Changed, "" for the root endpoint.
+// SurfaceChangedEvent is the payload of surface_changed: the key of the
+// endpoint an assembly changed the served surface of, as the node's
+// Observers.OnSurfaceChanged reports it (one endpoint per event) — the key
+// of its surface.Report.Changed entry, "" for the root endpoint.
 type SurfaceChangedEvent struct {
 	Endpoints []string `json:"endpoints"`
 }
@@ -102,13 +104,16 @@ func (e *Events) Publish(ev Event) {
 	}
 }
 
-// NodeObservers turns the node's fabric and window transitions into the
-// node page family's events for push: fabric_added, fabric_removed,
-// window_opened and window_closed, with the payloads the stream carries.
+// NodeObservers turns the node's fabric, window and surface transitions
+// into the node page family's events for push: fabric_added,
+// fabric_removed, window_opened, window_closed and surface_changed, with
+// the payloads the stream carries.
 // open is the window state the subscriber last saw, so a repeated snapshot
 // of the same state (an administrator's AdminFabricIndex cleared) is not a
 // transition. A commissioning is fabric_added: the AddNOC that installs the
-// fabric is its last step a page can name.
+// fabric is its last step a page can name. A surface change is
+// surface_changed, whichever assembly made it — a route's reassembly or
+// one the host runs on its own (go-fabric node/observers.go:75-84).
 //
 // The handler registers it with node.Observe for each open stream, and the
 // transitions reach those streams alone, never [Events]. A host that
@@ -144,7 +149,16 @@ func NodeObservers(push func(Event), open bool) node.Observers {
 			}
 			return nil
 		},
+		OnSurfaceChanged: func(c surface.SurfaceChange) error {
+			push(Event{Type: EventSurfaceChanged, Data: surfaceChangedEvent(c)})
+			return nil
+		},
 	}
+}
+
+// surfaceChangedEvent is surface_changed's payload for one change.
+func surfaceChangedEvent(c surface.SurfaceChange) SurfaceChangedEvent {
+	return SurfaceChangedEvent{Endpoints: []string{c.Endpoint}}
 }
 
 // windowEvent is window_opened's payload for an open window.

@@ -1,6 +1,6 @@
 <!-- The node's surface report (GET /node/surface, go-fabric's
      surface.Report): the policies it is composed under, the effective
-     surface per endpoint, the policies' decisions, the elements withheld
+     surface per endpoint (the root endpoint first), the policies' decisions, the elements withheld
      and the surface changes announced in this process. Names come from
      GET /node/endpoints where its ids match; otherwise the id is shown.
      The page idioms are those of Endpoints.svelte and Diagnostics.svelte. -->
@@ -8,7 +8,7 @@
   import { onMount, untrack } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
-  import type { Endpoint, SurfaceCluster, SurfaceDecision, SurfaceReport } from "../../api/client";
+  import type { Endpoint, SurfaceCluster, SurfaceDecision, SurfaceEndpoint, SurfaceReport } from "../../api/client";
   import type { DataColumn } from "../../kit/data-table";
   import Badge from "../../kit/Badge.svelte";
   import Button from "../../kit/Button.svelte";
@@ -128,6 +128,44 @@
   {/if}
 {/snippet}
 
+{#snippet endpointCard(ep: SurfaceEndpoint, testid: string)}
+  <details class="rounded border border-[var(--ha-divider-color)] p-3" data-testid={testid}>
+    <summary class="flex cursor-pointer flex-wrap items-center gap-2">
+      {#if ep.number}<span class="font-mono text-sm text-[var(--ha-secondary-text-color)]">#{ep.number}</span>{/if}
+      <span class="font-medium text-[var(--ha-primary-text-color)]">{endpointLabel(ep.key)}</span>
+      {#each ep.deviceTypes as dt (dt.id)}
+        <span class="text-xs text-[var(--ha-secondary-text-color)]">{deviceTypeLabel(dt.id)} ({t("node.surface.col_revision")} {dt.revision})</span>
+      {/each}
+    </summary>
+    <div class="mt-3">
+      <DataTable
+        rows={ep.clusters}
+        columns={clusterColumns}
+        rowKey={(c) => c.id}
+        cell={clusterCell}
+        emptyMessage={t("node.surface.clusters_empty")}
+      />
+      {#if ep.clusters.length > 0}
+        <details class="mt-2">
+          <summary class="cursor-pointer text-xs text-[var(--ha-secondary-text-color)]">{t("node.surface.lists")}</summary>
+          <dl class="mt-2 space-y-2 text-xs">
+            {#each ep.clusters as c (c.id)}
+              <div>
+                <dt class="font-medium text-[var(--ha-primary-text-color)]">{clusterLabel(c.id)}</dt>
+                {#each [["col_attributes", c.attributes], ["col_accepted", c.accepted], ["col_generated", c.generated], ["col_events", c.events]] as [label, ids] (label)}
+                  <dd class="text-[var(--ha-secondary-text-color)]">
+                    {t(`node.surface.${label}`)}: <span class="font-mono">{(ids as string[]).length > 0 ? (ids as string[]).map((id) => hexId(id)).join(" ") : "–"}</span>
+                  </dd>
+                {/each}
+              </div>
+            {/each}
+          </dl>
+        </details>
+      {/if}
+    </div>
+  </details>
+{/snippet}
+
 {#snippet decisionCell(d: DecisionRow, col: DataColumn<DecisionRow>)}
   {#if col.key === "verdict"}
     <Badge variant={verdictVariant(d.verdict)}>{t(`node.surface.verdict.${d.verdict}`)}</Badge>
@@ -168,46 +206,15 @@
 
     <Card class="p-4">
       <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.surface.endpoints")}</h3>
+      <!-- The root endpoint first (key "", titled node.surface.root), then
+           the others by key, as go-fabric's wire form orders them. -->
+      <div class="mt-3">{@render endpointCard(r.effective.root, "surface-root")}</div>
       {#if r.effective.endpoints.length === 0}
         <EmptyState class="mt-3" message={t("node.surface.endpoints_empty")} />
       {:else}
-        <div class="mt-3 space-y-2">
+        <div class="mt-2 space-y-2">
           {#each r.effective.endpoints as ep (ep.key)}
-            <details class="rounded border border-[var(--ha-divider-color)] p-3" data-testid="surface-endpoint">
-              <summary class="flex cursor-pointer flex-wrap items-center gap-2">
-                {#if ep.number}<span class="font-mono text-sm text-[var(--ha-secondary-text-color)]">#{ep.number}</span>{/if}
-                <span class="font-medium text-[var(--ha-primary-text-color)]">{endpointLabel(ep.key)}</span>
-                {#each ep.deviceTypes as dt (dt.id)}
-                  <span class="text-xs text-[var(--ha-secondary-text-color)]">{deviceTypeLabel(dt.id)} ({t("node.surface.col_revision")} {dt.revision})</span>
-                {/each}
-              </summary>
-              <div class="mt-3">
-                <DataTable
-                  rows={ep.clusters}
-                  columns={clusterColumns}
-                  rowKey={(c) => c.id}
-                  cell={clusterCell}
-                  emptyMessage={t("node.surface.clusters_empty")}
-                />
-                {#if ep.clusters.length > 0}
-                  <details class="mt-2">
-                    <summary class="cursor-pointer text-xs text-[var(--ha-secondary-text-color)]">{t("node.surface.lists")}</summary>
-                    <dl class="mt-2 space-y-2 text-xs">
-                      {#each ep.clusters as c (c.id)}
-                        <div>
-                          <dt class="font-medium text-[var(--ha-primary-text-color)]">{clusterLabel(c.id)}</dt>
-                          {#each [["col_attributes", c.attributes], ["col_accepted", c.accepted], ["col_generated", c.generated], ["col_events", c.events]] as [label, ids] (label)}
-                            <dd class="text-[var(--ha-secondary-text-color)]">
-                              {t(`node.surface.${label}`)}: <span class="font-mono">{(ids as string[]).length > 0 ? (ids as string[]).map((id) => hexId(id)).join(" ") : "–"}</span>
-                            </dd>
-                          {/each}
-                        </div>
-                      {/each}
-                    </dl>
-                  </details>
-                {/if}
-              </div>
-            </details>
+            {@render endpointCard(ep, "surface-endpoint")}
           {/each}
         </div>
       {/if}

@@ -7,6 +7,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-10-30
+
+`surface_changed` comes from the node itself, so every assembly that
+changes an endpoint's surface reaches the stream; the Surface page shows the
+root endpoint.
+
+### Changed
+
+- `surface_changed` comes from the node's observer
+  (`Observers.OnSurfaceChanged`, registered per stream through
+  `NodeObservers`): one event per changed endpoint, so a reassembly the
+  host runs on its own reaches the stream too. The handler no longer
+  compares `Surface().Changed` before and after its own reassemblies.
+- The status page's warning count reads "{count} warnings" — any policy's
+  `Warn` counts, not only a profile's.
+- The Surface page shows the root endpoint (`effective.root`) as the first
+  endpoint card, titled "Root endpoint"; its decisions are listed under
+  that title.
+- go-fabric `v0.15.4` (was `v0.15.3`), which adds `Observers.OnSurfaceChanged`.
+
 ## [0.2.7] - 2026-10-30
 
 The node's surface report gets its own page, and a reassembly that changes

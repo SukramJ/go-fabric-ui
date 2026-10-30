@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"slices"
 	"testing"
-	"time"
 
+	"github.com/SukramJ/go-fabric/node"
 	"github.com/SukramJ/go-fabric/surface"
 )
 
@@ -36,80 +36,39 @@ func TestSurface_UnencodableReport_Returns500(t *testing.T) {
 	}
 }
 
-// A reassembly that announces surface changes publishes surface_changed
-// after endpoints_changed, with each changed endpoint's key once; one
-// that announces none publishes no surface_changed.
-func TestReassemble_PublishesSurfaceChanged(t *testing.T) {
+// surface_changed comes from the node's observer, one per changed
+// endpoint, whichever assembly made the change: a route's reassembly
+// reaches each open stream once — the route publishes endpoints_changed
+// alone — and a reassembly the host runs on its own reaches it too.
+func TestSubscribe_SurfaceChangedFromTheObserver(t *testing.T) {
 	n := sampleNode()
-	announce := func(context.Context) error {
-		for _, key := range []string{"sensor-2", "lamp-1", "sensor-2"} {
-			n.rep.Changed = append(n.rep.Changed, surface.SurfaceChange{Endpoint: key, At: testNow.Add(time.Duration(len(n.rep.Changed)) * time.Second)})
-		}
+	assemble := func(context.Context) error {
+		// The node reports the change on the assembly's goroutine, after
+		// it recorded it (go-fabric node/observers.go:75-84).
+		n.notify(func(o node.Observers) { _ = o.OnSurfaceChanged(surface.SurfaceChange{Endpoint: "lamp-1", At: testNow}) })
 		return nil
 	}
-	h, mux := newTestHandler(t, testOptions{node: n, reassemble: announce})
-	rec := record(h)
+	h, mux := newTestHandler(t, testOptions{node: n, exposure: newMemoryProvider(), reassemble: assemble})
+	rec := &recorder{}
+	defer h.subscribe(rec.add)()
+
 	if code := do(t, mux, http.MethodPost, "/node/maintenance/reassemble", "").Code; code != http.StatusNoContent {
 		t.Fatalf("status %d", code)
 	}
-	if !slices.Equal(rec.types(), []string{EventEndpointsChanged, EventSurfaceChanged}) {
-		t.Fatalf("events %v", rec.types())
-	}
-	if ev, ok := rec.events[1].Data.(SurfaceChangedEvent); !ok || !slices.Equal(ev.Endpoints, []string{"sensor-2", "lamp-1"}) {
-		t.Fatalf("payload %+v", rec.events[1].Data)
-	}
-
-	h2, mux2 := newTestHandler(t, testOptions{node: sampleNode(), reassemble: func(context.Context) error { return nil }})
-	rec2 := record(h2)
-	do(t, mux2, http.MethodPost, "/node/maintenance/reassemble", "")
-	if !slices.Equal(rec2.types(), []string{EventEndpointsChanged}) {
-		t.Fatalf("no change announced: events %v", rec2.types())
-	}
-}
-
-// Applying a selection reassembles, and the reassembly's announced
-// changes reach the stream the same way.
-func TestExposureApply_PublishesSurfaceChanged(t *testing.T) {
-	n := sampleNode()
-	announce := func(context.Context) error {
-		n.rep.Changed = append(n.rep.Changed, surface.SurfaceChange{Endpoint: "lamp-1", At: testNow})
-		return nil
-	}
-	h, mux := newTestHandler(t, testOptions{node: n, exposure: newMemoryProvider(), reassemble: announce})
-	rec := record(h)
 	do(t, mux, http.MethodPut, "/node/exposure", `{"items":[{"key":"lamp-1","enabled":true}]}`)
-	if !slices.Equal(rec.types(), []string{EventExposureChanged, EventEndpointsChanged, EventSurfaceChanged}) {
-		t.Fatalf("events %v", rec.types())
-	}
-	if ev, ok := rec.events[2].Data.(SurfaceChangedEvent); !ok || !slices.Equal(ev.Endpoints, []string{"lamp-1"}) {
-		t.Fatalf("payload %+v", rec.events[2].Data)
-	}
-}
+	_ = assemble(context.Background()) // the host's own reassembly
 
-// The node keeps the last hundred changes, so the list's length stops
-// growing; the new changes are those behind the last one seen, and all
-// of them when that one was dropped.
-func TestNewChangeKeys_ReadsBehindTheLastChangeSeen(t *testing.T) {
-	at := func(i int) surface.SurfaceChange {
-		return surface.SurfaceChange{Endpoint: string(rune('a' + i)), At: testNow.Add(time.Duration(i) * time.Second)}
+	want := []string{
+		EventSurfaceChanged, EventEndpointsChanged,
+		EventExposureChanged, EventSurfaceChanged, EventEndpointsChanged,
+		EventSurfaceChanged,
 	}
-	before := []surface.SurfaceChange{at(0), at(1), at(2)}
-	cases := []struct {
-		name  string
-		after []surface.SurfaceChange
-		want  []string
-	}{
-		{"none new", []surface.SurfaceChange{at(0), at(1), at(2)}, nil},
-		{"appended", []surface.SurfaceChange{at(0), at(1), at(2), at(3)}, []string{"d"}},
-		{"bounded", []surface.SurfaceChange{at(1), at(2), at(3), at(4)}, []string{"d", "e"}},
-		{"mark dropped", []surface.SurfaceChange{at(3), at(4)}, []string{"d", "e"}},
+	if !slices.Equal(rec.types(), want) {
+		t.Fatalf("events %v, want %v", rec.types(), want)
 	}
-	for _, c := range cases {
-		if got := newChangeKeys(before, c.after); !slices.Equal(got, c.want) {
-			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+	for _, i := range []int{0, 3, 5} {
+		if ev, ok := rec.events[i].Data.(SurfaceChangedEvent); !ok || !slices.Equal(ev.Endpoints, []string{"lamp-1"}) {
+			t.Fatalf("event %d payload %+v", i, rec.events[i].Data)
 		}
-	}
-	if got := newChangeKeys(nil, before); !slices.Equal(got, []string{"a", "b", "c"}) {
-		t.Errorf("nothing before: %v", got)
 	}
 }

@@ -72,14 +72,16 @@ Details the fixtures pin:
   `window_opened`, `window_closed`, `endpoints_changed`,
   `exposure_changed` or `surface_changed`; `data:` is JSON (`FabricEvent`,
   `WindowEvent`, `{}`, `ExposureEvent`, `SurfaceChangedEvent`). A comment
-  line arrives every 15 s. The fabric and window events come from the node
-  (`Node.Observe`, registered per stream), once per transition, whoever
-  caused it. `surface_changed` follows `endpoints_changed` after a
+  line arrives every 15 s. The fabric, window and surface events come from
+  the node (`Node.Observe`, registered per stream), once per transition,
+  whoever caused it. `surface_changed` is go-fabric's
+  `Observers.OnSurfaceChanged`: one event per endpoint whose served surface
+  an assembly changed, after the node recorded the change in
+  `Surface().Changed` and on the assembly's goroutine; `endpoints` names
+  that endpoint's key (`""` for the root endpoint). It arrives for a
   reassembly this handler runs (`POST /node/maintenance/reassemble`,
-  `PUT /node/exposure`) when the node announced surface changes during it:
-  `endpoints` names their endpoint keys, read from `Surface().Changed`
-  before and after (go-fabric has no hook for it). A reassembly the host
-  runs itself is not seen.
+  `PUT /node/exposure`) and for one the host runs on its own; the routes
+  publish `endpoints_changed` alone.
 
 ## Admin rights
 

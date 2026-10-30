@@ -361,7 +361,7 @@
   "node.status.surface_no_extension": "keine Erweiterung",
   "node.status.surface_no_profile": "kein Profil",
   "node.status.surface_profiles": "Profile: {profiles}",
-  "node.status.surface_warnings": "{count} Profil-Warnungen",
+  "node.status.surface_warnings": "{count} Warnungen",
   "node.status.surface_withheld": "{count} zurückgehalten",
   "node.status.unhealthy": "gestört",
   "node.surface.assembled": "zusammengesetzt",
