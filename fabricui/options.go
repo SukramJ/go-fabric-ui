@@ -14,6 +14,7 @@ import (
 
 	"github.com/SukramJ/go-fabric/clock"
 	"github.com/SukramJ/go-fabric/node"
+	"github.com/SukramJ/go-fabric/surface"
 )
 
 // DefaultPrefix is the path the API is mounted under when
@@ -41,6 +42,11 @@ type NodeSource interface {
 	MDNSServices() []node.MDNSService
 	DiagnoseMDNS() []node.MDNSFinding
 	DiagnosticEvents() []node.DiagnosticEvent
+	// Surface is the node's surface report: the specification level and
+	// its origin, the controller profiles and the extensions its served
+	// surface is composed under, with the decisions, the withheld elements
+	// and the announced changes (go-fabric node/surface.go:372, v0.15.2).
+	Surface() surface.Report
 }
 
 // Options configures the handlers.

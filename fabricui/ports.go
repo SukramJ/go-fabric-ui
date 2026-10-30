@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/SukramJ/go-fabric/node"
+	"github.com/SukramJ/go-fabric/surface"
 )
 
 // nodePort is what the handlers read from the node, already in the shape
@@ -34,6 +35,8 @@ type nodePort interface {
 	observe(o node.Observers) (unsubscribe func())
 	mdns() mdnsResponse
 	diagnosticEvents() []node.DiagnosticEvent
+	// surface is the node's surface report (Node.Surface).
+	surface() surface.Report
 }
 
 // nodeAdapter reads a [NodeSource] through the facade only.
@@ -137,3 +140,5 @@ func (a nodeAdapter) mdns() mdnsResponse {
 }
 
 func (a nodeAdapter) diagnosticEvents() []node.DiagnosticEvent { return a.n.DiagnosticEvents() }
+
+func (a nodeAdapter) surface() surface.Report { return a.n.Surface() }
