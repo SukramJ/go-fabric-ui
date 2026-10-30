@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/SukramJ/go-fabric/node"
+	"github.com/SukramJ/go-fabric/surface"
 )
 
 // update rewrites the response half of every fixture a test runs from the
@@ -166,6 +167,7 @@ type fakeNode struct {
 	sess   node.SessionDiagnostics
 	md     mdnsResponse
 	events []node.DiagnosticEvent
+	rep    surface.Report
 
 	// observers are what node.Observe registered; the fake reports its
 	// route-caused transitions to them as the node does.
@@ -334,16 +336,43 @@ func (f *fakeNode) sessions() node.SessionDiagnostics        { return f.sess }
 func (f *fakeNode) now() time.Time                           { return testNow }
 func (f *fakeNode) mdns() mdnsResponse                       { return f.md }
 func (f *fakeNode) diagnosticEvents() []node.DiagnosticEvent { return f.events }
+func (f *fakeNode) surface() surface.Report                  { return f.rep }
 
 // stringKey is a node.BridgedDevice key.
 type stringKey string
 
 func (k stringKey) String() string { return string(k) }
 
+// sampleSurface is the node-status.200 fixture's surface report: an
+// explicit level, two profiles, two extensions, assembled, and a decision
+// of each kind the summary tells apart — a plain keep, a profile warning,
+// a profile removal, a profile removal the chain kept as mandatory (Keep,
+// but no warning) — beside one withheld element and one announced change.
+func sampleSurface() surface.Report {
+	r := surface.Policies{
+		Level:      "1.5.1",
+		Profiles:   []string{"home-assistant", "apple-home"},
+		Extensions: surface.NewExtensions("BD-chip-Thermostat-Schedules", "BD-chip-Thermostat-Events"),
+	}.Report()
+	r.Assembled = true
+	thermostat := surface.Element{Endpoint: "thermo-1", Cluster: 0x0201, Kind: surface.KindCluster, ID: 0x0201}
+	msch := surface.Element{Endpoint: "thermo-1", Cluster: 0x0201, Kind: surface.KindFeature, ID: 0x80}
+	r.Decisions = []surface.Decision{
+		{Element: thermostat, Verdict: surface.Keep},
+		{Element: msch, Policy: "profile:apple-home", Verdict: surface.Keep, Reason: "warning (Reported) profile apple-home: not reproduced in isolation (owner report)"},
+		{Element: msch, Policy: "profile:home-assistant", Verdict: surface.Remove, Reason: "removed by profile home-assistant: synthetic (test)"},
+		{Element: thermostat, Policy: "profile:home-assistant", Verdict: surface.Keep, Reason: "kept: mandatory at pin (removed by profile home-assistant: synthetic (test))"},
+	}
+	r.Withheld = []surface.Element{{Endpoint: "air-1", Kind: surface.KindDeviceType, ID: 0x002C}}
+	r.Changed = []surface.SurfaceChange{{Endpoint: "thermo-1", At: testNow.Add(-time.Minute)}}
+	return r
+}
+
 // sampleNode is a node with two fabrics, two bridged devices (one with a
-// part), one session pair, an advertisement and a trace.
+// part), one session pair, an advertisement, a trace and a surface report.
 func sampleNode() *fakeNode {
 	return &fakeNode{
+		rep:      sampleSurface(),
 		healthOK: true, healthy: true, note: "listener ok",
 		addr: "[::]:5540",
 		fabricList: []node.FabricInfo{

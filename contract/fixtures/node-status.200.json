@@ -19,6 +19,22 @@
       "healthy": true,
       "listen_addr": "[::]:5540",
       "listening": true,
+      "surface": {
+        "assembled": true,
+        "changed_count": 1,
+        "extensions": [
+          "BD-chip-Thermostat-Events",
+          "BD-chip-Thermostat-Schedules"
+        ],
+        "level": "1.5.1",
+        "level_origin": "explicit",
+        "profiles": [
+          "apple-home",
+          "home-assistant"
+        ],
+        "warning_count": 1,
+        "withheld_count": 1
+      },
       "warnings": [
         {
           "code": "label_unresolved",

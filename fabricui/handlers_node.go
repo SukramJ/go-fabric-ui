@@ -10,9 +10,11 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/SukramJ/go-fabric/eligibility"
+	"github.com/SukramJ/go-fabric/surface"
 )
 
 // statusResponse is the body of GET /node/status. Mirrors loom's
@@ -42,6 +44,51 @@ type statusResponse struct {
 	// Warnings is nil, and omitted, without Options.Warnings; with the
 	// hook it is a list, empty when the host finds nothing.
 	Warnings []Warning `json:"warnings,omitzero"`
+	// Surface summarises the policies the node's served surface is
+	// composed under (Node.Surface); absent without a node.
+	Surface *surfaceSummary `json:"surface,omitempty"`
+}
+
+// surfaceSummary is the head of the node's surface.Report and the counts
+// a reader needs to know whether to look further. Profiles and Extensions
+// are lists, empty rather than null.
+type surfaceSummary struct {
+	Level         string   `json:"level"`
+	LevelOrigin   string   `json:"level_origin"`
+	Profiles      []string `json:"profiles"`
+	Extensions    []string `json:"extensions"`
+	Assembled     bool     `json:"assembled"`
+	WithheldCount int      `json:"withheld_count"`
+	WarningCount  int      `json:"warning_count"`
+	ChangedCount  int      `json:"changed_count"`
+}
+
+// profilePolicyPrefix opens the name of a profile's built-in policy,
+// "profile:<name>" (go-fabric surface/profile.go:249 at v0.15.2).
+const profilePolicyPrefix = "profile:"
+
+// summariseSurface reads the summary from a report. A profile warning is
+// a Keep decision of a profile policy whose reason is a warning: the
+// profile policy keeps an element a warn rule matches with the reason
+// "warning (<confidence>) profile <name>: <reason> (<source>)" (go-fabric
+// surface/profile.go:268 at v0.15.2).
+func summariseSurface(r *surface.Report) *surfaceSummary {
+	out := &surfaceSummary{
+		Level:         string(r.Level),
+		LevelOrigin:   r.LevelOrigin,
+		Profiles:      append([]string{}, r.Profiles...),
+		Extensions:    append([]string{}, r.Extensions...),
+		Assembled:     r.Assembled,
+		WithheldCount: len(r.Withheld),
+		ChangedCount:  len(r.Changed),
+	}
+	for i := range r.Decisions {
+		d := &r.Decisions[i]
+		if d.Verdict == surface.Keep && strings.HasPrefix(d.Policy, profilePolicyPrefix) && strings.HasPrefix(d.Reason, "warning") {
+			out.WarningCount++
+		}
+	}
+	return out
 }
 
 // status serves GET /node/status. A host without a node is answered with
@@ -69,6 +116,8 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		res.HealthNote = note
 	}
 	res.EndpointCount = len(h.node.topology().Devices)
+	rep := h.node.surface()
+	res.Surface = summariseSurface(&rep)
 	res.Advertising = h.node.mdns().Advertising
 	win := h.node.window()
 	res.WindowOpen = win.Open

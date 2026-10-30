@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/SukramJ/go-fabric/node"
+	"github.com/SukramJ/go-fabric/surface"
 )
 
 // Ports TestMatterStatus_NilReader_Returns200_Disabled.
@@ -71,6 +72,41 @@ func TestStatus_Warnings(t *testing.T) {
 	var ws []Warning
 	if err := json.Unmarshal(get(testOptions{noNode: true, warnings: sampleWarnings})["warnings"], &ws); err != nil || len(ws) != 2 {
 		t.Fatalf("warnings without a node: %v %v, want the two findings", ws, err)
+	}
+}
+
+// A node composed under the zero policies reports the pin's level, origin
+// "pin", and its profiles and extensions as empty lists, not null; a Keep
+// decision of a profile policy counts as a warning only with a warning
+// reason, and a warning reason of a non-profile policy does not count.
+func TestStatus_SurfaceOfTheZeroPolicies(t *testing.T) {
+	n := sampleNode()
+	n.rep = surface.Policies{}.Report()
+	n.rep.Decisions = []surface.Decision{
+		{Policy: "profile:alexa", Verdict: surface.Keep},
+		{Policy: "custom", Verdict: surface.Keep, Reason: "warning (Reported) custom"},
+		{Policy: "profile:alexa", Verdict: surface.Refuse, Reason: "warning (Reported) refused"},
+	}
+	_, mux := newTestHandler(t, testOptions{node: n, admin: func(*http.Request) bool { return true }})
+	rec := do(t, mux, http.MethodGet, "/node/status", "")
+	var m struct {
+		Surface map[string]json.RawMessage `json:"surface"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &m); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"level": `"` + string(surface.PinLevel()) + `"`, "level_origin": `"pin"`,
+		"profiles": "[]", "extensions": "[]", "assembled": "false",
+		"withheld_count": "0", "warning_count": "0", "changed_count": "0",
+	}
+	if len(m.Surface) != len(want) {
+		t.Fatalf("surface %v, want the keys of %v", m.Surface, want)
+	}
+	for k, v := range want {
+		if got := string(m.Surface[k]); got != v {
+			t.Errorf("surface.%s = %s, want %s", k, got, v)
+		}
 	}
 }
 

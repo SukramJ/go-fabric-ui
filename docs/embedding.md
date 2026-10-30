@@ -58,8 +58,9 @@ Everything the handlers read is on the node facade: the window from
 `Node.Window` (its kind, discriminator and deadline on the node's clock),
 the configured codes from `Node.SetupPayload`, the clusters of every
 endpoint, parts included, from `Topology`, fresh window credentials from
-`node.NewWindowCredentials`, and the session table from
-`Node.SessionDiagnostics`. A host wrapping its node in its own
+`node.NewWindowCredentials`, the session table from
+`Node.SessionDiagnostics`, and the surface summary of the status (level,
+profiles, extensions and counts) from `Node.Surface`. A host wrapping its node in its own
 `NodeSource` implements those methods.
 
 ## The controller family

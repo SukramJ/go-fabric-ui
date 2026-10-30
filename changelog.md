@@ -7,6 +7,35 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-30
+
+The node status page shows the policies go-fabric v0.15 composes the served
+surface under: the specification level, the controller profiles and the
+enabled extensions.
+
+### Added
+
+- A "Surface" row on the node status page, below the counts: the
+  specification level with its origin (set, the pin, or the profiles that
+  imply it), the selected controller profiles, the enabled
+  ahead-of-matter.js extensions, and — only when not zero — the withheld
+  elements, the profile warnings and the surface changes announced in this
+  process.
+- `GET /node/status` reports a `surface` object (absent without a node):
+  `level`, `level_origin`, `profiles`, `extensions`, `assembled`,
+  `withheld_count`, `warning_count`, `changed_count`, read from
+  `node.Node.Surface()`.
+
+### Changed
+
+- go-fabric `v0.15.2` (was `v0.15.1`), which adds `surface.Report.Extensions`.
+- `NodeSource` gains `Surface() surface.Report`. `*node.Node` satisfies it
+  at go-fabric v0.15.2; a host that implements `NodeSource` with its own
+  type adds the method.
+- The import guard allows `github.com/SukramJ/go-fabric/surface` as a facade
+  type package: it is the type of `node.Config.Surface` and of
+  `Node.Surface()`'s result.
+
 ## [0.2.5] - 2026-10-30
 
 `fabricui/gofabric` builds against go-fabric v0.15.1, and the selection page
