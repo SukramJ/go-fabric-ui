@@ -76,16 +76,17 @@ func TestStatus_Warnings(t *testing.T) {
 }
 
 // A node composed under the zero policies reports the pin's level, origin
-// "pin", and its profiles and extensions as empty lists, not null; a Keep
-// decision of a profile policy counts as a warning only with a warning
-// reason, and a warning reason of a non-profile policy does not count.
+// "pin", and its profiles and extensions as empty lists, not null; the
+// warning count reads the Warn verdict alone — a Keep or a Refuse with a
+// warning reason does not count, a Warn of any policy does.
 func TestStatus_SurfaceOfTheZeroPolicies(t *testing.T) {
 	n := sampleNode()
 	n.rep = surface.Policies{}.Report()
 	n.rep.Decisions = []surface.Decision{
 		{Policy: "profile:alexa", Verdict: surface.Keep},
-		{Policy: "custom", Verdict: surface.Keep, Reason: "warning (Reported) custom"},
+		{Policy: "profile:alexa", Verdict: surface.Keep, Reason: "warning (Reported) profile alexa: kept"},
 		{Policy: "profile:alexa", Verdict: surface.Refuse, Reason: "warning (Reported) refused"},
+		{Policy: "custom", Verdict: surface.Warn, Reason: "flagged"},
 	}
 	_, mux := newTestHandler(t, testOptions{node: n, admin: func(*http.Request) bool { return true }})
 	rec := do(t, mux, http.MethodGet, "/node/status", "")
@@ -98,7 +99,7 @@ func TestStatus_SurfaceOfTheZeroPolicies(t *testing.T) {
 	want := map[string]string{
 		"level": `"` + string(surface.PinLevel()) + `"`, "level_origin": `"pin"`,
 		"profiles": "[]", "extensions": "[]", "assembled": "false",
-		"withheld_count": "0", "warning_count": "0", "changed_count": "0",
+		"withheld_count": "0", "warning_count": "1", "changed_count": "0",
 	}
 	if len(m.Surface) != len(want) {
 		t.Fatalf("surface %v, want the keys of %v", m.Surface, want)

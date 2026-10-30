@@ -39,6 +39,14 @@ export type Applied = S["Applied"];
 export type FabricEvent = S["FabricEvent"];
 export type WindowEvent = S["WindowEvent"];
 export type ExposureEvent = S["ExposureEvent"];
+export type SurfaceChangedEvent = S["SurfaceChangedEvent"];
+export type SurfaceReport = S["SurfaceReport"];
+export type SurfaceEndpoint = S["SurfaceEndpoint"];
+export type SurfaceCluster = S["SurfaceCluster"];
+export type SurfaceDecision = S["SurfaceDecision"];
+export type SurfaceElement = S["SurfaceElement"];
+export type SurfaceChange = S["SurfaceChange"];
+export type SurfaceElementChange = S["SurfaceElementChange"];
 
 // The controller family (contract 0.2.0).
 export type ControllerStatus = S["ControllerStatus"];
@@ -113,6 +121,8 @@ export interface FabricClient {
   openWindow(durationSeconds: number): Promise<Window>;
   closeWindow(): Promise<void>;
   endpoints(): Promise<EndpointList>;
+  /** The node's surface report, in go-fabric's encoding of surface.Report. */
+  surface(): Promise<SurfaceReport>;
   sessions(): Promise<SessionList>;
   mdns(): Promise<Mdns>;
   compatibility(): Promise<Compatibility>;
@@ -211,6 +221,7 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
     openWindow: (d) => call("POST", "/node/pairing/window", { admin: true, body: { duration_seconds: d } }),
     closeWindow: () => call("POST", "/node/pairing/window/close", { admin: true }),
     endpoints: () => call("GET", "/node/endpoints"),
+    surface: () => call("GET", "/node/surface"),
     sessions: () => call("GET", "/node/sessions"),
     mdns: () => call("GET", "/node/mdns"),
     compatibility: () => call("GET", "/node/compatibility"),

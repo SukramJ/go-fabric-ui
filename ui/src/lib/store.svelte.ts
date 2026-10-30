@@ -47,6 +47,10 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   let exposureError = $state<string | null>(null);
   let pending = $state<Map<string, Update>>(new Map());
   let commissioning = $state<Commissioning>({ ...IDLE });
+  // topologyEpoch counts the stream's endpoints_changed and
+  // surface_changed; a page that shows endpoints or their surface
+  // refetches when it moves.
+  let topologyEpoch = $state(0);
 
   let unsub: (() => void) | null = null;
   let countdown: ReturnType<typeof setInterval> | null = null;
@@ -219,8 +223,12 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         void loadStatus();
         break;
       case "window_opened":
-      case "endpoints_changed":
         void loadStatus();
+        break;
+      case "endpoints_changed":
+      case "surface_changed":
+        void loadStatus();
+        topologyEpoch++;
         break;
       case "window_closed":
         void loadStatus();
@@ -271,6 +279,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     get pending() { return pending; },
     get hasDirty() { return pending.size > 0; },
     get commissioning() { return commissioning; },
+    get topologyEpoch() { return topologyEpoch; },
     loadStatus,
     loadFabrics,
     loadExposure,

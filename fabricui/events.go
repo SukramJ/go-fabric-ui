@@ -18,6 +18,7 @@ const (
 	EventWindowClosed     = "window_closed"
 	EventEndpointsChanged = "endpoints_changed"
 	EventExposureChanged  = "exposure_changed"
+	EventSurfaceChanged   = "surface_changed"
 )
 
 // Event is one server-sent event: its type and a JSON-encodable payload.
@@ -45,6 +46,13 @@ type WindowEvent struct {
 // that changed; empty when the host does not say which.
 type ExposureEvent struct {
 	Keys []string `json:"keys"`
+}
+
+// SurfaceChangedEvent is the payload of surface_changed: the keys of the
+// endpoints a reassembly announced a new surface change for — the keys of
+// surface.Report.Changed, "" for the root endpoint.
+type SurfaceChangedEvent struct {
+	Endpoints []string `json:"endpoints"`
 }
 
 // EventSource is where the stream reads events from beside the handler's
