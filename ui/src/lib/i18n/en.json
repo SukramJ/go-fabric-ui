@@ -336,6 +336,7 @@
   "node.selection.state_exposed": "Exposed",
   "node.selection.state_partial": "Partially mappable",
   "node.selection.state_unmappable": "Cannot be mapped",
+  "node.selection.show_unmappable": "Show items that cannot be mapped ({count})",
   "node.selection.unavailable": "This host serves no selection.",
   "node.selection.unmappable_checkbox_title": "Cannot be mapped to an endpoint",
   "node.selection.unmappable_hint": "Not mappable to an endpoint.",

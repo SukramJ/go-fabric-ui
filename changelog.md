@@ -7,6 +7,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-10-30
+
+`fabricui/gofabric` builds against go-fabric v0.15.1, and the selection page
+hides what the host cannot expose.
+
+### Changed
+
+- The selection page hides items whose verdict is unmappable — nothing the
+  host could expose now — by default. A toggle above the list ("Show items
+  that cannot be mapped (n)") brings them back, with their reason and the
+  disabled checkbox as before; the value filters still offer every item's
+  values. The legend keeps all four states.
+- go-fabric `v0.15.1` (was `v0.14.0`): the served surface as a value under
+  policies (ADR 0030) — the node's spec level, ahead-of-matter.js opt-ins and
+  controller profiles sit in `node.Config.Surface`; nothing in this module's
+  routes changes.
+
 ## [0.2.4] - 2026-10-29
 
 `fabricui/gofabric` builds against go-fabric v0.14.0, and a host gets the
