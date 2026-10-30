@@ -1,8 +1,8 @@
 filippo.io/nistec v0.0.4 h1:F14ZHT5htWlMnQVPndX9ro9arf56cBhQxq4LnDI491s=
 filippo.io/nistec v0.0.4/go.mod h1:PK/lw8I1gQT4hUML4QGaqljwdDaFcMyFKSXN7kjrtKI=
 github.com/RaveNoX/go-jsoncommentstrip v1.0.0/go.mod h1:78ihd09MekBnJnxpICcwzCMzGrKSKYe4AqU6PDYYpjk=
-github.com/SukramJ/go-fabric v0.15.3-0.20261030134454-5167fc59d011 h1:JI6DDddKI1oF9OGyyuNpf5xRXtE8JdPXYsbgJqgP8Zk=
-github.com/SukramJ/go-fabric v0.15.3-0.20261030134454-5167fc59d011/go.mod h1:u05z8cUjXxgNjqaVn+kMb4S99/hjHdg8WH/8h+oq2rs=
+github.com/SukramJ/go-fabric v0.15.3 h1:MYhaXa4dLNtZC128bQXf4BM+mCkIrjqUM7rfXTFlbCo=
+github.com/SukramJ/go-fabric v0.15.3/go.mod h1:u05z8cUjXxgNjqaVn+kMb4S99/hjHdg8WH/8h+oq2rs=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
 github.com/bmatcuk/doublestar v1.1.1/go.mod h1:UD6OnuiIn0yFxxA2le/rnRU1G4RaI4UvFv1sNto9p6w=
