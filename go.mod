@@ -3,7 +3,7 @@ module github.com/SukramJ/go-fabric-ui
 go 1.27.3
 
 require (
-	github.com/SukramJ/go-fabric v0.15.2
+	github.com/SukramJ/go-fabric v0.15.3-0.20261030134454-5167fc59d011
 	github.com/oapi-codegen/runtime v1.7.0
 )
 

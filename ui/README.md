@@ -39,7 +39,8 @@ toast and confirm:
 ```
 
 Pages: `NodeStatus`, `NodePair`, `NodeFabrics` (with maintenance),
-`NodeSelection`, `NodeEndpoints`, `NodeDiagnostics`. Each reads only the
+`NodeSelection`, `NodeEndpoints`, `NodeSurface` (the node's surface
+report), `NodeDiagnostics`. Each reads only the
 context; none names a host concept. The selection page is driven by the
 provider's schema (see the repository's `docs/provider.md`).
 

@@ -23,6 +23,7 @@ Paths are relative to the mount prefix (`Options.Prefix`, default
 | `/node/pairing/window` | POST | yes | 200, 400, 403, 409, 500, 503 | `NewWindowCredentials`, `PairingCodesFor` and `OpenBasicWindow`, or `CommissioningWindow().OpenOwnWindow` and `SetupPayload` with `Options.ConfiguredWindow`; `Window` for the duration |
 | `/node/pairing/window/close` | POST | yes | 204, 403, 500, 503 | `CommissioningWindow().RevokeWindow` |
 | `/node/endpoints` | GET | – | 200, 503 | `Topology` (`Clusters`, `DeviceTypeRevision` of every endpoint, parts included) |
+| `/node/surface` | GET | – | 200, 500, 503 | `Surface` — the `surface.Report` in go-fabric's own JSON encoding (`MarshalJSON`) |
 | `/node/sessions` | GET | – | 200, 503 | `SessionDiagnostics` (sessions with subscription counts and idle ages on the node's clock, occupancy) |
 | `/node/mdns` | GET | – | 200, 503 | `MDNSEnabled`, `MDNSServices`, `DiagnoseMDNS` |
 | `/node/compatibility` | GET | – | 200, 503 | `FabricInfos`, `Topology`, `eligibility.Compat` |
@@ -68,11 +69,17 @@ Details the fixtures pin:
   (`Node.SetupPayload`) or that of the window this handler opened on fresh
   credentials. No event and no log line carries it; the tests assert both.
 - **Stream**: `event:` is `fabric_added`, `fabric_removed`,
-  `window_opened`, `window_closed`, `endpoints_changed` or
-  `exposure_changed`; `data:` is JSON (`FabricEvent`, `WindowEvent`, `{}`,
-  `ExposureEvent`). A comment line arrives every 15 s. The fabric and
-  window events come from the node (`Node.Observe`, registered per stream),
-  once per transition, whoever caused it.
+  `window_opened`, `window_closed`, `endpoints_changed`,
+  `exposure_changed` or `surface_changed`; `data:` is JSON (`FabricEvent`,
+  `WindowEvent`, `{}`, `ExposureEvent`, `SurfaceChangedEvent`). A comment
+  line arrives every 15 s. The fabric and window events come from the node
+  (`Node.Observe`, registered per stream), once per transition, whoever
+  caused it. `surface_changed` follows `endpoints_changed` after a
+  reassembly this handler runs (`POST /node/maintenance/reassemble`,
+  `PUT /node/exposure`) when the node announced surface changes during it:
+  `endpoints` names their endpoint keys, read from `Surface().Changed`
+  before and after (go-fabric has no hook for it). A reassembly the host
+  runs itself is not seen.
 
 ## Admin rights
 

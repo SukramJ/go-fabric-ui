@@ -343,11 +343,16 @@ type stringKey string
 
 func (k stringKey) String() string { return string(k) }
 
-// sampleSurface is the node-status.200 fixture's surface report: an
-// explicit level, two profiles, two extensions, assembled, and a decision
-// of each kind the summary tells apart — a plain keep, a profile warning,
-// a profile removal, a profile removal the chain kept as mandatory (Keep,
-// but no warning) — beside one withheld element and one announced change.
+// sampleSurface is the surface report of the node-status.200 and
+// node-surface.200 fixtures: an explicit level, two profiles, two
+// extensions, assembled; the effective surface of the two top-level
+// bridged endpoints of sampleNode ("lamp-1" on 2, "sensor-2" on 3); a
+// decision of each verdict the pages tell apart — a silent keep, a
+// profile's Warn, a profile's Remove, a removal the chain kept as
+// mandatory (Keep with a reason) — beside one withheld element and one
+// announced change of "lamp-1" with two element changes. Every element
+// carries a kind and an origin: the report's encoding has no name for
+// either's zero value (go-fabric surface/element.go:135-140).
 func sampleSurface() surface.Report {
 	r := surface.Policies{
 		Level:      "1.5.1",
@@ -355,16 +360,43 @@ func sampleSurface() surface.Report {
 		Extensions: surface.NewExtensions("BD-chip-Thermostat-Schedules", "BD-chip-Thermostat-Events"),
 	}.Report()
 	r.Assembled = true
-	thermostat := surface.Element{Endpoint: "thermo-1", Cluster: 0x0201, Kind: surface.KindCluster, ID: 0x0201}
-	msch := surface.Element{Endpoint: "thermo-1", Cluster: 0x0201, Kind: surface.KindFeature, ID: 0x80}
+	r.Effective = surface.Surface{Endpoints: []surface.Endpoint{
+		{
+			Key: "lamp-1", Number: 2,
+			DeviceTypes: []surface.DeviceTypeRef{{ID: 0x0100, Revision: 4}},
+			Clusters: []surface.Cluster{
+				{ID: 0x0003, Revision: 6, Attributes: []uint32{0x0000, 0x0001, 0xFFFD}, Accepted: []uint32{0x00}},
+				{ID: 0x0006, Revision: 6, FeatureMap: 0x1, Attributes: []uint32{0x0000, 0x4000, 0x4003, 0xFFFC, 0xFFFD}, Accepted: []uint32{0x00, 0x01, 0x02}},
+			},
+		},
+		{
+			Key: "sensor-2", Number: 3,
+			DeviceTypes: []surface.DeviceTypeRef{{ID: 0x0302, Revision: 3}},
+			Clusters: []surface.Cluster{
+				{ID: 0x0402, Revision: 4, Attributes: []uint32{0x0000, 0x0001, 0x0002, 0xFFFD}},
+			},
+		},
+	}}
+	onOff := surface.Element{Endpoint: "lamp-1", Cluster: 0x0006, Kind: surface.KindCluster, ID: 0x0006, Origin: surface.OriginDeviceType, Mandatory: true}
+	startUp := surface.Element{Endpoint: "lamp-1", Cluster: 0x0006, Kind: surface.KindAttribute, ID: 0x4003, Origin: surface.OriginHostDeclared}
+	tolerance := surface.Element{Endpoint: "sensor-2", Cluster: 0x0402, Kind: surface.KindAttribute, ID: 0x0003, Origin: surface.OriginHostDeclared}
 	r.Decisions = []surface.Decision{
-		{Element: thermostat, Verdict: surface.Keep},
-		{Element: msch, Policy: "profile:apple-home", Verdict: surface.Keep, Reason: "warning (Reported) profile apple-home: not reproduced in isolation (owner report)"},
-		{Element: msch, Policy: "profile:home-assistant", Verdict: surface.Remove, Reason: "removed by profile home-assistant: synthetic (test)"},
-		{Element: thermostat, Policy: "profile:home-assistant", Verdict: surface.Keep, Reason: "kept: mandatory at pin (removed by profile home-assistant: synthetic (test))"},
+		{Element: onOff, Policy: "level", Verdict: surface.Keep},
+		{Element: startUp, Policy: "profile:apple-home", Verdict: surface.Warn, Reason: "warning (Reported) profile apple-home: not reproduced in isolation (owner report)"},
+		{Element: tolerance, Policy: "profile:home-assistant", Verdict: surface.Remove, Reason: "removed by profile home-assistant: synthetic (test)"},
+		{Element: onOff, Policy: "profile:home-assistant", Verdict: surface.Keep, Reason: "kept: mandatory at pin (removed by profile home-assistant: synthetic (test))"},
 	}
-	r.Withheld = []surface.Element{{Endpoint: "air-1", Kind: surface.KindDeviceType, ID: 0x002C}}
-	r.Changed = []surface.SurfaceChange{{Endpoint: "thermo-1", At: testNow.Add(-time.Minute)}}
+	r.Withheld = []surface.Element{{Endpoint: "air-1", Kind: surface.KindDeviceType, ID: 0x002C, Origin: surface.OriginDeviceType, Mandatory: true}}
+	r.Changed = []surface.SurfaceChange{{
+		Endpoint: "lamp-1",
+		Before:   [32]byte{0x1A, 0x2B, 0x3C, 0x4D, 0x5E, 0x6F},
+		After:    [32]byte{0x9A, 0x8B, 0x7C, 0x6D, 0x5E, 0x4F},
+		Changes: []surface.Change{
+			{Endpoint: "lamp-1", Cluster: 0x0006, Kind: surface.KindCluster, ID: 0x0006, Before: "revision 5", After: "revision 6"},
+			{Endpoint: "lamp-1", Cluster: 0x0006, Kind: surface.KindAttribute, ID: 0x4003, After: "served"},
+		},
+		At: testNow.Add(-time.Minute),
+	}}
 	return r
 }
 

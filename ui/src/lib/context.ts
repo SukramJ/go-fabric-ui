@@ -26,6 +26,7 @@ export interface Routes {
   fabrics: string;
   selection: string;
   endpoints: string;
+  surface: string;
   diagnostics: string;
   controllerNodes: string;
   controllerCommission: string;
@@ -40,6 +41,7 @@ export const defaultRoutes: Routes = {
   fabrics: "#/node/fabrics",
   selection: "#/node/selection",
   endpoints: "#/node/endpoints",
+  surface: "#/node/surface",
   diagnostics: "#/node/diagnostics",
   controllerNodes: "#/controller/nodes",
   controllerCommission: "#/controller/commission",

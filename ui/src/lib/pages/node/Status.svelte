@@ -16,6 +16,7 @@
   import ErrorState from "../../kit/ErrorState.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
   import HostWarnings from "./HostWarnings.svelte";
+  import { levelOrigin } from "./surface";
 
   const { t, node } = useFabricUI();
 
@@ -35,16 +36,6 @@
       ? (secondsUntil(s.window_deadline, now) ?? ((s.commissioning_window_duration_seconds ?? 0) > 0 ? s.commissioning_window_duration_seconds! : null))
       : null,
   );
-
-  // The level's origin as the page says it: go-fabric's
-  // surface.Report.LevelOrigin is "explicit", "pin" or
-  // "profile <name>[, <name>…]"; anything else is shown as it comes.
-  function levelOrigin(origin: string): string {
-    if (origin === "explicit") return t("node.status.level_origin_explicit");
-    if (origin === "pin") return t("node.status.level_origin_pin");
-    if (origin.startsWith("profile ")) return origin.slice("profile ".length);
-    return origin;
-  }
 </script>
 
 {#if node.statusLoading && !s}
@@ -90,7 +81,7 @@
       {@const sf = s.surface}
       <div class="mt-3 flex flex-wrap items-center gap-2" data-testid="node-surface">
         <span class="text-sm text-[var(--ha-secondary-text-color)]">{t("node.status.surface")}</span>
-        <Badge variant="default">{t("node.status.surface_level", { level: sf.level, origin: levelOrigin(sf.level_origin) })}</Badge>
+        <Badge variant="default">{t("node.status.surface_level", { level: sf.level, origin: levelOrigin(t, sf.level_origin) })}</Badge>
         <Badge variant="muted">
           {sf.profiles.length > 0 ? t("node.status.surface_profiles", { profiles: sf.profiles.join(", ") }) : t("node.status.surface_no_profile")}
         </Badge>

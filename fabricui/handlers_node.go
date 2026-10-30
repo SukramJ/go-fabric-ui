@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/SukramJ/go-fabric/eligibility"
@@ -63,15 +62,12 @@ type surfaceSummary struct {
 	ChangedCount  int      `json:"changed_count"`
 }
 
-// profilePolicyPrefix opens the name of a profile's built-in policy,
-// "profile:<name>" (go-fabric surface/profile.go:249 at v0.15.2).
-const profilePolicyPrefix = "profile:"
-
 // summariseSurface reads the summary from a report. A profile warning is
-// a Keep decision of a profile policy whose reason is a warning: the
-// profile policy keeps an element a warn rule matches with the reason
-// "warning (<confidence>) profile <name>: <reason> (<source>)" (go-fabric
-// surface/profile.go:268 at v0.15.2).
+// a Warn decision: a controller profile's policy keeps an element a warn
+// rule matches — or a remove rule below Reproduced — with surface.Warn
+// (go-fabric surface/profile.go:259-273, profilePolicy.Judge), and the
+// verdict, not the reason's text, is what a reader counts
+// (surface/policy.go:25-30).
 func summariseSurface(r *surface.Report) *surfaceSummary {
 	out := &surfaceSummary{
 		Level:         string(r.Level),
@@ -83,8 +79,7 @@ func summariseSurface(r *surface.Report) *surfaceSummary {
 		ChangedCount:  len(r.Changed),
 	}
 	for i := range r.Decisions {
-		d := &r.Decisions[i]
-		if d.Verdict == surface.Keep && strings.HasPrefix(d.Policy, profilePolicyPrefix) && strings.HasPrefix(d.Reason, "warning") {
+		if r.Decisions[i].Verdict == surface.Warn {
 			out.WarningCount++
 		}
 	}
@@ -228,6 +223,7 @@ func (h *handler) maintenanceReassemble(w http.ResponseWriter, r *http.Request) 
 		unready(w, r, "Reassembly not available", "the host wires no Options.Reassemble")
 		return
 	}
+	before := h.announcedChanges()
 	if err := h.reassemble(r.Context()); err != nil {
 		// A silent success would tell the operator the list is correct
 		// now, which is the one thing they came to check.
@@ -235,6 +231,7 @@ func (h *handler) maintenanceReassemble(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	h.publish(Event{Type: EventEndpointsChanged, Data: struct{}{}})
+	h.publishSurfaceChanged(before)
 	w.WriteHeader(http.StatusNoContent)
 }
 

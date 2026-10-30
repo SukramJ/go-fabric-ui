@@ -7,6 +7,37 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-10-30
+
+The node's surface report gets its own page, and a reassembly that changes
+an endpoint's surface reaches the stream and the Endpoints page.
+
+### Added
+
+- `GET /node/surface`: go-fabric's `surface.Report` of the node in
+  go-fabric's own JSON encoding — the effective surface per endpoint, the
+  decision ledger, the withheld elements and the announced surface changes
+  (contract schema `SurfaceReport`).
+- The Surface page (`NodeSurface`; `#/node/surface` and a tab in the
+  standalone shell, `Routes.surface`): the policies' level, profiles,
+  extensions and digest; per endpoint its device types and clusters with
+  revision, feature map and element counts; the decisions, filterable by
+  verdict and endpoint, the silent keeps hidden by default; the withheld
+  elements; the announced changes with their element changes.
+- The stream event `surface_changed` (`SurfaceChangedEvent`, the endpoint
+  keys): published after `endpoints_changed` when a reassembly this
+  handler runs announced surface changes.
+- The Endpoints page marks an endpoint whose surface changed in this
+  process ("surface changed"), and refetches on `endpoints_changed` and
+  `surface_changed`.
+
+### Changed
+
+- The status page's `warning_count` counts `Warn` decisions — the verdict,
+  not the reason's text (go-fabric v0.15.3's `surface.Warn`).
+- The German status text says "Pin" for a level taken from the pin.
+- go-fabric `v0.15.3` (PR #345) (was `v0.15.2`), which adds `surface.Warn`.
+
 ## [0.2.6] - 2026-10-30
 
 The node status page shows the policies go-fabric v0.15 composes the served

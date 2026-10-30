@@ -2,11 +2,11 @@
 // Ported from openccu-loom assets/ui/src/routes/matter/MatterDiagnostics.test.ts
 // at b40b289a, on the contract fixtures (the endpoint cases moved to
 // Endpoints.test.ts).
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
 import { body, testUI } from "../../../test/support";
-import type { Compatibility, DiagnosticEventList, Mdns, SessionList } from "../../api/client";
+import type { Compatibility, DiagnosticEventList, EndpointList, Mdns, SessionList } from "../../api/client";
 import Diagnostics from "./Diagnostics.svelte";
 import Endpoints from "./Endpoints.svelte";
 
@@ -89,6 +89,33 @@ describe("Endpoints", () => {
     expect(screen.getByText("On/Off Light")).toBeInTheDocument();
     expect(screen.getByText('node.endpoints.part_of:{"id":3}')).toBeInTheDocument();
     expect(screen.getByText("node.endpoints.unreachable")).toBeInTheDocument();
+  });
+
+  it("marks the endpoint whose surface changed, by its key, and none without a report", async () => {
+    const ui = testUI({ fixtures: ["node-endpoints.200", "node-surface.200"] });
+    render(Harness, { ui, page: Endpoints });
+    const rows = await screen.findAllByTestId("endpoint");
+    await screen.findByText("node.endpoints.surface_changed");
+    // The node-surface.200 fixture announces one change, of "lamp-1".
+    expect(rows.map((r) => r.textContent?.includes("node.endpoints.surface_changed"))).toEqual([true, false, false]);
+  });
+
+  it("matches an endpoint without a key by its number in the report", async () => {
+    const eps = body<EndpointList>("node-endpoints.200");
+    eps.endpoints[0].source = {};
+    const ui = testUI({ fixtures: ["node-surface.200"], answers: { "GET /node/endpoints": { status: 200, body: eps } } });
+    render(Harness, { ui, page: Endpoints });
+    expect(await screen.findByText("node.endpoints.surface_changed")).toBeInTheDocument();
+  });
+
+  it("refetches when the store's topology epoch moves", async () => {
+    const ui = testUI({ fixtures: ["node-endpoints.200", "node-status.200"] });
+    render(Harness, { ui, page: Endpoints });
+    await screen.findAllByTestId("endpoint");
+    const count = () => ui.sent.filter((s) => s.path === "/api/v1/node/endpoints").length;
+    expect(count()).toBe(1);
+    ui.node.applyEvent({ type: "surface_changed", data: { endpoints: ["lamp-1"] } });
+    await vi.waitFor(() => expect(count()).toBe(2));
   });
 
   it("says so when nothing is exposed", async () => {

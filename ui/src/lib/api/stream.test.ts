@@ -26,9 +26,11 @@ describe("subscribeStream", () => {
     src.emit("fabric_added", '{"fabric_index":3,"label":"Home"}');
     src.emit("exposure_changed", "not json");
     src.emit("window_closed", "{}");
+    src.emit("surface_changed", '{"endpoints":["lamp-1"]}');
     expect(got).toEqual([
       { type: "fabric_added", data: { fabric_index: 3, label: "Home" } },
       { type: "window_closed", data: {} },
+      { type: "surface_changed", data: { endpoints: ["lamp-1"] } },
     ]);
     close();
     expect(src.closed).toBe(true);
