@@ -212,12 +212,10 @@ func (h *handler) exposureApply(w http.ResponseWriter, r *http.Request) {
 	}
 	h.publish(Event{Type: EventExposureChanged, Data: ExposureEvent{Keys: keys}})
 	if h.reassemble != nil {
-		before := h.announcedChanges()
 		if err := h.reassemble(r.Context()); err != nil {
 			h.log.WarnContext(r.Context(), "fabricui.exposure.reassemble_failed", slog.String("error", err.Error()))
 		} else {
 			h.publish(Event{Type: EventEndpointsChanged, Data: struct{}{}})
-			h.publishSurfaceChanged(before)
 		}
 	}
 	h.log.InfoContext(r.Context(), "fabricui.exposure.applied", slog.Int("applied", applied))

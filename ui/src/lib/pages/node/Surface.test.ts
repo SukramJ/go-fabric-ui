@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 // The Surface page on the node-surface fixtures: go-fabric's surface.Report
-// of the test node — two endpoints, a Warn, a Remove, a mandatory-kept Keep
-// with a reason and a silent Keep, one withheld element and one announced
-// change with two element changes.
+// of the test node — the root endpoint and two bridged endpoints, a Warn, a
+// Remove, a mandatory-kept Keep with a reason and two silent Keeps (one on
+// the root), one withheld element and one announced change with two element
+// changes.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
@@ -38,6 +39,18 @@ describe("Surface", () => {
     expect(eps[1]).toHaveTextContent("sensor-2");
   });
 
+  it("renders the root endpoint first, titled as the root, with its cluster table and lists", async () => {
+    renderSurface(["node-surface.200"]);
+    const root = await screen.findByTestId("surface-root");
+    const [lamp] = screen.getAllByTestId("surface-endpoint");
+    expect(root.compareDocumentPosition(lamp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(root).getAllByText("node.surface.root")[0]).toBeInTheDocument();
+    expect(root).toHaveTextContent("0x0016");
+    expect(within(root).getAllByRole("row")).toHaveLength(2);
+    expect(root).toHaveTextContent("0x001D");
+    expect(within(root).getByText("node.surface.lists")).toBeInTheDocument();
+  });
+
   it("falls back to the ids when the endpoints route fails", async () => {
     renderSurface(["node-surface.200"]);
     const eps = await screen.findAllByTestId("surface-endpoint");
@@ -63,13 +76,18 @@ describe("Surface", () => {
     const endpoint = within(card).getByLabelText("node.surface.filter_endpoint");
     const rows = () => within(card).getAllByRole("row").slice(1);
     await fireEvent.change(verdict, { target: { value: "all" } });
-    await waitFor(() => expect(rows()).toHaveLength(4));
+    await waitFor(() => expect(rows()).toHaveLength(5));
     await fireEvent.change(verdict, { target: { value: "warn" } });
     await waitFor(() => expect(rows()).toHaveLength(1));
     await fireEvent.change(verdict, { target: { value: "all" } });
     await fireEvent.change(endpoint, { target: { value: "=sensor-2" } });
     await waitFor(() => expect(rows()).toHaveLength(1));
     expect(rows()[0]).toHaveTextContent("node.surface.verdict.remove");
+    // A decision on the root's key "" is listed under the root's title.
+    await fireEvent.change(endpoint, { target: { value: "=" } });
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(rows()[0]).toHaveTextContent("node.surface.root");
+    expect(rows()[0]).toHaveTextContent("node.surface.verdict.keep");
   });
 
   it("lists the withheld element and the announced change with its element changes", async () => {

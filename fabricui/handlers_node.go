@@ -223,7 +223,6 @@ func (h *handler) maintenanceReassemble(w http.ResponseWriter, r *http.Request) 
 		unready(w, r, "Reassembly not available", "the host wires no Options.Reassemble")
 		return
 	}
-	before := h.announcedChanges()
 	if err := h.reassemble(r.Context()); err != nil {
 		// A silent success would tell the operator the list is correct
 		// now, which is the one thing they came to check.
@@ -231,7 +230,6 @@ func (h *handler) maintenanceReassemble(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	h.publish(Event{Type: EventEndpointsChanged, Data: struct{}{}})
-	h.publishSurfaceChanged(before)
 	w.WriteHeader(http.StatusNoContent)
 }
 

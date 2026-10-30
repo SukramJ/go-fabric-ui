@@ -345,9 +345,11 @@ func (k stringKey) String() string { return string(k) }
 
 // sampleSurface is the surface report of the node-status.200 and
 // node-surface.200 fixtures: an explicit level, two profiles, two
-// extensions, assembled; the effective surface of the two top-level
-// bridged endpoints of sampleNode ("lamp-1" on 2, "sensor-2" on 3); a
-// decision of each verdict the pages tell apart — a silent keep, a
+// extensions, assembled; the effective surface of the root endpoint (a
+// RootNode with its Descriptor) and of the two top-level bridged
+// endpoints of sampleNode ("lamp-1" on 2, "sensor-2" on 3); a silent keep
+// of the root's Descriptor and a decision of each verdict the pages tell
+// apart — a silent keep, a
 // profile's Warn, a profile's Remove, a removal the chain kept as
 // mandatory (Keep with a reason) — beside one withheld element and one
 // announced change of "lamp-1" with two element changes. Every element
@@ -360,7 +362,13 @@ func sampleSurface() surface.Report {
 		Extensions: surface.NewExtensions("BD-chip-Thermostat-Schedules", "BD-chip-Thermostat-Events"),
 	}.Report()
 	r.Assembled = true
-	r.Effective = surface.Surface{Endpoints: []surface.Endpoint{
+	r.Effective = surface.Surface{Root: surface.Endpoint{
+		// The root's key is "" (go-fabric surface/surface.go:24).
+		DeviceTypes: []surface.DeviceTypeRef{{ID: 0x0016, Revision: 5}},
+		Clusters: []surface.Cluster{
+			{ID: 0x001D, Revision: 3, Attributes: []uint32{0x0000, 0x0001, 0x0002, 0x0003, 0xFFFD}},
+		},
+	}, Endpoints: []surface.Endpoint{
 		{
 			Key: "lamp-1", Number: 2,
 			DeviceTypes: []surface.DeviceTypeRef{{ID: 0x0100, Revision: 4}},
@@ -380,7 +388,9 @@ func sampleSurface() surface.Report {
 	onOff := surface.Element{Endpoint: "lamp-1", Cluster: 0x0006, Kind: surface.KindCluster, ID: 0x0006, Origin: surface.OriginDeviceType, Mandatory: true}
 	startUp := surface.Element{Endpoint: "lamp-1", Cluster: 0x0006, Kind: surface.KindAttribute, ID: 0x4003, Origin: surface.OriginHostDeclared}
 	tolerance := surface.Element{Endpoint: "sensor-2", Cluster: 0x0402, Kind: surface.KindAttribute, ID: 0x0003, Origin: surface.OriginHostDeclared}
+	descriptor := surface.Element{Endpoint: "", Cluster: 0x001D, Kind: surface.KindCluster, ID: 0x001D, Origin: surface.OriginDeviceType, Mandatory: true}
 	r.Decisions = []surface.Decision{
+		{Element: descriptor, Policy: "level", Verdict: surface.Keep},
 		{Element: onOff, Policy: "level", Verdict: surface.Keep},
 		{Element: startUp, Policy: "profile:apple-home", Verdict: surface.Warn, Reason: "warning (Reported) profile apple-home: not reproduced in isolation (owner report)"},
 		{Element: tolerance, Policy: "profile:home-assistant", Verdict: surface.Remove, Reason: "removed by profile home-assistant: synthetic (test)"},

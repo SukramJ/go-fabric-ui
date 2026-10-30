@@ -1161,7 +1161,7 @@ export interface components {
             keys: string[];
         };
         SurfaceChangedEvent: {
-            /** @description The keys of the endpoints a reassembly announced a new surface change for; "" is the root endpoint. */
+            /** @description The key of the endpoint whose served surface an assembly changed (go-fabric node.Observers.OnSurfaceChanged, one endpoint per event); "" is the root endpoint. */
             endpoints: string[];
         };
         /** @description go-fabric surface.Report (surface/policy.go wireReport). */
