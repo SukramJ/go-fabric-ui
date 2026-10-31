@@ -7,7 +7,9 @@
      hints become the schema's columns and filters; the class chips become a
      value filter per filterable column; Preview before Apply is new, and so
      are list-valued fields (Column.multi, Filter.multi) and the host's
-     warnings above the list. -->
+     warnings above the list. Items whose verdict is unmappable — nothing
+     the host could expose now — are hidden until the toggle above the list
+     shows them (0.2.5). -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -44,6 +46,7 @@
 
   const ALL = "__all__";
   let search = $state("");
+  let showUnmappable = $state(false);
   let filterValues = $state<Record<string, string>>({});
   let selected = $state<Set<string>>(new Set());
   let drawer = $state<Item | null>(null);
@@ -79,9 +82,13 @@
     return { ...item, enabled: p.enabled, name: p.name ?? item.name };
   }
 
+  // The items nothing could expose now; hidden unless the toggle shows them.
+  const unmappableCount = $derived(node.items.filter((i) => i.verdict.state === "unmappable").length);
+
   const filtered = $derived.by(() => {
     const match = makeTextMatcher(search);
     return node.items.filter((item) => {
+      if (!showUnmappable && item.verdict.state === "unmappable") return false;
       for (const [field, value] of Object.entries(filterValues)) {
         if (value !== ALL && !fieldMatches(item, field, value, multiField.has(field))) return false;
       }
@@ -266,6 +273,12 @@
           options={[{ value: ALL, label: `${f.label}: ${t("node.selection.filter_all")}` }, ...f.options]}
         />
       {/each}
+      {#if unmappableCount > 0}
+        <label class="ml-auto flex cursor-pointer items-center gap-1.5 text-xs text-[var(--ha-secondary-text-color)]">
+          <input type="checkbox" bind:checked={showUnmappable} class="h-4 w-4 cursor-pointer" />
+          {t("node.selection.show_unmappable", { count: unmappableCount })}
+        </label>
+      {/if}
     </div>
     <div class="flex flex-wrap items-center gap-2">
       {#if selected.size > 0}

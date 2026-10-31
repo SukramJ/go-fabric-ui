@@ -3,7 +3,10 @@
      status card of openccu-loom assets/ui/src/routes/matter/Matter.svelte:47-100
      at b40b289a, without the tabs (the shell or the host navigates). The
      host's configuration warnings come first, in their own card. An open
-     window counts down from the deadline the status reports. -->
+     window counts down from the deadline the status reports. Below the
+     counts, the policies the node's surface is composed under: its level
+     and where it comes from, the controller profiles, the extensions, and
+     the counts that are not zero. -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -13,6 +16,7 @@
   import ErrorState from "../../kit/ErrorState.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
   import HostWarnings from "./HostWarnings.svelte";
+  import { levelOrigin } from "./surface";
 
   const { t, node } = useFabricUI();
 
@@ -73,6 +77,28 @@
         </Badge>
       {/if}
     </div>
+    {#if s.surface}
+      {@const sf = s.surface}
+      <div class="mt-3 flex flex-wrap items-center gap-2" data-testid="node-surface">
+        <span class="text-sm text-[var(--ha-secondary-text-color)]">{t("node.status.surface")}</span>
+        <Badge variant="default">{t("node.status.surface_level", { level: sf.level, origin: levelOrigin(t, sf.level_origin) })}</Badge>
+        <Badge variant="muted">
+          {sf.profiles.length > 0 ? t("node.status.surface_profiles", { profiles: sf.profiles.join(", ") }) : t("node.status.surface_no_profile")}
+        </Badge>
+        <Badge variant="muted">
+          {sf.extensions.length > 0 ? t("node.status.surface_extensions", { extensions: sf.extensions.join(", ") }) : t("node.status.surface_no_extension")}
+        </Badge>
+        {#if sf.withheld_count > 0}
+          <Badge variant="warning">{t("node.status.surface_withheld", { count: sf.withheld_count })}</Badge>
+        {/if}
+        {#if sf.warning_count > 0}
+          <Badge variant="warning">{t("node.status.surface_warnings", { count: sf.warning_count })}</Badge>
+        {/if}
+        {#if sf.changed_count > 0}
+          <Badge variant="default">{t("node.status.surface_changed", { count: sf.changed_count })}</Badge>
+        {/if}
+      </div>
+    {/if}
     {#if s.listen_addr}
       <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]">{t("node.status.listen_addr", { addr: s.listen_addr })}</p>
     {/if}

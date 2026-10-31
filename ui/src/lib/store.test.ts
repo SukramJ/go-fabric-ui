@@ -41,6 +41,17 @@ describe("node store", () => {
     expect(ui.toastSpy.info).not.toHaveBeenCalled();
   });
 
+  it("moves the topology epoch on endpoints_changed and surface_changed and reloads the status", async () => {
+    const ui = testUI({ fixtures: ["node-status.200"] });
+    expect(ui.node.topologyEpoch).toBe(0);
+    ui.node.applyEvent({ type: "endpoints_changed", data: {} });
+    ui.node.applyEvent({ type: "surface_changed", data: { endpoints: ["lamp-1"] } });
+    ui.node.applyEvent({ type: "window_opened", data: {} });
+    expect(ui.node.topologyEpoch).toBe(2);
+    await vi.runOnlyPendingTimersAsync();
+    expect(paths(ui).filter((p) => p === "GET /node/status")).toHaveLength(3);
+  });
+
   it("collapses a burst of exposure_changed into one reload", async () => {
     const ui = testUI({ fixtures: ["node-exposure-schema.200", "node-exposure.200"] });
     for (let i = 0; i < 5; i++) ui.node.applyEvent({ type: "exposure_changed", data: { keys: [`k${i}`] } });

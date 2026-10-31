@@ -131,6 +131,25 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EndpointList" }
         "503": { $ref: "#/components/responses/Problem" }
+  /node/surface:
+    get:
+      tags: [node]
+      operationId: getNodeSurface
+      summary: The node's surface report.
+      description: |
+        go-fabric's `surface.Report` of the node in go-fabric's own JSON
+        encoding (`surface.Report.MarshalJSON`): the effective surface per
+        endpoint, the decision ledger, the withheld elements and the
+        surface changes announced in this process. Element and cluster ids
+        are lowercase `0x` hex strings, as wide as their kind (a device
+        type four digits, everything else eight).
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SurfaceReport" }
+        "503": { $ref: "#/components/responses/Problem" }
   /node/sessions:
     get:
       tags: [node]
@@ -282,8 +301,9 @@ paths:
       summary: Server-sent events.
       description: |
         `event:` is one of fabric_added, fabric_removed, window_opened,
-        window_closed, endpoints_changed, exposure_changed; `data:` is the
-        JSON payload (`FabricEvent`, `WindowEvent`, `{}`, `ExposureEvent`).
+        window_closed, endpoints_changed, exposure_changed, surface_changed;
+        `data:` is the JSON payload (`FabricEvent`, `WindowEvent`, `{}`,
+        `ExposureEvent`, `SurfaceChangedEvent`).
         A comment line arrives every 15 s. No payload carries a passcode.
       responses:
         "200":
@@ -916,6 +936,19 @@ components:
           type: array
           description: The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing.
           items: { $ref: "#/components/schemas/Warning" }
+        surface:
+          type: object
+          description: The policies the node's served surface is composed under (go-fabric node.Node.Surface) and the counts that tell whether to look further; absent without a node.
+          required: [level, level_origin, profiles, extensions, assembled, withheld_count, warning_count, changed_count]
+          properties:
+            level: { type: string, description: "The specification level the surface is composed at (go-fabric surface.Report.Level), e.g. \"1.6.1\"." }
+            level_origin: { type: string, description: "\"explicit\", \"profile <name>[, <name>…]\" or \"pin\" (surface.Report.LevelOrigin)." }
+            profiles: { type: array, items: { type: string }, description: "The selected controller profiles, sorted." }
+            extensions: { type: array, items: { type: string }, description: "The enabled ahead-of-matter.js register IDs, sorted." }
+            assembled: { type: boolean, description: "The report reads the assembled topology (after the first assembly)." }
+            withheld_count: { type: integer, description: "Elements the level policy withheld an endpoint for." }
+            warning_count: { type: integer, description: "Warn decisions: elements a policy keeps and flags (surface.Warn)." }
+            changed_count: { type: integer, description: "Surface changes announced in this process (ConfigurationVersion raised)." }
     Warning:
       type: object
       required: [code, message]
@@ -1214,6 +1247,139 @@ components:
       required: [keys]
       properties:
         keys: { type: array, items: { type: string } }
+    SurfaceChangedEvent:
+      type: object
+      required: [endpoints]
+      properties:
+        endpoints:
+          type: array
+          items: { type: string }
+          description: The key of the endpoint whose served surface an assembly changed (go-fabric node.Observers.OnSurfaceChanged, one endpoint per event); "" is the root endpoint.
+    SurfaceReport:
+      type: object
+      description: go-fabric surface.Report (surface/policy.go wireReport).
+      additionalProperties: false
+      required: [assembled, changed, decisions, effective, extensions, level, level_origin, policies, profiles, withheld]
+      properties:
+        assembled: { type: boolean, description: 'The report reads the assembled topology.' }
+        changed:
+          type: array
+          description: The surface changes announced in this process, oldest first (the node keeps the last hundred).
+          items: { $ref: "#/components/schemas/SurfaceChange" }
+        decisions:
+          type: array
+          description: Every decision of the policy chain, in its order.
+          items: { $ref: "#/components/schemas/SurfaceDecision" }
+        effective: { $ref: "#/components/schemas/SurfaceEffective" }
+        extensions: { type: array, items: { type: string }, description: 'The enabled ahead-of-matter.js register IDs, sorted.' }
+        level: { type: string, description: 'The specification level the surface is composed at.' }
+        level_origin: { type: string, description: '"explicit", "profile <name>[, <name>…]" or "pin".' }
+        policies: { type: string, description: 'The digest of the policies, 64 hex digits.' }
+        profiles: { type: array, items: { type: string }, description: 'The selected controller profiles, sorted.' }
+        withheld:
+          type: array
+          description: The elements the level policy withheld an endpoint for.
+          items: { $ref: "#/components/schemas/SurfaceElement" }
+    SurfaceEffective:
+      type: object
+      description: go-fabric surface.Surface (surface/surface.go wireSurface).
+      additionalProperties: false
+      required: [endpoints, root]
+      properties:
+        endpoints:
+          type: array
+          description: The endpoints other than the root, by key.
+          items: { $ref: "#/components/schemas/SurfaceEndpoint" }
+        root: { $ref: "#/components/schemas/SurfaceEndpoint" }
+    SurfaceEndpoint:
+      type: object
+      additionalProperties: false
+      required: [clusters, deviceTypes, key]
+      properties:
+        clusters:
+          type: array
+          description: The server clusters, by id.
+          items: { $ref: "#/components/schemas/SurfaceCluster" }
+        deviceTypes:
+          type: array
+          description: The device types in the Descriptor's order.
+          items: { $ref: "#/components/schemas/SurfaceDeviceType" }
+        key: { type: string, description: 'The endpoint''s rendered stable key; "" for the root, "aggregator" for the Aggregator, "@<number>" for an endpoint without a key.' }
+        number: { type: integer, description: 'The endpoint number; absent until the endpoint is assembled, and for the root.' }
+    SurfaceDeviceType:
+      type: object
+      additionalProperties: false
+      required: [id, revision]
+      properties:
+        id: { type: string, description: 'Device type id, "0x" and four hex digits.' }
+        revision: { type: integer }
+    SurfaceCluster:
+      type: object
+      additionalProperties: false
+      required: [accepted, attributes, events, featureMap, generated, id, revision]
+      properties:
+        accepted: { type: array, items: { type: string }, description: 'AcceptedCommandList, sorted.' }
+        attributes: { type: array, items: { type: string }, description: 'AttributeList, sorted.' }
+        events: { type: array, items: { type: string }, description: 'The events served, sorted.' }
+        featureMap: { type: string }
+        generated: { type: array, items: { type: string }, description: 'GeneratedCommandList, sorted.' }
+        id: { type: string }
+        revision: { type: integer, description: 'ClusterRevision.' }
+    SurfaceElement:
+      type: object
+      description: One candidate element of an endpoint's surface (surface.Element).
+      additionalProperties: false
+      required: [cluster, endpoint, id, kind, mandatory, origin, reference]
+      properties:
+        cluster: { type: string, description: 'The cluster id; "0x00000000" for a device type.' }
+        endpoint: { type: string, description: 'The endpoint''s key; "" for the root.' }
+        id: { type: string, description: 'The device type id, the cluster id, the feature''s one-bit mask, or the attribute, command or event id.' }
+        kind: { type: string, enum: [device-type, cluster, feature, attribute, command, event] }
+        mandatory: { type: boolean, description: 'Removing the element would make the composition invalid at the pin.' }
+        origin: { type: string, enum: [cluster-mandatory, device-type, host-declared, kit-default] }
+        reference: { type: string, description: 'The ahead-of-matter.js register ID it is served against; "" for the matter.js baseline.' }
+    SurfaceDecision:
+      type: object
+      description: One policy's judgement of one element (surface.Decision).
+      additionalProperties: false
+      required: [cluster, endpoint, id, kind, mandatory, origin, policy, reason, reference, verdict]
+      properties:
+        cluster: { type: string }
+        endpoint: { type: string }
+        id: { type: string }
+        kind: { type: string, enum: [device-type, cluster, feature, attribute, command, event] }
+        mandatory: { type: boolean }
+        origin: { type: string, enum: [cluster-mandatory, device-type, host-declared, kit-default] }
+        policy: { type: string, description: 'The policy''s name: "level", "reference", "profile:<name>" or a host''s own.' }
+        reason: { type: string, description: 'Empty for a silent keep.' }
+        reference: { type: string }
+        verdict: { type: string, enum: [keep, warn, remove, refuse] }
+    SurfaceChange:
+      type: object
+      description: One announced change of an endpoint's served surface (surface.SurfaceChange).
+      additionalProperties: false
+      required: [after, at, before, changes, endpoint]
+      properties:
+        after: { type: string, description: 'The new surface''s digest, 64 hex digits.' }
+        at: { type: string, format: date-time, description: 'When the node raised the ConfigurationVersion.' }
+        before: { type: string, description: 'The digest last persisted for the endpoint.' }
+        changes:
+          type: array
+          description: The differences; empty when only the earlier digest was available.
+          items: { $ref: "#/components/schemas/SurfaceElementChange" }
+        endpoint: { type: string, description: 'The endpoint''s key.' }
+    SurfaceElementChange:
+      type: object
+      description: One element-level difference (surface.Change).
+      additionalProperties: false
+      required: [after, before, cluster, endpoint, id, kind]
+      properties:
+        after: { type: string, description: 'The element''s state after ("revision 6", "set", "served", "accepted", "generated"); "" when it is gone.' }
+        before: { type: string, description: 'The state before; "" when it is new.' }
+        cluster: { type: string }
+        endpoint: { type: string }
+        id: { type: string }
+        kind: { type: string, enum: [device-type, cluster, feature, attribute, command, event] }
     ControllerStatus:
       type: object
       required: [enabled, fabric_id_hex, compressed_fabric_id_hex, fabric_index, node_id_hex, vendor_id, vendor_name, label, node_count, capabilities]

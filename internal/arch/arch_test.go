@@ -32,6 +32,11 @@ var facade = map[string]bool{
 	goFabric + "/eligibility": true,
 	goFabric + "/contract":    true,
 	goFabric + "/clock":       true,
+	// surface is the type package of node.Config.Surface and of
+	// Node.Surface()'s result, a facade type package like eligibility:
+	// go-fabric places it in the model-and-protocol layer beside contract
+	// and eligibility (script/archcheck/layers.json:7 at v0.15.2).
+	goFabric + "/surface": true,
 }
 
 // adapterDir is the controller adapter; adapter is what it may import
@@ -135,7 +140,7 @@ func check(dir, p string, isTest bool) string {
 	case isTest && testOnly[p]:
 		return ""
 	case p == goFabric || strings.HasPrefix(p, goFabric+"/"):
-		return "below go-fabric's facade (node, eligibility, contract, clock); report the gap to go-fabric (wave CK)"
+		return "below go-fabric's facade (node, eligibility, contract, clock, surface); report the gap to go-fabric (wave CK)"
 	default:
 		return "a dependency beyond go-fabric and the standard library"
 	}
@@ -155,6 +160,7 @@ func TestCheckClassifies(t *testing.T) {
 		{"fabricui", "github.com/oapi-codegen/runtime", false, false},
 		{"", "net/http", false, true},
 		{"fabricui", goFabric + "/node", false, true},
+		{"fabricui", goFabric + "/surface", false, true},
 		{"fabricui", goFabric + "/bridge", false, false},
 		{"fabricui", goFabric + "/secure/setup", false, false},
 		{"fabricui", goFabric + "/fabrictest", false, false},

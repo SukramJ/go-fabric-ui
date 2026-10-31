@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/SukramJ/go-fabric/eligibility"
+	"github.com/SukramJ/go-fabric/surface"
 )
 
 // statusResponse is the body of GET /node/status. Mirrors loom's
@@ -42,6 +43,47 @@ type statusResponse struct {
 	// Warnings is nil, and omitted, without Options.Warnings; with the
 	// hook it is a list, empty when the host finds nothing.
 	Warnings []Warning `json:"warnings,omitzero"`
+	// Surface summarises the policies the node's served surface is
+	// composed under (Node.Surface); absent without a node.
+	Surface *surfaceSummary `json:"surface,omitempty"`
+}
+
+// surfaceSummary is the head of the node's surface.Report and the counts
+// a reader needs to know whether to look further. Profiles and Extensions
+// are lists, empty rather than null.
+type surfaceSummary struct {
+	Level         string   `json:"level"`
+	LevelOrigin   string   `json:"level_origin"`
+	Profiles      []string `json:"profiles"`
+	Extensions    []string `json:"extensions"`
+	Assembled     bool     `json:"assembled"`
+	WithheldCount int      `json:"withheld_count"`
+	WarningCount  int      `json:"warning_count"`
+	ChangedCount  int      `json:"changed_count"`
+}
+
+// summariseSurface reads the summary from a report. A profile warning is
+// a Warn decision: a controller profile's policy keeps an element a warn
+// rule matches — or a remove rule below Reproduced — with surface.Warn
+// (go-fabric surface/profile.go:259-273, profilePolicy.Judge), and the
+// verdict, not the reason's text, is what a reader counts
+// (surface/policy.go:25-30).
+func summariseSurface(r *surface.Report) *surfaceSummary {
+	out := &surfaceSummary{
+		Level:         string(r.Level),
+		LevelOrigin:   r.LevelOrigin,
+		Profiles:      append([]string{}, r.Profiles...),
+		Extensions:    append([]string{}, r.Extensions...),
+		Assembled:     r.Assembled,
+		WithheldCount: len(r.Withheld),
+		ChangedCount:  len(r.Changed),
+	}
+	for i := range r.Decisions {
+		if r.Decisions[i].Verdict == surface.Warn {
+			out.WarningCount++
+		}
+	}
+	return out
 }
 
 // status serves GET /node/status. A host without a node is answered with
@@ -69,6 +111,8 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		res.HealthNote = note
 	}
 	res.EndpointCount = len(h.node.topology().Devices)
+	rep := h.node.surface()
+	res.Surface = summariseSurface(&rep)
 	res.Advertising = h.node.mdns().Advertising
 	win := h.node.window()
 	res.WindowOpen = win.Open

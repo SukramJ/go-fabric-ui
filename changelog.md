@@ -7,6 +7,113 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The release workflow publishes `@sukramj/fabric-ui` through npm's trusted
+  publishing: npmjs accepts the job's GitHub OIDC token (Trusted Publisher on
+  the package, set to `SukramJ/go-fabric-ui` and `release-on-tag.yml`) and
+  signs the provenance from it. The `NPM_TOKEN` secret, which npm limited to
+  a short lifetime, is no longer read; a missing trust configuration fails
+  the publish instead of skipping it. The job installs npm 11 first, which
+  trusted publishing requires.
+
+## [0.2.8] - 2026-10-30
+
+`surface_changed` comes from the node itself, so every assembly that
+changes an endpoint's surface reaches the stream; the Surface page shows the
+root endpoint.
+
+### Changed
+
+- `surface_changed` comes from the node's observer
+  (`Observers.OnSurfaceChanged`, registered per stream through
+  `NodeObservers`): one event per changed endpoint, so a reassembly the
+  host runs on its own reaches the stream too. The handler no longer
+  compares `Surface().Changed` before and after its own reassemblies.
+- The status page's warning count reads "{count} warnings" — any policy's
+  `Warn` counts, not only a profile's.
+- The Surface page shows the root endpoint (`effective.root`) as the first
+  endpoint card, titled "Root endpoint"; its decisions are listed under
+  that title.
+- go-fabric `v0.15.4` (was `v0.15.3`), which adds `Observers.OnSurfaceChanged`.
+
+## [0.2.7] - 2026-10-30
+
+The node's surface report gets its own page, and a reassembly that changes
+an endpoint's surface reaches the stream and the Endpoints page.
+
+### Added
+
+- `GET /node/surface`: go-fabric's `surface.Report` of the node in
+  go-fabric's own JSON encoding — the effective surface per endpoint, the
+  decision ledger, the withheld elements and the announced surface changes
+  (contract schema `SurfaceReport`).
+- The Surface page (`NodeSurface`; `#/node/surface` and a tab in the
+  standalone shell, `Routes.surface`): the policies' level, profiles,
+  extensions and digest; per endpoint its device types and clusters with
+  revision, feature map and element counts; the decisions, filterable by
+  verdict and endpoint, the silent keeps hidden by default; the withheld
+  elements; the announced changes with their element changes.
+- The stream event `surface_changed` (`SurfaceChangedEvent`, the endpoint
+  keys): published after `endpoints_changed` when a reassembly this
+  handler runs announced surface changes.
+- The Endpoints page marks an endpoint whose surface changed in this
+  process ("surface changed"), and refetches on `endpoints_changed` and
+  `surface_changed`.
+
+### Changed
+
+- The status page's `warning_count` counts `Warn` decisions — the verdict,
+  not the reason's text (go-fabric v0.15.3's `surface.Warn`).
+- The German status text says "Pin" for a level taken from the pin.
+- go-fabric `v0.15.3` (PR #345) (was `v0.15.2`), which adds `surface.Warn`.
+
+## [0.2.6] - 2026-10-30
+
+The node status page shows the policies go-fabric v0.15 composes the served
+surface under: the specification level, the controller profiles and the
+enabled extensions.
+
+### Added
+
+- A "Surface" row on the node status page, below the counts: the
+  specification level with its origin (set, the pin, or the profiles that
+  imply it), the selected controller profiles, the enabled
+  ahead-of-matter.js extensions, and — only when not zero — the withheld
+  elements, the profile warnings and the surface changes announced in this
+  process.
+- `GET /node/status` reports a `surface` object (absent without a node):
+  `level`, `level_origin`, `profiles`, `extensions`, `assembled`,
+  `withheld_count`, `warning_count`, `changed_count`, read from
+  `node.Node.Surface()`.
+
+### Changed
+
+- go-fabric `v0.15.2` (was `v0.15.1`), which adds `surface.Report.Extensions`.
+- `NodeSource` gains `Surface() surface.Report`. `*node.Node` satisfies it
+  at go-fabric v0.15.2; a host that implements `NodeSource` with its own
+  type adds the method.
+- The import guard allows `github.com/SukramJ/go-fabric/surface` as a facade
+  type package: it is the type of `node.Config.Surface` and of
+  `Node.Surface()`'s result.
+
+## [0.2.5] - 2026-10-30
+
+`fabricui/gofabric` builds against go-fabric v0.15.1, and the selection page
+hides what the host cannot expose.
+
+### Changed
+
+- The selection page hides items whose verdict is unmappable — nothing the
+  host could expose now — by default. A toggle above the list ("Show items
+  that cannot be mapped (n)") brings them back, with their reason and the
+  disabled checkbox as before; the value filters still offer every item's
+  values. The legend keeps all four states.
+- go-fabric `v0.15.1` (was `v0.14.0`): the served surface as a value under
+  policies (ADR 0030) — the node's spec level, ahead-of-matter.js opt-ins and
+  controller profiles sit in `node.Config.Surface`; nothing in this module's
+  routes changes.
+
 ## [0.2.4] - 2026-10-29
 
 `fabricui/gofabric` builds against go-fabric v0.14.0, and a host gets the

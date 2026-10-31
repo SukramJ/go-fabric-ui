@@ -16,13 +16,14 @@ Paths are relative to the mount prefix (`Options.Prefix`, default
 
 | Route | Method | Admin | Answers | Reads in go-fabric |
 | --- | --- | --- | --- | --- |
-| `/node/status` | GET | – | 200 | `Health`, `LocalAddr`, `Topology`, `MDNSEnabled`, `Window` (open, duration, `window_kind`, `window_deadline`), `FabricInfos`; the provider's `List` for `enabled_count`; `Options.Warnings` for `warnings` |
+| `/node/status` | GET | – | 200 | `Health`, `LocalAddr`, `Topology`, `MDNSEnabled`, `Window` (open, duration, `window_kind`, `window_deadline`), `FabricInfos`; the provider's `List` for `enabled_count`; `Options.Warnings` for `warnings`; `Surface` for `surface` |
 | `/node/fabrics` | GET | – | 200, 500, 503 | `FabricInfos`, `eligibility.VendorName` |
 | `/node/fabrics/{index}` | DELETE | yes | 204, 400, 403, 500, 503 | `RemoveFabric` |
 | `/node/pairing` | GET | yes | 200, 403, 503 | `SetupPayload`, or the credentials of the window this handler opened while `Window` still reports it |
 | `/node/pairing/window` | POST | yes | 200, 400, 403, 409, 500, 503 | `NewWindowCredentials`, `PairingCodesFor` and `OpenBasicWindow`, or `CommissioningWindow().OpenOwnWindow` and `SetupPayload` with `Options.ConfiguredWindow`; `Window` for the duration |
 | `/node/pairing/window/close` | POST | yes | 204, 403, 500, 503 | `CommissioningWindow().RevokeWindow` |
 | `/node/endpoints` | GET | – | 200, 503 | `Topology` (`Clusters`, `DeviceTypeRevision` of every endpoint, parts included) |
+| `/node/surface` | GET | – | 200, 500, 503 | `Surface` — the `surface.Report` in go-fabric's own JSON encoding (`MarshalJSON`) |
 | `/node/sessions` | GET | – | 200, 503 | `SessionDiagnostics` (sessions with subscription counts and idle ages on the node's clock, occupancy) |
 | `/node/mdns` | GET | – | 200, 503 | `MDNSEnabled`, `MDNSServices`, `DiagnoseMDNS` |
 | `/node/compatibility` | GET | – | 200, 503 | `FabricInfos`, `Topology`, `eligibility.Compat` |
@@ -68,11 +69,19 @@ Details the fixtures pin:
   (`Node.SetupPayload`) or that of the window this handler opened on fresh
   credentials. No event and no log line carries it; the tests assert both.
 - **Stream**: `event:` is `fabric_added`, `fabric_removed`,
-  `window_opened`, `window_closed`, `endpoints_changed` or
-  `exposure_changed`; `data:` is JSON (`FabricEvent`, `WindowEvent`, `{}`,
-  `ExposureEvent`). A comment line arrives every 15 s. The fabric and
-  window events come from the node (`Node.Observe`, registered per stream),
-  once per transition, whoever caused it.
+  `window_opened`, `window_closed`, `endpoints_changed`,
+  `exposure_changed` or `surface_changed`; `data:` is JSON (`FabricEvent`,
+  `WindowEvent`, `{}`, `ExposureEvent`, `SurfaceChangedEvent`). A comment
+  line arrives every 15 s. The fabric, window and surface events come from
+  the node (`Node.Observe`, registered per stream), once per transition,
+  whoever caused it. `surface_changed` is go-fabric's
+  `Observers.OnSurfaceChanged`: one event per endpoint whose served surface
+  an assembly changed, after the node recorded the change in
+  `Surface().Changed` and on the assembly's goroutine; `endpoints` names
+  that endpoint's key (`""` for the root endpoint). It arrives for a
+  reassembly this handler runs (`POST /node/maintenance/reassemble`,
+  `PUT /node/exposure`) and for one the host runs on its own; the routes
+  publish `endpoints_changed` alone.
 
 ## Admin rights
 

@@ -1,0 +1,18 @@
+{
+  "route": "GET /node/surface",
+  "request": {
+    "method": "GET",
+    "path": "/node/surface"
+  },
+  "response": {
+    "status": 503,
+    "body": {
+      "code": "service_unready",
+      "detail": "the host serves no node (Options.Node is nil)",
+      "instance": "/api/v1/node/surface",
+      "status": 503,
+      "title": "Node not available",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-service_unready"
+    }
+  }
+}

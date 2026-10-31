@@ -50,16 +50,22 @@ in the host's language, and a zero `Since` is left out.
 The node's transitions need no wiring: each open stream registers an
 observer with `Node.Observe` and removes it when the connection closes, so
 a handler built after `Node.Start` reports a controller commissioning the
-node, a fabric removed over the wire or from a route, and every window
-opened or closed — each once, whoever caused it. `node.Config.Observers`
-stays the host's own.
+node, a fabric removed over the wire or from a route, every window
+opened or closed, and every endpoint whose surface an assembly changed
+(`surface_changed`, from `Observers.OnSurfaceChanged`) — each once, whoever
+caused it, a reassembly the host runs on its own included.
+`node.Config.Observers` stays the host's own. A host that carries these
+events over a channel of its own registers `fabricui.NodeObservers` with
+`Node.Observe` the same way; publishing them into `Options.Events` instead
+would hand every stream each one twice.
 
 Everything the handlers read is on the node facade: the window from
 `Node.Window` (its kind, discriminator and deadline on the node's clock),
 the configured codes from `Node.SetupPayload`, the clusters of every
 endpoint, parts included, from `Topology`, fresh window credentials from
-`node.NewWindowCredentials`, and the session table from
-`Node.SessionDiagnostics`. A host wrapping its node in its own
+`node.NewWindowCredentials`, the session table from
+`Node.SessionDiagnostics`, and the surface summary of the status (level,
+profiles, extensions and counts) from `Node.Surface`. A host wrapping its node in its own
 `NodeSource` implements those methods.
 
 ## The controller family

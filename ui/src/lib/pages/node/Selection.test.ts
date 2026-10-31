@@ -42,7 +42,8 @@ describe("Selection — grouping", () => {
   it("renders one select checkbox per item and the host's columns", async () => {
     renderSel();
     await screen.findByText("Kitchen lamp");
-    expect(screen.getAllByLabelText("node.selection.select_row")).toHaveLength(3);
+    // Two of the three fixture items; the unmappable one is hidden by default.
+    expect(screen.getAllByLabelText("node.selection.select_row")).toHaveLength(2);
     expect(screen.getByRole("columnheader", { name: /Room/ })).toBeInTheDocument();
   });
 });
@@ -52,11 +53,25 @@ describe("Selection — status icons and legend", () => {
     const { container } = render(Harness, { ui: testUI({ fixtures: BASE }), page: Selection });
     await screen.findByText("Kitchen lamp");
     for (const s of ["exposed", "partial", "available", "unmappable"]) expect(screen.getAllByText(`node.selection.state_${s}`).length).toBeGreaterThan(0);
-    expect(container.querySelectorAll("tbody td[data-label='node.selection.col_state'] svg")).toHaveLength(3);
+    // Two rows: the unmappable "Hall remote" is hidden by default.
+    expect(container.querySelectorAll("tbody td[data-label='node.selection.col_state'] svg")).toHaveLength(2);
+  });
+
+  it("hides items that cannot be mapped until the toggle shows them", async () => {
+    renderSel();
+    await screen.findByText("Kitchen lamp");
+    expect(screen.queryByText("Hall remote")).toBeNull();
+    const toggle = screen.getByRole("checkbox", { name: /show_unmappable/ });
+    expect(toggle).not.toBeChecked();
+    await fireEvent.click(toggle);
+    await screen.findByText("Hall remote");
+    expect(screen.getAllByLabelText("node.selection.select_row")).toHaveLength(3);
   });
 
   it("gives an unmappable item's checkbox a disabled state and a reason", async () => {
     renderSel();
+    await screen.findByText("Kitchen lamp");
+    await fireEvent.click(screen.getByRole("checkbox", { name: /show_unmappable/ }));
     await screen.findByText("Hall remote");
     const boxes = screen.getAllByLabelText("node.selection.select_row");
     const disabled = boxes.filter((b) => (b as HTMLInputElement).disabled);
@@ -74,6 +89,8 @@ describe("Selection — empty, search and filters", () => {
   it("filters by the search box over name, group and values", async () => {
     renderSel();
     await screen.findByText("Kitchen lamp");
+    await fireEvent.click(screen.getByRole("checkbox", { name: /show_unmappable/ }));
+    await screen.findByText("Hall remote");
     await fireEvent.input(screen.getByPlaceholderText("node.selection.search_placeholder"), { target: { value: "remote" } });
     await waitFor(() => expect(screen.queryByText("Kitchen lamp")).toBeNull());
     expect(screen.getByText("Hall remote")).toBeInTheDocument();
@@ -94,7 +111,8 @@ describe("Selection — empty, search and filters", () => {
     const { container } = render(Harness, { ui: testUI({ fixtures: BASE }), page: Selection });
     await screen.findByText("Kitchen lamp");
     const cells = [...container.querySelectorAll("tbody td[data-label='Labels']")];
-    expect(cells.map((c) => [...c.querySelectorAll("span span")].map((s) => s.textContent?.trim()))).toEqual([["Evening", "Ceiling"], ["Evening", "Living, dining"], []]);
+    // Two rows: the unmappable "Hall remote" (no labels) is hidden by default.
+    expect(cells.map((c) => [...c.querySelectorAll("span span")].map((s) => s.textContent?.trim()))).toEqual([["Evening", "Ceiling"], ["Evening", "Living, dining"]]);
     const labels = screen.getByLabelText("Labels");
     expect(within(labels).getAllByRole("option").map((o) => o.textContent)).toEqual(["Labels: node.selection.filter_all", "Ceiling", "Evening", "Living, dining"]);
     await fireEvent.change(labels, { target: { value: "Evening" } });
