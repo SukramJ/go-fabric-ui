@@ -5,9 +5,11 @@ name: "Release: Create from Tag"
 # and changelog.md's newest section (make version-check), and the committed
 # bundle must be the build of the tagged tree (make dist-check); the job
 # refuses the tag otherwise. The GitHub release's notes are the changelog
-# section. The npm publish runs only while the NPM_TOKEN secret is set and
-# says so in the job summary when it is skipped. The template is the
-# sibling repositories' release-on-tag.yml (go-ha2fabric, go-fabric-server).
+# section. The npm publish carries no token: npmjs trusts this workflow
+# through GitHub's OIDC token (Trusted Publisher on the package, set to
+# SukramJ/go-fabric-ui and the file name release-on-tag.yml), which also
+# signs the provenance. The template is the sibling repositories'
+# release-on-tag.yml (go-ha2fabric, go-fabric-server).
 # yamllint disable-line rule:truthy
 on:
   push:
@@ -16,7 +18,7 @@ on:
 
 permissions:
   contents: write
-  id-token: write # npm provenance
+  id-token: write # npm trusted publishing and provenance
 
 concurrency:
   group: release-${{ github.ref }}
@@ -70,16 +72,12 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: npm 11 (trusted publishing needs npm 11.5.1 or newer)
+        run: npm install -g npm@11
       - name: Publish @sukramj/fabric-ui to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # No NODE_AUTH_TOKEN: the registry exchanges the job's OIDC token for
+        # a publish credential (Trusted Publisher configured on npmjs).
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::notice::NPM_TOKEN is not set; the npm publish was skipped."
-            echo "### npm publish skipped" >> "$GITHUB_STEP_SUMMARY"
-            echo "The repository secret \`NPM_TOKEN\` is not set, so \`@sukramj/fabric-ui@${VERSION}\` was not published. Add the token and re-run this job." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
           cd ui
           npm publish --access public --provenance
           echo "### npm publish" >> "$GITHUB_STEP_SUMMARY"
