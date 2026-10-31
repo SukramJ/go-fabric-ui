@@ -7,6 +7,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The release workflow publishes `@sukramj/fabric-ui` through npm's trusted
+  publishing: npmjs accepts the job's GitHub OIDC token (Trusted Publisher on
+  the package, set to `SukramJ/go-fabric-ui` and `release-on-tag.yml`) and
+  signs the provenance from it. The `NPM_TOKEN` secret, which npm limited to
+  a short lifetime, is no longer read; a missing trust configuration fails
+  the publish instead of skipping it. The job installs npm 11 first, which
+  trusted publishing requires.
+
 ## [0.2.8] - 2026-10-30
 
 `surface_changed` comes from the node itself, so every assembly that
