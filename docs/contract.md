@@ -139,8 +139,14 @@ paths, methods, responses, fields and optional request fields; it never
 removes or renames one and never makes an optional request field required.
 `contract/previous/openapi.yaml` is the copy of the last release, and the
 contract guard (`make contract-check`, CI job `contract`) fails on a
-removal against it. An operation marked `x-status: planned` promises no
-answer: when it is served its placeholder responses may go, its path and
+removal against it. The guard also fails on a schema a response is decoded
+through that sets `additionalProperties: false` — a generated client turns
+it into a strict model, and the next added field, a minor here, breaks
+every installed client (issue #27); only a request body, which the handler
+decodes and whose unknown fields it rejects, may be closed. Its tests check
+every fixture's response against the route's schema, so a field an encoder
+writes and the contract does not name fails there. An operation marked
+`x-status: planned` promises no answer: when it is served its placeholder responses may go, its path and
 method may not. The release commit that tags a version copies the
 contract to `contract/previous/`.
 

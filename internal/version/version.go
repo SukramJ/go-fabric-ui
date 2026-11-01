@@ -8,4 +8,4 @@ package version
 
 // Version is the release version. Bumping it, ui/package.json's version
 // and the changelog section happen in one commit.
-const Version = "0.2.8"
+const Version = "0.2.9"

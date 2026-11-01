@@ -7,6 +7,30 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-11-01
+
+Every response schema of the contract is open to unknown fields again, and
+a guard keeps it so; the npm package is published through trusted
+publishing.
+
+### Fixed
+
+- `contract/openapi.yaml`: the nine schemas of the surface report
+  (`SurfaceReport`, `SurfaceEffective`, `SurfaceEndpoint`,
+  `SurfaceDeviceType`, `SurfaceCluster`, `SurfaceElement`,
+  `SurfaceDecision`, `SurfaceChange`, `SurfaceElementChange`) no longer set
+  `additionalProperties: false`. A client generated from a closed schema
+  decodes it strictly, so the next field go-fabric adds to
+  `surface.Report`'s JSON — additive for the contract guard, a minor for the
+  changelog — made every installed client reject the whole
+  `GET /node/surface` answer. No other response schema was closed; request
+  bodies keep the keyword, where the handler is the decoder. Closes #27.
+- The contract guard (`make contract-check`) fails on a schema reachable
+  from a response that sets `additionalProperties: false`, and its tests
+  check every recorded fixture's response against the route's schema, so a
+  field the encoder writes and the contract does not name is caught at test
+  time instead of on a client's wire.
+
 ### Changed
 
 - The release workflow publishes `@sukramj/fabric-ui` through npm's trusted

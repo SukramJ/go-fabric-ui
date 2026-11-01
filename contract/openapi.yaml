@@ -1258,7 +1258,6 @@ components:
     SurfaceReport:
       type: object
       description: go-fabric surface.Report (surface/policy.go wireReport).
-      additionalProperties: false
       required: [assembled, changed, decisions, effective, extensions, level, level_origin, policies, profiles, withheld]
       properties:
         assembled: { type: boolean, description: 'The report reads the assembled topology.' }
@@ -1283,7 +1282,6 @@ components:
     SurfaceEffective:
       type: object
       description: go-fabric surface.Surface (surface/surface.go wireSurface).
-      additionalProperties: false
       required: [endpoints, root]
       properties:
         endpoints:
@@ -1293,7 +1291,6 @@ components:
         root: { $ref: "#/components/schemas/SurfaceEndpoint" }
     SurfaceEndpoint:
       type: object
-      additionalProperties: false
       required: [clusters, deviceTypes, key]
       properties:
         clusters:
@@ -1308,14 +1305,12 @@ components:
         number: { type: integer, description: 'The endpoint number; absent until the endpoint is assembled, and for the root.' }
     SurfaceDeviceType:
       type: object
-      additionalProperties: false
       required: [id, revision]
       properties:
         id: { type: string, description: 'Device type id, "0x" and four hex digits.' }
         revision: { type: integer }
     SurfaceCluster:
       type: object
-      additionalProperties: false
       required: [accepted, attributes, events, featureMap, generated, id, revision]
       properties:
         accepted: { type: array, items: { type: string }, description: 'AcceptedCommandList, sorted.' }
@@ -1328,7 +1323,6 @@ components:
     SurfaceElement:
       type: object
       description: One candidate element of an endpoint's surface (surface.Element).
-      additionalProperties: false
       required: [cluster, endpoint, id, kind, mandatory, origin, reference]
       properties:
         cluster: { type: string, description: 'The cluster id; "0x00000000" for a device type.' }
@@ -1341,7 +1335,6 @@ components:
     SurfaceDecision:
       type: object
       description: One policy's judgement of one element (surface.Decision).
-      additionalProperties: false
       required: [cluster, endpoint, id, kind, mandatory, origin, policy, reason, reference, verdict]
       properties:
         cluster: { type: string }
@@ -1357,7 +1350,6 @@ components:
     SurfaceChange:
       type: object
       description: One announced change of an endpoint's served surface (surface.SurfaceChange).
-      additionalProperties: false
       required: [after, at, before, changes, endpoint]
       properties:
         after: { type: string, description: 'The new surface''s digest, 64 hex digits.' }
@@ -1371,7 +1363,6 @@ components:
     SurfaceElementChange:
       type: object
       description: One element-level difference (surface.Change).
-      additionalProperties: false
       required: [after, before, cluster, endpoint, id, kind]
       properties:
         after: { type: string, description: 'The element''s state after ("revision 6", "set", "served", "accepted", "generated"); "" when it is gone.' }
