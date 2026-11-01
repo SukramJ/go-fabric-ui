@@ -33,6 +33,18 @@ publishing.
 
 ### Changed
 
+- go-fabric `v0.15.6` (was `v0.15.4`); oapi-codegen runtime `v1.8.0` and
+  generator `v2.8.2` (was `v1.7.0`, `v2.8.0`) — the regenerated handlers
+  bind request bodies through `runtime.BindJSONBody`, the same decoding.
+  npm: `@lucide/svelte` 1.66.0, `svelte` 5.57.3, `vite` 8.3.5,
+  `@types/node` 26.6.6; the bundle is rebuilt. `minimatch`, reached only
+  through `openapi-typescript`'s `@redocly/openapi-core` (the type
+  generator, not the bundle), is overridden to 11.0.1 for GHSA-g3hv-75wg-m249
+  (`overrides` in `ui/package.json`; `gen:types` produces the same file).
+  TypeScript stays at 6.x: 7.0 is a major whose toolchain `svelte-check`
+  4.7 does not declare. Left as reported: `deepmerge` ≤ 4.3.1 (low,
+  GHSA-gcqx-w48m-w2h4) under `@sveltejs/vite-plugin-svelte`, no fixed
+  version published.
 - The release workflow publishes `@sukramj/fabric-ui` through npm's trusted
   publishing: npmjs accepts the job's GitHub OIDC token (Trusted Publisher on
   the package, set to `SukramJ/go-fabric-ui` and `release-on-tag.yml`) and

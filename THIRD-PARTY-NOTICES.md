@@ -14,11 +14,11 @@ licence texts are under `licenses/npm/`.
 
 | Package | Version | Licence | Text |
 | --- | --- | --- | --- |
-| `@lucide/svelte` | 1.59.0 | ISC | [`licenses/npm/lucide-svelte.txt`](./licenses/npm/lucide-svelte.txt) |
+| `@lucide/svelte` | 1.66.0 | ISC | [`licenses/npm/lucide-svelte.txt`](./licenses/npm/lucide-svelte.txt) |
 | `clsx` | 2.1.1 | MIT | [`licenses/npm/clsx.txt`](./licenses/npm/clsx.txt) |
 | `dijkstrajs` | 1.0.3 | MIT | [`licenses/npm/dijkstrajs.txt`](./licenses/npm/dijkstrajs.txt) |
 | `qrcode` | 1.5.4 | MIT | [`licenses/npm/qrcode.txt`](./licenses/npm/qrcode.txt) |
-| `svelte` | 5.57.2 | MIT | [`licenses/npm/svelte.txt`](./licenses/npm/svelte.txt) |
+| `svelte` | 5.57.3 | MIT | [`licenses/npm/svelte.txt`](./licenses/npm/svelte.txt) |
 | `tailwind-merge` | 3.7.0 | MIT | [`licenses/npm/tailwind-merge.txt`](./licenses/npm/tailwind-merge.txt) |
 
 The npm package `@sukramj/fabric-ui` itself ships sources, not this bundle;
