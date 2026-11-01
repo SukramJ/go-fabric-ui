@@ -3,8 +3,8 @@ module github.com/SukramJ/go-fabric-ui
 go 1.27.3
 
 require (
-	github.com/SukramJ/go-fabric v0.15.4
-	github.com/oapi-codegen/runtime v1.7.0
+	github.com/SukramJ/go-fabric v0.15.6
+	github.com/oapi-codegen/runtime v1.8.0
 )
 
 require (
@@ -21,7 +21,7 @@ require (
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/miekg/dns v1.1.73 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/oapi-codegen/oapi-codegen/v2 v2.8.0 // indirect
+	github.com/oapi-codegen/oapi-codegen/v2 v2.8.2 // indirect
 	github.com/oasdiff/yaml v0.1.1 // indirect
 	github.com/oasdiff/yaml3 v0.0.14 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

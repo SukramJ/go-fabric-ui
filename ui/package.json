@@ -1,6 +1,6 @@
 {
   "name": "@sukramj/fabric-ui",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "The web interface of go-fabric nodes: Svelte 5 pages, UI kit, design tokens with a Home Assistant theme bridge, and the generated API client.",
   "license": "Apache-2.0",
   "author": "SukramJ",
@@ -65,7 +65,7 @@
     "svelte": "^5.57.0"
   },
   "dependencies": {
-    "@lucide/svelte": "1.59.0",
+    "@lucide/svelte": "1.66.0",
     "clsx": "2.1.1",
     "qrcode": "1.5.4",
     "tailwind-merge": "3.7.0"
@@ -76,19 +76,22 @@
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/svelte": "5.4.2",
     "@tsconfig/svelte": "5.0.8",
-    "@types/node": "26.6.5",
+    "@types/node": "26.6.6",
     "@types/qrcode": "1.5.6",
     "happy-dom": "21.0.4",
     "js-yaml": "5.5.0",
     "openapi-typescript": "7.13.0",
-    "svelte": "5.57.2",
+    "svelte": "5.57.3",
     "svelte-check": "4.7.7",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "vite": "8.3.4",
+    "vite": "8.3.5",
     "vitest": "5.0.5"
   },
   "engines": {
     "node": ">=22"
+  },
+  "overrides": {
+    "minimatch": "11.0.1"
   }
 }

@@ -7,8 +7,44 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-11-01
+
+Every response schema of the contract is open to unknown fields again, and
+a guard keeps it so; the npm package is published through trusted
+publishing.
+
+### Fixed
+
+- `contract/openapi.yaml`: the nine schemas of the surface report
+  (`SurfaceReport`, `SurfaceEffective`, `SurfaceEndpoint`,
+  `SurfaceDeviceType`, `SurfaceCluster`, `SurfaceElement`,
+  `SurfaceDecision`, `SurfaceChange`, `SurfaceElementChange`) no longer set
+  `additionalProperties: false`. A client generated from a closed schema
+  decodes it strictly, so the next field go-fabric adds to
+  `surface.Report`'s JSON — additive for the contract guard, a minor for the
+  changelog — made every installed client reject the whole
+  `GET /node/surface` answer. No other response schema was closed; request
+  bodies keep the keyword, where the handler is the decoder. Closes #27.
+- The contract guard (`make contract-check`) fails on a schema reachable
+  from a response that sets `additionalProperties: false`, and its tests
+  check every recorded fixture's response against the route's schema, so a
+  field the encoder writes and the contract does not name is caught at test
+  time instead of on a client's wire.
+
 ### Changed
 
+- go-fabric `v0.15.6` (was `v0.15.4`); oapi-codegen runtime `v1.8.0` and
+  generator `v2.8.2` (was `v1.7.0`, `v2.8.0`) — the regenerated handlers
+  bind request bodies through `runtime.BindJSONBody`, the same decoding.
+  npm: `@lucide/svelte` 1.66.0, `svelte` 5.57.3, `vite` 8.3.5,
+  `@types/node` 26.6.6; the bundle is rebuilt. `minimatch`, reached only
+  through `openapi-typescript`'s `@redocly/openapi-core` (the type
+  generator, not the bundle), is overridden to 11.0.1 for GHSA-g3hv-75wg-m249
+  (`overrides` in `ui/package.json`; `gen:types` produces the same file).
+  TypeScript stays at 6.x: 7.0 is a major whose toolchain `svelte-check`
+  4.7 does not declare. Left as reported: `deepmerge` ≤ 4.3.1 (low,
+  GHSA-gcqx-w48m-w2h4) under `@sveltejs/vite-plugin-svelte`, no fixed
+  version published.
 - The release workflow publishes `@sukramj/fabric-ui` through npm's trusted
   publishing: npmjs accepts the job's GitHub OIDC token (Trusted Publisher on
   the package, set to `SukramJ/go-fabric-ui` and `release-on-tag.yml`) and
