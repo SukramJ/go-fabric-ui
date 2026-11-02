@@ -45,7 +45,7 @@ func TestSubscribe_SurfaceChangedFromTheObserver(t *testing.T) {
 	assemble := func(context.Context) error {
 		// The node reports the change on the assembly's goroutine, after
 		// it recorded it (go-fabric node/observers.go:75-84).
-		n.notify(func(o node.Observers) { _ = o.OnSurfaceChanged(surface.SurfaceChange{Endpoint: "lamp-1", At: testNow}) })
+		n.notify(func(o node.Observers) { o.OnSurfaceChanged(surface.SurfaceChange{Endpoint: "lamp-1", At: testNow}) })
 		return nil
 	}
 	h, mux := newTestHandler(t, testOptions{node: n, exposure: newMemoryProvider(), reassemble: assemble})

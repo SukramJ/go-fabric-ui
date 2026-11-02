@@ -237,8 +237,9 @@ func (h *handler) openFresh(r *http.Request, timeout time.Duration) (windowRespo
 	return windowResponse{Discriminator: &disc, Passcode: &pc, QRCode: qr, ManualCode: manual}, nil
 }
 
-// closeWindow serves POST /node/pairing/window/close (admin): it revokes
-// whatever window is open. Mirrors loom matter_exposures.go:422-444
+// closeWindow serves POST /node/pairing/window/close (admin): it closes
+// whatever window is open; a PASE session already established and an armed
+// fail-safe stay with their commissioner (node.CloseWindow). Mirrors loom matter_exposures.go:422-444
 // (MatterCommissioningClose).
 func (h *handler) closeWindow(w http.ResponseWriter, r *http.Request) {
 	if h.node == nil {

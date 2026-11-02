@@ -117,7 +117,7 @@ func TestStream_DeliversEventsAndHeartbeats(t *testing.T) {
 	if a, b := next(), next(); a != "event: exposure_changed" || b != `data: {"keys":["lamp-1"]}` {
 		t.Fatalf("event lines %q %q", a, b)
 	}
-	n.notify(func(o node.Observers) { _ = o.OnFabricRemoved(node.FabricInfo{FabricIndex: 2}) })
+	n.notify(func(o node.Observers) { o.OnFabricRemoved(node.FabricInfo{FabricIndex: 2}) })
 	if a, b := next(), next(); a != "event: fabric_removed" || b != `data: {"fabric_index":2}` {
 		t.Fatalf("event lines %q %q", a, b)
 	}
@@ -171,10 +171,10 @@ func TestSubscribe_ObservesTheNodeOnce(t *testing.T) {
 		t.Fatalf("%d observers registered, want 1", n.observerCount())
 	}
 	n.notify(func(o node.Observers) {
-		_ = o.OnFabricAdded(node.FabricInfo{FabricIndex: 4, VendorID: 0x1349, Label: "Home"})
+		o.OnFabricAdded(node.FabricInfo{FabricIndex: 4, VendorID: 0x1349, Label: "Home"})
 	})
-	n.notify(func(o node.Observers) { _ = o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77}) })
-	n.notify(func(o node.Observers) { _ = o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77}) })
+	n.notify(func(o node.Observers) { o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77}) })
+	n.notify(func(o node.Observers) { o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77}) })
 	do(t, mux, http.MethodPost, "/node/pairing/window/close", "")
 	do(t, mux, http.MethodDelete, "/node/fabrics/1", "")
 	want := []string{EventFabricAdded, EventWindowOpened, EventWindowClosed, EventFabricRemoved}
@@ -205,15 +205,15 @@ func TestNodeObservers_YieldWhatTheStreamYields(t *testing.T) {
 	defer n.observe(NodeObservers(host.add, n.window().Open))()
 
 	n.notify(func(o node.Observers) {
-		_ = o.OnFabricAdded(node.FabricInfo{FabricIndex: 4, VendorID: 0x1349, Label: "Home"})
+		o.OnFabricAdded(node.FabricInfo{FabricIndex: 4, VendorID: 0x1349, Label: "Home"})
 	})
 	n.notify(func(o node.Observers) {
-		_ = o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77, Timeout: 300 * time.Second})
+		o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77, Timeout: 300 * time.Second})
 	})
 	n.notify(func(o node.Observers) {
-		_ = o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77, Timeout: 300 * time.Second})
+		o.OnWindowTransition(node.WindowSnapshot{Open: true, Discriminator: 77, Timeout: 300 * time.Second})
 	})
-	n.notify(func(o node.Observers) { _ = o.OnSurfaceChanged(surface.SurfaceChange{Endpoint: "", At: testNow}) })
+	n.notify(func(o node.Observers) { o.OnSurfaceChanged(surface.SurfaceChange{Endpoint: "", At: testNow}) })
 	do(t, mux, http.MethodPost, "/node/pairing/window/close", "")
 	do(t, mux, http.MethodDelete, "/node/fabrics/1", "")
 

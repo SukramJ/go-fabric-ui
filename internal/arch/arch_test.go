@@ -37,6 +37,9 @@ var facade = map[string]bool{
 	// go-fabric places it in the model-and-protocol layer beside contract
 	// and eligibility (script/archcheck/layers.json:7 at v0.15.2).
 	goFabric + "/surface": true,
+	// schema.DeviceTypeName is the one device type name go-fabric keeps; the
+	// package holds generated data and no node machinery.
+	goFabric + "/schema": true,
 }
 
 // adapterDir is the controller adapter; adapter is what it may import

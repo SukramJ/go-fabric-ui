@@ -29,7 +29,8 @@ type NodeSource interface {
 	LocalAddr() string
 	FabricInfos(ctx context.Context) ([]node.FabricInfo, error)
 	RemoveFabric(ctx context.Context, fabricIndex uint8) error
-	CommissioningWindow() *node.CommissioningWindow
+	OpenOwnWindow(ctx context.Context, timeout time.Duration) error
+	CloseWindow(ctx context.Context) error
 	Window() node.WindowSnapshot
 	OpenBasicWindow(ctx context.Context, creds node.WindowCredentials) error
 	SetupPayload() (node.SetupPayload, error)
@@ -90,7 +91,7 @@ type Options struct {
 	Logger *slog.Logger
 	// ConfiguredWindow makes POST /node/pairing/window open the node's own
 	// window with its configured passcode and discriminator
-	// (CommissioningWindow().OpenOwnWindow). The default opens it with
+	// (Node.OpenOwnWindow). The default opens it with
 	// fresh random credentials (node.OpenBasicWindow), which no earlier
 	// reader of the configured codes can use.
 	ConfiguredWindow bool

@@ -127,15 +127,13 @@ func (e *Events) Publish(ev Event) {
 func NodeObservers(push func(Event), open bool) node.Observers {
 	var mu sync.Mutex
 	return node.Observers{
-		OnFabricAdded: func(f node.FabricInfo) error {
+		OnFabricAdded: func(f node.FabricInfo) {
 			push(Event{Type: EventFabricAdded, Data: fabricEvent(f)})
-			return nil
 		},
-		OnFabricRemoved: func(f node.FabricInfo) error {
+		OnFabricRemoved: func(f node.FabricInfo) {
 			push(Event{Type: EventFabricRemoved, Data: FabricEvent{FabricIndex: f.FabricIndex}})
-			return nil
 		},
-		OnWindowTransition: func(w node.WindowSnapshot) error {
+		OnWindowTransition: func(w node.WindowSnapshot) {
 			mu.Lock()
 			changed := open != w.Open
 			open = w.Open
@@ -147,11 +145,9 @@ func NodeObservers(push func(Event), open bool) node.Observers {
 			default:
 				push(Event{Type: EventWindowClosed, Data: WindowEvent{}})
 			}
-			return nil
 		},
-		OnSurfaceChanged: func(c surface.SurfaceChange) error {
+		OnSurfaceChanged: func(c surface.SurfaceChange) {
 			push(Event{Type: EventSurfaceChanged, Data: surfaceChangedEvent(c)})
-			return nil
 		},
 	}
 }

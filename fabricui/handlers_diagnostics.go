@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/SukramJ/go-fabric/contract"
 	"github.com/SukramJ/go-fabric/eligibility"
 	"github.com/SukramJ/go-fabric/node"
 )
@@ -175,7 +174,7 @@ func flattenTopology(topo node.BridgeTopology) []endpointResponse {
 				EndpointID:         d.Endpoint,
 				ParentEndpointID:   parent,
 				DeviceType:         d.DeviceType,
-				DeviceTypeName:     contract.DeviceTypeName(d.DeviceType),
+				DeviceTypeName:     deviceTypeName(d.DeviceType),
 				DeviceTypeRevision: d.DeviceTypeRevision,
 				Reachable:          d.Reachable,
 				Name:               d.Name,
