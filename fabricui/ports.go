@@ -68,19 +68,11 @@ func (a nodeAdapter) openBasicWindow(ctx context.Context, creds node.WindowCrede
 }
 
 func (a nodeAdapter) openOwnWindow(ctx context.Context, timeout time.Duration) error {
-	w := a.n.CommissioningWindow()
-	if w == nil {
-		return node.ErrCommissioningWindowNotConfigured
-	}
-	return w.OpenOwnWindow(ctx, timeout)
+	return a.n.OpenOwnWindow(ctx, timeout)
 }
 
 func (a nodeAdapter) closeWindow(ctx context.Context) error {
-	w := a.n.CommissioningWindow()
-	if w == nil {
-		return nil
-	}
-	return w.RevokeWindow(ctx)
+	return a.n.CloseWindow(ctx)
 }
 
 func (a nodeAdapter) setupPayload() (node.SetupPayload, error) { return a.n.SetupPayload() }

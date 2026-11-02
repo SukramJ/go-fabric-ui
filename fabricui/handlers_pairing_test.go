@@ -164,7 +164,7 @@ func TestOpenWindow_HappyPath_Returns200(t *testing.T) {
 	n := sampleNode()
 	_, mux := newTestHandler(t, testOptions{node: n})
 	runFixture(t, mux, "node-pairing-window.200")
-	if len(n.basic) != 1 || n.basic[0].Passcode != 20202021 || n.basic[0].Iterations != node.PBKDFIterationsMin {
+	if len(n.basic) != 1 || n.basic[0].Passcode != 20202021 || n.basic[0].PBKDFIterations != node.PBKDFIterationsMin {
 		t.Fatalf("opened %+v", n.basic)
 	}
 }
@@ -321,7 +321,7 @@ func TestFreshCredentials_ComeFromTheNode(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := node.ValidateSetupPIN(c.Passcode); err != nil || c.Discriminator > node.MaxDiscriminator ||
-			len(c.Salt) != 32 || c.Iterations != node.PBKDFIterationsMin || c.Timeout != time.Minute {
+			len(c.Salt) != 32 || c.PBKDFIterations != node.PBKDFIterationsMin || c.Timeout != time.Minute {
 			t.Fatalf("credentials %+v: %v", c, err)
 		}
 		seen[c.Passcode] = true

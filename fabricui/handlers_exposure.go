@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-
-	"github.com/SukramJ/go-fabric/contract"
 )
 
 // verdictResponse is an item's eligibility on the wire: the state token of
@@ -73,7 +71,7 @@ func itemsOf(items []Item) []itemResponse {
 			Verdict: verdictResponse{
 				State:          it.Verdict.State.String(),
 				DeviceType:     it.Verdict.DeviceType,
-				DeviceTypeName: contract.DeviceTypeName(it.Verdict.DeviceType),
+				DeviceTypeName: deviceTypeName(it.Verdict.DeviceType),
 				Clusters:       clusters,
 				Reason:         it.Verdict.Reason,
 			},

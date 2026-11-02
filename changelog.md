@@ -7,6 +7,34 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-02
+
+Built on go-fabric v0.16.0, whose facade removed what `NodeSource` and the
+device type names rested on. The routes, their bodies and the npm package's
+pages are unchanged.
+
+### Changed
+
+- go-fabric `v0.16.0` (was `v0.15.6`), which raises `modernc.org/sqlite` to
+  1.61.0, `modernc.org/libc` to 1.79.0, `go-humanize` to 1.1.0 and
+  `go-strftime` to 1.1.0 in the build list.
+- **Breaking for a host with its own `NodeSource`:**
+  `CommissioningWindow() *node.CommissioningWindow` is replaced by
+  `OpenOwnWindow(ctx, timeout) error` and `CloseWindow(ctx) error`.
+  `*node.Node` satisfies the interface as before.
+- `fabricui.NodeObservers`: the hooks return nothing, as go-fabric's
+  `node.Observers` now declares them.
+- `POST /node/pairing/window/close` closes the window through
+  `Node.CloseWindow` (matter.js `endCommissioning`) instead of
+  `RevokeWindow`: a PASE session already established and an armed fail-safe
+  now stay with their commissioner, where they were evicted and expired
+  before. The route's status codes are unchanged. A host that needs the
+  eviction wraps its node in a `NodeSource` whose `CloseWindow` revokes.
+- `device_type_name` keeps its values: go-fabric removed
+  `contract.DeviceTypeName` and its label table, so the 25 operator labels
+  ("On/Off Light") move to `fabricui`, and every other device type reads
+  `schema.DeviceTypeName`. The import guard allows `schema` beside the facade.
+
 ## [0.2.9] - 2026-11-01
 
 Every response schema of the contract is open to unknown fields again, and

@@ -216,7 +216,7 @@ func (f *fakeNode) transition() {
 	w := f.window()
 	f.notify(func(o node.Observers) {
 		if o.OnWindowTransition != nil {
-			_ = o.OnWindowTransition(w)
+			o.OnWindowTransition(w)
 		}
 	})
 }
@@ -245,7 +245,7 @@ func (f *fakeNode) removeFabric(_ context.Context, idx uint8) error {
 	f.mu.Unlock()
 	f.notify(func(o node.Observers) {
 		if o.OnFabricRemoved != nil {
-			_ = o.OnFabricRemoved(node.FabricInfo{FabricIndex: idx})
+			o.OnFabricRemoved(node.FabricInfo{FabricIndex: idx})
 		}
 	})
 	return nil
@@ -385,10 +385,10 @@ func sampleSurface() surface.Report {
 			},
 		},
 	}}
-	onOff := surface.Element{Endpoint: "lamp-1", Cluster: 0x0006, Kind: surface.KindCluster, ID: 0x0006, Origin: surface.OriginDeviceType, Mandatory: true}
-	startUp := surface.Element{Endpoint: "lamp-1", Cluster: 0x0006, Kind: surface.KindAttribute, ID: 0x4003, Origin: surface.OriginHostDeclared}
-	tolerance := surface.Element{Endpoint: "sensor-2", Cluster: 0x0402, Kind: surface.KindAttribute, ID: 0x0003, Origin: surface.OriginHostDeclared}
-	descriptor := surface.Element{Endpoint: "", Cluster: 0x001D, Kind: surface.KindCluster, ID: 0x001D, Origin: surface.OriginDeviceType, Mandatory: true}
+	onOff := surface.Element{Endpoint: "lamp-1", Cluster: 0x0006, Kind: surface.KindCluster, ID: 0x0006, Provenance: surface.ProvenanceDeviceType, Mandatory: true}
+	startUp := surface.Element{Endpoint: "lamp-1", Cluster: 0x0006, Kind: surface.KindAttribute, ID: 0x4003, Provenance: surface.ProvenanceHostDeclared}
+	tolerance := surface.Element{Endpoint: "sensor-2", Cluster: 0x0402, Kind: surface.KindAttribute, ID: 0x0003, Provenance: surface.ProvenanceHostDeclared}
+	descriptor := surface.Element{Endpoint: "", Cluster: 0x001D, Kind: surface.KindCluster, ID: 0x001D, Provenance: surface.ProvenanceDeviceType, Mandatory: true}
 	r.Decisions = []surface.Decision{
 		{Element: descriptor, Policy: "level", Verdict: surface.Keep},
 		{Element: onOff, Policy: "level", Verdict: surface.Keep},
@@ -396,7 +396,7 @@ func sampleSurface() surface.Report {
 		{Element: tolerance, Policy: "profile:home-assistant", Verdict: surface.Remove, Reason: "removed by profile home-assistant: synthetic (test)"},
 		{Element: onOff, Policy: "profile:home-assistant", Verdict: surface.Keep, Reason: "kept: mandatory at pin (removed by profile home-assistant: synthetic (test))"},
 	}
-	r.Withheld = []surface.Element{{Endpoint: "air-1", Kind: surface.KindDeviceType, ID: 0x002C, Origin: surface.OriginDeviceType, Mandatory: true}}
+	r.Withheld = []surface.Element{{Endpoint: "air-1", Kind: surface.KindDeviceType, ID: 0x002C, Provenance: surface.ProvenanceDeviceType, Mandatory: true}}
 	r.Changed = []surface.SurfaceChange{{
 		Endpoint: "lamp-1",
 		Before:   [32]byte{0x1A, 0x2B, 0x3C, 0x4D, 0x5E, 0x6F},
@@ -532,7 +532,7 @@ func newTestHandler(t *testing.T, o testOptions) (*handler, *http.ServeMux) {
 	}
 	h.fresh = func(timeout time.Duration) (node.WindowCredentials, error) {
 		return node.WindowCredentials{
-			Discriminator: 1234, Passcode: 20202021, Iterations: node.PBKDFIterationsMin,
+			Discriminator: 1234, Passcode: 20202021, PBKDFIterations: node.PBKDFIterationsMin,
 			Salt: bytes.Repeat([]byte{7}, 32), Timeout: timeout,
 		}, nil
 	}
