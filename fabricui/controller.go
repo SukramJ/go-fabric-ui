@@ -55,8 +55,8 @@ type ControllerSource interface {
 	Observe(fn func(ControllerEvent)) (unsubscribe func())
 	// NetworkTopology is the controller's network as a graph: the
 	// controller, its nodes and the links between them. refresh re-reads
-	// the nodes' network diagnostics first. [ErrNotImplemented] until the
-	// source can build one (GET /controller/topology answers 501).
+	// the nodes' network diagnostics first. [ErrNotImplemented] when the
+	// source serves no graph (GET /controller/topology answers 501).
 	NetworkTopology(ctx context.Context, refresh bool) (NetworkTopology, error)
 }
 
@@ -80,7 +80,8 @@ type NetworkNode struct {
 	// commission.
 	ID string
 	// Kind is one of the contract's TopologyNode kinds: node, peer,
-	// thread_router, thread_end_device, wifi_ap, ethernet.
+	// thread_router, thread_end_device, wifi_ap, ethernet (the go-fabric
+	// adapter makes an Ethernet node a peer with role ethernet).
 	Kind string
 	// Label names the node; State is ok, unreachable, idle or unknown.
 	Label, State string
@@ -101,7 +102,7 @@ type NetworkConnection struct {
 	// Source and Target are node ids of the graph.
 	Source, Target string
 	// Kind is contains, session or link; Strength one of strong, medium,
-	// weak, unknown, empty when not a link.
+	// weak, none (observed dead), unknown, empty when not a link.
 	Kind, Strength string
 	// LQI and RSSI are a Thread link's quality indicator and signal
 	// strength in dBm; nil when not reported.

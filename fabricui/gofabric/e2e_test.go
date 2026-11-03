@@ -18,6 +18,7 @@ import (
 
 	"github.com/SukramJ/go-fabric/controller"
 	"github.com/SukramJ/go-fabric/controller/attestation"
+	"github.com/SukramJ/go-fabric/controller/topology"
 	"github.com/SukramJ/go-fabric/device"
 	"github.com/SukramJ/go-fabric/fabrictest"
 	"github.com/SukramJ/go-fabric/node"
@@ -51,6 +52,10 @@ func newCtrlSite(t *testing.T) *ctrlSite {
 	hooks := gofabric.NewHooks()
 	cfg := site.ControllerConfig(fabrictest.ControllerOptions{Label: "e2e"})
 	cfg.HooksFor = hooks.Wrap(cfg.HooksFor)
+	// The network graph is the host's service: its changes are installed
+	// before controller.New, the service built after it and closed first.
+	var changes topology.Changes
+	changes.Install(&cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	var ctrl *controller.Controller
@@ -60,14 +65,17 @@ func newCtrlSite(t *testing.T) *ctrlSite {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	svc := topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
+		svc.Close()
 		hooks.Close() // before the controller goes: no timer outlives it
 		_ = site.Run(ctx, ctrl.Close)
 	})
 	src := gofabric.ControllerOf(ctrl, gofabric.ControllerOptions{
 		Hooks:       hooks,
+		Topology:    svc,
 		Credentials: fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName),
 		// The site's device carries the module's test attestation.
 		Pair: controller.PairOptions{OnAttestationFailure: attestation.Accept()},
@@ -192,9 +200,27 @@ func TestEndToEnd_Controller(t *testing.T) {
 	}
 	s.waitEvent(fabricui.EventNodeAdded)
 
-	// The controller's topology is planned (brief U3a decision 0.2): the
-	// adapter answers 501 until go-fabric builds the graph.
-	s.json(http.MethodGet, "/controller/topology", "", http.StatusNotImplemented, nil)
+	// The network graph: the controller and the node, joined by a session.
+	type edge struct {
+		Source string `json:"source"`
+		Target string `json:"target"`
+		Kind   string `json:"kind"`
+	}
+	var graph struct {
+		Family string `json:"family"`
+		Nodes  []struct {
+			ID   string `json:"id"`
+			Kind string `json:"kind"`
+		} `json:"nodes"`
+		Edges []edge `json:"edges"`
+	}
+	s.json(http.MethodGet, "/controller/topology", "", http.StatusOK, &graph)
+	peer := "peer:" + id
+	if graph.Family != "controller" || len(graph.Nodes) != 2 || graph.Nodes[0].ID != "node" ||
+		graph.Nodes[1].ID != peer || graph.Nodes[1].Kind != "peer" ||
+		!slices.Contains(graph.Edges, edge{Source: "node", Target: peer, Kind: "session"}) {
+		t.Fatalf("graph %+v", graph)
+	}
 
 	var list struct {
 		Nodes []struct {

@@ -141,6 +141,11 @@ var memoryTime = time.Date(2026, 10, 20, 8, 0, 0, 0, time.UTC)
 // tests record the contract's fixtures from it; a host shows the pages
 // with it before it has a controller. It is safe for concurrent use.
 type MemoryController struct {
+	// Topology is the graph NetworkTopology serves; nil answers
+	// ErrNotImplemented (GET /controller/topology: 501). Set it before
+	// the handler serves.
+	Topology *NetworkTopology
+
 	mu      sync.Mutex
 	fabric  ControllerFabric
 	nodes   map[uint64]*memoryNode
@@ -340,11 +345,13 @@ func (m *MemoryController) Observe(fn func(ControllerEvent)) (unsubscribe func()
 	})
 }
 
-// NetworkTopology implements [ControllerSource]: the in-memory controller
-// builds no graph (brief U3a decision 0.2), so GET /controller/topology
-// answers 501.
+// NetworkTopology implements [ControllerSource]: the graph in Topology,
+// refreshed or not; without one GET /controller/topology answers 501.
 func (m *MemoryController) NetworkTopology(context.Context, bool) (NetworkTopology, error) {
-	return NetworkTopology{}, ErrNotImplemented
+	if m.Topology == nil {
+		return NetworkTopology{}, ErrNotImplemented
+	}
+	return *m.Topology, nil
 }
 
 // memoryUpdates is the in-memory update queue.

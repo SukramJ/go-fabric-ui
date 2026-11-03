@@ -1,0 +1,295 @@
+{
+  "route": "GET /controller/topology",
+  "request": {
+    "method": "GET",
+    "path": "/controller/topology"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "as_of": "2026-10-25T12:00:00Z",
+      "edges": [
+        {
+          "kind": "session",
+          "source": "node",
+          "target": "peer:0000000000000011"
+        },
+        {
+          "kind": "session",
+          "source": "node",
+          "target": "peer:0000000000000012"
+        },
+        {
+          "kind": "session",
+          "source": "node",
+          "target": "peer:0000000000000013"
+        },
+        {
+          "kind": "session",
+          "source": "node",
+          "target": "peer:0000000000000014"
+        },
+        {
+          "kind": "link",
+          "label": "LQI 3/2",
+          "lqi": 3,
+          "rssi": -45,
+          "source": "peer:0000000000000011",
+          "strength": "strong",
+          "target": "peer:0000000000000012"
+        },
+        {
+          "kind": "link",
+          "label": "LQI 2/1",
+          "lqi": 2,
+          "rssi": -66,
+          "source": "peer:0000000000000011",
+          "strength": "medium",
+          "target": "unknown_0011223344556677"
+        },
+        {
+          "kind": "link",
+          "lqi": 1,
+          "rssi": -88,
+          "source": "peer:0000000000000011",
+          "strength": "weak",
+          "target": "unknown_8899AABBCCDDEEFF"
+        },
+        {
+          "kind": "link",
+          "lqi": 0,
+          "source": "peer:0000000000000012",
+          "strength": "none",
+          "target": "unknown_0011223344556677"
+        },
+        {
+          "kind": "link",
+          "source": "peer:0000000000000013",
+          "strength": "unknown",
+          "target": "ap_AABBCCDDEEFF"
+        }
+      ],
+      "family": "controller",
+      "nodes": [
+        {
+          "details": [
+            {
+              "key": "nodes",
+              "value": "4"
+            },
+            {
+              "key": "collected_at",
+              "value": "2026-10-25T12:00:00Z"
+            }
+          ],
+          "id": "node",
+          "kind": "node",
+          "label": "Controller",
+          "state": "ok"
+        },
+        {
+          "details": [
+            {
+              "key": "network",
+              "value": "thread"
+            },
+            {
+              "key": "role",
+              "value": "router"
+            },
+            {
+              "key": "rloc16",
+              "value": "0x2c00"
+            },
+            {
+              "key": "ext_address",
+              "value": "1A2B3C4D5E6F7011"
+            },
+            {
+              "key": "ext_pan_id",
+              "value": "DEAD00BEEF00CAFE"
+            },
+            {
+              "key": "network_name",
+              "value": "Home"
+            },
+            {
+              "key": "addresses",
+              "value": "fd00::11"
+            }
+          ],
+          "id": "peer:0000000000000011",
+          "kind": "peer",
+          "label": "Light",
+          "node_id_hex": "0000000000000011",
+          "ref": {
+            "id": "0000000000000011",
+            "page": "controller_node"
+          },
+          "rloc16": 11264,
+          "role": "router",
+          "state": "ok"
+        },
+        {
+          "details": [
+            {
+              "key": "network",
+              "value": "thread"
+            },
+            {
+              "key": "role",
+              "value": "sleepy_end_device"
+            },
+            {
+              "key": "rloc16",
+              "value": "0x2c01"
+            },
+            {
+              "key": "ext_address",
+              "value": "1A2B3C4D5E6F7012"
+            },
+            {
+              "key": "ext_pan_id",
+              "value": "DEAD00BEEF00CAFE"
+            },
+            {
+              "key": "network_name",
+              "value": "Home"
+            },
+            {
+              "key": "addresses",
+              "value": "fd00::12"
+            }
+          ],
+          "id": "peer:0000000000000012",
+          "kind": "peer",
+          "label": "Sensor",
+          "node_id_hex": "0000000000000012",
+          "ref": {
+            "id": "0000000000000012",
+            "page": "controller_node"
+          },
+          "rloc16": 11265,
+          "role": "sleepy_end_device",
+          "state": "ok"
+        },
+        {
+          "bssid": "AA:BB:CC:DD:EE:FF",
+          "details": [
+            {
+              "key": "network",
+              "value": "wifi"
+            },
+            {
+              "key": "role",
+              "value": "station"
+            },
+            {
+              "key": "ssid",
+              "value": "home-wifi"
+            },
+            {
+              "key": "bssid",
+              "value": "AA:BB:CC:DD:EE:FF"
+            },
+            {
+              "key": "addresses",
+              "value": "192.168.1.13, fd00::13"
+            }
+          ],
+          "id": "peer:0000000000000013",
+          "kind": "peer",
+          "label": "0x0000000000000013",
+          "node_id_hex": "0000000000000013",
+          "ref": {
+            "id": "0000000000000013",
+            "page": "controller_node"
+          },
+          "role": "station",
+          "ssid": "home-wifi",
+          "state": "unreachable"
+        },
+        {
+          "details": [
+            {
+              "key": "network",
+              "value": "ethernet"
+            },
+            {
+              "key": "bridge",
+              "value": "yes"
+            },
+            {
+              "key": "addresses",
+              "value": "192.168.1.20"
+            }
+          ],
+          "id": "peer:0000000000000014",
+          "kind": "peer",
+          "label": "Bridge",
+          "node_id_hex": "0000000000000014",
+          "ref": {
+            "id": "0000000000000014",
+            "page": "controller_node"
+          },
+          "role": "ethernet",
+          "state": "ok"
+        },
+        {
+          "details": [
+            {
+              "key": "ext_address",
+              "value": "0011223344556677"
+            },
+            {
+              "key": "ext_pan_id",
+              "value": "DEAD00BEEF00CAFE"
+            },
+            {
+              "key": "role",
+              "value": "router"
+            }
+          ],
+          "id": "unknown_0011223344556677",
+          "kind": "thread_router",
+          "label": "0011223344556677",
+          "state": "unknown"
+        },
+        {
+          "details": [
+            {
+              "key": "ext_address",
+              "value": "8899AABBCCDDEEFF"
+            },
+            {
+              "key": "ext_pan_id",
+              "value": "DEAD00BEEF00CAFE"
+            }
+          ],
+          "id": "unknown_8899AABBCCDDEEFF",
+          "kind": "thread_end_device",
+          "label": "8899AABBCCDDEEFF",
+          "state": "unknown"
+        },
+        {
+          "bssid": "AA:BB:CC:DD:EE:FF",
+          "details": [
+            {
+              "key": "bssid",
+              "value": "AA:BB:CC:DD:EE:FF"
+            },
+            {
+              "key": "ssid",
+              "value": "home-wifi"
+            }
+          ],
+          "id": "ap_AABBCCDDEEFF",
+          "kind": "wifi_ap",
+          "label": "home-wifi",
+          "ssid": "home-wifi",
+          "state": "unknown"
+        }
+      ]
+    }
+  }
+}

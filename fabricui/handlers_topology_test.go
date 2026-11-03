@@ -157,11 +157,93 @@ func TestStream_SessionEvents(t *testing.T) {
 	}
 }
 
-// GET /controller/topology is planned: the in-memory controller builds no
-// graph and the route answers 501.
-func TestControllerTopology_NotImplemented(t *testing.T) {
-	_, mux, _ := controllerHandler(t, nil)
+// controllerTopology is the controller-topology.200 fixture's graph as
+// the port carries it: the controller, a Thread router, a sleepy end
+// device, an unreachable Wi-Fi station with its access point, an
+// Ethernet bridge, a Thread router and an end device no commissioned node
+// matches, and a link of every strength. It is what the go-fabric
+// adapter maps its topology test literal to
+// (fabricui/gofabric/topology_test.go), so the fixture holds both ends.
+func controllerTopology() NetworkTopology {
+	rloc := func(v uint16) *uint16 { return &v }
+	lqi := func(v uint8) *uint8 { return &v }
+	rssi := func(v int8) *int8 { return &v }
+	const pan = "DEAD00BEEF00CAFE"
+	return NetworkTopology{
+		CollectedAt: testNow,
+		Nodes: []NetworkNode{
+			{ID: "node", Kind: "node", Label: "Controller", State: "ok", Details: []TopologyDetail{{"nodes", "4"}, {"collected_at", "2026-10-25T12:00:00Z"}}},
+			{
+				ID: "peer:0000000000000011", Kind: "peer", Label: "Light", State: "ok", NodeID: 0x11, Role: "router", RLOC16: rloc(0x2C00),
+				Details: []TopologyDetail{
+					{"network", "thread"},
+					{"role", "router"},
+					{"rloc16", "0x2c00"},
+					{"ext_address", "1A2B3C4D5E6F7011"},
+					{"ext_pan_id", pan},
+					{"network_name", "Home"},
+					{"addresses", "fd00::11"},
+				},
+			},
+			{
+				ID: "peer:0000000000000012", Kind: "peer", Label: "Sensor", State: "ok", NodeID: 0x12, Role: "sleepy_end_device", RLOC16: rloc(0x2C01),
+				Details: []TopologyDetail{
+					{"network", "thread"},
+					{"role", "sleepy_end_device"},
+					{"rloc16", "0x2c01"},
+					{"ext_address", "1A2B3C4D5E6F7012"},
+					{"ext_pan_id", pan},
+					{"network_name", "Home"},
+					{"addresses", "fd00::12"},
+				},
+			},
+			{
+				ID: "peer:0000000000000013", Kind: "peer", Label: "0x0000000000000013", State: "unreachable", NodeID: 0x13, Role: "station",
+				SSID: "home-wifi", BSSID: "AA:BB:CC:DD:EE:FF",
+				Details: []TopologyDetail{
+					{"network", "wifi"}, {"role", "station"}, {"ssid", "home-wifi"}, {"bssid", "AA:BB:CC:DD:EE:FF"}, {"addresses", "192.168.1.13, fd00::13"},
+				},
+			},
+			{
+				ID: "peer:0000000000000014", Kind: "peer", Label: "Bridge", State: "ok", NodeID: 0x14, Role: "ethernet",
+				Details: []TopologyDetail{{"network", "ethernet"}, {"bridge", "yes"}, {"addresses", "192.168.1.20"}},
+			},
+			{
+				ID: "unknown_0011223344556677", Kind: "thread_router", Label: "0011223344556677", State: "unknown",
+				Details: []TopologyDetail{{"ext_address", "0011223344556677"}, {"ext_pan_id", pan}, {"role", "router"}},
+			},
+			{
+				ID: "unknown_8899AABBCCDDEEFF", Kind: "thread_end_device", Label: "8899AABBCCDDEEFF", State: "unknown",
+				Details: []TopologyDetail{{"ext_address", "8899AABBCCDDEEFF"}, {"ext_pan_id", pan}},
+			},
+			{
+				ID: "ap_AABBCCDDEEFF", Kind: "wifi_ap", Label: "home-wifi", State: "unknown", SSID: "home-wifi", BSSID: "AA:BB:CC:DD:EE:FF",
+				Details: []TopologyDetail{{"bssid", "AA:BB:CC:DD:EE:FF"}, {"ssid", "home-wifi"}},
+			},
+		},
+		Connections: []NetworkConnection{
+			{Source: "node", Target: "peer:0000000000000011", Kind: "session"},
+			{Source: "node", Target: "peer:0000000000000012", Kind: "session"},
+			{Source: "node", Target: "peer:0000000000000013", Kind: "session"},
+			{Source: "node", Target: "peer:0000000000000014", Kind: "session"},
+			{Source: "peer:0000000000000011", Target: "peer:0000000000000012", Kind: "link", Strength: "strong", LQI: lqi(3), RSSI: rssi(-45), Label: "LQI 3/2"},
+			{Source: "peer:0000000000000011", Target: "unknown_0011223344556677", Kind: "link", Strength: "medium", LQI: lqi(2), RSSI: rssi(-66), Label: "LQI 2/1"},
+			{Source: "peer:0000000000000011", Target: "unknown_8899AABBCCDDEEFF", Kind: "link", Strength: "weak", LQI: lqi(1), RSSI: rssi(-88)},
+			{Source: "peer:0000000000000012", Target: "unknown_0011223344556677", Kind: "link", Strength: "none", LQI: lqi(0)},
+			{Source: "peer:0000000000000013", Target: "ap_AABBCCDDEEFF", Kind: "link", Strength: "unknown"},
+		},
+	}
+}
+
+// GET /controller/topology serves the source's graph (200); a source
+// without one answers 501; refresh=true without admin rights 403.
+func TestControllerTopology_Fixtures(t *testing.T) {
+	_, mux, m := controllerHandler(t, nil)
 	runFixture(t, mux, "controller-topology.501")
+	runFixture(t, mux, "controller-topology.403")
+	topo := controllerTopology()
+	m.Topology = &topo
+	runFixture(t, mux, "controller-topology.200")
 }
 
 // refresh=true needs admin rights; the plain read does not.
@@ -183,41 +265,34 @@ func TestControllerTopology_RefreshNeedsAdmin(t *testing.T) {
 	}
 }
 
-// topologySource is a controller whose source builds a graph.
+// topologySource is a controller whose source records the refresh flag
+// and fails as told.
 type topologySource struct {
 	*MemoryController
-	got  bool
-	topo NetworkTopology
+	refreshed []bool
+	err       error
 }
 
 func (s *topologySource) NetworkTopology(_ context.Context, refresh bool) (NetworkTopology, error) {
-	s.got = refresh
-	return s.topo, nil
+	s.refreshed = append(s.refreshed, refresh)
+	return controllerTopology(), s.err
 }
 
-// A source's graph reaches the page as the contract's TopologyGraph: the
-// node id as hex with a ref to the node's page, the link's quality.
-func TestControllerTopology_MapsTheSourcesGraph(t *testing.T) {
-	rloc, lqi, rssi := uint16(0x2C01), uint8(3), int8(-61)
-	src := &topologySource{MemoryController: NewMemoryController(), topo: NetworkTopology{
-		CollectedAt: testNow,
-		Nodes: []NetworkNode{
-			{ID: "node", Kind: "node", Label: "Controller", State: "ok"},
-			{ID: "peer:0000000000000011", Kind: "thread_router", Label: "Light", State: "ok", NodeID: 0x11, Role: "router", RLOC16: &rloc, Details: []TopologyDetail{{"channel", "15"}}},
-		},
-		Connections: []NetworkConnection{{Source: "node", Target: "peer:0000000000000011", Kind: "link", Strength: "strong", LQI: &lqi, RSSI: &rssi}},
-	}}
+// The refresh flag reaches the source; a node's failure is 502.
+func TestControllerTopology_RefreshAndFailure(t *testing.T) {
+	src := &topologySource{MemoryController: NewMemoryController()}
 	_, mux := newTestHandler(t, testOptions{noNode: true, controller: src})
-	rec := do(t, mux, http.MethodGet, "/controller/topology?refresh=true", "")
-	if rec.Code != http.StatusOK || !src.got {
-		t.Fatalf("got %d %s (refresh %v)", rec.Code, rec.Body, src.got)
+	for _, path := range []string{"/controller/topology", "/controller/topology?refresh=true"} {
+		if rec := do(t, mux, http.MethodGet, path, ""); rec.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", path, rec.Code, rec.Body)
+		}
 	}
-	want := `{"as_of":"2026-10-25T12:00:00Z","edges":[{"kind":"link","lqi":3,"rssi":-61,"source":"node","strength":"strong","target":"peer:0000000000000011"}],` +
-		`"family":"controller","nodes":[{"details":[],"id":"node","kind":"node","label":"Controller","state":"ok"},` +
-		`{"details":[{"key":"channel","value":"15"}],"id":"peer:0000000000000011","kind":"thread_router","label":"Light","node_id_hex":"0000000000000011",` +
-		`"ref":{"id":"0000000000000011","page":"controller_node"},"rloc16":11265,"role":"router","state":"ok"}]}`
-	if got := string(normaliseJSON(t, rec.Body.Bytes())); got != want {
-		t.Fatalf("graph\n got: %s\nwant: %s", got, want)
+	if !slices.Equal(src.refreshed, []bool{false, true}) {
+		t.Fatalf("refresh %v", src.refreshed)
+	}
+	src.err = ErrNodeFailed
+	if rec := do(t, mux, http.MethodGet, "/controller/topology?refresh=true", ""); rec.Code != http.StatusBadGateway {
+		t.Fatalf("failure: %d %s", rec.Code, rec.Body)
 	}
 }
 

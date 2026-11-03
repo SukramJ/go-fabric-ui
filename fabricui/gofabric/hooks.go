@@ -51,6 +51,7 @@ func (h *Hooks) bind(s *source) {
 	h.mu.Lock()
 	if h.closed {
 		h.mu.Unlock()
+		s.closeTopology()
 		return
 	}
 	h.src = s
@@ -62,17 +63,22 @@ func (h *Hooks) bind(s *source) {
 	}
 }
 
-// Close stops the pending node_updated timers and drops every event from
-// now on. The host calls it before closing the controller; it is
+// Close stops the pending node_updated timers, releases the bound
+// source's subscription to its topology service and drops every event
+// from now on. The host calls it before closing the controller; it is
 // idempotent.
 func (h *Hooks) Close() {
 	h.mu.Lock()
-	defer h.mu.Unlock()
+	src := h.src
 	h.closed = true
 	h.src = nil
 	for local, t := range h.pending {
 		t.Stop()
 		delete(h.pending, local)
+	}
+	h.mu.Unlock()
+	if src != nil {
+		src.closeTopology()
 	}
 }
 

@@ -1366,9 +1366,8 @@ func (s *controllerServer) CheckUpdates(ctx context.Context, _ api.CheckUpdatesR
 // --- stream ---
 
 // GetControllerTopology serves GET /controller/topology: the port's
-// network graph as the contract's TopologyGraph. Planned (x-status) until
-// a source builds one: the memory controller and the go-fabric adapter
-// answer ErrNotImplemented, 501 (brief U3a decision 0.2).
+// network graph as the contract's TopologyGraph; a source without one
+// answers ErrNotImplemented, 501.
 func (s *controllerServer) GetControllerTopology(ctx context.Context, req api.GetControllerTopologyRequestObject) (api.GetControllerTopologyResponseObject, error) {
 	refresh := req.Params.Refresh != nil && *req.Params.Refresh
 	topo, err := s.src.NetworkTopology(ctx, refresh)
@@ -1379,7 +1378,8 @@ func (s *controllerServer) GetControllerTopology(ctx context.Context, req api.Ge
 }
 
 // networkGraph is a port topology as the contract carries it: the node
-// id as 16-digit hex, an unset strength, LQI or RSSI absent.
+// id as 16-digit hex, an unset strength, LQI or RSSI absent. Kinds,
+// states and strengths pass verbatim; the source keeps to the enums.
 func networkGraph(topo NetworkTopology) api.TopologyGraph {
 	g := api.TopologyGraph{
 		AsOf:   topo.CollectedAt.UTC(),
