@@ -91,7 +91,8 @@ Schemaänderung ankommen. Je `kind` zusätzlich die typisierten Felder, die eine
 Seite verlinkt oder färbt (`endpoint`, `fabric_index`, `session_id`,
 `node_id_hex`, `reachable`, `is_pase`, `subscriptions`, `role`, `rloc16`,
 `ssid`, `bssid`). `TopologyEdge{source, target, kind: contains | session |
-link, strength?: strong|medium|weak|unknown, lqi?, rssi?, label?}`. 64-Bit-Ids
+link, strength?: strong|medium|weak|none|unknown, lqi?, rssi?, label?}`
+(`none` ab Vertrag 0.3.1, U3b). 64-Bit-Ids
 nur als Hex-Strings; Knoten-Ids im Graphen sind Strings (`ep:12`, `fabric:1`,
 `session:42`, `peer:000000000001B669`).
 
@@ -161,6 +162,8 @@ gelesen. `make gen-types`, `make generate` (Controller-Stubs).
   U4-Fassadenlücken aus F.4 (ein Issue, eine Welle).
 - **U3b → go-fabric-ui `v0.4.1`**: `/controller/topology` gefüllt
   (`ControllerOf` ruft `controller/topology`), Tab „Network“, Fixture 200.
+  *Gelandet* (Brief U3b, `docs/reports/U3b.md`): Vertrag 0.3.1,
+  `ControllerOptions.Topology`, go-fabric `c91e5b7f`.
 - **S-Welle im Server** danach: go.mod auf go-fabric und go-fabric-ui
   `v0.4.1`, `controllerSource.NetworkTopology`, `get_network_topology` als
   Aufrufer von `controller/topology`, `web.go:21` Kommentar.

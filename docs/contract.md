@@ -92,7 +92,7 @@ Details the fixtures pin:
 
 ## The topology graph
 
-`GET /node/topology` (and, from U3b, `GET /controller/topology`) answer a
+`GET /node/topology` and `GET /controller/topology` (from U3b) answer a
 `TopologyGraph{as_of, family, nodes[], edges[]}`. A node has an `id`, a
 `kind`, a `label`, a `state` (`ok`, `unreachable`, `idle`, `unknown`), a
 `ref{page, id}` to the page that already lists it and an ordered
@@ -113,6 +113,27 @@ graph:
 - refs: `status` (the node), `endpoints` (endpoint number), `fabrics`
   (fabric index), `diagnostics` (session id); `controller_node`
   (`node_id_hex`) on the controller's graph.
+
+The controller family's graph (go-fabric's `controller/topology`, through
+`fabricui/gofabric`):
+
+- `node` is the controller (labelled by its fabric label, else
+  `Controller`; details `nodes`, `collected_at`) with a `session` edge to
+  every commissioned node, `peer:<node_id_hex>` (state `ok` or
+  `unreachable`; `role` its Thread or Wi-Fi role, else its network — an
+  Ethernet node is a `peer` with role `ethernet`, the `ethernet` kind is
+  not produced; details `network`, `role`, `rloc16`, `ext_address`,
+  `ext_pan_id`, `network_name`, `ssid`, `bssid`, `bridge`, `addresses`,
+  each only when known);
+- a Thread neighbour no commissioned node matches is
+  `unknown_<extended address>`, `thread_router` when a node saw it
+  rx-on-when-idle, else `thread_end_device`; an access point is
+  `ap_<BSSID>`, `wifi_ap`, labelled by its SSID; both have state `unknown`;
+- a `link` per Thread pair and Wi-Fi station carries `strength`
+  (`strong`, `medium`, `weak`, `none` — observed dead —, `unknown` —
+  no measurement), the `lqi` (Thread) and `rssi` of the direction the
+  strength comes from, and a `label` with both directions when they
+  differ.
 
 Subscriptions are counts per session; per-session subscription paths,
 partitions and tags wait for go-fabric (brief U3a decision 0.4).
@@ -167,9 +188,9 @@ The interaction with a controller's node failed (502); `detail` is the
 node's answer.
 
 ### problem-not_implemented
-The host's controller does not serve a planned route yet (501), today
-`GET /controller/topology`. Its detail is a fixed sentence, never an
-error's text.
+The host's controller does not serve the route (501): today
+`GET /controller/topology` from a host without a topology service. Its
+detail is a fixed sentence, never an error's text.
 
 ## Versioning
 
@@ -226,7 +247,7 @@ hand-written.
 | `/controller/fabric/label` | PUT | yes | 204, 400, 403, 500 |
 | `/controller/updates` | GET | – | 200 |
 | `/controller/updates/consent`, `/check` | POST | yes | 200/204, 400, 403, 404, 500, 503 |
-| `/controller/topology` | GET | `refresh=true` only | 200, 403, 501, 502 — planned (`x-status`), 501 `not_implemented` until U3b |
+| `/controller/topology` | GET | `refresh=true` only | 200, 403, 501, 502 — served from 0.3.1; 501 `not_implemented` from a host without a topology service |
 | `/controller/stream` | GET | – | 200 (`text/event-stream`) |
 
 Details the fixtures pin:

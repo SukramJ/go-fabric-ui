@@ -35,3 +35,4 @@ in go-fabric (German working paper). In short:
 | U1 | node family: contract v1, Go module with handlers and provider, Svelte library and standalone shell, dist guard, release with npm publish | `v0.1.0` |
 | U2 | controller family: contract 0.2.0, the `ControllerSource` port and the `gofabric.ControllerOf` adapter, handlers generated from the contract (oapi-codegen), four pages, family detection in the shell (brief U2, `docs/concept-u2-controller-family.md`) | `v0.2.0` |
 | U3a | the topology view of the node family: contract 0.3.0 (`/node/topology`, session stream events, `/controller/topology` planned), the `Graph` kit component, the Topology page (brief U3a, `docs/concept-u3-topology.md`) | `v0.4.0` |
+| U3b | the topology view of the controller family: contract 0.3.1 (`/controller/topology` served, link strength `none`), `ControllerOptions.Topology` over go-fabric's `controller/topology`, the Network tab of the nodes page (brief U3b) | `v0.4.1` |
