@@ -25,6 +25,7 @@ Paths are relative to the mount prefix (`Options.Prefix`, default
 | `/node/endpoints` | GET | – | 200, 503 | `Topology` (`Clusters`, `DeviceTypeRevision` of every endpoint, parts included) |
 | `/node/surface` | GET | – | 200, 500, 503 | `Surface` — the `surface.Report` in go-fabric's own JSON encoding (`MarshalJSON`) |
 | `/node/sessions` | GET | – | 200, 503 | `SessionDiagnostics` (sessions with subscription counts and idle ages on the node's clock, occupancy) |
+| `/node/topology` | GET | – | 200, 500, 503 | `Topology`, `FabricInfos`, `SessionDiagnostics`, `Health`, `LocalAddr` → `TopologyGraph` (v0.4.0); 503 also before the node assembled (`Topology().Aggregator` 0) |
 | `/node/mdns` | GET | – | 200, 503 | `MDNSEnabled`, `MDNSServices`, `DiagnoseMDNS` |
 | `/node/compatibility` | GET | – | 200, 503 | `FabricInfos`, `Topology`, `eligibility.Compat` |
 | `/node/events` | GET | – | 200, 503 | `DiagnosticEvents` (newest first) |
@@ -70,9 +71,11 @@ Details the fixtures pin:
   credentials. No event and no log line carries it; the tests assert both.
 - **Stream**: `event:` is `fabric_added`, `fabric_removed`,
   `window_opened`, `window_closed`, `endpoints_changed`,
-  `exposure_changed` or `surface_changed`; `data:` is JSON (`FabricEvent`,
-  `WindowEvent`, `{}`, `ExposureEvent`, `SurfaceChangedEvent`). A comment
-  line arrives every 15 s. The fabric, window and surface events come from
+  `exposure_changed`, `surface_changed`, `session_opened`,
+  `session_closed` or `subscriptions_changed`; `data:` is JSON
+  (`FabricEvent`, `WindowEvent`, `{}`, `ExposureEvent`,
+  `SurfaceChangedEvent`, `SessionEvent`). A comment line arrives every
+  15 s. The fabric, window and surface events come from
   the node (`Node.Observe`, registered per stream), once per transition,
   whoever caused it. `surface_changed` is go-fabric's
   `Observers.OnSurfaceChanged`: one event per endpoint whose served surface
@@ -81,7 +84,38 @@ Details the fixtures pin:
   that endpoint's key (`""` for the root endpoint). It arrives for a
   reassembly this handler runs (`POST /node/maintenance/reassemble`,
   `PUT /node/exposure`) and for one the host runs on its own; the routes
-  publish `endpoints_changed` alone.
+  publish `endpoints_changed` alone. The session events are go-fabric's
+  `Observers.OnSessionOpened`, `OnSessionClosed` and
+  `OnSubscriptionsChanged`: CASE sessions only (a commissioning's PASE
+  session raises none), the payload the session as `/node/sessions` lists
+  it with its subscription count after the change.
+
+## The topology graph
+
+`GET /node/topology` (and, from U3b, `GET /controller/topology`) answer a
+`TopologyGraph{as_of, family, nodes[], edges[]}`. A node has an `id`, a
+`kind`, a `label`, a `state` (`ok`, `unreachable`, `idle`, `unknown`), a
+`ref{page, id}` to the page that already lists it and an ordered
+`details[]` of `{key, value}` a page shows without knowing the kind; the
+typed fields (`endpoint`, `fabric_index`, `session_id`, `node_id_hex`,
+`reachable`, `is_pase`, `subscriptions`, `role`, `rloc16`, `ssid`,
+`bssid`) are present only for the kinds they belong to. The node family's
+graph:
+
+- `node` (state from the health sample) `contains` `ep:<aggregator>`,
+  which `contains` each device (`ep:<n>`, kind `device`, state from
+  `Reachable`), which `contains` its parts (kind `part`);
+- each `fabric:<index>` `contains` the CASE sessions on it
+  (`session:<id>`), and every session has a `session` edge to `node`; a
+  PASE session (fabric index 0) hangs on `node` alone;
+- a session is `idle` when its peer has been quiet longer than the idle
+  interval the peer reported in its handshake;
+- refs: `status` (the node), `endpoints` (endpoint number), `fabrics`
+  (fabric index), `diagnostics` (session id); `controller_node`
+  (`node_id_hex`) on the controller's graph.
+
+Subscriptions are counts per session; per-session subscription paths,
+partitions and tags wait for go-fabric (brief U3a decision 0.4).
 
 ## Admin rights
 
@@ -131,6 +165,11 @@ The request body exceeds 1 MiB.
 ### problem-node_error
 The interaction with a controller's node failed (502); `detail` is the
 node's answer.
+
+### problem-not_implemented
+The host's controller does not serve a planned route yet (501), today
+`GET /controller/topology`. Its detail is a fixed sentence, never an
+error's text.
 
 ## Versioning
 
@@ -187,6 +226,7 @@ hand-written.
 | `/controller/fabric/label` | PUT | yes | 204, 400, 403, 500 |
 | `/controller/updates` | GET | – | 200 |
 | `/controller/updates/consent`, `/check` | POST | yes | 200/204, 400, 403, 404, 500, 503 |
+| `/controller/topology` | GET | `refresh=true` only | 200, 403, 501, 502 — planned (`x-status`), 501 `not_implemented` until U3b |
 | `/controller/stream` | GET | – | 200 (`text/event-stream`) |
 
 Details the fixtures pin:
@@ -223,7 +263,8 @@ Details the fixtures pin:
   (`node_id_hex`, and `connection`, `active`, `phase`/`detail` by type).
   A commissioning's progress carries the failure's kind
   (`invalid_argument`, `no_device`, `timeout`, `node_failed`), not its
-  text. A comment line arrives every 15 s.
+  text. `topology_changed` (`{}`) tells a page to reload
+  `/controller/topology`. A comment line arrives every 15 s.
 - **`node_error`** (502): the interaction with the node failed. Unlike
   the other 5xx problems it carries a detail — the node's answer, which
   names no host path.
