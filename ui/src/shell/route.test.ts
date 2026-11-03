@@ -12,6 +12,7 @@ describe("routeOf", () => {
   it("reads the controller family's pages and a node's page with its tab", () => {
     expect(routeOf("#/controller/commission")).toEqual({ family: "controller", page: "commission" });
     expect(routeOf("#/controller")).toEqual({ family: "controller", page: "nodes" });
+    expect(routeOf("#/controller/nodes?tab=network")).toEqual({ family: "controller", page: "nodes", tab: "network" });
     expect(routeOf("#/controller/node/11?tab=acl")).toEqual({ family: "controller", page: "node", nodeId: "0000000000000011", tab: "acl" });
     expect(routeOf("#/controller/node/not-hex")).toEqual({ family: "controller", page: "node" });
   });

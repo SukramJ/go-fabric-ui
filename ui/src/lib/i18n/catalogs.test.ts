@@ -1,14 +1,15 @@
 // The catalogues cover what the pages ask for: English and German name the
 // same keys, every literal key a page, the kit or the shell translates is
-// in the English catalogue, and the topology graph's kinds, states and the
-// detail keys GET /node/topology sends have their names.
+// in the English catalogue, and the topology graph's kinds, states, link
+// strengths and the detail keys GET /node/topology and GET
+// /controller/topology send have their names.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { body } from "../../test/support";
 import type { TopologyGraph } from "../api/client";
-import { TOPOLOGY_KINDS, TOPOLOGY_STATES } from "../kit/graph-layout";
+import { TOPOLOGY_KINDS, TOPOLOGY_STATES, TOPOLOGY_STRENGTHS } from "../kit/graph-layout";
 import { catalogKeys } from ".";
 
 const SRC = fileURLToPath(new URL("../../", import.meta.url));
@@ -40,9 +41,17 @@ describe("i18n catalogues", () => {
     expect([...missing]).toEqual([]);
   });
 
-  it("name every topology kind and state and the node graph's detail keys", () => {
-    const keys = [...TOPOLOGY_KINDS.map((k) => `graph.kind.${k}`), ...TOPOLOGY_STATES.map((s) => `graph.state.${s}`)];
-    for (const n of body<TopologyGraph>("node-topology.200").nodes) for (const d of n.details) keys.push(`graph.detail.${d.key}`);
+  it("name every topology kind, state and strength and both graphs' detail keys", () => {
+    const keys = [
+      ...TOPOLOGY_KINDS.map((k) => `graph.kind.${k}`),
+      ...TOPOLOGY_STATES.map((s) => `graph.state.${s}`),
+      ...TOPOLOGY_STRENGTHS.map((s) => `graph.strength.${s}`),
+    ];
+    for (const name of ["node-topology.200", "controller-topology.200"]) {
+      const g = body<TopologyGraph>(name);
+      for (const n of g.nodes) keys.push(`graph.kind.${n.kind}`, `graph.state.${n.state}`, ...n.details.map((d) => `graph.detail.${d.key}`));
+      for (const e of g.edges) if (e.strength) keys.push(`graph.strength.${e.strength}`);
+    }
     expect(keys.filter((k) => !en.has(k))).toEqual([]);
   });
 });

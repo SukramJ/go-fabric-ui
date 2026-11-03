@@ -1,12 +1,14 @@
 <!-- A topology graph (the contract's TopologyGraph) in hand-written SVG:
      the layered layout of graph-layout.ts, a shape per kind and a border
      colour per state from the theme tokens, pan and zoom on the viewBox
-     (wheel, drag, buttons), and a side panel with the selected node's
-     details and the link its ref names. Keyboard: Tab moves across the
+     (wheel, drag, buttons), a link's strength as its stroke (thicker is
+     stronger, dotted is dead) with its LQI and RSSI in its title, and a
+     side panel with the selected node's details and the link its ref
+     names. Keyboard: Tab moves across the
      nodes and selects the focused one, Enter follows its link, Escape
      clears the selection. -->
 <script lang="ts">
-  import type { TopologyGraph, TopologyNode } from "../api/client";
+  import type { TopologyEdge, TopologyGraph, TopologyNode } from "../api/client";
   import { useT } from "../context";
   import Badge from "./Badge.svelte";
   import Button from "./Button.svelte";
@@ -30,6 +32,7 @@
 
   const layout = $derived(layoutGraph(graph.nodes, graph.edges));
   const byId = $derived(new Map(graph.nodes.map((n) => [n.id, n])));
+  const edgeOf = $derived(new Map(graph.edges.map((e) => [e.source + ">" + e.target, e])));
 
   // The view box: the whole graph until the viewer pans or zooms; a
   // reload keeps a view the viewer chose.
@@ -63,6 +66,26 @@
     unknown: "var(--ha-divider-color)",
   };
   const STATE_BADGE = { ok: "success", unreachable: "danger", idle: "warning", unknown: "muted" } as const;
+
+  // A link's stroke by its strength: thicker is stronger, a dead link
+  // (none) dotted and muted; a session dashed; containment plain.
+  const LINK_WIDTH: Record<string, number> = { strong: 3, medium: 2, weak: 1, none: 1, unknown: 1 };
+  function edgeStroke(e: TopologyEdge | undefined) {
+    if (e?.kind === "session") return { width: 1.5, dash: "5 4", color: "var(--ha-divider-color)" };
+    if (e?.kind !== "link") return { width: 1.5, dash: undefined, color: "var(--ha-divider-color)" };
+    const s = e.strength ?? "unknown";
+    if (s === "none") return { width: 1, dash: "1 4", color: "var(--ha-divider-color)" };
+    return { width: LINK_WIDTH[s] ?? 1, dash: undefined, color: "var(--ha-secondary-text-color)" };
+  }
+  // A link's title: its strength, LQI, RSSI and caption.
+  function edgeTitle(e: TopologyEdge | undefined): string | undefined {
+    if (e?.kind !== "link") return undefined;
+    const parts = [t(`graph.strength.${e.strength ?? "unknown"}`)];
+    if (e.lqi !== undefined) parts.push(`LQI ${e.lqi}`);
+    if (e.rssi !== undefined) parts.push(`RSSI ${e.rssi} dBm`);
+    if (e.label) parts.push(e.label);
+    return parts.join(" · ");
+  }
 
   const kindName = (k: string) => t(`graph.kind.${k}`);
   const stateName = (s: string) => t(`graph.state.${s}`);
@@ -169,9 +192,21 @@
       onpointerup={onPointerUp}
       onpointercancel={onPointerUp}
     >
-      <g fill="none" stroke="var(--ha-divider-color)" stroke-width="1.5">
+      <g fill="none" stroke-linecap="round">
         {#each layout.edges as e (e.source + ">" + e.target)}
-          <path d={e.path} data-edge-kind={e.kind} stroke-dasharray={e.kind === "session" ? "5 4" : undefined} />
+          {@const edge = edgeOf.get(e.source + ">" + e.target)}
+          {@const stroke = edgeStroke(edge)}
+          {@const title = edgeTitle(edge)}
+          <path
+            d={e.path}
+            data-edge-kind={e.kind}
+            data-strength={edge?.kind === "link" ? (edge.strength ?? "unknown") : undefined}
+            stroke={stroke.color}
+            stroke-width={stroke.width}
+            stroke-dasharray={stroke.dash}
+          >
+            {#if title}<title>{title}</title>{/if}
+          </path>
         {/each}
       </g>
       {#each layout.nodes as ln (ln.id)}

@@ -30,6 +30,8 @@ export interface Routes {
   diagnostics: string;
   topology: string;
   controllerNodes: string;
+  /** The nodes page's network tab. */
+  controllerNetwork: string;
   controllerCommission: string;
   controllerSettings: string;
   /** The prefix of one node's page; the page appends the node's 16-digit hex id. */
@@ -46,6 +48,7 @@ export const defaultRoutes: Routes = {
   diagnostics: "#/node/diagnostics",
   topology: "#/node/topology",
   controllerNodes: "#/controller/nodes",
+  controllerNetwork: "#/controller/nodes?tab=network",
   controllerCommission: "#/controller/commission",
   controllerSettings: "#/controller/settings",
   controllerNode: "#/controller/node/",

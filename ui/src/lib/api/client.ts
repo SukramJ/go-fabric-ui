@@ -178,7 +178,7 @@ export interface FabricClient {
   updates(): Promise<UpdateQueue>;
   consentUpdate(req: UpdateConsentRequest): Promise<void>;
   checkUpdates(): Promise<AvailableUpdateList>;
-  /** The controller's network as a graph; refresh re-reads the nodes' diagnostics first (admin). Planned: 501 until a source builds one. */
+  /** The controller's network as a graph; refresh re-reads the nodes' diagnostics first (admin). 501 when the host serves no graph. */
   controllerTopology(refresh?: boolean): Promise<TopologyGraph>;
   /** The URL of the controller's event stream. */
   controllerStreamUrl(): string;

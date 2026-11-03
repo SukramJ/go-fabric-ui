@@ -120,3 +120,20 @@ describe("node store", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 });
+
+describe("controller store", () => {
+  it("moves the graph epoch once per burst of topology_changed, and not after close", async () => {
+    const ui = testUI();
+    ui.controller.applyEvent({ type: "topology_changed", data: {} });
+    ui.controller.applyEvent({ type: "topology_changed", data: {} });
+    expect(ui.controller.graphEpoch).toBe(0);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(ui.controller.graphEpoch).toBe(1);
+    expect(ui.controller.revision).toBe(0);
+    ui.controller.applyEvent({ type: "topology_changed", data: {} });
+    ui.controller.close();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(ui.controller.graphEpoch).toBe(1);
+    expect(ui.sent).toEqual([]);
+  });
+});

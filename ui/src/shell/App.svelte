@@ -162,6 +162,8 @@
           {#key route.nodeId}
             <ControllerNode nodeId={route.nodeId} tab={route.tab} />
           {/key}
+        {:else if controllerPage === "nodes"}
+          <ControllerNodes tab={route.tab} />
         {:else}
           <ControllerCurrent />
         {/if}

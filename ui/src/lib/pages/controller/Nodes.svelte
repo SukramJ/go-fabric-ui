@@ -1,7 +1,9 @@
-<!-- The commissioned nodes: a table with filters by connection, vendor and
-     ICD, and the actions an administrator takes on a node — interview,
-     open a window for another administrator (on the node's page),
-     disable or enable, decommission. A row opens the node's page. -->
+<!-- The commissioned nodes, in two tabs. The list: a table with filters by
+     connection, vendor and ICD, and the actions an administrator takes on
+     a node — interview, open a window for another administrator (on the
+     node's page), disable or enable, decommission; a row opens the node's
+     page. The network: the controller's network graph (Network.svelte,
+     brief U3b), linked as #/controller/nodes?tab=network. -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -15,9 +17,27 @@
   import ErrorState from "../../kit/ErrorState.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
   import Select from "../../kit/Select.svelte";
+  import Tabs from "../../kit/Tabs.svelte";
   import { connectionLabel, connectionVariant, nodeName, vendorLabel } from "./format";
+  import Network from "./Network.svelte";
+
+  type Props = { tab?: string; follow?: (href: string) => void };
+  let { tab = "list", follow }: Props = $props();
 
   const { t, toast, confirm, client, controller, routes } = useFabricUI();
+
+  const TABS = ["list", "network"] as const;
+  type Tab = (typeof TABS)[number];
+  const isTab = (v: string): v is Tab => (TABS as readonly string[]).includes(v);
+  // The route's tab, and a click on a tab where no router follows the link.
+  let chosen = $state<Tab | null>(null);
+  const active = $derived<Tab>(chosen ?? (isTab(tab) ? tab : "list"));
+  $effect(() => {
+    void tab;
+    chosen = null;
+  });
+  const tabHref: Record<Tab, string> = { list: routes.controllerNodes, network: routes.controllerNetwork };
+  const tabItems = $derived(TABS.map((k) => ({ key: k, label: t(`controller.nodes.tab.${k}`), href: tabHref[k] })));
 
   onMount(() => {
     void controller.loadNodes();
@@ -88,69 +108,74 @@
 </script>
 
 <div class="space-y-4">
-  <div class="flex flex-wrap items-center gap-3">
-    <Select class="w-auto" ariaLabel={t("controller.nodes.filter_connection")} value={connection} onValueChange={(v) => (connection = v as typeof connection)} options={connectionOptions} />
-    <Select class="w-auto" ariaLabel={t("controller.nodes.filter_vendor")} value={vendor} onValueChange={(v) => (vendor = v as typeof vendor)} options={vendorOptions} />
-    <Select class="w-auto" ariaLabel={t("controller.nodes.filter_icd")} value={icd} onValueChange={(v) => (icd = v as typeof icd)} options={icdOptions} />
-    <a href={routes.controllerCommission} class="ml-auto text-sm font-medium text-[var(--ha-primary-color)] hover:underline">{t("controller.nodes.commission")}</a>
-  </div>
-  {#if controller.nodesLoading && controller.nodes.length === 0}
-    <LoadingState message={t("common.loading")} />
-  {:else if controller.nodesError}
-    <ErrorState message={controller.nodesError} onRetry={() => void controller.loadNodes()} />
+  <Tabs items={tabItems} {active} onSelect={(k) => (chosen = isTab(k) ? k : "list")} ariaLabel={t("controller.nodes.tabs")} />
+  {#if active === "network"}
+    <Network {follow} />
   {:else}
-    <Card class="p-4">
-      <DataTable
-        {rows}
-        {columns}
-        rowKey={(n) => n.node_id_hex}
-        persistKey="controller-nodes"
-        search
-        searchPlaceholder={t("common.search")}
-        emptyMessage={t("controller.nodes.empty")}
-        initialSort={{ key: "name", asc: true }}
-        onRowClick={open}
-      >
-        {#snippet cell(n, col)}
-          {#if col.key === "name"}
-            <span class="inline-flex flex-wrap items-center gap-1 text-[var(--ha-primary-text-color)]">
-              {nodeName(n)}
-              {#if n.icd}<Badge variant="muted">{t("controller.nodes.icd")}</Badge>{/if}
-              {#if n.disabled}<Badge variant="warning">{t("controller.nodes.disabled")}</Badge>{/if}
-            </span>
-          {:else if col.key === "vendor"}
-            <span class="text-[var(--ha-secondary-text-color)]">{vendorLabel(n.vendor_name, n.vendor_id)}</span>
-          {:else if col.key === "node_id"}
-            <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">0x{n.node_id_hex}</span>
-          {:else if col.key === "connection"}
-            <span class="inline-flex flex-wrap items-center gap-1">
-              <Badge variant={connectionVariant(n.connection)}>{connectionLabel(t, n.connection)}</Badge>
-              {#if n.subscription_active}<Badge variant="default">{t("controller.nodes.subscribed")}</Badge>{/if}
-            </span>
-          {:else if col.key === "addresses"}
-            <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">{n.addresses.join(", ")}</span>
-          {:else if col.key === "action"}
-            <span class="inline-flex flex-wrap justify-end gap-1">
-              <Button size="sm" variant="ghost" disabled={busy === n.node_id_hex} onclick={() => void act(n, () => client.interviewNode(n.node_id_hex), "controller.nodes.interviewed")}>
-                {t("controller.nodes.interview")}
-              </Button>
-              <a class="inline-flex items-center px-2 text-sm text-[var(--ha-primary-color)] hover:underline" href={`${routes.controllerNode}${n.node_id_hex}?tab=window`}>{t("controller.nodes.window")}</a>
-              {#if n.disabled}
-                <Button size="sm" variant="ghost" disabled={busy === n.node_id_hex} onclick={() => void act(n, () => client.enableNode(n.node_id_hex), "controller.nodes.enabled")}>
-                  {t("controller.nodes.enable")}
+    <div class="flex flex-wrap items-center gap-3">
+      <Select class="w-auto" ariaLabel={t("controller.nodes.filter_connection")} value={connection} onValueChange={(v) => (connection = v as typeof connection)} options={connectionOptions} />
+      <Select class="w-auto" ariaLabel={t("controller.nodes.filter_vendor")} value={vendor} onValueChange={(v) => (vendor = v as typeof vendor)} options={vendorOptions} />
+      <Select class="w-auto" ariaLabel={t("controller.nodes.filter_icd")} value={icd} onValueChange={(v) => (icd = v as typeof icd)} options={icdOptions} />
+      <a href={routes.controllerCommission} class="ml-auto text-sm font-medium text-[var(--ha-primary-color)] hover:underline">{t("controller.nodes.commission")}</a>
+    </div>
+    {#if controller.nodesLoading && controller.nodes.length === 0}
+      <LoadingState message={t("common.loading")} />
+    {:else if controller.nodesError}
+      <ErrorState message={controller.nodesError} onRetry={() => void controller.loadNodes()} />
+    {:else}
+      <Card class="p-4">
+        <DataTable
+          {rows}
+          {columns}
+          rowKey={(n) => n.node_id_hex}
+          persistKey="controller-nodes"
+          search
+          searchPlaceholder={t("common.search")}
+          emptyMessage={t("controller.nodes.empty")}
+          initialSort={{ key: "name", asc: true }}
+          onRowClick={open}
+        >
+          {#snippet cell(n, col)}
+            {#if col.key === "name"}
+              <span class="inline-flex flex-wrap items-center gap-1 text-[var(--ha-primary-text-color)]">
+                {nodeName(n)}
+                {#if n.icd}<Badge variant="muted">{t("controller.nodes.icd")}</Badge>{/if}
+                {#if n.disabled}<Badge variant="warning">{t("controller.nodes.disabled")}</Badge>{/if}
+              </span>
+            {:else if col.key === "vendor"}
+              <span class="text-[var(--ha-secondary-text-color)]">{vendorLabel(n.vendor_name, n.vendor_id)}</span>
+            {:else if col.key === "node_id"}
+              <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">0x{n.node_id_hex}</span>
+            {:else if col.key === "connection"}
+              <span class="inline-flex flex-wrap items-center gap-1">
+                <Badge variant={connectionVariant(n.connection)}>{connectionLabel(t, n.connection)}</Badge>
+                {#if n.subscription_active}<Badge variant="default">{t("controller.nodes.subscribed")}</Badge>{/if}
+              </span>
+            {:else if col.key === "addresses"}
+              <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">{n.addresses.join(", ")}</span>
+            {:else if col.key === "action"}
+              <span class="inline-flex flex-wrap justify-end gap-1">
+                <Button size="sm" variant="ghost" disabled={busy === n.node_id_hex} onclick={() => void act(n, () => client.interviewNode(n.node_id_hex), "controller.nodes.interviewed")}>
+                  {t("controller.nodes.interview")}
                 </Button>
-              {:else}
-                <Button size="sm" variant="ghost" disabled={busy === n.node_id_hex} onclick={() => void act(n, () => client.disableNode(n.node_id_hex), "controller.nodes.disabled_done")}>
-                  {t("controller.nodes.disable")}
+                <a class="inline-flex items-center px-2 text-sm text-[var(--ha-primary-color)] hover:underline" href={`${routes.controllerNode}${n.node_id_hex}?tab=window`}>{t("controller.nodes.window")}</a>
+                {#if n.disabled}
+                  <Button size="sm" variant="ghost" disabled={busy === n.node_id_hex} onclick={() => void act(n, () => client.enableNode(n.node_id_hex), "controller.nodes.enabled")}>
+                    {t("controller.nodes.enable")}
+                  </Button>
+                {:else}
+                  <Button size="sm" variant="ghost" disabled={busy === n.node_id_hex} onclick={() => void act(n, () => client.disableNode(n.node_id_hex), "controller.nodes.disabled_done")}>
+                    {t("controller.nodes.disable")}
+                  </Button>
+                {/if}
+                <Button size="sm" variant="ghost" class="text-[var(--ha-error-color)]" disabled={busy === n.node_id_hex} onclick={() => void decommission(n)}>
+                  {t("common.remove")}
                 </Button>
-              {/if}
-              <Button size="sm" variant="ghost" class="text-[var(--ha-error-color)]" disabled={busy === n.node_id_hex} onclick={() => void decommission(n)}>
-                {t("common.remove")}
-              </Button>
-            </span>
-          {/if}
-        {/snippet}
-      </DataTable>
-    </Card>
+              </span>
+            {/if}
+          {/snippet}
+        </DataTable>
+      </Card>
+    {/if}
   {/if}
 </div>

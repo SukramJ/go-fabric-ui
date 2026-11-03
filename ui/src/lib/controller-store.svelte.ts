@@ -51,9 +51,13 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   // Bumped on every event about a node, so an open node page reloads.
   let revision = $state(0);
   let changed = $state<string | null>(null);
+  // graphEpoch moves, once per burst, on every topology_changed: the
+  // network graph's page (GET /controller/topology) reloads when it does.
+  let graphEpoch = $state(0);
 
   let unsub: (() => void) | null = null;
   let reload: ReturnType<typeof setTimeout> | null = null;
+  let graphTimer: ReturnType<typeof setTimeout> | null = null;
 
   const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -111,6 +115,16 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     }, RELOAD_DELAY);
   }
 
+  // A commissioning or a refresh moves the graph in steps; collapse a
+  // burst into one move of the graph epoch, as the node store does.
+  function scheduleGraphReload() {
+    if (graphTimer) clearTimeout(graphTimer);
+    graphTimer = setTimeout(() => {
+      graphTimer = null;
+      graphEpoch++;
+    }, 300);
+  }
+
   function applyEvent(ev: ControllerStreamEvent) {
     switch (ev.type) {
       case "commissioning_progress": {
@@ -123,8 +137,9 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
         void loadUpdates();
         break;
       case "topology_changed":
-        // The network graph's page (brief U3b) reloads on it; no node
-        // changed, so the lists stay.
+        // The network graph's page reloads on it; no node changed, so the
+        // lists stay.
+        scheduleGraphReload();
         break;
       default:
         changed = ev.data.node_id_hex ?? null;
@@ -144,8 +159,8 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   }
 
   function close() {
-    if (reload) clearTimeout(reload);
-    reload = null;
+    for (const timer of [reload, graphTimer]) if (timer) clearTimeout(timer);
+    reload = graphTimer = null;
     unsub?.();
     unsub = null;
   }
@@ -165,6 +180,8 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     get revision() { return revision; },
     /** The node the last event named. */
     get changed() { return changed; },
+    /** Moves once per burst of topology_changed; the network page reloads when it does. */
+    get graphEpoch() { return graphEpoch; },
     loadStatus,
     loadNodes,
     loadCredentials,

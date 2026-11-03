@@ -42,6 +42,29 @@ describe("Graph", () => {
     expect(document.querySelectorAll('path[data-edge-kind="session"]')).toHaveLength(3);
   });
 
+  it("draws a link by its strength — thicker is stronger, a dead one dotted — with its quality as the title", () => {
+    render(Graph, { graph: body<TopologyGraph>("controller-topology.200"), label: "Network" });
+    const link = (s: string) => document.querySelector(`path[data-strength="${s}"]`)!;
+    expect([...document.querySelectorAll('path[data-edge-kind="link"]')].map((p) => p.getAttribute("data-strength"))).toEqual([
+      "strong",
+      "medium",
+      "weak",
+      "none",
+      "unknown",
+    ]);
+    expect(["strong", "medium", "weak", "none", "unknown"].map((s) => link(s).getAttribute("stroke-width"))).toEqual(["3", "2", "1", "1", "1"]);
+    expect(link("none")).toHaveAttribute("stroke-dasharray", "1 4");
+    expect(link("none")).toHaveAttribute("stroke", "var(--ha-divider-color)");
+    expect(link("unknown")).not.toHaveAttribute("stroke-dasharray");
+    expect(link("strong")).toHaveAttribute("stroke", "var(--ha-secondary-text-color)");
+    expect(link("strong").querySelector("title")).toHaveTextContent("Strong · LQI 3 · RSSI -45 dBm · LQI 3/2");
+    expect(link("none").querySelector("title")).toHaveTextContent("No link · LQI 0");
+    const session = document.querySelector('path[data-edge-kind="session"]')!;
+    expect(session).toHaveAttribute("stroke-dasharray", "5 4");
+    expect(session).not.toHaveAttribute("data-strength");
+    expect(session.querySelector("title")).toBeNull();
+  });
+
   it("shows the selected node's details and link in the side panel and clears it with Escape", async () => {
     render(Graph, { graph: graph(), hrefOf, label: "Topology" });
     const panel = screen.getByTestId("graph-panel");
