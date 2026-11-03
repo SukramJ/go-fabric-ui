@@ -163,6 +163,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/node/topology": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The node as a graph — its bridge, its fabrics and the sessions on them.
+         * @description Built from go-fabric's `Topology`, `FabricInfos` and
+         *     `SessionDiagnostics`: the node, its Aggregator, the bridged devices
+         *     and their parts (`contains`), each fabric with the sessions on it
+         *     (`contains`) and every session to the node (`session`). A PASE
+         *     session (fabric index 0) hangs on the node without a fabric. Node
+         *     ids are `node`, `ep:<n>`, `fabric:<index>`, `session:<id>`.
+         *     Subscriptions are counts per session. 503 while the host serves no
+         *     node or the node has not assembled its endpoints.
+         */
+        get: operations["getNodeTopology"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/node/mdns": {
         parameters: {
             query?: never;
@@ -310,9 +337,14 @@ export interface paths {
         /**
          * Server-sent events.
          * @description `event:` is one of fabric_added, fabric_removed, window_opened,
-         *     window_closed, endpoints_changed, exposure_changed, surface_changed;
-         *     `data:` is the JSON payload (`FabricEvent`, `WindowEvent`, `{}`,
-         *     `ExposureEvent`, `SurfaceChangedEvent`).
+         *     window_closed, endpoints_changed, exposure_changed, surface_changed,
+         *     session_opened, session_closed, subscriptions_changed; `data:` is
+         *     the JSON payload (`FabricEvent`, `WindowEvent`, `{}`,
+         *     `ExposureEvent`, `SurfaceChangedEvent`, `SessionEvent`).
+         *     session_opened reports CASE sessions only (go-fabric
+         *     node.Observers.OnSessionOpened); a PASE session is not reported, and
+         *     session_closed and subscriptions_changed follow only a session
+         *     session_opened reported.
          *     A comment line arrives every 15 s. No payload carries a passcode.
          */
         get: operations["stream"];
@@ -832,6 +864,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/controller/topology": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The controller's network as a graph — its nodes and the links between them.
+         * @description Planned (brief U3b): answers 501 `not_implemented` until go-fabric's
+         *     controller topology builder lands. The graph's schema is final:
+         *     `family` is `controller`, nodes are the controller and its
+         *     commissioned nodes (`peer:<node_id_hex>`) with their Thread or
+         *     Wi-Fi role, edges the links with their strength. `refresh=true`
+         *     re-reads the nodes' network diagnostics first and needs admin
+         *     rights (403 without them).
+         */
+        get: operations["getControllerTopology"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/controller/stream": {
         parameters: {
             query?: never;
@@ -842,8 +900,10 @@ export interface paths {
         /**
          * Server-sent events of the controller.
          * @description `event:` is one of node_added, node_updated, node_removed,
-         *     connection, subscription, commissioning_progress, update; `data:`
-         *     is a `ControllerEvent`. A comment line arrives every 15 s. No
+         *     connection, subscription, commissioning_progress, update,
+         *     topology_changed; `data:` is a `ControllerEvent` (`{}` for
+         *     topology_changed, which tells a page to reload
+         *     `/controller/topology`). A comment line arrives every 15 s. No
          *     payload carries a passcode or a credential.
          */
         get: operations["controllerStream"];
@@ -866,7 +926,7 @@ export interface components {
             detail?: string;
             instance?: string;
             /** @enum {string} */
-            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error";
+            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented";
         };
         Status: {
             enabled: boolean;
@@ -1025,6 +1085,88 @@ export interface components {
             sessions: components["schemas"]["Session"][];
             occupancy: components["schemas"]["Occupancy"];
         };
+        /** @description A family's topology as nodes and edges; the renderer needs no knowledge per kind. */
+        TopologyGraph: {
+            /**
+             * Format: date-time
+             * @description When the graph was read
+             */
+            as_of: string;
+            /** @enum {string} */
+            family: "node" | "controller";
+            nodes: components["schemas"]["TopologyNode"][];
+            edges: components["schemas"]["TopologyEdge"][];
+        };
+        /**
+         * @description One node of the graph. `details` is the ordered list a page shows
+         *     for it; the typed fields are the ones a page links or colours by,
+         *     each present only for the kinds it belongs to.
+         */
+        TopologyNode: {
+            /** @description Unique in the graph: `node`, `ep:<n>`, `fabric:<index>`, `session:<id>`, `peer:<node_id_hex>`. */
+            id: string;
+            /** @enum {string} */
+            kind: "node" | "aggregator" | "device" | "part" | "fabric" | "session" | "peer" | "thread_router" | "thread_end_device" | "wifi_ap" | "ethernet";
+            label: string;
+            /** @enum {string} */
+            state: "ok" | "unreachable" | "idle" | "unknown";
+            ref?: components["schemas"]["TopologyRef"];
+            details: components["schemas"]["TopologyDetail"][];
+            /** @description aggregator, device, part: the endpoint number. */
+            endpoint?: number;
+            /** @description fabric, session: the fabric index; 0 for a PASE session. */
+            fabric_index?: number;
+            /** @description session: the local session id. */
+            session_id?: number;
+            /** @description fabric: our node id on it; session: the peer's; peer: the node's. */
+            node_id_hex?: string;
+            /** @description device, part: Reachable as a controller reads it. */
+            reachable?: boolean;
+            /** @description session: a commissioning (PASE) session. */
+            is_pase?: boolean;
+            /** @description session: the subscriptions riding on it. */
+            subscriptions?: number;
+            /** @description peer: its Thread routing role or network kind. */
+            role?: string;
+            /** @description peer: its Thread RLOC16. */
+            rloc16?: number;
+            /** @description wifi_ap, peer: the Wi-Fi network. */
+            ssid?: string;
+            /** @description wifi_ap, peer: the access point's BSSID. */
+            bssid?: string;
+        };
+        TopologyEdge: {
+            /** @description A node id. */
+            source: string;
+            /** @description A node id. */
+            target: string;
+            /** @enum {string} */
+            kind: "contains" | "session" | "link";
+            /**
+             * @description link: the link's quality class.
+             * @enum {string}
+             */
+            strength?: "strong" | "medium" | "weak" | "unknown";
+            /** @description link: Thread link quality indicator. */
+            lqi?: number;
+            /** @description link: received signal strength, dBm. */
+            rssi?: number;
+            label?: string;
+        };
+        /**
+         * @description The page that already lists the node and the id it lists it by:
+         *     `endpoints` (endpoint number), `fabrics` (fabric index),
+         *     `diagnostics` (session id), `controller_node` (`node_id_hex`).
+         */
+        TopologyRef: {
+            page: string;
+            id: string;
+        };
+        TopologyDetail: {
+            /** @description A stable key a page translates (`device_type`, `clusters`, …). */
+            key: string;
+            value: string;
+        };
         MdnsService: {
             service_type: string;
             instance_name: string;
@@ -1156,6 +1298,25 @@ export interface components {
         WindowEvent: {
             discriminator?: number;
             duration_seconds?: number;
+        };
+        /** @description The payload of session_opened, session_closed and subscriptions_changed — the session as `/node/sessions` lists it, with its new subscription count. */
+        SessionEvent: {
+            session_id: number;
+            fabric_index: number;
+            /** @description Informational; use peer_node_id_hex. */
+            peer_node_id: number;
+            peer_node_id_hex: string;
+            /** @description Informational; use local_node_id_hex. */
+            local_node_id: number;
+            local_node_id_hex: string;
+            is_pase: boolean;
+            subscriptions: number;
+            /** Format: date-time */
+            last_activity: string;
+            /** Format: date-time */
+            last_peer_activity: string;
+            idle_seconds: number;
+            peer_idle_seconds: number;
         };
         ExposureEvent: {
             keys: string[];
@@ -1867,6 +2028,28 @@ export interface operations {
                     "application/json": components["schemas"]["SessionList"];
                 };
             };
+            503: components["responses"]["Problem"];
+        };
+    };
+    getNodeTopology: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The graph. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopologyGraph"];
+                };
+            };
+            500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -2930,6 +3113,32 @@ export interface operations {
             403: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
+        };
+    };
+    getControllerTopology: {
+        parameters: {
+            query?: {
+                /** @description Re-read the nodes' network diagnostics before answering; admin only. */
+                refresh?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The graph. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopologyGraph"];
+                };
+            };
+            403: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
         };
     };
     controllerStream: {

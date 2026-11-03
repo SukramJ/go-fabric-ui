@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-03
+
+The topology view of the node family (brief U3a); contract 0.3.0.
+
 ## [0.3.0] - 2026-11-02
 
 Built on go-fabric v0.16.0, whose facade removed what `NodeSource` and the
