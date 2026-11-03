@@ -30,6 +30,25 @@ type sessionResponse struct {
 	PeerIdleSeconds  int64  `json:"peer_idle_seconds"`
 }
 
+// sessionOf is one session as GET /node/sessions and the stream's session
+// events carry it.
+func sessionOf(s *node.SessionInfo) sessionResponse {
+	return sessionResponse{
+		SessionID:        s.ID,
+		FabricIndex:      s.FabricIndex,
+		PeerNodeID:       s.PeerNodeID,
+		PeerNodeIDHex:    hex64(s.PeerNodeID),
+		LocalNodeID:      s.LocalNodeID,
+		LocalNodeIDHex:   hex64(s.LocalNodeID),
+		IsPASE:           s.PASE,
+		Subscriptions:    s.Subscriptions,
+		LastActivity:     s.LastActivity.UTC().Format(time.RFC3339),
+		LastPeerActivity: s.LastPeerActivity.UTC().Format(time.RFC3339),
+		IdleSeconds:      int64(s.Idle.Seconds()),
+		PeerIdleSeconds:  int64(s.PeerIdle.Seconds()),
+	}
+}
+
 // occupancyResponse is how much of the session-id space is in use,
 // including ids staked by handshakes that never completed (loom
 // matter.go:333-347).
@@ -59,21 +78,7 @@ func (h *handler) sessions(w http.ResponseWriter, r *http.Request) {
 	diag := h.node.sessions()
 	out := make([]sessionResponse, 0, len(diag.Sessions))
 	for i := range diag.Sessions {
-		s := &diag.Sessions[i]
-		out = append(out, sessionResponse{
-			SessionID:        s.ID,
-			FabricIndex:      s.FabricIndex,
-			PeerNodeID:       s.PeerNodeID,
-			PeerNodeIDHex:    hex64(s.PeerNodeID),
-			LocalNodeID:      s.LocalNodeID,
-			LocalNodeIDHex:   hex64(s.LocalNodeID),
-			IsPASE:           s.PASE,
-			Subscriptions:    s.Subscriptions,
-			LastActivity:     s.LastActivity.UTC().Format(time.RFC3339),
-			LastPeerActivity: s.LastPeerActivity.UTC().Format(time.RFC3339),
-			IdleSeconds:      int64(s.Idle.Seconds()),
-			PeerIdleSeconds:  int64(s.PeerIdle.Seconds()),
-		})
+		out = append(out, sessionOf(&diag.Sessions[i]))
 	}
 	occ := diag.Occupancy
 	writeJSON(w, sessionList{Sessions: out, Occupancy: occupancyResponse{

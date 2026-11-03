@@ -114,6 +114,7 @@ func (h *handler) register(mux *http.ServeMux) {
 	read("GET "+p+"/endpoints", h.endpoints)
 	read("GET "+p+"/surface", h.surfaceReport)
 	read("GET "+p+"/sessions", h.sessions)
+	read("GET "+p+"/topology", h.topology)
 	read("GET "+p+"/mdns", h.mdns)
 	read("GET "+p+"/compatibility", h.compatibility)
 	read("GET "+p+"/events", h.diagnosticEvents)

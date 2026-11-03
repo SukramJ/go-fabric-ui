@@ -176,6 +176,7 @@ const (
 	ProblemCodeInternal        ProblemCode = "internal"
 	ProblemCodeNodeError       ProblemCode = "node_error"
 	ProblemCodeNotFound        ProblemCode = "not_found"
+	ProblemCodeNotImplemented  ProblemCode = "not_implemented"
 	ProblemCodePayloadTooLarge ProblemCode = "payload_too_large"
 	ProblemCodeServiceUnready  ProblemCode = "service_unready"
 )
@@ -195,9 +196,143 @@ func (e ProblemCode) Valid() bool {
 		return true
 	case ProblemCodeNotFound:
 		return true
+	case ProblemCodeNotImplemented:
+		return true
 	case ProblemCodePayloadTooLarge:
 		return true
 	case ProblemCodeServiceUnready:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TopologyEdgeKind.
+const (
+	TopologyEdgeKindContains TopologyEdgeKind = "contains"
+	TopologyEdgeKindLink     TopologyEdgeKind = "link"
+	TopologyEdgeKindSession  TopologyEdgeKind = "session"
+)
+
+// Valid indicates whether the value is a known member of the TopologyEdgeKind enum.
+func (e TopologyEdgeKind) Valid() bool {
+	switch e {
+	case TopologyEdgeKindContains:
+		return true
+	case TopologyEdgeKindLink:
+		return true
+	case TopologyEdgeKindSession:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TopologyEdgeStrength.
+const (
+	TopologyEdgeStrengthMedium  TopologyEdgeStrength = "medium"
+	TopologyEdgeStrengthStrong  TopologyEdgeStrength = "strong"
+	TopologyEdgeStrengthUnknown TopologyEdgeStrength = "unknown"
+	TopologyEdgeStrengthWeak    TopologyEdgeStrength = "weak"
+)
+
+// Valid indicates whether the value is a known member of the TopologyEdgeStrength enum.
+func (e TopologyEdgeStrength) Valid() bool {
+	switch e {
+	case TopologyEdgeStrengthMedium:
+		return true
+	case TopologyEdgeStrengthStrong:
+		return true
+	case TopologyEdgeStrengthUnknown:
+		return true
+	case TopologyEdgeStrengthWeak:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TopologyGraphFamily.
+const (
+	TopologyGraphFamilyController TopologyGraphFamily = "controller"
+	TopologyGraphFamilyNode       TopologyGraphFamily = "node"
+)
+
+// Valid indicates whether the value is a known member of the TopologyGraphFamily enum.
+func (e TopologyGraphFamily) Valid() bool {
+	switch e {
+	case TopologyGraphFamilyController:
+		return true
+	case TopologyGraphFamilyNode:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TopologyNodeKind.
+const (
+	TopologyNodeKindAggregator      TopologyNodeKind = "aggregator"
+	TopologyNodeKindDevice          TopologyNodeKind = "device"
+	TopologyNodeKindEthernet        TopologyNodeKind = "ethernet"
+	TopologyNodeKindFabric          TopologyNodeKind = "fabric"
+	TopologyNodeKindNode            TopologyNodeKind = "node"
+	TopologyNodeKindPart            TopologyNodeKind = "part"
+	TopologyNodeKindPeer            TopologyNodeKind = "peer"
+	TopologyNodeKindSession         TopologyNodeKind = "session"
+	TopologyNodeKindThreadEndDevice TopologyNodeKind = "thread_end_device"
+	TopologyNodeKindThreadRouter    TopologyNodeKind = "thread_router"
+	TopologyNodeKindWifiAp          TopologyNodeKind = "wifi_ap"
+)
+
+// Valid indicates whether the value is a known member of the TopologyNodeKind enum.
+func (e TopologyNodeKind) Valid() bool {
+	switch e {
+	case TopologyNodeKindAggregator:
+		return true
+	case TopologyNodeKindDevice:
+		return true
+	case TopologyNodeKindEthernet:
+		return true
+	case TopologyNodeKindFabric:
+		return true
+	case TopologyNodeKindNode:
+		return true
+	case TopologyNodeKindPart:
+		return true
+	case TopologyNodeKindPeer:
+		return true
+	case TopologyNodeKindSession:
+		return true
+	case TopologyNodeKindThreadEndDevice:
+		return true
+	case TopologyNodeKindThreadRouter:
+		return true
+	case TopologyNodeKindWifiAp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TopologyNodeState.
+const (
+	TopologyNodeStateIdle        TopologyNodeState = "idle"
+	TopologyNodeStateOk          TopologyNodeState = "ok"
+	TopologyNodeStateUnknown     TopologyNodeState = "unknown"
+	TopologyNodeStateUnreachable TopologyNodeState = "unreachable"
+)
+
+// Valid indicates whether the value is a known member of the TopologyNodeState enum.
+func (e TopologyNodeState) Valid() bool {
+	switch e {
+	case TopologyNodeStateIdle:
+		return true
+	case TopologyNodeStateOk:
+		return true
+	case TopologyNodeStateUnknown:
+		return true
+	case TopologyNodeStateUnreachable:
 		return true
 	default:
 		return false
@@ -710,6 +845,116 @@ type ReadRequest struct {
 	Paths          []AttributePath `json:"paths"`
 }
 
+// TopologyDetail defines model for TopologyDetail.
+type TopologyDetail struct {
+	// Key A stable key a page translates (`device_type`, `clusters`, …).
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// TopologyEdge defines model for TopologyEdge.
+type TopologyEdge struct {
+	Kind  TopologyEdgeKind `json:"kind"`
+	Label *string          `json:"label,omitempty"`
+
+	// Lqi link: Thread link quality indicator.
+	Lqi *int `json:"lqi,omitempty"`
+
+	// Rssi link: received signal strength, dBm.
+	Rssi *int `json:"rssi,omitempty"`
+
+	// Source A node id.
+	Source string `json:"source"`
+
+	// Strength link: the link's quality class.
+	Strength *TopologyEdgeStrength `json:"strength,omitempty"`
+
+	// Target A node id.
+	Target string `json:"target"`
+}
+
+// TopologyEdgeKind defines model for TopologyEdge.Kind.
+type TopologyEdgeKind string
+
+// TopologyEdgeStrength link: the link's quality class.
+type TopologyEdgeStrength string
+
+// TopologyGraph A family's topology as nodes and edges; the renderer needs no knowledge per kind.
+type TopologyGraph struct {
+	// AsOf When the graph was read
+	AsOf   time.Time           `json:"as_of"`
+	Edges  []TopologyEdge      `json:"edges"`
+	Family TopologyGraphFamily `json:"family"`
+	Nodes  []TopologyNode      `json:"nodes"`
+}
+
+// TopologyGraphFamily defines model for TopologyGraph.Family.
+type TopologyGraphFamily string
+
+// TopologyNode One node of the graph. `details` is the ordered list a page shows
+// for it; the typed fields are the ones a page links or colours by,
+// each present only for the kinds it belongs to.
+type TopologyNode struct {
+	// Bssid wifi_ap, peer: the access point's BSSID.
+	Bssid   *string          `json:"bssid,omitempty"`
+	Details []TopologyDetail `json:"details"`
+
+	// Endpoint aggregator, device, part: the endpoint number.
+	Endpoint *int `json:"endpoint,omitempty"`
+
+	// FabricIndex fabric, session: the fabric index; 0 for a PASE session.
+	FabricIndex *int `json:"fabric_index,omitempty"`
+
+	// ID Unique in the graph: `node`, `ep:<n>`, `fabric:<index>`, `session:<id>`, `peer:<node_id_hex>`.
+	ID string `json:"id"`
+
+	// IsPase session: a commissioning (PASE) session.
+	IsPase *bool            `json:"is_pase,omitempty"`
+	Kind   TopologyNodeKind `json:"kind"`
+	Label  string           `json:"label"`
+
+	// NodeIDHex fabric: our node id on it; session: the peer's; peer: the node's.
+	NodeIDHex *string `json:"node_id_hex,omitempty"`
+
+	// Reachable device, part: Reachable as a controller reads it.
+	Reachable *bool `json:"reachable,omitempty"`
+
+	// Ref The page that already lists the node and the id it lists it by:
+	// `endpoints` (endpoint number), `fabrics` (fabric index),
+	// `diagnostics` (session id), `controller_node` (`node_id_hex`).
+	Ref *TopologyRef `json:"ref,omitempty"`
+
+	// Rloc16 peer: its Thread RLOC16.
+	Rloc16 *int `json:"rloc16,omitempty"`
+
+	// Role peer: its Thread routing role or network kind.
+	Role *string `json:"role,omitempty"`
+
+	// SessionID session: the local session id.
+	SessionID *int `json:"session_id,omitempty"`
+
+	// Ssid wifi_ap, peer: the Wi-Fi network.
+	Ssid  *string           `json:"ssid,omitempty"`
+	State TopologyNodeState `json:"state"`
+
+	// Subscriptions session: the subscriptions riding on it.
+	Subscriptions *int `json:"subscriptions,omitempty"`
+}
+
+// TopologyNodeKind defines model for TopologyNode.Kind.
+type TopologyNodeKind string
+
+// TopologyNodeState defines model for TopologyNode.State.
+type TopologyNodeState string
+
+// TopologyRef The page that already lists the node and the id it lists it by:
+// `endpoints` (endpoint number), `fabrics` (fabric index),
+// `diagnostics` (session id), `controller_node` (`node_id_hex`).
+type TopologyRef struct {
+	ID   string `json:"id"`
+	Page string `json:"page"`
+}
+
 // UpdateConsentRequest defines model for UpdateConsentRequest.
 type UpdateConsentRequest struct {
 	NodeIDHex             string `json:"node_id_hex"`
@@ -771,6 +1016,12 @@ type DiscoverDevicesParams struct {
 
 // DiscoverDevicesParamsFilter defines parameters for DiscoverDevices.
 type DiscoverDevicesParamsFilter string
+
+// GetControllerTopologyParams defines parameters for GetControllerTopology.
+type GetControllerTopologyParams struct {
+	// Refresh Re-read the nodes' network diagnostics before answering; admin only.
+	Refresh *bool `form:"refresh,omitempty" json:"refresh,omitempty"`
+}
 
 // CommissionNodeJSONRequestBody defines body for CommissionNode for application/json ContentType.
 type CommissionNodeJSONRequestBody = CommissionRequest
@@ -900,6 +1151,9 @@ type ServerInterface interface {
 	// ControllerStream Server-sent events of the controller.
 	// (GET /controller/stream)
 	ControllerStream(w http.ResponseWriter, r *http.Request)
+	// GetControllerTopology The controller's network as a graph — its nodes and the links between them.
+	// (GET /controller/topology)
+	GetControllerTopology(w http.ResponseWriter, r *http.Request, params GetControllerTopologyParams)
 	// ListUpdates The software update queue.
 	// (GET /controller/updates)
 	ListUpdates(w http.ResponseWriter, r *http.Request)
@@ -1652,6 +1906,39 @@ func (siw *ServerInterfaceWrapper) ControllerStream(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// GetControllerTopology operation middleware
+func (siw *ServerInterfaceWrapper) GetControllerTopology(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetControllerTopologyParams
+
+	// ------------- Optional query parameter "refresh" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "refresh", r.URL.Query(), &params.Refresh, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "refresh"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "refresh", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetControllerTopology(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListUpdates operation middleware
 func (siw *ServerInterfaceWrapper) ListUpdates(w http.ResponseWriter, r *http.Request) {
 
@@ -1845,6 +2132,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/updates", wrapper.ListUpdates)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/updates/consent", wrapper.ConsentUpdate)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/updates/check", wrapper.CheckUpdates)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/topology", wrapper.GetControllerTopology)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/stream", wrapper.ControllerStream)
 
 	return m
@@ -3861,6 +4149,72 @@ func (response ControllerStream200TextEventStreamResponse) VisitControllerStream
 	}
 }
 
+type GetControllerTopologyRequestObject struct {
+	Params GetControllerTopologyParams
+}
+
+type GetControllerTopologyResponseObject interface {
+	VisitGetControllerTopologyResponse(w http.ResponseWriter) error
+}
+
+type GetControllerTopology200JSONResponse TopologyGraph
+
+func (response GetControllerTopology200JSONResponse) VisitGetControllerTopologyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetControllerTopology403ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetControllerTopology403ApplicationProblemPlusJSONResponse) VisitGetControllerTopologyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetControllerTopology501ApplicationProblemPlusJSONResponse Problem
+
+func (response GetControllerTopology501ApplicationProblemPlusJSONResponse) VisitGetControllerTopologyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(501)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetControllerTopology502ApplicationProblemPlusJSONResponse Problem
+
+func (response GetControllerTopology502ApplicationProblemPlusJSONResponse) VisitGetControllerTopologyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListUpdatesRequestObject struct {
 }
 
@@ -4124,6 +4478,9 @@ type StrictServerInterface interface {
 	// ControllerStream Server-sent events of the controller.
 	// (GET /controller/stream)
 	ControllerStream(ctx context.Context, request ControllerStreamRequestObject) (ControllerStreamResponseObject, error)
+	// GetControllerTopology The controller's network as a graph — its nodes and the links between them.
+	// (GET /controller/topology)
+	GetControllerTopology(ctx context.Context, request GetControllerTopologyRequestObject) (GetControllerTopologyResponseObject, error)
 	// ListUpdates The software update queue.
 	// (GET /controller/updates)
 	ListUpdates(ctx context.Context, request ListUpdatesRequestObject) (ListUpdatesResponseObject, error)
@@ -5001,6 +5358,32 @@ func (sh *strictHandler) ControllerStream(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ControllerStreamResponseObject); ok {
 		if err := validResponse.VisitControllerStreamResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetControllerTopology operation middleware
+func (sh *strictHandler) GetControllerTopology(w http.ResponseWriter, r *http.Request, params GetControllerTopologyParams) {
+	var request GetControllerTopologyRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetControllerTopology(ctx, request.(GetControllerTopologyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetControllerTopology")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetControllerTopologyResponseObject); ok {
+		if err := validResponse.VisitGetControllerTopologyResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

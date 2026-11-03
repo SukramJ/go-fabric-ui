@@ -20,6 +20,12 @@ const (
 	EventEndpointsChanged = "endpoints_changed"
 	EventExposureChanged  = "exposure_changed"
 	EventSurfaceChanged   = "surface_changed"
+	// EventSessionOpened, EventSessionClosed and EventSubscriptionsChanged
+	// carry a [SessionEvent]: go-fabric's node.Observers OnSessionOpened
+	// (CASE sessions only), OnSessionClosed and OnSubscriptionsChanged.
+	EventSessionOpened        = "session_opened"
+	EventSessionClosed        = "session_closed"
+	EventSubscriptionsChanged = "subscriptions_changed"
 )
 
 // Event is one server-sent event: its type and a JSON-encodable payload.
@@ -55,6 +61,24 @@ type ExposureEvent struct {
 // of its surface.Report.Changed entry, "" for the root endpoint.
 type SurfaceChangedEvent struct {
 	Endpoints []string `json:"endpoints"`
+}
+
+// SessionEvent is the payload of session_opened, session_closed and
+// subscriptions_changed: the session as GET /node/sessions lists it, with
+// its subscription count after the change.
+type SessionEvent struct {
+	SessionID        uint16 `json:"session_id"`
+	FabricIndex      uint8  `json:"fabric_index"`
+	PeerNodeID       uint64 `json:"peer_node_id"`
+	PeerNodeIDHex    string `json:"peer_node_id_hex"`
+	LocalNodeID      uint64 `json:"local_node_id"`
+	LocalNodeIDHex   string `json:"local_node_id_hex"`
+	IsPASE           bool   `json:"is_pase"`
+	Subscriptions    int    `json:"subscriptions"`
+	LastActivity     string `json:"last_activity"`
+	LastPeerActivity string `json:"last_peer_activity"`
+	IdleSeconds      int64  `json:"idle_seconds"`
+	PeerIdleSeconds  int64  `json:"peer_idle_seconds"`
 }
 
 // EventSource is where the stream reads events from beside the handler's
@@ -104,10 +128,13 @@ func (e *Events) Publish(ev Event) {
 	}
 }
 
-// NodeObservers turns the node's fabric, window and surface transitions
-// into the node page family's events for push: fabric_added,
-// fabric_removed, window_opened, window_closed and surface_changed, with
-// the payloads the stream carries.
+// NodeObservers turns the node's fabric, window, surface and session
+// transitions into the node page family's events for push: fabric_added,
+// fabric_removed, window_opened, window_closed, surface_changed,
+// session_opened, session_closed and subscriptions_changed, with the
+// payloads the stream carries. go-fabric reports CASE sessions only
+// (node/observers.go OnSessionOpened), so a commissioning's PASE session
+// raises none of the three.
 // open is the window state the subscriber last saw, so a repeated snapshot
 // of the same state (an administrator's AdminFabricIndex cleared) is not a
 // transition. A commissioning is fabric_added: the AddNOC that installs the
@@ -148,6 +175,15 @@ func NodeObservers(push func(Event), open bool) node.Observers {
 		},
 		OnSurfaceChanged: func(c surface.SurfaceChange) {
 			push(Event{Type: EventSurfaceChanged, Data: surfaceChangedEvent(c)})
+		},
+		OnSessionOpened: func(s node.SessionInfo) {
+			push(Event{Type: EventSessionOpened, Data: SessionEvent(sessionOf(&s))})
+		},
+		OnSessionClosed: func(s node.SessionInfo) {
+			push(Event{Type: EventSessionClosed, Data: SessionEvent(sessionOf(&s))})
+		},
+		OnSubscriptionsChanged: func(s node.SessionInfo) {
+			push(Event{Type: EventSubscriptionsChanged, Data: SessionEvent(sessionOf(&s))})
 		},
 	}
 }

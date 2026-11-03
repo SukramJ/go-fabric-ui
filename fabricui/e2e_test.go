@@ -36,11 +36,13 @@ type site struct {
 	srv    *httptest.Server
 	token  string
 	events chan string
+	// seen holds every event type waitEvent read off the stream.
+	seen map[string]bool
 }
 
 func newSite(t *testing.T, configured bool) *site {
 	t.Helper()
-	s := &site{t: t, site: fabrictest.NewSite(t, fabrictest.Options{}), events: make(chan string, 32)}
+	s := &site{t: t, site: fabrictest.NewSite(t, fabrictest.Options{}), events: make(chan string, 32), seen: map[string]bool{}}
 	plug, err := device.NewOnOffPlugInUnit(device.Options{StableKey: device.StringKey("plug:1"), Name: "Plug"})
 	if err != nil {
 		t.Fatal(err)
@@ -144,6 +146,7 @@ func (s *site) waitEvent(typ string) {
 	for {
 		select {
 		case got := <-s.events:
+			s.seen[got] = true
 			if got == typ {
 				return
 			}
@@ -200,6 +203,14 @@ func (s *site) commissionAndRemove(passcode uint32) {
 		s.t.Fatalf("sessions after commissioning %+v", sl)
 	}
 
+	// The commissioner's CASE session reached the stream (go-fabric
+	// node.Observers.OnSessionOpened) and hangs in /node/topology under
+	// the fabric it was opened on.
+	if !s.seen[fabricui.EventSessionOpened] {
+		s.waitEvent(fabricui.EventSessionOpened)
+	}
+	s.checkTopology()
+
 	var fl fabricList
 	s.getJSON("/node/fabrics", &fl)
 	if len(fl.Fabrics) != 1 || fl.Fabrics[0].VendorID != 0xFFF1 || fl.Fabrics[0].Label != "Controller" || len(fl.Fabrics[0].NodeIDHex) != 16 {
@@ -210,6 +221,48 @@ func (s *site) commissionAndRemove(passcode uint32) {
 	s.getJSON("/node/fabrics", &fl)
 	if len(fl.Fabrics) != 0 {
 		s.t.Fatalf("fabrics after DELETE %+v", fl)
+	}
+}
+
+type topologyGraph struct {
+	Family string `json:"family"`
+	Nodes  []struct {
+		ID          string `json:"id"`
+		Kind        string `json:"kind"`
+		FabricIndex *int   `json:"fabric_index"`
+		IsPASE      *bool  `json:"is_pase"`
+	} `json:"nodes"`
+	Edges []graphEdge `json:"edges"`
+}
+
+type graphEdge struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Kind   string `json:"kind"`
+}
+
+// checkTopology reads GET /node/topology after a commissioning: a CASE
+// session node under its fabric's node, joined to the node by a session
+// edge, and the bridge's devices with their part.
+func (s *site) checkTopology() {
+	s.t.Helper()
+	var g topologyGraph
+	s.getJSON("/node/topology", &g)
+	edge := func(src, dst, kind string) bool { return slices.Contains(g.Edges, graphEdge{src, dst, kind}) }
+	kinds := map[string]int{}
+	found := false
+	for _, n := range g.Nodes {
+		kinds[n.Kind]++
+		if n.Kind != "session" || n.IsPASE == nil || *n.IsPASE || n.FabricIndex == nil || *n.FabricIndex == 0 {
+			continue
+		}
+		fabric := fmt.Sprintf("fabric:%d", *n.FabricIndex)
+		if edge(fabric, n.ID, "contains") && edge(n.ID, "node", "session") {
+			found = true
+		}
+	}
+	if g.Family != "node" || !found || kinds["fabric"] != 1 || kinds["aggregator"] != 1 || kinds["device"] != 2 || kinds["part"] != 1 {
+		s.t.Fatalf("topology after commissioning: kinds %v, CASE session under its fabric %v; %+v", kinds, found, g)
 	}
 }
 
