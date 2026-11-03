@@ -7,6 +7,58 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - unreleased
+
+The controller family's device details (brief U4b, concept
+`docs/concept-u4-device-details.md`, wave D.1); contract 0.4.0, additive
+over 0.3.1.
+
+### Added
+
+- `GET /controller/nodes/{id}/endpoints/{ep}` (`EndpointDetail`) and
+  `GET /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}`
+  (`ClusterDetail`): a node's inventory read from the controller's image,
+  never from the node and without admin (owner decision U4 0.1 amends
+  0.4). An endpoint carries the Descriptor's DeviceTypeList with each
+  revision, its TagList, the FixedLabel and UserLabel entries, its parts,
+  BridgedDeviceBasicInformation Reachable, the device type conformance
+  verdict and its server clusters without values; a cluster its revision,
+  feature map in hex with the features it sets (code, title, bit), data
+  version, attributes with names and values (JSON by field name),
+  accepted and generated commands and the EventList, named where go-fabric
+  has a generated definition. 404 for an endpoint or cluster the image
+  lacks, 503 while the ServerList names a cluster the controller has not
+  read yet.
+- Contract types `EndpointDetail`, `EndpointDeviceType`, `SemanticTag`,
+  `EndpointLabel`, `ConformanceVerdict`, `ConformanceViolation`,
+  `ClusterDetail`, `ClusterFeature`, `ClusterAttribute`, `ClusterElement`;
+  `NodeEndpoint.reachable` where the endpoint serves
+  BridgedDeviceBasicInformation.
+- The port `fabricui.ControllerNode` gains `EndpointDetail` and
+  `ClusterDetail` with their types, and the errors `ErrEndpointNotFound`,
+  `ErrClusterNotFound` (404) and `ErrNotRead` (503);
+  `gofabric.ControllerOf` serves them from `client.Endpoint` and
+  `client.Cluster`, and `MemoryController`'s light carries a tag, a
+  conformance verdict and OnOff's inventory.
+- The **Inventory** tab of the controller's node page (`tab=inventory`):
+  per endpoint its device types, tags, labels, Reachable, conformance and
+  clusters; a cluster loads its values when it is opened, and the tab
+  reloads on the node's `node_updated`. The endpoints tab shows Reachable
+  per bridged endpoint and links each endpoint into the inventory.
+- Kit components `ClusterView`, `AttributeTable` and `TagChips`, for both
+  families; the client's `controllerEndpointDetail` and
+  `controllerClusterDetail`.
+- Fixtures `controller-node-endpoint.200`, `controller-node-endpoint.404`,
+  `controller-node-cluster.200`, `controller-node-cluster.404`.
+
+### Changed
+
+- The endpoints of `GET /controller/nodes/{id}` list every device type of
+  the Descriptor's DeviceTypeList, each with its revision, not only the
+  endpoint's own.
+- go-fabric `v0.16.1-0.20261103194851-53b0d93d8942` (main at `53b0d93d`),
+  a pseudo-version until go-fabric's next tag; no migration was needed.
+
 ## [0.4.1] - 2026-11-03
 
 The topology view of the controller family (brief U3b, concept

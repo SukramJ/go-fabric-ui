@@ -225,6 +225,8 @@ hand-written.
 | `/controller/status` | GET | – | 200 |
 | `/controller/nodes` | GET | – | 200 |
 | `/controller/nodes/{id}` | GET | – | 200, 400, 404 |
+| `/controller/nodes/{id}/endpoints/{ep}` | GET | – | 200, 400, 404 — served from 0.4.0 |
+| `/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}` | GET | – | 200, 400, 404, 503 — served from 0.4.0 |
 | `/controller/nodes/{id}` | DELETE | yes | 204, 400, 403, 404, 500, 502 |
 | `/controller/nodes/{id}/interview` | POST | yes | 204, 400, 403, 404, 502 |
 | `/controller/nodes/{id}/enable`, `/disable` | POST | yes | 204, 400, 403, 404, 500 |
@@ -254,9 +256,31 @@ Details the fixtures pin:
 
 - **Reads are targeted** (owner decision 0.4): `POST …/attributes` takes
   1 to 32 concrete paths (`endpoint`, `cluster_hex`, `attribute_hex`); no
-  wildcard, no inventory. A path the node refuses answers its status in
-  the entry. A generic write and an invoke are admin routes; a refusal by
-  the node is the `status` of a 200, not a problem.
+  wildcard. A path the node refuses answers its status in the entry. A
+  generic write and an invoke are admin routes; a refusal by the node is
+  the `status` of a 200, not a problem. A read-only inventory from the
+  controller's image is served by the endpoint and cluster routes (0.4.0,
+  owner decision U4 0.1): nothing is read from the node for them.
+- **The inventory** (0.4.0): `GET …/endpoints/{ep}` answers an
+  `EndpointDetail` — the Descriptor's DeviceTypeList in its order with
+  each revision, its TagList (empty without one), the FixedLabel then
+  UserLabel entries, the parts on the image's tree,
+  BridgedDeviceBasicInformation Reachable (true on an endpoint that does
+  not serve it), the device type `conformance` verdict (`unknown`,
+  `incomplete`, `clean`, `violated`, with the violations and the
+  clusters not judged inside) and every server cluster as a
+  `ClusterDetail` without values. `GET …/clusters/{cluster_hex}` answers
+  that cluster with the values the image holds: revision,
+  `feature_map_hex` with the features it sets (`code`, `title` where a
+  definition names it, `bit`), `data_version`, the AttributeList with
+  names and values, the accepted and generated commands and the
+  EventList where the peer reports one, each named where the cluster has
+  a generated definition. An endpoint or cluster the image lacks is 404;
+  a cluster the ServerList names that the controller has not read yet is
+  503 `service_unready`. The page reloads both on the node's
+  `node_updated`. `NodeEndpoint` carries `reachable` where the endpoint
+  serves BridgedDeviceBasicInformation, and its `device_types` are the
+  whole DeviceTypeList.
 - **Values** are JSON by the generated cluster definitions, a struct
   keyed by field name (`{"fabricIndex": 1}`); cluster, attribute, command
   and device type ids travel as `0x`-prefixed hex.
