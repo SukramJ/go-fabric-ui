@@ -438,8 +438,8 @@ func endpointDetail(d EndpointDetail) api.EndpointDetail {
 	for _, p := range d.Parts {
 		out.Parts = append(out.Parts, int(p))
 	}
-	for _, c := range d.Clusters {
-		out.Clusters = append(out.Clusters, clusterDetail(c))
+	for i := range d.Clusters {
+		out.Clusters = append(out.Clusters, clusterDetail(d.Clusters[i]))
 	}
 	if c := d.Conformance; c != nil {
 		v := api.ConformanceVerdict{Status: api.ConformanceVerdictStatus(c.Status), Violations: []api.ConformanceViolation{}, Unjudged: elements(c.Unjudged)}

@@ -274,8 +274,8 @@ func tagsOf(ep *client.Endpoint) []fabricui.SemanticTag {
 		Tag         uint8   `json:"tag"`
 		Label       *string `json:"label"`
 	}
-	out := []fabricui.SemanticTag{}
 	endpointValue(ep, clusterDescriptor, attrTagList, &list)
+	out := make([]fabricui.SemanticTag, 0, len(list))
 	for _, t := range list {
 		st := fabricui.SemanticTag{MfgCode: t.MfgCode, Namespace: t.NamespaceID, Tag: t.Tag}
 		if t.Label != nil {
@@ -289,19 +289,19 @@ func tagsOf(ep *client.Endpoint) []fabricui.SemanticTag {
 // labelsOf is the endpoint's FixedLabel LabelList, then its UserLabel
 // LabelList.
 func labelsOf(ep *client.Endpoint) []fabricui.EndpointLabel {
-	out := []fabricui.EndpointLabel{}
-	for _, src := range []struct {
-		cluster, attr uint32
-		user          bool
-	}{{clusterFixedLabel, attrLabelList, false}, {clusterUserLabel, attrLabelList, true}} {
-		var list []struct {
-			Label string `json:"label"`
-			Value string `json:"value"`
-		}
-		endpointValue(ep, src.cluster, src.attr, &list)
-		for _, l := range list {
-			out = append(out, fabricui.EndpointLabel{Label: l.Label, Value: l.Value, User: src.user})
-		}
+	return append(labelList(ep, clusterFixedLabel, false), labelList(ep, clusterUserLabel, true)...)
+}
+
+// labelList is the LabelList of a FixedLabel or UserLabel cluster.
+func labelList(ep *client.Endpoint, cluster uint32, user bool) []fabricui.EndpointLabel {
+	var list []struct {
+		Label string `json:"label"`
+		Value string `json:"value"`
+	}
+	endpointValue(ep, cluster, attrLabelList, &list)
+	out := make([]fabricui.EndpointLabel, 0, len(list))
+	for _, l := range list {
+		out = append(out, fabricui.EndpointLabel{Label: l.Label, Value: l.Value, User: user})
 	}
 	return out
 }
@@ -310,7 +310,8 @@ func labelsOf(ep *client.Endpoint) []fabricui.EndpointLabel {
 // informational client findings stay out.
 func conformanceOf(r client.ConformanceReport) *fabricui.Conformance {
 	out := &fabricui.Conformance{Status: r.Status.String(), Violations: []fabricui.ConformanceViolation{}, Unjudged: []fabricui.ClusterElement{}}
-	for _, v := range r.Violations {
+	for i := range r.Violations {
+		v := &r.Violations[i]
 		out.Violations = append(out.Violations, fabricui.ConformanceViolation{
 			DeviceType: v.DeviceType, DeviceTypeID: v.DeviceTypeID, Requirement: v.Requirement, Kind: string(v.Kind), Detail: v.Detail,
 		})
