@@ -1,5 +1,6 @@
-<!-- A node's endpoints as a tree: parts under their parent, each with its
-     device types and server clusters. -->
+<!-- A node's endpoints as a tree: parts under their parent, each with the
+     device types of its DeviceTypeList, Reachable where it is bridged, its
+     server clusters and a link into the inventory tab. -->
 <script lang="ts">
   import { useFabricUI } from "../../../context";
   import type { ControllerNodeDetail, NodeEndpoint } from "../../../api/client";
@@ -7,7 +8,7 @@
   import Card from "../../../kit/Card.svelte";
   import EmptyState from "../../../kit/EmptyState.svelte";
 
-  let { detail }: { detail: ControllerNodeDetail } = $props();
+  let { detail, onInventory }: { detail: ControllerNodeDetail; onInventory?: (endpoint: number) => void } = $props();
   const { t } = useFabricUI();
 
   // Depth first, parts under their parent, each level in number order.
@@ -35,6 +36,17 @@
           {#each ep.device_types as dt (dt.id)}
             <Badge title={dt.id_hex}>{dt.name || dt.id_hex}{dt.revision ? ` r${dt.revision}` : ""}</Badge>
           {/each}
+          {#if ep.reachable !== undefined}
+            <Badge variant={ep.reachable ? "success" : "danger"}>{t(ep.reachable ? "controller.endpoints.reachable" : "controller.endpoints.unreachable")}</Badge>
+          {/if}
+          {#if onInventory}
+            <button
+              type="button"
+              class="ml-auto text-sm text-[var(--ha-primary-color)] hover:underline"
+              data-testid={`inventory-link-${ep.endpoint}`}
+              onclick={() => onInventory(ep.endpoint)}>{t("controller.endpoints.inventory")}</button
+            >
+          {/if}
         </div>
         {#if ep.clusters.length > 0}
           <ul class="mt-2 flex flex-wrap gap-1">
