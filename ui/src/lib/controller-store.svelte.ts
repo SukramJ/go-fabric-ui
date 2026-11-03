@@ -122,6 +122,10 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
       case "update":
         void loadUpdates();
         break;
+      case "topology_changed":
+        // The network graph's page (brief U3b) reloads on it; no node
+        // changed, so the lists stay.
+        break;
       default:
         changed = ev.data.node_id_hex ?? null;
         revision++;

@@ -61,6 +61,7 @@ const cases: [string, Call][] = [
   ["controller-updates.200", (c) => c.updates()],
   ["controller-updates-consent.204", (c, x) => c.consentUpdate(b(x))],
   ["controller-updates-check.200", (c) => c.checkUpdates()],
+  ["controller-topology.501", (c) => c.controllerTopology()],
 ];
 
 describe("controller client against the contract fixtures", () => {
@@ -98,6 +99,19 @@ describe("controller client against the contract fixtures", () => {
     await client.interviewNode(L);
     expect(ff.sent[1].headers[TOKEN_HEADER]).toBe("test-token");
     expect(client.controllerStreamUrl()).toBe("/api/v1/controller/stream");
+  });
+
+  it("asks for a refreshed topology with the admin token, a plain one without", async () => {
+    const ff = fixtureFetch(["controller-topology.501"]);
+    ff.routes.set("GET /api/v1/controller/topology?refresh=true", fixture("controller-topology.501"));
+    const client = createClient("/api/v1", ff.fetch);
+    client.setToken("t");
+    await client.controllerTopology(true).catch(() => null);
+    await client.controllerTopology().catch(() => null);
+    expect(ff.sent.map((s) => [s.path, s.headers[TOKEN_HEADER]])).toEqual([
+      ["/api/v1/controller/topology?refresh=true", "t"],
+      ["/api/v1/controller/topology", undefined],
+    ]);
   });
 
   it("answers a path the server does not serve with the not_found problem", async () => {

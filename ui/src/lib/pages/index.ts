@@ -7,6 +7,7 @@ export { default as NodeSelection } from "./node/Selection.svelte";
 export { default as NodeEndpoints } from "./node/Endpoints.svelte";
 export { default as NodeSurface } from "./node/Surface.svelte";
 export { default as NodeDiagnostics } from "./node/Diagnostics.svelte";
+export { default as NodeTopology } from "./node/Topology.svelte";
 // The controller family (wave U2). ControllerNode takes the node's
 // 16-digit hex id as `nodeId` and, optionally, the first `tab`.
 export { default as ControllerNodes } from "./controller/Nodes.svelte";

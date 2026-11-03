@@ -25,6 +25,7 @@
   import NodeEndpoints from "../lib/pages/node/Endpoints.svelte";
   import NodeSurface from "../lib/pages/node/Surface.svelte";
   import NodeDiagnostics from "../lib/pages/node/Diagnostics.svelte";
+  import NodeTopology from "../lib/pages/node/Topology.svelte";
   import ControllerNodes from "../lib/pages/controller/Nodes.svelte";
   import ControllerCommission from "../lib/pages/controller/Commission.svelte";
   import ControllerNode from "../lib/pages/controller/Node.svelte";
@@ -43,7 +44,7 @@
   const node = ui.node;
   const controller = ui.controller;
 
-  const nodePages = { status: NodeStatus, pair: NodePair, fabrics: NodeFabrics, selection: NodeSelection, endpoints: NodeEndpoints, surface: NodeSurface, diagnostics: NodeDiagnostics };
+  const nodePages = { status: NodeStatus, pair: NodePair, fabrics: NodeFabrics, selection: NodeSelection, endpoints: NodeEndpoints, surface: NodeSurface, diagnostics: NodeDiagnostics, topology: NodeTopology };
   const controllerPages = { nodes: ControllerNodes, commission: ControllerCommission, settings: ControllerSettings };
 
   // null until probed: whether GET /node/status answered (not 404).

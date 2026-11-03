@@ -1,6 +1,6 @@
 // The event stream helper: GET /node/stream as typed callbacks. A host with
 // a hub of its own feeds it from here (see ui/README.md).
-import type { ControllerEvent, ExposureEvent, FabricEvent, SurfaceChangedEvent, WindowEvent } from "./client";
+import type { ControllerEvent, ExposureEvent, FabricEvent, SessionEvent, SurfaceChangedEvent, WindowEvent } from "./client";
 
 /** The event types of the stream, as the contract names them. */
 export const STREAM_EVENTS = [
@@ -11,6 +11,9 @@ export const STREAM_EVENTS = [
   "endpoints_changed",
   "exposure_changed",
   "surface_changed",
+  "session_opened",
+  "session_closed",
+  "subscriptions_changed",
 ] as const;
 
 export type StreamEventType = (typeof STREAM_EVENTS)[number];
@@ -20,7 +23,8 @@ export type StreamEvent =
   | { type: "window_opened" | "window_closed"; data: WindowEvent }
   | { type: "endpoints_changed"; data: Record<string, never> }
   | { type: "exposure_changed"; data: ExposureEvent }
-  | { type: "surface_changed"; data: SurfaceChangedEvent };
+  | { type: "surface_changed"; data: SurfaceChangedEvent }
+  | { type: "session_opened" | "session_closed" | "subscriptions_changed"; data: SessionEvent };
 
 /** The part of EventSource the helper uses, so a test can hand in a fake. */
 export interface EventSourceLike {
@@ -64,6 +68,7 @@ export const CONTROLLER_STREAM_EVENTS = [
   "subscription",
   "commissioning_progress",
   "update",
+  "topology_changed",
 ] as const;
 
 export type ControllerStreamEventType = (typeof CONTROLLER_STREAM_EVENTS)[number];
