@@ -192,6 +192,10 @@ func TestEndToEnd_Controller(t *testing.T) {
 	}
 	s.waitEvent(fabricui.EventNodeAdded)
 
+	// The controller's topology is planned (brief U3a decision 0.2): the
+	// adapter answers 501 until go-fabric builds the graph.
+	s.json(http.MethodGet, "/controller/topology", "", http.StatusNotImplemented, nil)
+
 	var list struct {
 		Nodes []struct {
 			NodeIDHex string `json:"node_id_hex"`

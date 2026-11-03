@@ -70,6 +70,13 @@ var controllerAdmin = map[string]bool{
 	"POST /controller/updates/check":                true,
 }
 
+// controllerAdminQuery holds the controller routes with a query parameter
+// the contract marks x-admin: the route itself is open, the parameter set
+// to true needs admin rights (TestControllerAdminQueryMatchesTheContract).
+var controllerAdminQuery = map[string]string{
+	"GET /controller/topology": "refresh",
+}
+
 // controllerServer implements the generated strict server interface: the
 // handler bodies of the controller family, each a call of the port and a
 // mapping of its answer. Router, path and query binding, body decoding
@@ -111,10 +118,18 @@ func (h *handler) controllerGate(sub *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, pattern := sub.Handler(r)
 		method, path, _ := strings.Cut(pattern, " ")
-		if controllerAdmin[method+" "+strings.TrimPrefix(path, h.prefix)] && !h.isAdmin(r) {
+		route := method + " " + strings.TrimPrefix(path, h.prefix)
+		if controllerAdmin[route] && !h.isAdmin(r) {
 			writeProblem(w, r, http.StatusForbidden, codeForbidden, "Admin rights required",
 				"this route writes, commissions or reads a secret")
 			return
+		}
+		if q, ok := controllerAdminQuery[route]; ok && !h.isAdmin(r) {
+			if on, err := strconv.ParseBool(r.URL.Query().Get(q)); err == nil && on {
+				writeProblem(w, r, http.StatusForbidden, codeForbidden, "Admin rights required",
+					q+"=true makes the controller talk to its nodes")
+				return
+			}
 		}
 		if r.Body != nil {
 			r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
@@ -159,6 +174,8 @@ func (h *handler) controllerError(w http.ResponseWriter, r *http.Request, err er
 		writeProblem(w, r, http.StatusBadRequest, codeBadRequest, "Invalid request", err.Error())
 	case errors.Is(err, ErrConflict):
 		writeProblem(w, r, http.StatusConflict, codeConflict, "Refused by the node", err.Error())
+	case errors.Is(err, ErrNotImplemented):
+		writeProblem(w, r, http.StatusNotImplemented, codeNotImplemented, "Not implemented", "the host's controller does not serve this route yet")
 	case errors.Is(err, ErrNodeFailed), errors.Is(err, context.DeadlineExceeded):
 		h.log.WarnContext(r.Context(), "fabricui.controller.node_failed", slog.String("path", r.URL.Path), slog.String("error", err.Error()))
 		writeProblem(w, r, http.StatusBadGateway, codeNodeError, "The node failed", err.Error())
@@ -1347,6 +1364,63 @@ func (s *controllerServer) CheckUpdates(ctx context.Context, _ api.CheckUpdatesR
 }
 
 // --- stream ---
+
+// GetControllerTopology serves GET /controller/topology: the port's
+// network graph as the contract's TopologyGraph. Planned (x-status) until
+// a source builds one: the memory controller and the go-fabric adapter
+// answer ErrNotImplemented, 501 (brief U3a decision 0.2).
+func (s *controllerServer) GetControllerTopology(ctx context.Context, req api.GetControllerTopologyRequestObject) (api.GetControllerTopologyResponseObject, error) {
+	refresh := req.Params.Refresh != nil && *req.Params.Refresh
+	topo, err := s.src.NetworkTopology(ctx, refresh)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetControllerTopology200JSONResponse(networkGraph(topo)), nil
+}
+
+// networkGraph is a port topology as the contract carries it: the node
+// id as 16-digit hex, an unset strength, LQI or RSSI absent.
+func networkGraph(topo NetworkTopology) api.TopologyGraph {
+	g := api.TopologyGraph{
+		AsOf:   topo.CollectedAt.UTC(),
+		Family: api.TopologyGraphFamilyController,
+		Nodes:  make([]api.TopologyNode, 0, len(topo.Nodes)),
+		Edges:  make([]api.TopologyEdge, 0, len(topo.Connections)),
+	}
+	for i := range topo.Nodes {
+		n := &topo.Nodes[i]
+		out := api.TopologyNode{
+			ID: n.ID, Kind: api.TopologyNodeKind(n.Kind), Label: n.Label, State: api.TopologyNodeState(n.State),
+			Role: optString(n.Role), Ssid: optString(n.SSID), Bssid: optString(n.BSSID),
+			Details: make([]api.TopologyDetail, 0, len(n.Details)),
+		}
+		if n.NodeID != 0 {
+			out.NodeIDHex = ptr(hex16(n.NodeID))
+			out.Ref = &api.TopologyRef{Page: "controller_node", ID: hex16(n.NodeID)}
+		}
+		if n.RLOC16 != nil {
+			out.Rloc16 = ptr(int(*n.RLOC16))
+		}
+		for _, d := range n.Details {
+			out.Details = append(out.Details, api.TopologyDetail{Key: d.Key, Value: d.Value})
+		}
+		g.Nodes = append(g.Nodes, out)
+	}
+	for _, c := range topo.Connections {
+		e := api.TopologyEdge{Source: c.Source, Target: c.Target, Kind: api.TopologyEdgeKind(c.Kind), Label: optString(c.Label)}
+		if c.Strength != "" {
+			e.Strength = ptr(api.TopologyEdgeStrength(c.Strength))
+		}
+		if c.LQI != nil {
+			e.Lqi = ptr(int(*c.LQI))
+		}
+		if c.RSSI != nil {
+			e.Rssi = ptr(int(*c.RSSI))
+		}
+		g.Edges = append(g.Edges, e)
+	}
+	return g
+}
 
 // controllerStream is the stream's response: the strict server hands it
 // the writer, and it serves server-sent events until the request ends.

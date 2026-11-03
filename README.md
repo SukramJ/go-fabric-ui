@@ -11,12 +11,12 @@ and diagnostics on the node side; commissioning, discovery and the
 commissioned nodes on the controller side. Maintained once, embedded by
 each project.
 
-> **Status: `v0.2.0`** (waves U1 and U2 of
+> **Status: `v0.4.0`** (waves U1, U2 and U3a of
 > [concept v9](https://github.com/SukramJ/go-fabric/blob/main/docs/concept-v9-fabric-ui.md)):
 > both page families — the node family (status, pairing, fabrics,
-> selection, endpoints, diagnostics) and the controller family (nodes,
-> commissioning, a node's endpoints, attributes, ACL, bindings, window,
-> ICD, fabrics and updates, settings).
+> selection, endpoints, surface, diagnostics, topology) and the controller
+> family (nodes, commissioning, a node's endpoints, attributes, ACL,
+> bindings, window, ICD, fabrics and updates, settings).
 
 ## Two artefacts, one version
 

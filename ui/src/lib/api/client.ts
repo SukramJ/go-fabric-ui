@@ -19,6 +19,11 @@ export type Cluster = S["Cluster"];
 export type Session = S["Session"];
 export type Occupancy = S["Occupancy"];
 export type SessionList = S["SessionList"];
+export type TopologyGraph = S["TopologyGraph"];
+export type TopologyNode = S["TopologyNode"];
+export type TopologyEdge = S["TopologyEdge"];
+export type TopologyRef = S["TopologyRef"];
+export type TopologyDetail = S["TopologyDetail"];
 export type Mdns = S["Mdns"];
 export type MdnsService = S["MdnsService"];
 export type MdnsFinding = S["MdnsFinding"];
@@ -40,6 +45,7 @@ export type FabricEvent = S["FabricEvent"];
 export type WindowEvent = S["WindowEvent"];
 export type ExposureEvent = S["ExposureEvent"];
 export type SurfaceChangedEvent = S["SurfaceChangedEvent"];
+export type SessionEvent = S["SessionEvent"];
 export type SurfaceReport = S["SurfaceReport"];
 export type SurfaceEndpoint = S["SurfaceEndpoint"];
 export type SurfaceCluster = S["SurfaceCluster"];
@@ -124,6 +130,8 @@ export interface FabricClient {
   /** The node's surface report, in go-fabric's encoding of surface.Report. */
   surface(): Promise<SurfaceReport>;
   sessions(): Promise<SessionList>;
+  /** The node as a graph: its bridge, its fabrics and the sessions on them. */
+  topology(): Promise<TopologyGraph>;
   mdns(): Promise<Mdns>;
   compatibility(): Promise<Compatibility>;
   events(): Promise<DiagnosticEventList>;
@@ -170,6 +178,8 @@ export interface FabricClient {
   updates(): Promise<UpdateQueue>;
   consentUpdate(req: UpdateConsentRequest): Promise<void>;
   checkUpdates(): Promise<AvailableUpdateList>;
+  /** The controller's network as a graph; refresh re-reads the nodes' diagnostics first (admin). Planned: 501 until a source builds one. */
+  controllerTopology(refresh?: boolean): Promise<TopologyGraph>;
   /** The URL of the controller's event stream. */
   controllerStreamUrl(): string;
 }
@@ -223,6 +233,7 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
     endpoints: () => call("GET", "/node/endpoints"),
     surface: () => call("GET", "/node/surface"),
     sessions: () => call("GET", "/node/sessions"),
+    topology: () => call("GET", "/node/topology"),
     mdns: () => call("GET", "/node/mdns"),
     compatibility: () => call("GET", "/node/compatibility"),
     events: () => call("GET", "/node/events"),
@@ -285,6 +296,8 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
     updates: () => call("GET", "/controller/updates"),
     consentUpdate: (req) => call("POST", "/controller/updates/consent", { admin: true, body: req }),
     checkUpdates: () => call("POST", "/controller/updates/check", { admin: true }),
+    controllerTopology: (refresh) =>
+      refresh ? call("GET", "/controller/topology?refresh=true", { admin: true }) : call("GET", "/controller/topology"),
     controllerStreamUrl: () => base + "/controller/stream",
   };
 }

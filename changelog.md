@@ -7,6 +7,44 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-03
+
+The topology view of the node family (brief U3a, concept
+`docs/concept-u3-topology.md`); contract 0.3.0, additive over 0.2.0.
+
+### Added
+
+- `GET /node/topology`: the node as a graph (`TopologyGraph`) — the node,
+  its Aggregator, the bridged devices and their parts, the fabrics and the
+  sessions their controllers hold — built from `Topology`, `FabricInfos`
+  and `SessionDiagnostics`; 503 without a node or before it assembled.
+- The node stream carries `session_opened` (CASE sessions only, as go-fabric
+  reports them), `session_closed` and `subscriptions_changed` with a
+  `SessionEvent` (the session as `/node/sessions` lists it);
+  `fabricui.NodeObservers` yields them too.
+- The **Topology** page (`NodeTopology`, route `#/node/topology`, routes key
+  `topology`) and the kit's `Graph` component with its pure layout
+  (`layoutGraph`): hand-written SVG, pan and zoom, a details panel that
+  links each node to the page that lists it, keyboard access. It reloads
+  on the store's new `graphEpoch`.
+- Client `topology()` and `controllerTopology(refresh)`; problem code
+  `not_implemented` (501); the catalogue test (`catalogs.test.ts`).
+
+### Planned
+
+- `GET /controller/topology` (`x-status: planned`, 501 `not_implemented`)
+  with its final schema, `refresh=true` admin-only, and the controller
+  stream's `topology_changed`. The go-fabric adapter and the in-memory
+  controller answer `ErrNotImplemented` until go-fabric's controller
+  topology builder lands (brief U3b).
+
+### Changed
+
+- **Breaking for a host with its own `ControllerSource`:** the port gains
+  `NetworkTopology(ctx, refresh) (NetworkTopology, error)`; returning
+  `fabricui.ErrNotImplemented` keeps the route at 501. A source wrapping
+  `gofabric.ControllerOf` inherits it.
+
 ## [0.3.0] - 2026-11-02
 
 Built on go-fabric v0.16.0, whose facade removed what `NodeSource` and the

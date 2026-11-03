@@ -53,7 +53,10 @@ a handler built after `Node.Start` reports a controller commissioning the
 node, a fabric removed over the wire or from a route, every window
 opened or closed, and every endpoint whose surface an assembly changed
 (`surface_changed`, from `Observers.OnSurfaceChanged`) — each once, whoever
-caused it, a reassembly the host runs on its own included.
+caused it, a reassembly the host runs on its own included — and every CASE
+session opened or closed and every change of its subscriptions
+(`session_opened`, `session_closed`, `subscriptions_changed`, from
+`OnSessionOpened`, `OnSessionClosed`, `OnSubscriptionsChanged`).
 `node.Config.Observers` stays the host's own. A host that carries these
 events over a channel of its own registers `fabricui.NodeObservers` with
 `Node.Observe` the same way; publishing them into `Options.Events` instead
@@ -119,6 +122,7 @@ What each route calls on the facade:
 | `GET /controller/discovery` | `Controller.Discover` |
 | `PUT /controller/fabric/label` | `Fabric().SetLabel`, then `Registry().SetFabricLabel` in the background |
 | `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates`, `AddUpdateConsent` |
+| `GET /controller/topology` | planned: `NetworkTopology` answers `fabricui.ErrNotImplemented` (501) until go-fabric's controller topology builder lands (brief U3b) |
 
 A host without go-fabric's controller — a test, a demonstration —
 implements `fabricui.ControllerSource` itself; `fabricui.NewMemoryController()`

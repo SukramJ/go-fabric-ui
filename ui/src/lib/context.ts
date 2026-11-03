@@ -3,7 +3,7 @@
 // links between the pages. A host provides it once above the pages (provideFabricUI); the
 // standalone shell provides its own.
 import { getContext, hasContext, setContext } from "svelte";
-import type { FabricClient } from "./api/client";
+import type { FabricClient, TopologyRef } from "./api/client";
 import { defaultT, type Translate } from "./i18n";
 import { createNodeStore, type NodeStore, type NodeStoreDeps, type Toast } from "./store.svelte";
 import { createControllerStore, type ControllerStore, type ControllerStoreDeps } from "./controller-store.svelte";
@@ -28,6 +28,7 @@ export interface Routes {
   endpoints: string;
   surface: string;
   diagnostics: string;
+  topology: string;
   controllerNodes: string;
   controllerCommission: string;
   controllerSettings: string;
@@ -43,11 +44,26 @@ export const defaultRoutes: Routes = {
   endpoints: "#/node/endpoints",
   surface: "#/node/surface",
   diagnostics: "#/node/diagnostics",
+  topology: "#/node/topology",
   controllerNodes: "#/controller/nodes",
   controllerCommission: "#/controller/commission",
   controllerSettings: "#/controller/settings",
   controllerNode: "#/controller/node/",
 };
+
+/** The pages a topology node's ref names (TopologyRef.page) that list it by the id alone. */
+const REF_PAGES = ["status", "endpoints", "fabrics", "diagnostics"] as const;
+
+/**
+ * The href of a topology node's ref: the page that already lists the node,
+ * on the host's routes; a controller node's own page with its id. Undefined
+ * for a page these routes do not know.
+ */
+export function refHref(ref: TopologyRef | undefined, routes: Routes): string | undefined {
+  if (!ref) return undefined;
+  if (ref.page === "controller_node") return routes.controllerNode + ref.id;
+  return (REF_PAGES as readonly string[]).includes(ref.page) ? routes[ref.page as (typeof REF_PAGES)[number]] : undefined;
+}
 
 export interface FabricUI {
   client: FabricClient;

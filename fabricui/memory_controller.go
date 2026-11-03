@@ -340,6 +340,13 @@ func (m *MemoryController) Observe(fn func(ControllerEvent)) (unsubscribe func()
 	})
 }
 
+// NetworkTopology implements [ControllerSource]: the in-memory controller
+// builds no graph (brief U3a decision 0.2), so GET /controller/topology
+// answers 501.
+func (m *MemoryController) NetworkTopology(context.Context, bool) (NetworkTopology, error) {
+	return NetworkTopology{}, ErrNotImplemented
+}
+
 // memoryUpdates is the in-memory update queue.
 type memoryUpdates struct {
 	m     *MemoryController

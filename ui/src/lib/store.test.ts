@@ -52,6 +52,28 @@ describe("node store", () => {
     expect(paths(ui).filter((p) => p === "GET /node/status")).toHaveLength(3);
   });
 
+  it("moves the graph epoch once per burst of session, fabric and endpoint events", async () => {
+    const ui = testUI({ fixtures: ["node-status.200", "node-fabrics.200"] });
+    const s = { session_id: 17, fabric_index: 1 } as never;
+    ui.node.applyEvent({ type: "session_opened", data: s });
+    ui.node.applyEvent({ type: "subscriptions_changed", data: s });
+    ui.node.applyEvent({ type: "fabric_added", data: { fabric_index: 1 } });
+    ui.node.applyEvent({ type: "window_opened", data: {} });
+    expect(ui.node.graphEpoch).toBe(0);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(ui.node.graphEpoch).toBe(1);
+    ui.node.applyEvent({ type: "session_closed", data: s });
+    ui.node.applyEvent({ type: "endpoints_changed", data: {} });
+    ui.node.applyEvent({ type: "fabric_removed", data: { fabric_index: 1 } });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(ui.node.graphEpoch).toBe(2);
+    ui.node.applyEvent({ type: "exposure_changed", data: { keys: [] } });
+    ui.node.applyEvent({ type: "session_opened", data: s });
+    ui.node.close();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(ui.node.graphEpoch).toBe(2);
+  });
+
   it("collapses a burst of exposure_changed into one reload", async () => {
     const ui = testUI({ fixtures: ["node-exposure-schema.200", "node-exposure.200"] });
     for (let i = 0; i < 5; i++) ui.node.applyEvent({ type: "exposure_changed", data: { keys: [`k${i}`] } });

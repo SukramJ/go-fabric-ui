@@ -27,10 +27,14 @@ describe("subscribeStream", () => {
     src.emit("exposure_changed", "not json");
     src.emit("window_closed", "{}");
     src.emit("surface_changed", '{"endpoints":["lamp-1"]}');
+    src.emit("session_opened", '{"session_id":17,"subscriptions":0}');
+    src.emit("subscriptions_changed", '{"session_id":17,"subscriptions":2}');
     expect(got).toEqual([
       { type: "fabric_added", data: { fabric_index: 3, label: "Home" } },
       { type: "window_closed", data: {} },
       { type: "surface_changed", data: { endpoints: ["lamp-1"] } },
+      { type: "session_opened", data: { session_id: 17, subscriptions: 0 } },
+      { type: "subscriptions_changed", data: { session_id: 17, subscriptions: 2 } },
     ]);
     close();
     expect(src.closed).toBe(true);
@@ -46,7 +50,11 @@ describe("subscribeControllerStream", () => {
     expect([...src.listeners.keys()]).toEqual([...CONTROLLER_STREAM_EVENTS]);
     src.emit("connection", '{"node_id_hex":"0000000000000011","connection":"disconnected"}');
     src.emit("node_added", "broken");
-    expect(got).toEqual([{ type: "connection", data: { node_id_hex: "0000000000000011", connection: "disconnected" } }]);
+    src.emit("topology_changed", "{}");
+    expect(got).toEqual([
+      { type: "connection", data: { node_id_hex: "0000000000000011", connection: "disconnected" } },
+      { type: "topology_changed", data: {} },
+    ]);
     close();
     expect(src.closed).toBe(true);
   });

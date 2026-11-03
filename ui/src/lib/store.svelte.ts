@@ -32,6 +32,16 @@ export interface NodeStoreDeps {
   subscribe?: (onEvent: (ev: StreamEvent) => void) => () => void;
 }
 
+/** The stream events that change the node's graph (GET /node/topology). */
+const GRAPH_EVENTS = new Set<StreamEvent["type"]>([
+  "session_opened",
+  "session_closed",
+  "subscriptions_changed",
+  "endpoints_changed",
+  "fabric_added",
+  "fabric_removed",
+]);
+
 const IDLE: Commissioning = { phase: "idle", window: null, remaining: null, addedFabricLabel: null };
 
 export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
@@ -51,11 +61,16 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   // surface_changed; a page that shows endpoints or their surface
   // refetches when it moves.
   let topologyEpoch = $state(0);
+  // graphEpoch moves, once per burst, on every event that changes the
+  // node's graph (GET /node/topology): the sessions, the fabrics and the
+  // endpoints.
+  let graphEpoch = $state(0);
 
   let unsub: (() => void) | null = null;
   let countdown: ReturnType<typeof setInterval> | null = null;
   let exposureReload: ReturnType<typeof setTimeout> | null = null;
   let closedTimer: ReturnType<typeof setTimeout> | null = null;
+  let graphTimer: ReturnType<typeof setTimeout> | null = null;
 
   const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -105,6 +120,16 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     exposureReload = setTimeout(() => {
       exposureReload = null;
       void loadExposure();
+    }, 300);
+  }
+
+  // A commissioning opens a session, adds a fabric and its subscriptions
+  // in one breath; collapse them into one move of the graph epoch.
+  function scheduleGraphReload() {
+    if (graphTimer) clearTimeout(graphTimer);
+    graphTimer = setTimeout(() => {
+      graphTimer = null;
+      graphEpoch++;
     }, 300);
   }
 
@@ -207,6 +232,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   }
 
   function applyEvent(ev: StreamEvent) {
+    if (GRAPH_EVENTS.has(ev.type)) scheduleGraphReload();
     switch (ev.type) {
       case "fabric_added":
         if (closedTimer) {
@@ -259,8 +285,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
 
   function close() {
     stopCountdown();
-    for (const timer of [exposureReload, closedTimer]) if (timer) clearTimeout(timer);
-    exposureReload = closedTimer = null;
+    for (const timer of [exposureReload, closedTimer, graphTimer]) if (timer) clearTimeout(timer);
+    exposureReload = closedTimer = graphTimer = null;
     unsub?.();
     unsub = null;
   }
@@ -280,6 +306,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     get hasDirty() { return pending.size > 0; },
     get commissioning() { return commissioning; },
     get topologyEpoch() { return topologyEpoch; },
+    get graphEpoch() { return graphEpoch; },
     loadStatus,
     loadFabrics,
     loadExposure,

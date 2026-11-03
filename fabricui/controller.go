@@ -53,6 +53,67 @@ type ControllerSource interface {
 	// Observe registers fn for every controller event from now on and
 	// returns the function that unregisters it. fn must not block.
 	Observe(fn func(ControllerEvent)) (unsubscribe func())
+	// NetworkTopology is the controller's network as a graph: the
+	// controller, its nodes and the links between them. refresh re-reads
+	// the nodes' network diagnostics first. [ErrNotImplemented] until the
+	// source can build one (GET /controller/topology answers 501).
+	NetworkTopology(ctx context.Context, refresh bool) (NetworkTopology, error)
+}
+
+// NetworkTopology is a controller's network as GET /controller/topology
+// serves it (the contract's TopologyGraph with family "controller"): the
+// port's own types, so the graph builder's go-fabric types stay in the
+// adapter.
+type NetworkTopology struct {
+	// CollectedAt is when the diagnostics the graph rests on were read.
+	CollectedAt time.Time
+	// Nodes are the graph's nodes; Connections its edges between them.
+	Nodes       []NetworkNode
+	Connections []NetworkConnection
+}
+
+// NetworkNode is one node of a [NetworkTopology].
+type NetworkNode struct {
+	// ID is unique in the graph: "node" for the controller,
+	// "peer:<16-digit hex node id>" for a commissioned node, any other
+	// string for an access point or a router the controller did not
+	// commission.
+	ID string
+	// Kind is one of the contract's TopologyNode kinds: node, peer,
+	// thread_router, thread_end_device, wifi_ap, ethernet.
+	Kind string
+	// Label names the node; State is ok, unreachable, idle or unknown.
+	Label, State string
+	// NodeID is a commissioned node's operational id; 0 for the
+	// controller and a node it did not commission.
+	NodeID uint64
+	// Role is the Thread routing role or the network kind; RLOC16 the
+	// Thread RLOC16, nil when unknown; SSID and BSSID the Wi-Fi network.
+	Role        string
+	RLOC16      *uint16
+	SSID, BSSID string
+	// Details are the ordered key/value pairs a page shows for the node.
+	Details []TopologyDetail
+}
+
+// NetworkConnection is one edge of a [NetworkTopology].
+type NetworkConnection struct {
+	// Source and Target are node ids of the graph.
+	Source, Target string
+	// Kind is contains, session or link; Strength one of strong, medium,
+	// weak, unknown, empty when not a link.
+	Kind, Strength string
+	// LQI and RSSI are a Thread link's quality indicator and signal
+	// strength in dBm; nil when not reported.
+	LQI  *uint8
+	RSSI *int8
+	// Label is an optional caption.
+	Label string
+}
+
+// TopologyDetail is one key/value pair a topology page shows for a node.
+type TopologyDetail struct {
+	Key, Value string
 }
 
 // ControllerNode is one commissioned node.
@@ -401,6 +462,8 @@ const (
 	EventSubscription          = "subscription"
 	EventCommissioningProgress = "commissioning_progress"
 	EventUpdate                = "update"
+	// EventTopologyChanged tells a page to reload GET /controller/topology.
+	EventTopologyChanged = "topology_changed"
 )
 
 // ControllerEvent is one event of the controller: Type is one of the
@@ -438,4 +501,6 @@ var (
 	// ErrUnknownCredential: no stored credential with the kind and id
 	// (404).
 	ErrUnknownCredential = errors.New("fabricui: no such credential")
+	// ErrNotImplemented: the source does not serve the route yet (501).
+	ErrNotImplemented = errors.New("fabricui: not implemented")
 )

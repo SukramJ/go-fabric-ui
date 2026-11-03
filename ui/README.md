@@ -40,7 +40,8 @@ toast and confirm:
 
 Pages: `NodeStatus`, `NodePair`, `NodeFabrics` (with maintenance),
 `NodeSelection`, `NodeEndpoints`, `NodeSurface` (the node's surface
-report), `NodeDiagnostics`. Each reads only the
+report), `NodeDiagnostics`, `NodeTopology` (the node as a graph, v0.4.0;
+routes key `topology`, the kit's `Graph`). Each reads only the
 context; none names a host concept. The selection page is driven by the
 provider's schema (see the repository's `docs/provider.md`).
 
@@ -57,7 +58,7 @@ the prefix `controllerNode` link them. `ui.controller.loadStatus()` sets
 
 `t(key, vars)` is the host's. `createTranslator(locale, extra)` builds one
 over the package's catalogues (`catalogs.en`, `catalogs.de`, keys
-`node.*`, `controller.*`, `shell.*`, `common.*`) plus the host's own; a `locale` getter that reads
+`node.*`, `controller.*`, `graph.*`, `shell.*`, `common.*`) plus the host's own; a `locale` getter that reads
 reactive state re-renders the pages on a language switch.
 
 ### Stylesheet

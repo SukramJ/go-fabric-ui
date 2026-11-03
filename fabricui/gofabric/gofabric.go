@@ -504,6 +504,14 @@ func (s *source) Observe(fn func(fabricui.ControllerEvent)) (unsubscribe func())
 	})
 }
 
+// NetworkTopology implements [fabricui.ControllerSource]. go-fabric's
+// controller has no topology builder yet (controller/topology, the module
+// wave brief U3b waits for), so the route answers 501 rather than read
+// network diagnostics here (brief U3a decision 0.2).
+func (s *source) NetworkTopology(context.Context, bool) (fabricui.NetworkTopology, error) {
+	return fabricui.NetworkTopology{}, fabricui.ErrNotImplemented
+}
+
 // nodeError maps an interaction's error to the port's kinds: a value
 // that does not fit its type is an invalid argument, an ICD refusal over
 // other administrators a conflict, anything else the node's failure.

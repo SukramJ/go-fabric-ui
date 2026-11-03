@@ -4,6 +4,7 @@ import { routeOf } from "./route";
 describe("routeOf", () => {
   it("reads the node family's pages, defaulting to status", () => {
     expect(routeOf("#/node/pair")).toEqual({ family: "node", page: "pair" });
+    expect(routeOf("#/node/topology")).toEqual({ family: "node", page: "topology" });
     expect(routeOf("")).toEqual({ family: "node", page: "status" });
     expect(routeOf("#/elsewhere")).toEqual({ family: "node", page: "status" });
   });
