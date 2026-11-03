@@ -166,6 +166,12 @@ func (h *handler) controllerError(w http.ResponseWriter, r *http.Request, err er
 	switch {
 	case errors.Is(err, ErrNodeNotFound):
 		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such node", err.Error())
+	case errors.Is(err, ErrEndpointNotFound):
+		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such endpoint", err.Error())
+	case errors.Is(err, ErrClusterNotFound):
+		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such cluster", err.Error())
+	case errors.Is(err, ErrNotRead):
+		writeProblem(w, r, http.StatusServiceUnavailable, codeServiceUnready, "Not read yet", err.Error())
 	case errors.Is(err, ErrNoDevice):
 		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No device answered", err.Error())
 	case errors.Is(err, ErrUnknownCredential):
@@ -387,7 +393,7 @@ func nodeDetail(n ControllerNode) api.ControllerNodeDetail {
 		d.Properties.DeviceTypes = append(d.Properties.DeviceTypes, int(t))
 	}
 	for _, ep := range n.Endpoints() {
-		e := api.NodeEndpoint{Endpoint: int(ep.Number), Name: optString(ep.Name), DeviceTypes: []api.NodeDeviceType{}, Clusters: []api.NodeCluster{}}
+		e := api.NodeEndpoint{Endpoint: int(ep.Number), Name: optString(ep.Name), Reachable: ep.Reachable, DeviceTypes: []api.NodeDeviceType{}, Clusters: []api.NodeCluster{}}
 		if ep.Parent != nil {
 			e.Parent = ptr(int(*ep.Parent))
 		}
@@ -408,6 +414,114 @@ func (s *controllerServer) GetControllerNode(_ context.Context, req api.GetContr
 		return nil, err
 	}
 	return api.GetControllerNode200JSONResponse(nodeDetail(n)), nil
+}
+
+// endpointDetail is the contract's EndpointDetail of the port's.
+func endpointDetail(d EndpointDetail) api.EndpointDetail {
+	out := api.EndpointDetail{
+		EndpointID: int(d.Number), Name: d.Name, Reachable: d.Reachable,
+		DeviceTypes: []api.EndpointDeviceType{}, Tags: []api.SemanticTag{}, Labels: []api.EndpointLabel{},
+		Parts: []int{}, Clusters: []api.ClusterDetail{},
+	}
+	if d.Parent != nil {
+		out.ParentEndpointID = ptr(int(*d.Parent))
+	}
+	for _, dt := range d.DeviceTypes {
+		out.DeviceTypes = append(out.DeviceTypes, api.EndpointDeviceType{ID: int(dt.ID), IDHex: hexID(dt.ID), Name: optString(dt.Name), Revision: int(dt.Revision)})
+	}
+	for _, t := range d.Tags {
+		out.Tags = append(out.Tags, api.SemanticTag{Namespace: int(t.Namespace), Tag: int(t.Tag), MfgCode: optUint(t.MfgCode), Label: optString(t.Label)})
+	}
+	for _, l := range d.Labels {
+		out.Labels = append(out.Labels, api.EndpointLabel{Label: l.Label, Value: l.Value, User: l.User})
+	}
+	for _, p := range d.Parts {
+		out.Parts = append(out.Parts, int(p))
+	}
+	for _, c := range d.Clusters {
+		out.Clusters = append(out.Clusters, clusterDetail(c))
+	}
+	if c := d.Conformance; c != nil {
+		v := api.ConformanceVerdict{Status: api.ConformanceVerdictStatus(c.Status), Violations: []api.ConformanceViolation{}, Unjudged: elements(c.Unjudged)}
+		for _, x := range c.Violations {
+			v.Violations = append(v.Violations, api.ConformanceViolation{
+				DeviceType: x.DeviceType, DeviceTypeID: nonZero(x.DeviceTypeID), Requirement: x.Requirement, Kind: x.Kind, Detail: x.Detail,
+			})
+		}
+		out.Conformance = &v
+	}
+	return out
+}
+
+// clusterDetail is the contract's ClusterDetail of the port's.
+func clusterDetail(c ClusterDetail) api.ClusterDetail {
+	out := api.ClusterDetail{
+		ID: int(c.ID), IDHex: hexID(c.ID), Name: optString(c.Name), Revision: int(c.Revision),
+		FeatureMapHex: fmt.Sprintf("0x%08X", c.FeatureMap), Features: []api.ClusterFeature{},
+		Attributes: []api.ClusterAttribute{}, Accepted: elements(c.Accepted), Generated: elements(c.Generated), Events: elements(c.Events),
+	}
+	if c.DataVersion != nil {
+		out.DataVersion = ptr(int(*c.DataVersion))
+	}
+	for _, f := range c.Features {
+		out.Features = append(out.Features, api.ClusterFeature{Code: f.Code, Title: optString(f.Title), Bit: int(f.Bit)})
+	}
+	for _, a := range c.Attributes {
+		e := api.ClusterAttribute{ID: int(a.ID), IDHex: hexID(a.ID), Name: optString(a.Name), Status: nonZero(a.Status)}
+		if a.Value != nil {
+			e.Value = ptr(a.Value)
+		}
+		out.Attributes = append(out.Attributes, e)
+	}
+	return out
+}
+
+func elements(in []ClusterElement) []api.ClusterElement {
+	out := make([]api.ClusterElement, 0, len(in))
+	for _, e := range in {
+		out = append(out, api.ClusterElement{ID: int(e.ID), IDHex: hexID(e.ID), Name: optString(e.Name)})
+	}
+	return out
+}
+
+// GetNodeEndpoint serves one endpoint of the controller's image: a
+// read-only inventory, no interaction (owner decision U4 0.1 amends 0.4).
+func (s *controllerServer) GetNodeEndpoint(_ context.Context, req api.GetNodeEndpointRequestObject) (api.GetNodeEndpointResponseObject, error) {
+	n, err := s.node(req.ID)
+	if err != nil {
+		return nil, err
+	}
+	ep, err := endpointOf("ep", req.Ep)
+	if err != nil {
+		return nil, err
+	}
+	d, err := n.EndpointDetail(ep)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetNodeEndpoint200JSONResponse(endpointDetail(d)), nil
+}
+
+// GetNodeCluster serves one cluster of the controller's image with the
+// values it holds, no interaction.
+func (s *controllerServer) GetNodeCluster(_ context.Context, req api.GetNodeClusterRequestObject) (api.GetNodeClusterResponseObject, error) {
+	n, err := s.node(req.ID)
+	if err != nil {
+		return nil, err
+	}
+	ep, err := endpointOf("ep", req.Ep)
+	if err != nil {
+		return nil, err
+	}
+	cluster, err := parseHex32("cluster_hex", req.ClusterHex)
+	if err != nil {
+		return nil, err
+	}
+	d, err := n.ClusterDetail(ep, cluster)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetNodeCluster200JSONResponse(clusterDetail(d)), nil
 }
 
 func (s *controllerServer) DecommissionNode(ctx context.Context, req api.DecommissionNodeRequestObject) (api.DecommissionNodeResponseObject, error) {

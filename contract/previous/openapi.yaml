@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.2.0
+  version: 0.3.1
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
@@ -162,6 +162,28 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SessionList" }
         "503": { $ref: "#/components/responses/Problem" }
+  /node/topology:
+    get:
+      tags: [node]
+      operationId: getNodeTopology
+      summary: The node as a graph — its bridge, its fabrics and the sessions on them.
+      description: |
+        Built from go-fabric's `Topology`, `FabricInfos` and
+        `SessionDiagnostics`: the node, its Aggregator, the bridged devices
+        and their parts (`contains`), each fabric with the sessions on it
+        (`contains`) and every session to the node (`session`). A PASE
+        session (fabric index 0) hangs on the node without a fabric. Node
+        ids are `node`, `ep:<n>`, `fabric:<index>`, `session:<id>`.
+        Subscriptions are counts per session. 503 while the host serves no
+        node or the node has not assembled its endpoints.
+      responses:
+        "200":
+          description: The graph.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TopologyGraph" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
   /node/mdns:
     get:
       tags: [node]
@@ -301,9 +323,14 @@ paths:
       summary: Server-sent events.
       description: |
         `event:` is one of fabric_added, fabric_removed, window_opened,
-        window_closed, endpoints_changed, exposure_changed, surface_changed;
-        `data:` is the JSON payload (`FabricEvent`, `WindowEvent`, `{}`,
-        `ExposureEvent`, `SurfaceChangedEvent`).
+        window_closed, endpoints_changed, exposure_changed, surface_changed,
+        session_opened, session_closed, subscriptions_changed; `data:` is
+        the JSON payload (`FabricEvent`, `WindowEvent`, `{}`,
+        `ExposureEvent`, `SurfaceChangedEvent`, `SessionEvent`).
+        session_opened reports CASE sessions only (go-fabric
+        node.Observers.OnSessionOpened); a PASE session is not reported, and
+        session_closed and subscriptions_changed follow only a session
+        session_opened reported.
         A comment line arrives every 15 s. No payload carries a passcode.
       responses:
         "200":
@@ -867,6 +894,35 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
+  /controller/topology:
+    get:
+      tags: [controller]
+      operationId: getControllerTopology
+      summary: The controller's network as a graph — its nodes and the links between them.
+      description: |
+        `family` is `controller`. Nodes are the controller (`node`), its
+        commissioned nodes (`peer:<node_id_hex>`, `role` their Thread role
+        or network — an Ethernet node is a `peer` with role `ethernet`, so
+        the `ethernet` kind does not occur), the Thread neighbours no
+        commissioned node matches (`unknown_<extended address>`,
+        `thread_router` or `thread_end_device`) and the Wi-Fi access
+        points (`ap_<BSSID>`, `wifi_ap`); edges are a `session` from the
+        controller to every commissioned node and a `link` per Thread pair
+        and Wi-Fi station with its strength, LQI and RSSI.
+        `refresh=true` re-reads the nodes' network diagnostics first and
+        needs admin rights (403 without them); 501 `not_implemented` is a
+        host whose controller serves no network graph.
+      parameters:
+        - { name: refresh, in: query, x-admin: true, schema: { type: boolean }, description: "Re-read the nodes' network diagnostics before answering; admin only." }
+      responses:
+        "200":
+          description: The graph.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TopologyGraph" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "501": { $ref: "#/components/responses/Problem" }
+        "502": { $ref: "#/components/responses/Problem" }
   /controller/stream:
     get:
       tags: [controller]
@@ -874,8 +930,10 @@ paths:
       summary: Server-sent events of the controller.
       description: |
         `event:` is one of node_added, node_updated, node_removed,
-        connection, subscription, commissioning_progress, update; `data:`
-        is a `ControllerEvent`. A comment line arrives every 15 s. No
+        connection, subscription, commissioning_progress, update,
+        topology_changed; `data:` is a `ControllerEvent` (`{}` for
+        topology_changed, which tells a page to reload
+        `/controller/topology`). A comment line arrives every 15 s. No
         payload carries a passcode or a credential.
       responses:
         "200":
@@ -909,7 +967,7 @@ components:
         instance: { type: string }
         code:
           type: string
-          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large, node_error]
+          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large, node_error, not_implemented]
     Status:
       type: object
       required: [enabled, listening, endpoint_count, fabric_count, advertising, commissioning_window_open, exposure]
@@ -1066,6 +1124,73 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Session" }
         occupancy: { $ref: "#/components/schemas/Occupancy" }
+    TopologyGraph:
+      type: object
+      description: A family's topology as nodes and edges; the renderer needs no knowledge per kind.
+      required: [as_of, family, nodes, edges]
+      properties:
+        as_of: { type: string, format: date-time, description: When the graph was read, on the node's or the controller's clock. }
+        family: { type: string, enum: [node, controller] }
+        nodes:
+          type: array
+          items: { $ref: "#/components/schemas/TopologyNode" }
+        edges:
+          type: array
+          items: { $ref: "#/components/schemas/TopologyEdge" }
+    TopologyNode:
+      type: object
+      description: |
+        One node of the graph. `details` is the ordered list a page shows
+        for it; the typed fields are the ones a page links or colours by,
+        each present only for the kinds it belongs to.
+      required: [id, kind, label, state, details]
+      properties:
+        id: { type: string, description: "Unique in the graph: `node`, `ep:<n>`, `fabric:<index>`, `session:<id>`, `peer:<node_id_hex>`." }
+        kind: { type: string, enum: [node, aggregator, device, part, fabric, session, peer, thread_router, thread_end_device, wifi_ap, ethernet] }
+        label: { type: string }
+        state: { type: string, enum: [ok, unreachable, idle, unknown] }
+        ref: { $ref: "#/components/schemas/TopologyRef" }
+        details:
+          type: array
+          items: { $ref: "#/components/schemas/TopologyDetail" }
+        endpoint: { type: integer, description: "aggregator, device, part: the endpoint number." }
+        fabric_index: { type: integer, description: "fabric, session: the fabric index; 0 for a PASE session." }
+        session_id: { type: integer, description: "session: the local session id." }
+        node_id_hex: { type: string, description: "fabric: our node id on it; session: the peer's; peer: the node's." }
+        reachable: { type: boolean, description: "device, part: Reachable as a controller reads it." }
+        is_pase: { type: boolean, description: "session: a commissioning (PASE) session." }
+        subscriptions: { type: integer, description: "session: the subscriptions riding on it." }
+        role: { type: string, description: "peer: its Thread routing role or network kind." }
+        rloc16: { type: integer, description: "peer: its Thread RLOC16." }
+        ssid: { type: string, description: "wifi_ap, peer: the Wi-Fi network." }
+        bssid: { type: string, description: "wifi_ap, peer: the access point's BSSID." }
+    TopologyEdge:
+      type: object
+      required: [source, target, kind]
+      properties:
+        source: { type: string, description: A node id. }
+        target: { type: string, description: A node id. }
+        kind: { type: string, enum: [contains, session, link] }
+        strength: { type: string, enum: [strong, medium, weak, none, unknown], description: "link: the link's quality class; `none` is a link observed dead (LQI 0), `unknown` one without a measurement." }
+        lqi: { type: integer, description: "link: Thread link quality indicator." }
+        rssi: { type: integer, description: "link: received signal strength, dBm." }
+        label: { type: string }
+    TopologyRef:
+      type: object
+      description: |
+        The page that already lists the node and the id it lists it by:
+        `endpoints` (endpoint number), `fabrics` (fabric index),
+        `diagnostics` (session id), `controller_node` (`node_id_hex`).
+      required: [page, id]
+      properties:
+        page: { type: string }
+        id: { type: string }
+    TopologyDetail:
+      type: object
+      required: [key, value]
+      properties:
+        key: { type: string, description: "A stable key a page translates (`device_type`, `clusters`, …)." }
+        value: { type: string }
     MdnsService:
       type: object
       required: [service_type, instance_name, host_name, port, addresses, subtypes, txt]
@@ -1242,6 +1367,23 @@ components:
       properties:
         discriminator: { type: integer }
         duration_seconds: { type: integer }
+    SessionEvent:
+      description: The payload of session_opened, session_closed and subscriptions_changed — the session as `/node/sessions` lists it, with its new subscription count.
+      type: object
+      required: [session_id, fabric_index, peer_node_id, peer_node_id_hex, local_node_id, local_node_id_hex, is_pase, subscriptions, last_activity, last_peer_activity, idle_seconds, peer_idle_seconds]
+      properties:
+        session_id: { type: integer }
+        fabric_index: { type: integer }
+        peer_node_id: { type: integer, description: Informational; use peer_node_id_hex. }
+        peer_node_id_hex: { type: string }
+        local_node_id: { type: integer, description: Informational; use local_node_id_hex. }
+        local_node_id_hex: { type: string }
+        is_pase: { type: boolean }
+        subscriptions: { type: integer }
+        last_activity: { type: string, format: date-time }
+        last_peer_activity: { type: string, format: date-time }
+        idle_seconds: { type: integer }
+        peer_idle_seconds: { type: integer }
     ExposureEvent:
       type: object
       required: [keys]

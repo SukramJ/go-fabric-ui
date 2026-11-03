@@ -1,0 +1,64 @@
+{
+  "route": "GET /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nodes/0000000000000011/endpoints/1/clusters/0x0006"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "accepted": [
+        {
+          "id": 0,
+          "id_hex": "0x0000",
+          "name": "Off"
+        },
+        {
+          "id": 1,
+          "id_hex": "0x0001",
+          "name": "On"
+        },
+        {
+          "id": 2,
+          "id_hex": "0x0002",
+          "name": "Toggle"
+        }
+      ],
+      "attributes": [
+        {
+          "id": 0,
+          "id_hex": "0x0000",
+          "name": "OnOff",
+          "value": true
+        },
+        {
+          "id": 16384,
+          "id_hex": "0x4000",
+          "name": "GlobalSceneControl",
+          "value": true
+        },
+        {
+          "id": 65532,
+          "id_hex": "0xFFFC",
+          "name": "FeatureMap",
+          "value": 1
+        }
+      ],
+      "data_version": 7,
+      "events": [],
+      "feature_map_hex": "0x00000001",
+      "features": [
+        {
+          "bit": 0,
+          "code": "LT",
+          "title": "Lighting"
+        }
+      ],
+      "generated": [],
+      "id": 6,
+      "id_hex": "0x0006",
+      "name": "OnOff",
+      "revision": 6
+    }
+  }
+}

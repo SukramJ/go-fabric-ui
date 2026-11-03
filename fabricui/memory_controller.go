@@ -392,6 +392,29 @@ type memorySpec struct {
 	values    map[AttributePath]json.RawMessage
 	conn      ConnectionState
 	icd       *ICDState
+	// tags, conformance and inventory are what EndpointDetail and
+	// ClusterDetail serve beyond endpoints and values.
+	tags        map[uint16][]SemanticTag
+	conformance map[uint16]Conformance
+	inventory   map[memoryClusterKey]memoryCluster
+}
+
+// memoryClusterKey is one cluster of one endpoint.
+type memoryClusterKey struct {
+	endpoint uint16
+	cluster  uint32
+}
+
+// memoryCluster is a cluster's inventory beyond its values.
+type memoryCluster struct {
+	featureMap  uint32
+	features    []ClusterFeature
+	dataVersion uint32
+	// names are the attribute names; an id named here is listed even
+	// without a value.
+	names     map[uint32]string
+	accepted  []ClusterElement
+	generated []ClusterElement
 }
 
 // memoryNode is one node of the in-memory controller.
@@ -443,8 +466,23 @@ func memoryLight() memorySpec {
 			{1, 0x0006, 0x0000}: json.RawMessage(`true`),
 			{1, clusterBinding, attributeBinding}: json.RawMessage(
 				`[{"node":18,"endpoint":1,"cluster":6,"fabricIndex":1}]`),
+			{1, 0x0006, 0x4000}: json.RawMessage(`true`),
+			{1, 0x0006, 0xFFFC}: json.RawMessage(`1`),
 		},
 		conn: ConnectionConnected,
+		// Endpoint 1: CommonNumber (7) tag 1, "One".
+		tags: map[uint16][]SemanticTag{1: {{Namespace: 7, Tag: 1, Label: "One"}}},
+		conformance: map[uint16]Conformance{
+			0: {Status: ConformanceIncomplete, Unjudged: []ClusterElement{{ID: clusterAccessControl, Name: "AccessControl"}}},
+			1: {Status: ConformanceClean},
+		},
+		inventory: map[memoryClusterKey]memoryCluster{
+			{1, 0x0006}: {
+				featureMap: 0x1, features: []ClusterFeature{{Code: "LT", Title: "Lighting", Bit: 0}}, dataVersion: 7,
+				names:    map[uint32]string{0x0000: "OnOff", 0x4000: "GlobalSceneControl", 0xFFFC: "FeatureMap"},
+				accepted: []ClusterElement{{0x00, "Off"}, {0x01, "On"}, {0x02, "Toggle"}},
+			},
+		},
 	}
 }
 
@@ -541,6 +579,90 @@ func (n *memoryNode) Endpoints() []NodeEndpoint {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return slices.Clone(n.spec.endpoints)
+}
+
+// endpoint is the spec's endpoint number ep; the caller holds mu.
+func (n *memoryNode) endpoint(ep uint16) (NodeEndpoint, error) {
+	for _, e := range n.spec.endpoints {
+		if e.Number == ep {
+			return e, nil
+		}
+	}
+	return NodeEndpoint{}, fmt.Errorf("%w: %d", ErrEndpointNotFound, ep)
+}
+
+func (n *memoryNode) EndpointDetail(ep uint16) (EndpointDetail, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	e, err := n.endpoint(ep)
+	if err != nil {
+		return EndpointDetail{}, err
+	}
+	d := EndpointDetail{
+		Number: e.Number, Parent: e.Parent, Name: e.Name, Reachable: e.Reachable == nil || *e.Reachable,
+		DeviceTypes: slices.Clone(e.DeviceTypes), Tags: slices.Clone(n.spec.tags[ep]), Labels: []EndpointLabel{}, Parts: []uint16{},
+	}
+	if d.Name == "" && len(e.DeviceTypes) > 0 {
+		d.Name = e.DeviceTypes[0].Name
+	}
+	// The root lists every other endpoint, any other endpoint its children.
+	for _, o := range n.spec.endpoints {
+		if o.Number != ep && (ep == 0 || (o.Parent != nil && *o.Parent == ep)) {
+			d.Parts = append(d.Parts, o.Number)
+		}
+	}
+	for _, c := range e.Clusters {
+		d.Clusters = append(d.Clusters, n.cluster(ep, c, false))
+	}
+	conf := Conformance{Status: ConformanceUnknown}
+	if c, ok := n.spec.conformance[ep]; ok {
+		conf = c
+	}
+	d.Conformance = &conf
+	return d, nil
+}
+
+func (n *memoryNode) ClusterDetail(ep uint16, cluster uint32) (ClusterDetail, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	e, err := n.endpoint(ep)
+	if err != nil {
+		return ClusterDetail{}, err
+	}
+	for _, c := range e.Clusters {
+		if c.ID == cluster {
+			return n.cluster(ep, c, true), nil
+		}
+	}
+	return ClusterDetail{}, fmt.Errorf("%w: 0x%04X on endpoint %d", ErrClusterNotFound, cluster, ep)
+}
+
+// cluster is one cluster's detail, with its values when values is set;
+// the caller holds mu.
+func (n *memoryNode) cluster(ep uint16, c NodeCluster, values bool) ClusterDetail {
+	inv := n.spec.inventory[memoryClusterKey{ep, c.ID}]
+	d := ClusterDetail{
+		ID: c.ID, Name: c.Name, Revision: c.Revision, FeatureMap: inv.featureMap, Features: slices.Clone(inv.features),
+		Accepted: slices.Clone(inv.accepted), Generated: slices.Clone(inv.generated),
+	}
+	if inv.dataVersion != 0 {
+		d.DataVersion = ptr(inv.dataVersion)
+	}
+	ids := slices.Collect(maps.Keys(inv.names))
+	for p := range n.spec.values {
+		if p.Endpoint == ep && p.Cluster == c.ID && !slices.Contains(ids, p.Attribute) {
+			ids = append(ids, p.Attribute)
+		}
+	}
+	slices.Sort(ids)
+	for _, id := range ids {
+		a := ClusterAttribute{ID: id, Name: inv.names[id]}
+		if v, ok := n.spec.values[AttributePath{ep, c.ID, id}]; ok && values {
+			a.Value = slices.Clone(v)
+		}
+		d.Attributes = append(d.Attributes, a)
+	}
+	return d
 }
 
 // statusUnsupportedAttribute and statusUnsupportedCommand are the

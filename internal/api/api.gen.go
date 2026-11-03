@@ -69,6 +69,30 @@ func (e ACLEntryPrivilege) Valid() bool {
 	}
 }
 
+// Defines values for ConformanceVerdictStatus.
+const (
+	ConformanceVerdictStatusClean      ConformanceVerdictStatus = "clean"
+	ConformanceVerdictStatusIncomplete ConformanceVerdictStatus = "incomplete"
+	ConformanceVerdictStatusUnknown    ConformanceVerdictStatus = "unknown"
+	ConformanceVerdictStatusViolated   ConformanceVerdictStatus = "violated"
+)
+
+// Valid indicates whether the value is a known member of the ConformanceVerdictStatus enum.
+func (e ConformanceVerdictStatus) Valid() bool {
+	switch e {
+	case ConformanceVerdictStatusClean:
+		return true
+	case ConformanceVerdictStatusIncomplete:
+		return true
+	case ConformanceVerdictStatusUnknown:
+		return true
+	case ConformanceVerdictStatusViolated:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ConnectionState.
 const (
 	ConnectionStateConnected           ConnectionState = "connected"
@@ -493,6 +517,65 @@ type BindingTarget struct {
 	NodeIDHex *string `json:"node_id_hex,omitempty"`
 }
 
+// ClusterAttribute defines model for ClusterAttribute.
+type ClusterAttribute struct {
+	ID    int     `json:"id"`
+	IDHex string  `json:"id_hex"`
+	Name  *string `json:"name,omitempty"`
+
+	// Status The status the attribute was answered with; absent on success.
+	Status *int `json:"status,omitempty"`
+
+	// Value The attribute's value as JSON by field name; absent in a structure-only answer or while unknown.
+	Value *json.RawMessage `json:"value,omitempty"`
+}
+
+// ClusterDetail One server cluster with its inventory (contract 0.4.0).
+type ClusterDetail struct {
+	// Accepted The AcceptedCommandList.
+	Accepted []ClusterElement `json:"accepted"`
+
+	// Attributes The AttributeList in id order.
+	Attributes []ClusterAttribute `json:"attributes"`
+
+	// DataVersion The cluster's DataVersion; absent while unknown.
+	DataVersion *int `json:"data_version,omitempty"`
+
+	// Events The EventList where the peer reports one.
+	Events        []ClusterElement `json:"events"`
+	FeatureMapHex string           `json:"feature_map_hex"`
+
+	// Features The features the feature map sets, in bit order.
+	Features []ClusterFeature `json:"features"`
+
+	// Generated The GeneratedCommandList.
+	Generated []ClusterElement `json:"generated"`
+	ID        int              `json:"id"`
+	IDHex     string           `json:"id_hex"`
+
+	// Name The cluster's name; absent for one no definition names.
+	Name     *string `json:"name,omitempty"`
+	Revision int     `json:"revision"`
+}
+
+// ClusterElement defines model for ClusterElement.
+type ClusterElement struct {
+	ID    int     `json:"id"`
+	IDHex string  `json:"id_hex"`
+	Name  *string `json:"name,omitempty"`
+}
+
+// ClusterFeature defines model for ClusterFeature.
+type ClusterFeature struct {
+	Bit int `json:"bit"`
+
+	// Code The short name ("LT").
+	Code string `json:"code"`
+
+	// Title The long name ("Lighting"); absent where no definition names it.
+	Title *string `json:"title,omitempty"`
+}
+
 // CommissionRequest Either `code`, or `discovered` with `passcode`.
 type CommissionRequest struct {
 	// Code A QR payload ("MT:…") or a manual pairing code.
@@ -511,6 +594,29 @@ type CommissionRequest struct {
 
 	// WifiID The stored Wi-Fi credential to put the device on.
 	WifiID *string `json:"wifi_id,omitempty"`
+}
+
+// ConformanceVerdict The device type conformance of the endpoint as the controller judges its image.
+type ConformanceVerdict struct {
+	Status ConformanceVerdictStatus `json:"status"`
+
+	// Unjudged The server clusters the ServerList names whose inside was not judged.
+	Unjudged   []ClusterElement       `json:"unjudged"`
+	Violations []ConformanceViolation `json:"violations"`
+}
+
+// ConformanceVerdictStatus defines model for ConformanceVerdict.Status.
+type ConformanceVerdictStatus string
+
+// ConformanceViolation defines model for ConformanceViolation.
+type ConformanceViolation struct {
+	Detail     string `json:"detail"`
+	DeviceType string `json:"device_type"`
+
+	// DeviceTypeID Absent for Base and where the violation names no device type.
+	DeviceTypeID *int   `json:"device_type_id,omitempty"`
+	Kind         string `json:"kind"`
+	Requirement  string `json:"requirement"`
 }
 
 // ConnectionState defines model for ConnectionState.
@@ -650,6 +756,61 @@ type EndpointBindings struct {
 	Endpoint int             `json:"endpoint"`
 }
 
+// EndpointDetail One endpoint with its inventory (contract 0.4.0), one shape for both
+// families. The controller family fills it from its image of the node:
+// `conformance`, never `scope`; its `clusters` carry no attribute values.
+type EndpointDetail struct {
+	// Clusters The server clusters in id order.
+	Clusters []ClusterDetail `json:"clusters"`
+
+	// Conformance The device type conformance of the endpoint as the controller judges its image.
+	Conformance *ConformanceVerdict `json:"conformance,omitempty"`
+
+	// DeviceTypes The Descriptor's DeviceTypeList in its order.
+	DeviceTypes []EndpointDeviceType `json:"device_types"`
+	EndpointID  int                  `json:"endpoint_id"`
+
+	// Labels The FixedLabel LabelList, then the UserLabel LabelList.
+	Labels []EndpointLabel `json:"labels"`
+
+	// Name The device type's name as the controller names the endpoint.
+	Name string `json:"name"`
+
+	// ParentEndpointID The endpoint whose parts list names this one; absent for the root and top-level endpoints.
+	ParentEndpointID *int `json:"parent_endpoint_id,omitempty"`
+
+	// Parts The endpoint numbers of its parts.
+	Parts []int `json:"parts"`
+
+	// Reachable BridgedDeviceBasicInformation Reachable where the endpoint serves it; true elsewhere.
+	Reachable bool `json:"reachable"`
+
+	// Scope The snapshot scope a node-side endpoint was assembled from; absent on the controller side.
+	Scope *string `json:"scope,omitempty"`
+
+	// Tags The Descriptor's TagList; empty when the endpoint serves none.
+	Tags []SemanticTag `json:"tags"`
+}
+
+// EndpointDeviceType defines model for EndpointDeviceType.
+type EndpointDeviceType struct {
+	ID    int    `json:"id"`
+	IDHex string `json:"id_hex"`
+
+	// Name The device type's name; absent for one the schema does not know.
+	Name     *string `json:"name,omitempty"`
+	Revision int     `json:"revision"`
+}
+
+// EndpointLabel defines model for EndpointLabel.
+type EndpointLabel struct {
+	Label string `json:"label"`
+
+	// User An entry of UserLabel; FixedLabel's otherwise.
+	User  bool   `json:"user"`
+	Value string `json:"value"`
+}
+
 // FabricLabelRequest defines model for FabricLabelRequest.
 type FabricLabelRequest struct {
 	Label string `json:"label"`
@@ -737,6 +898,9 @@ type NodeEndpoint struct {
 
 	// Parent The endpoint whose parts list names this one; absent for the root and top-level endpoints.
 	Parent *int `json:"parent,omitempty"`
+
+	// Reachable BridgedDeviceBasicInformation Reachable, where the endpoint serves it (0.4.0).
+	Reachable *bool `json:"reachable,omitempty"`
 }
 
 // NodeFabric defines model for NodeFabric.
@@ -846,6 +1010,16 @@ type ReadRequest struct {
 	// FabricFiltered Read fabric-scoped lists filtered to our fabric; absent is true.
 	FabricFiltered *bool           `json:"fabric_filtered,omitempty"`
 	Paths          []AttributePath `json:"paths"`
+}
+
+// SemanticTag defines model for SemanticTag.
+type SemanticTag struct {
+	Label *string `json:"label,omitempty"`
+
+	// MfgCode The manufacturer code of a manufacturer-specific namespace; absent when null.
+	MfgCode   *int `json:"mfg_code,omitempty"`
+	Namespace int  `json:"namespace"`
+	Tag       int  `json:"tag"`
 }
 
 // TopologyDetail defines model for TopologyDetail.
@@ -993,6 +1167,9 @@ type WriteResult struct {
 	Status int `json:"status"`
 }
 
+// EndpointNumber defines model for EndpointNumber.
+type EndpointNumber = int
+
 // NodeID defines model for NodeID.
 type NodeID = string
 
@@ -1124,6 +1301,12 @@ type ServerInterface interface {
 	// EnableNode Enable a disabled node — connect and subscribe again.
 	// (POST /controller/nodes/{id}/enable)
 	EnableNode(w http.ResponseWriter, r *http.Request, id NodeID)
+	// GetNodeEndpoint One endpoint of the node from the controller's image — its structure, no attribute values.
+	// (GET /controller/nodes/{id}/endpoints/{ep})
+	GetNodeEndpoint(w http.ResponseWriter, r *http.Request, id NodeID, ep EndpointNumber)
+	// GetNodeCluster One server cluster of an endpoint with its attribute values from the controller's image.
+	// (GET /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex})
+	GetNodeCluster(w http.ResponseWriter, r *http.Request, id NodeID, ep EndpointNumber, clusterHex string)
 	// ListNodeFabrics Every fabric on the node, ours marked.
 	// (GET /controller/nodes/{id}/fabrics)
 	ListNodeFabrics(w http.ResponseWriter, r *http.Request, id NodeID)
@@ -1664,6 +1847,85 @@ func (siw *ServerInterfaceWrapper) EnableNode(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// GetNodeEndpoint operation middleware
+func (siw *ServerInterfaceWrapper) GetNodeEndpoint(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id NodeID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "ep" -------------
+	var ep EndpointNumber
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ep", r.PathValue("ep"), &ep, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ep", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNodeEndpoint(w, r, id, ep)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetNodeCluster operation middleware
+func (siw *ServerInterfaceWrapper) GetNodeCluster(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id NodeID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "ep" -------------
+	var ep EndpointNumber
+
+	err = runtime.BindStyledParameterWithOptions("simple", "ep", r.PathValue("ep"), &ep, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ep", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "cluster_hex" -------------
+	var clusterHex string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "cluster_hex", r.PathValue("cluster_hex"), &clusterHex, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cluster_hex", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNodeCluster(w, r, id, ep, clusterHex)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListNodeFabrics operation middleware
 func (siw *ServerInterfaceWrapper) ListNodeFabrics(w http.ResponseWriter, r *http.Request) {
 
@@ -2108,6 +2370,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes", wrapper.ListControllerNodes)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/controller/nodes/{id}", wrapper.DecommissionNode)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}", wrapper.GetControllerNode)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}/endpoints/{ep}", wrapper.GetNodeEndpoint)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}", wrapper.GetNodeCluster)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/nodes/{id}/interview", wrapper.InterviewNode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/nodes/{id}/enable", wrapper.EnableNode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/nodes/{id}/disable", wrapper.DisableNode)
@@ -3483,6 +3747,127 @@ func (response EnableNode500ApplicationProblemPlusJSONResponse) VisitEnableNodeR
 	return err
 }
 
+type GetNodeEndpointRequestObject struct {
+	ID NodeID         `json:"id"`
+	Ep EndpointNumber `json:"ep"`
+}
+
+type GetNodeEndpointResponseObject interface {
+	VisitGetNodeEndpointResponse(w http.ResponseWriter) error
+}
+
+type GetNodeEndpoint200JSONResponse EndpointDetail
+
+func (response GetNodeEndpoint200JSONResponse) VisitGetNodeEndpointResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeEndpoint400ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetNodeEndpoint400ApplicationProblemPlusJSONResponse) VisitGetNodeEndpointResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeEndpoint404ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeEndpoint404ApplicationProblemPlusJSONResponse) VisitGetNodeEndpointResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeClusterRequestObject struct {
+	ID         NodeID         `json:"id"`
+	Ep         EndpointNumber `json:"ep"`
+	ClusterHex string         `json:"cluster_hex"`
+}
+
+type GetNodeClusterResponseObject interface {
+	VisitGetNodeClusterResponse(w http.ResponseWriter) error
+}
+
+type GetNodeCluster200JSONResponse ClusterDetail
+
+func (response GetNodeCluster200JSONResponse) VisitGetNodeClusterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeCluster400ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetNodeCluster400ApplicationProblemPlusJSONResponse) VisitGetNodeClusterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeCluster404ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeCluster404ApplicationProblemPlusJSONResponse) VisitGetNodeClusterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeCluster503ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeCluster503ApplicationProblemPlusJSONResponse) VisitGetNodeClusterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListNodeFabricsRequestObject struct {
 	ID NodeID `json:"id"`
 }
@@ -4451,6 +4836,12 @@ type StrictServerInterface interface {
 	// EnableNode Enable a disabled node — connect and subscribe again.
 	// (POST /controller/nodes/{id}/enable)
 	EnableNode(ctx context.Context, request EnableNodeRequestObject) (EnableNodeResponseObject, error)
+	// GetNodeEndpoint One endpoint of the node from the controller's image — its structure, no attribute values.
+	// (GET /controller/nodes/{id}/endpoints/{ep})
+	GetNodeEndpoint(ctx context.Context, request GetNodeEndpointRequestObject) (GetNodeEndpointResponseObject, error)
+	// GetNodeCluster One server cluster of an endpoint with its attribute values from the controller's image.
+	// (GET /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex})
+	GetNodeCluster(ctx context.Context, request GetNodeClusterRequestObject) (GetNodeClusterResponseObject, error)
 	// ListNodeFabrics Every fabric on the node, ours marked.
 	// (GET /controller/nodes/{id}/fabrics)
 	ListNodeFabrics(ctx context.Context, request ListNodeFabricsRequestObject) (ListNodeFabricsResponseObject, error)
@@ -5074,6 +5465,61 @@ func (sh *strictHandler) EnableNode(w http.ResponseWriter, r *http.Request, id N
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(EnableNodeResponseObject); ok {
 		if err := validResponse.VisitEnableNodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetNodeEndpoint operation middleware
+func (sh *strictHandler) GetNodeEndpoint(w http.ResponseWriter, r *http.Request, id NodeID, ep EndpointNumber) {
+	var request GetNodeEndpointRequestObject
+
+	request.ID = id
+	request.Ep = ep
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetNodeEndpoint(ctx, request.(GetNodeEndpointRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetNodeEndpoint")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetNodeEndpointResponseObject); ok {
+		if err := validResponse.VisitGetNodeEndpointResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetNodeCluster operation middleware
+func (sh *strictHandler) GetNodeCluster(w http.ResponseWriter, r *http.Request, id NodeID, ep EndpointNumber, clusterHex string) {
+	var request GetNodeClusterRequestObject
+
+	request.ID = id
+	request.Ep = ep
+	request.ClusterHex = clusterHex
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetNodeCluster(ctx, request.(GetNodeClusterRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetNodeCluster")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetNodeClusterResponseObject); ok {
+		if err := validResponse.VisitGetNodeClusterResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

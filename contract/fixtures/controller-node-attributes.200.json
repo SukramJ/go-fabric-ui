@@ -32,7 +32,7 @@
           "attribute_hex": "0x4000",
           "cluster_hex": "0x0006",
           "endpoint": 1,
-          "status": 134
+          "value": true
         }
       ]
     }

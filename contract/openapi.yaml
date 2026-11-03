@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.3.1
+  version: 0.4.0
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
@@ -391,6 +391,61 @@ paths:
         "404": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/endpoints/{ep}:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+      - $ref: "#/components/parameters/EndpointNumber"
+    get:
+      tags: [controller]
+      operationId: getNodeEndpoint
+      summary: One endpoint of the node from the controller's image — its structure, no attribute values.
+      description: |
+        Read from the controller's image of the node, never from the node
+        (no interaction, no admin): the device types of the Descriptor's
+        DeviceTypeList, its TagList, the FixedLabel and UserLabel entries,
+        the parts, BridgedDeviceBasicInformation Reachable, the device type
+        conformance verdict and every server cluster with its revision,
+        feature map, attribute, command and event ids — without values
+        (`GET …/clusters/{cluster_hex}` has them). 404 when the image holds
+        no such endpoint.
+      responses:
+        "200":
+          description: The endpoint.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EndpointDetail" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+      - $ref: "#/components/parameters/EndpointNumber"
+      - name: cluster_hex
+        in: path
+        required: true
+        description: The cluster id in hex, `0x` optional ("0x0006").
+        schema: { type: string }
+    get:
+      tags: [controller]
+      operationId: getNodeCluster
+      summary: One server cluster of an endpoint with its attribute values from the controller's image.
+      description: |
+        The values are the controller's cache of the node — what its
+        subscription and its last read delivered — rendered as JSON by the
+        cluster definitions, a struct keyed by field name, as a targeted
+        read renders them; nothing is read from the node (no admin). 404
+        when the image holds no such endpoint or the endpoint no such
+        cluster; 503 while the Descriptor's ServerList names the cluster
+        but the controller has not read it yet.
+      responses:
+        "200":
+          description: The cluster.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClusterDetail" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/interview:
     parameters:
       - $ref: "#/components/parameters/NodeID"
@@ -949,6 +1004,12 @@ components:
       required: true
       description: The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free.
       schema: { type: string }
+    EndpointNumber:
+      name: ep
+      in: path
+      required: true
+      description: The endpoint number.
+      schema: { type: integer, minimum: 0, maximum: 65535 }
   responses:
     Problem:
       description: An RFC 9457 problem.
@@ -1617,12 +1678,146 @@ components:
         endpoint: { type: integer }
         parent: { type: integer, description: The endpoint whose parts list names this one; absent for the root and top-level endpoints. }
         name: { type: string }
+        reachable: { type: boolean, description: "BridgedDeviceBasicInformation Reachable, where the endpoint serves it (0.4.0)." }
         device_types:
           type: array
           items: { $ref: "#/components/schemas/NodeDeviceType" }
         clusters:
           type: array
           items: { $ref: "#/components/schemas/NodeCluster" }
+    EndpointDetail:
+      type: object
+      description: |
+        One endpoint with its inventory (contract 0.4.0), one shape for both
+        families. The controller family fills it from its image of the node:
+        `conformance`, never `scope`; its `clusters` carry no attribute values.
+      required: [endpoint_id, name, reachable, device_types, tags, labels, parts, clusters]
+      properties:
+        endpoint_id: { type: integer }
+        parent_endpoint_id: { type: integer, description: The endpoint whose parts list names this one; absent for the root and top-level endpoints. }
+        name: { type: string, description: "The device type's name as the controller names the endpoint." }
+        reachable: { type: boolean, description: BridgedDeviceBasicInformation Reachable where the endpoint serves it; true elsewhere. }
+        device_types:
+          type: array
+          description: The Descriptor's DeviceTypeList in its order.
+          items: { $ref: "#/components/schemas/EndpointDeviceType" }
+        scope: { type: string, description: The snapshot scope a node-side endpoint was assembled from; absent on the controller side. }
+        tags:
+          type: array
+          description: The Descriptor's TagList; empty when the endpoint serves none.
+          items: { $ref: "#/components/schemas/SemanticTag" }
+        labels:
+          type: array
+          description: The FixedLabel LabelList, then the UserLabel LabelList.
+          items: { $ref: "#/components/schemas/EndpointLabel" }
+        parts:
+          type: array
+          description: The endpoint numbers of its parts.
+          items: { type: integer }
+        clusters:
+          type: array
+          description: The server clusters in id order.
+          items: { $ref: "#/components/schemas/ClusterDetail" }
+        conformance: { $ref: "#/components/schemas/ConformanceVerdict" }
+    EndpointDeviceType:
+      type: object
+      required: [id, id_hex, revision]
+      properties:
+        id: { type: integer }
+        id_hex: { type: string }
+        name: { type: string, description: The device type's name; absent for one the schema does not know. }
+        revision: { type: integer }
+    SemanticTag:
+      type: object
+      required: [namespace, tag]
+      properties:
+        namespace: { type: integer }
+        tag: { type: integer }
+        mfg_code: { type: integer, description: The manufacturer code of a manufacturer-specific namespace; absent when null. }
+        label: { type: string }
+    EndpointLabel:
+      type: object
+      required: [label, value, user]
+      properties:
+        label: { type: string }
+        value: { type: string }
+        user: { type: boolean, description: An entry of UserLabel; FixedLabel's otherwise. }
+    ConformanceVerdict:
+      type: object
+      description: The device type conformance of the endpoint as the controller judges its image.
+      required: [status, violations, unjudged]
+      properties:
+        status: { type: string, enum: [unknown, incomplete, clean, violated] }
+        violations:
+          type: array
+          items: { $ref: "#/components/schemas/ConformanceViolation" }
+        unjudged:
+          type: array
+          description: The server clusters the ServerList names whose inside was not judged.
+          items: { $ref: "#/components/schemas/ClusterElement" }
+    ConformanceViolation:
+      type: object
+      required: [device_type, requirement, kind, detail]
+      properties:
+        device_type: { type: string }
+        device_type_id: { type: integer, description: Absent for Base and where the violation names no device type. }
+        requirement: { type: string }
+        kind: { type: string }
+        detail: { type: string }
+    ClusterDetail:
+      type: object
+      description: One server cluster with its inventory (contract 0.4.0).
+      required: [id, id_hex, revision, feature_map_hex, features, attributes, accepted, generated, events]
+      properties:
+        id: { type: integer }
+        id_hex: { type: string }
+        name: { type: string, description: The cluster's name; absent for one no definition names. }
+        revision: { type: integer }
+        feature_map_hex: { type: string }
+        features:
+          type: array
+          description: The features the feature map sets, in bit order.
+          items: { $ref: "#/components/schemas/ClusterFeature" }
+        data_version: { type: integer, description: The cluster's DataVersion; absent while unknown. }
+        attributes:
+          type: array
+          description: The AttributeList in id order.
+          items: { $ref: "#/components/schemas/ClusterAttribute" }
+        accepted:
+          type: array
+          description: The AcceptedCommandList.
+          items: { $ref: "#/components/schemas/ClusterElement" }
+        generated:
+          type: array
+          description: The GeneratedCommandList.
+          items: { $ref: "#/components/schemas/ClusterElement" }
+        events:
+          type: array
+          description: The EventList where the peer reports one.
+          items: { $ref: "#/components/schemas/ClusterElement" }
+    ClusterFeature:
+      type: object
+      required: [code, bit]
+      properties:
+        code: { type: string, description: 'The short name ("LT").' }
+        title: { type: string, description: 'The long name ("Lighting"); absent where no definition names it.' }
+        bit: { type: integer }
+    ClusterAttribute:
+      type: object
+      required: [id, id_hex]
+      properties:
+        id: { type: integer }
+        id_hex: { type: string }
+        name: { type: string }
+        value: { description: The attribute's value as JSON by field name; absent in a structure-only answer or while unknown., x-go-type: json.RawMessage }
+        status: { type: integer, description: The status the attribute was answered with; absent on success. }
+    ClusterElement:
+      type: object
+      required: [id, id_hex]
+      properties:
+        id: { type: integer }
+        id_hex: { type: string }
+        name: { type: string }
     ControllerNodeDetail:
       type: object
       required: [node, record, properties, endpoints]

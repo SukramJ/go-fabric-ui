@@ -55,6 +55,17 @@ func (failingNode) Invoke(context.Context, CommandPath, json.RawMessage, time.Du
 func (failingNode) OpenCommissioningWindow(context.Context, time.Duration) (WindowInfo, error) {
 	return WindowInfo{}, ErrNodeFailed
 }
+
+// The image of a failing node lacks every endpoint and has read no
+// cluster yet.
+func (failingNode) EndpointDetail(ep uint16) (EndpointDetail, error) {
+	return EndpointDetail{}, ErrEndpointNotFound
+}
+
+func (failingNode) ClusterDetail(uint16, uint32) (ClusterDetail, error) {
+	return ClusterDetail{}, ErrNotRead
+}
+
 func (failingNode) RevokeCommissioningWindow(context.Context) error { return ErrNodeFailed }
 func (failingNode) Interview(context.Context) error                 { return ErrNodeFailed }
 func (failingNode) Enable(context.Context) error                    { return ErrNodeFailed }
@@ -86,6 +97,8 @@ var controllerRoutes = []struct{ method, path, body string }{
 	{http.MethodPost, "/controller/nodes/{id}/icd/unregister", `{}`},
 	{http.MethodGet, "/controller/nodes/{id}/fabrics", ""},
 	{http.MethodDelete, "/controller/nodes/{id}/fabrics/2", ""},
+	{http.MethodGet, "/controller/nodes/{id}/endpoints/1", ""},
+	{http.MethodGet, "/controller/nodes/{id}/endpoints/1/clusters/0x0006", ""},
 }
 
 // An unknown node is 404 and a malformed id 400 on every node route.
@@ -130,6 +143,8 @@ func TestController_FailuresMapToProblems(t *testing.T) {
 		{http.MethodGet, "/controller/discovery?filter=any&timeout=2", "", 502},
 		{http.MethodPost, "/controller/commission", `{"code":"34970112332","timeout_seconds":5}`, 502},
 		{http.MethodPut, "/controller/fabric/label", `{"label":"x"}`, 400},
+		{http.MethodGet, "/controller/nodes/11/endpoints/1", "", 404},
+		{http.MethodGet, "/controller/nodes/11/endpoints/1/clusters/6", "", 503},
 	} {
 		if rec := do(t, mux, c.method, c.path, c.body); rec.Code != c.want {
 			t.Errorf("%s %s: %d, want %d: %s", c.method, c.path, rec.Code, c.want, rec.Body)
@@ -160,6 +175,9 @@ func TestController_BadRequests(t *testing.T) {
 		{http.MethodPut, "/controller/nodes/11/bindings", `{"endpoint":1,"bindings":[{"node_id_hex":"zz","endpoint":1}]}`},
 		{http.MethodPut, "/controller/nodes/11/bindings", `{"endpoint":1,"bindings":[{"group":1,"cluster_hex":"zz"}]}`},
 		{http.MethodDelete, "/controller/nodes/11/fabrics/0", ""},
+		{http.MethodGet, "/controller/nodes/11/endpoints/70000", ""},
+		{http.MethodGet, "/controller/nodes/11/endpoints/x", ""},
+		{http.MethodGet, "/controller/nodes/11/endpoints/1/clusters/zz", ""},
 		{http.MethodPost, "/controller/nodes/11/icd/unregister", `{}`},
 		{http.MethodGet, "/controller/discovery?filter=colour", ""},
 		{http.MethodGet, "/controller/discovery?filter=vendor&value=-1", ""},

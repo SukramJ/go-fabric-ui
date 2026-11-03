@@ -1,0 +1,119 @@
+{
+  "route": "GET /controller/nodes/{id}/endpoints/{ep}",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nodes/0000000000000011/endpoints/1"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "clusters": [
+        {
+          "accepted": [],
+          "attributes": [],
+          "events": [],
+          "feature_map_hex": "0x00000000",
+          "features": [],
+          "generated": [],
+          "id": 3,
+          "id_hex": "0x0003",
+          "name": "Identify",
+          "revision": 6
+        },
+        {
+          "accepted": [
+            {
+              "id": 0,
+              "id_hex": "0x0000",
+              "name": "Off"
+            },
+            {
+              "id": 1,
+              "id_hex": "0x0001",
+              "name": "On"
+            },
+            {
+              "id": 2,
+              "id_hex": "0x0002",
+              "name": "Toggle"
+            }
+          ],
+          "attributes": [
+            {
+              "id": 0,
+              "id_hex": "0x0000",
+              "name": "OnOff"
+            },
+            {
+              "id": 16384,
+              "id_hex": "0x4000",
+              "name": "GlobalSceneControl"
+            },
+            {
+              "id": 65532,
+              "id_hex": "0xFFFC",
+              "name": "FeatureMap"
+            }
+          ],
+          "data_version": 7,
+          "events": [],
+          "feature_map_hex": "0x00000001",
+          "features": [
+            {
+              "bit": 0,
+              "code": "LT",
+              "title": "Lighting"
+            }
+          ],
+          "generated": [],
+          "id": 6,
+          "id_hex": "0x0006",
+          "name": "OnOff",
+          "revision": 6
+        },
+        {
+          "accepted": [],
+          "attributes": [
+            {
+              "id": 0,
+              "id_hex": "0x0000"
+            }
+          ],
+          "events": [],
+          "feature_map_hex": "0x00000000",
+          "features": [],
+          "generated": [],
+          "id": 30,
+          "id_hex": "0x001E",
+          "name": "Binding",
+          "revision": 1
+        }
+      ],
+      "conformance": {
+        "status": "clean",
+        "unjudged": [],
+        "violations": []
+      },
+      "device_types": [
+        {
+          "id": 256,
+          "id_hex": "0x0100",
+          "name": "OnOffLight",
+          "revision": 3
+        }
+      ],
+      "endpoint_id": 1,
+      "labels": [],
+      "name": "OnOffLight",
+      "parts": [],
+      "reachable": true,
+      "tags": [
+        {
+          "label": "One",
+          "namespace": 7,
+          "tag": 1
+        }
+      ]
+    }
+  }
+}
