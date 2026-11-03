@@ -61,6 +61,8 @@ const cases: [string, Call][] = [
   ["controller-updates.200", (c) => c.updates()],
   ["controller-updates-consent.204", (c, x) => c.consentUpdate(b(x))],
   ["controller-updates-check.200", (c) => c.checkUpdates()],
+  ["controller-topology.200", (c) => c.controllerTopology()],
+  ["controller-topology.403", (c) => c.controllerTopology(true)],
   ["controller-topology.501", (c) => c.controllerTopology()],
 ];
 

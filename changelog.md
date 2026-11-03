@@ -7,6 +7,38 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-03
+
+The topology view of the controller family (brief U3b, concept
+`docs/concept-u3-topology.md`); contract 0.3.1, additive over 0.3.0.
+
+### Added
+
+- `GET /controller/topology` answers 200: the controller's network graph
+  from go-fabric's `controller/topology` — the controller with a session
+  to each commissioned node (`peer:<node_id_hex>`), the Thread neighbours
+  no node matches (`thread_router`, `thread_end_device`), the Wi-Fi access
+  points (`wifi_ap`) and a `link` per Thread pair and Wi-Fi station with
+  its strength, LQI and RSSI. `gofabric.ControllerOptions.Topology` takes
+  the host's `*topology.Service`; its changes reach the controller stream
+  as `topology_changed`. Without a service the route still answers 501.
+- `TopologyEdge.strength` gains `none` (a link observed dead, LQI 0).
+- The **Network** tab of the controller's nodes page (`ControllerNodes`
+  prop `tab`, route `#/controller/nodes?tab=network`, routes key
+  `controllerNetwork`; `ControllerNetwork` alone): the graph, an admin
+  "Read diagnostics again" (`refresh=true`), a reload on the controller
+  store's new `graphEpoch`. The kit's `Graph` draws a link's strength
+  (width, dotted when dead) with its quality as the title.
+- `MemoryController.Topology`: the graph the in-memory controller serves.
+- Fixtures `controller-topology.200` and `controller-topology.403`.
+
+### Changed
+
+- Contract 0.3.1: `/controller/topology` is served (no `x-status:
+  planned`).
+- go-fabric `v0.16.1-0.20261103130909-c91e5b7f4a2f` (main at `c91e5b7f`,
+  `controller/topology`), a pseudo-version until go-fabric's next tag.
+
 ## [0.4.0] - 2026-11-03
 
 The topology view of the node family (brief U3a, concept
@@ -29,14 +61,9 @@ The topology view of the node family (brief U3a, concept
   on the store's new `graphEpoch`.
 - Client `topology()` and `controllerTopology(refresh)`; problem code
   `not_implemented` (501); the catalogue test (`catalogs.test.ts`).
-
-### Planned
-
-- `GET /controller/topology` (`x-status: planned`, 501 `not_implemented`)
-  with its final schema, `refresh=true` admin-only, and the controller
-  stream's `topology_changed`. The go-fabric adapter and the in-memory
-  controller answer `ErrNotImplemented` until go-fabric's controller
-  topology builder lands (brief U3b).
+- `GET /controller/topology` declared with its final schema (then planned,
+  501), `refresh=true` admin-only, and the controller stream's
+  `topology_changed`; served from 0.4.1.
 
 ### Changed
 

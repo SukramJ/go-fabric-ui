@@ -873,13 +873,18 @@ export interface paths {
         };
         /**
          * The controller's network as a graph — its nodes and the links between them.
-         * @description Planned (brief U3b): answers 501 `not_implemented` until go-fabric's
-         *     controller topology builder lands. The graph's schema is final:
-         *     `family` is `controller`, nodes are the controller and its
-         *     commissioned nodes (`peer:<node_id_hex>`) with their Thread or
-         *     Wi-Fi role, edges the links with their strength. `refresh=true`
-         *     re-reads the nodes' network diagnostics first and needs admin
-         *     rights (403 without them).
+         * @description `family` is `controller`. Nodes are the controller (`node`), its
+         *     commissioned nodes (`peer:<node_id_hex>`, `role` their Thread role
+         *     or network — an Ethernet node is a `peer` with role `ethernet`, so
+         *     the `ethernet` kind does not occur), the Thread neighbours no
+         *     commissioned node matches (`unknown_<extended address>`,
+         *     `thread_router` or `thread_end_device`) and the Wi-Fi access
+         *     points (`ap_<BSSID>`, `wifi_ap`); edges are a `session` from the
+         *     controller to every commissioned node and a `link` per Thread pair
+         *     and Wi-Fi station with its strength, LQI and RSSI.
+         *     `refresh=true` re-reads the nodes' network diagnostics first and
+         *     needs admin rights (403 without them); 501 `not_implemented` is a
+         *     host whose controller serves no network graph.
          */
         get: operations["getControllerTopology"];
         put?: never;
@@ -1143,10 +1148,10 @@ export interface components {
             /** @enum {string} */
             kind: "contains" | "session" | "link";
             /**
-             * @description link: the link's quality class.
+             * @description link: the link's quality class; `none` is a link observed dead (LQI 0), `unknown` one without a measurement.
              * @enum {string}
              */
-            strength?: "strong" | "medium" | "weak" | "unknown";
+            strength?: "strong" | "medium" | "weak" | "none" | "unknown";
             /** @description link: Thread link quality indicator. */
             lqi?: number;
             /** @description link: received signal strength, dBm. */

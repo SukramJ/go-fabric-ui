@@ -45,7 +45,9 @@ routes key `topology`, the kit's `Graph`). Each reads only the
 context; none names a host concept. The selection page is driven by the
 provider's schema (see the repository's `docs/provider.md`).
 
-Controller pages (v0.2.0): `ControllerNodes`, `ControllerCommission`,
+Controller pages (v0.2.0): `ControllerNodes` (with the tabs `list` and
+`network`, prop `tab`, v0.4.1), `ControllerNetwork` (the network graph
+alone, v0.4.1), `ControllerCommission`,
 `ControllerSettings`, and `ControllerNode` with the props `nodeId` (the
 16-digit hex `node_id_hex`) and an optional first `tab` (`overview`,
 `endpoints`, `attributes`, `acl`, `bindings`, `window`, `icd`, `fabrics`,

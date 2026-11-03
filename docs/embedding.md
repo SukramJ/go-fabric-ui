@@ -122,7 +122,7 @@ What each route calls on the facade:
 | `GET /controller/discovery` | `Controller.Discover` |
 | `PUT /controller/fabric/label` | `Fabric().SetLabel`, then `Registry().SetFabricLabel` in the background |
 | `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates`, `AddUpdateConsent` |
-| `GET /controller/topology` | planned: `NetworkTopology` answers `fabricui.ErrNotImplemented` (501) until go-fabric's controller topology builder lands (brief U3b) |
+| `GET /controller/topology` | `ControllerOptions.Topology`, the host's `*topology.Service`: `Topology()`, or `Refresh` with `refresh=true`; its `OnChanged` becomes `topology_changed`. The host wires it: `topology.Changes.Install(&cfg)` before `controller.New`, `topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})`, `ControllerOf(…, ControllerOptions{Topology: svc})`, and `svc.Close()` on shutdown (the subscription goes with `Hooks.Close`). Without it `NetworkTopology` answers `fabricui.ErrNotImplemented` (501) |
 
 A host without go-fabric's controller — a test, a demonstration —
 implements `fabricui.ControllerSource` itself; `fabricui.NewMemoryController()`

@@ -23,6 +23,9 @@ export const TOPOLOGY_KINDS = [
 /** Every node state of the contract. */
 export const TOPOLOGY_STATES = ["ok", "unreachable", "idle", "unknown"] as const satisfies readonly TopologyNode["state"][];
 
+/** Every link strength of the contract, strongest first. */
+export const TOPOLOGY_STRENGTHS = ["strong", "medium", "weak", "none", "unknown"] as const satisfies readonly NonNullable<TopologyEdge["strength"]>[];
+
 /** The measures the layout works in, in SVG user units. */
 export const LAYOUT = {
   charWidth: 7,

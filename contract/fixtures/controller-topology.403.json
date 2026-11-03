@@ -1,0 +1,18 @@
+{
+  "route": "GET /controller/topology",
+  "request": {
+    "method": "GET",
+    "path": "/controller/topology?refresh=true"
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "code": "forbidden",
+      "detail": "refresh=true makes the controller talk to its nodes",
+      "instance": "/api/v1/controller/topology",
+      "status": 403,
+      "title": "Admin rights required",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-forbidden"
+    }
+  }
+}

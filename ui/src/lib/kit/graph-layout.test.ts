@@ -37,6 +37,33 @@ describe("layoutGraph", () => {
     ]);
   });
 
+  it("lays out the controller-topology.200 graph: the controller, its nodes, then what they report", () => {
+    const g = body<TopologyGraph>("controller-topology.200");
+    const l = layoutGraph(g.nodes, g.edges);
+    expect({ width: l.width, height: l.height }).toEqual({ width: 568, height: 240 });
+    expect(l.nodes.map((n) => [n.id, n.column, n.row, n.x, n.y, n.width, n.text])).toEqual([
+      ["node", 0, 0, 16, 100, 98, "Controller"],
+      ["peer:0000000000000011", 1, 0, 215, 16, 96, "Light"],
+      ["peer:0000000000000012", 1, 1, 215, 72, 96, "Sensor"],
+      ["peer:0000000000000013", 1, 2, 186, 128, 154, "0x0000000000000013"],
+      ["peer:0000000000000014", 1, 3, 215, 184, 96, "Bridge"],
+      ["unknown_0011223344556677", 2, 0, 412, 44, 140, "0011223344556677"],
+      ["unknown_8899AABBCCDDEEFF", 2, 1, 412, 100, 140, "8899AABBCCDDEEFF"],
+      ["ap_AABBCCDDEEFF", 2, 2, 434, 156, 96, "home-wifi"],
+    ]);
+    expect(l.edges.map((e) => [e.source, e.target, e.path])).toEqual([
+      ["node", "peer:0000000000000011", "M114 120 C164.5 120 164.5 36 215 36"],
+      ["node", "peer:0000000000000012", "M114 120 C164.5 120 164.5 92 215 92"],
+      ["node", "peer:0000000000000013", "M114 120 C150 120 150 148 186 148"],
+      ["node", "peer:0000000000000014", "M114 120 C164.5 120 164.5 204 215 204"],
+      ["peer:0000000000000011", "peer:0000000000000012", "M263 56 C263 64 263 64 263 72"],
+      ["peer:0000000000000011", "unknown_0011223344556677", "M311 36 C361.5 36 361.5 64 412 64"],
+      ["peer:0000000000000011", "unknown_8899AABBCCDDEEFF", "M311 36 C361.5 36 361.5 120 412 120"],
+      ["peer:0000000000000012", "unknown_0011223344556677", "M311 92 C361.5 92 361.5 64 412 64"],
+      ["peer:0000000000000013", "ap_AABBCCDDEEFF", "M340 148 C387 148 387 176 434 176"],
+    ]);
+  });
+
   it("puts a node no edge reaches in the column of its kind, else left of every other", () => {
     const nodes = [
       { id: "node", kind: "node", label: "n" },

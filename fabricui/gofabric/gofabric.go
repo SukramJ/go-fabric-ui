@@ -5,16 +5,20 @@
 // controller: [ControllerOf] is a [fabricui.ControllerSource] over a
 // *controller.Controller, the one place in this module that knows the
 // controller facade (controller, controller/client,
-// controller/softwareupdate, the Thread dataset codec thread and the
-// generated cluster definitions it encodes ACL and Binding entries with).
-// A host passes it in fabricui.Options.Controller:
+// controller/softwareupdate, the network graph controller/topology, the
+// Thread dataset codec thread and the generated cluster definitions it
+// encodes ACL and Binding entries with). A host passes it in
+// fabricui.Options.Controller:
 //
 //	hooks := gofabric.NewHooks()
 //	cfg.HooksFor = hooks.Wrap(cfg.HooksFor) // before controller.New
+//	var changes topology.Changes
+//	changes.Install(&cfg) // before controller.New
 //	ctrl, err := controller.New(ctx, cfg)
-//	src := gofabric.ControllerOf(ctrl, gofabric.ControllerOptions{Hooks: hooks, Credentials: store})
+//	svc := topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})
+//	src := gofabric.ControllerOf(ctrl, gofabric.ControllerOptions{Hooks: hooks, Credentials: store, Topology: svc})
 //	mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Controller: src}))
-//	// … on shutdown: hooks.Close() before ctrl.Close(ctx)
+//	// … on shutdown: svc.Close() and hooks.Close() before ctrl.Close(ctx)
 //
 // The facade calls are those go-fabric-server's controllerapi makes per
 // WebSocket command (cmd_node.go, cmd_commission.go, cmd_interact.go,
@@ -34,6 +38,7 @@ import (
 	"github.com/SukramJ/go-fabric/controller"
 	"github.com/SukramJ/go-fabric/controller/client"
 	"github.com/SukramJ/go-fabric/controller/commissioner"
+	"github.com/SukramJ/go-fabric/controller/topology"
 	"github.com/SukramJ/go-fabric/thread"
 
 	"github.com/SukramJ/go-fabric-ui/fabricui"
@@ -65,6 +70,12 @@ type ControllerOptions struct {
 	// Logger receives the adapter's logs; nil is slog.Default(). Nothing
 	// it logs carries a passcode or a credential.
 	Logger *slog.Logger
+	// Topology is the host's network graph of the controller's nodes,
+	// which GET /controller/topology serves and whose changes reach the
+	// stream as topology_changed. It is the host's: its Changes are
+	// installed on controller.Config before controller.New, and the host
+	// closes it on shutdown. Nil serves no graph (the route answers 501).
+	Topology *topology.Service
 }
 
 // ThreadDatasetName is a Thread operational dataset's network name, read
@@ -89,6 +100,9 @@ func ControllerOf(ctrl *controller.Controller, opts ControllerOptions) fabricui.
 	if s.log == nil {
 		s.log = slog.Default()
 	}
+	if opts.Topology != nil {
+		s.watchTopology(opts.Topology)
+	}
 	if opts.Hooks != nil {
 		opts.Hooks.bind(s)
 	}
@@ -106,6 +120,10 @@ type source struct {
 	// by instance name, for CommissionDiscovered.
 	mu         sync.Mutex
 	discovered map[string]client.Device
+
+	// topoState holds the subscription to opts.Topology, released by
+	// Hooks.Close (or closeTopology without hooks).
+	topoState
 }
 
 func (s *source) publish(e fabricui.ControllerEvent) {
@@ -502,14 +520,6 @@ func (s *source) Observe(fn func(fabricui.ControllerEvent)) (unsubscribe func())
 			fn(ce)
 		}
 	})
-}
-
-// NetworkTopology implements [fabricui.ControllerSource]. go-fabric's
-// controller has no topology builder yet (controller/topology, the module
-// wave brief U3b waits for), so the route answers 501 rather than read
-// network diagnostics here (brief U3a decision 0.2).
-func (s *source) NetworkTopology(context.Context, bool) (fabricui.NetworkTopology, error) {
-	return fabricui.NetworkTopology{}, fabricui.ErrNotImplemented
 }
 
 // nodeError maps an interaction's error to the port's kinds: a value

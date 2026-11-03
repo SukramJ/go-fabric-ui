@@ -231,6 +231,7 @@ func (e TopologyEdgeKind) Valid() bool {
 // Defines values for TopologyEdgeStrength.
 const (
 	TopologyEdgeStrengthMedium  TopologyEdgeStrength = "medium"
+	TopologyEdgeStrengthNone    TopologyEdgeStrength = "none"
 	TopologyEdgeStrengthStrong  TopologyEdgeStrength = "strong"
 	TopologyEdgeStrengthUnknown TopologyEdgeStrength = "unknown"
 	TopologyEdgeStrengthWeak    TopologyEdgeStrength = "weak"
@@ -240,6 +241,8 @@ const (
 func (e TopologyEdgeStrength) Valid() bool {
 	switch e {
 	case TopologyEdgeStrengthMedium:
+		return true
+	case TopologyEdgeStrengthNone:
 		return true
 	case TopologyEdgeStrengthStrong:
 		return true
@@ -866,7 +869,7 @@ type TopologyEdge struct {
 	// Source A node id.
 	Source string `json:"source"`
 
-	// Strength link: the link's quality class.
+	// Strength link: the link's quality class; `none` is a link observed dead (LQI 0), `unknown` one without a measurement.
 	Strength *TopologyEdgeStrength `json:"strength,omitempty"`
 
 	// Target A node id.
@@ -876,7 +879,7 @@ type TopologyEdge struct {
 // TopologyEdgeKind defines model for TopologyEdge.Kind.
 type TopologyEdgeKind string
 
-// TopologyEdgeStrength link: the link's quality class.
+// TopologyEdgeStrength link: the link's quality class; `none` is a link observed dead (LQI 0), `unknown` one without a measurement.
 type TopologyEdgeStrength string
 
 // TopologyGraph A family's topology as nodes and edges; the renderer needs no knowledge per kind.
