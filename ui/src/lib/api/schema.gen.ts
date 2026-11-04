@@ -416,6 +416,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/controller/nodes/{id}/endpoints/{ep}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                id: components["parameters"]["NodeID"];
+                /** @description The endpoint number. */
+                ep: components["parameters"]["EndpointNumber"];
+            };
+            cookie?: never;
+        };
+        /**
+         * One endpoint of the node from the controller's image — its structure, no attribute values.
+         * @description Read from the controller's image of the node, never from the node
+         *     (no interaction, no admin): the device types of the Descriptor's
+         *     DeviceTypeList, its TagList, the FixedLabel and UserLabel entries,
+         *     the parts, BridgedDeviceBasicInformation Reachable, the device type
+         *     conformance verdict and every server cluster with its revision,
+         *     feature map, attribute, command and event ids — without values
+         *     (`GET …/clusters/{cluster_hex}` has them). 404 when the image holds
+         *     no such endpoint.
+         */
+        get: operations["getNodeEndpoint"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                id: components["parameters"]["NodeID"];
+                /** @description The endpoint number. */
+                ep: components["parameters"]["EndpointNumber"];
+                /** @description The cluster id in hex, `0x` optional ("0x0006"). */
+                cluster_hex: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * One server cluster of an endpoint with its attribute values from the controller's image.
+         * @description The values are the controller's cache of the node — what its
+         *     subscription and its last read delivered — rendered as JSON by the
+         *     cluster definitions, a struct keyed by field name, as a targeted
+         *     read renders them; nothing is read from the node (no admin). 404
+         *     when the image holds no such endpoint or the endpoint no such
+         *     cluster; 503 while the Descriptor's ServerList names the cluster
+         *     but the controller has not read it yet.
+         */
+        get: operations["getNodeCluster"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/controller/nodes/{id}/interview": {
         parameters: {
             query?: never;
@@ -1547,8 +1612,115 @@ export interface components {
             /** @description The endpoint whose parts list names this one; absent for the root and top-level endpoints. */
             parent?: number;
             name?: string;
+            /** @description BridgedDeviceBasicInformation Reachable, where the endpoint serves it (0.4.0). */
+            reachable?: boolean;
             device_types: components["schemas"]["NodeDeviceType"][];
             clusters: components["schemas"]["NodeCluster"][];
+        };
+        /**
+         * @description One endpoint with its inventory (contract 0.4.0), one shape for both
+         *     families. The controller family fills it from its image of the node:
+         *     `conformance`, never `scope`; its `clusters` carry no attribute values.
+         */
+        EndpointDetail: {
+            endpoint_id: number;
+            /** @description The endpoint whose parts list names this one; absent for the root and top-level endpoints. */
+            parent_endpoint_id?: number;
+            /** @description The device type's name as the controller names the endpoint. */
+            name: string;
+            /** @description BridgedDeviceBasicInformation Reachable where the endpoint serves it; true elsewhere. */
+            reachable: boolean;
+            /** @description The Descriptor's DeviceTypeList in its order. */
+            device_types: components["schemas"]["EndpointDeviceType"][];
+            /** @description The snapshot scope a node-side endpoint was assembled from; absent on the controller side. */
+            scope?: string;
+            /** @description The Descriptor's TagList; empty when the endpoint serves none. */
+            tags: components["schemas"]["SemanticTag"][];
+            /** @description The FixedLabel LabelList, then the UserLabel LabelList. */
+            labels: components["schemas"]["EndpointLabel"][];
+            /** @description The endpoint numbers of its parts. */
+            parts: number[];
+            /** @description The server clusters in id order. */
+            clusters: components["schemas"]["ClusterDetail"][];
+            conformance?: components["schemas"]["ConformanceVerdict"];
+        };
+        EndpointDeviceType: {
+            id: number;
+            id_hex: string;
+            /** @description The device type's name; absent for one the schema does not know. */
+            name?: string;
+            revision: number;
+        };
+        SemanticTag: {
+            namespace: number;
+            tag: number;
+            /** @description The manufacturer code of a manufacturer-specific namespace; absent when null. */
+            mfg_code?: number;
+            label?: string;
+        };
+        EndpointLabel: {
+            label: string;
+            value: string;
+            /** @description An entry of UserLabel; FixedLabel's otherwise. */
+            user: boolean;
+        };
+        /** @description The device type conformance of the endpoint as the controller judges its image. */
+        ConformanceVerdict: {
+            /** @enum {string} */
+            status: "unknown" | "incomplete" | "clean" | "violated";
+            violations: components["schemas"]["ConformanceViolation"][];
+            /** @description The server clusters the ServerList names whose inside was not judged. */
+            unjudged: components["schemas"]["ClusterElement"][];
+        };
+        ConformanceViolation: {
+            device_type: string;
+            /** @description Absent for Base and where the violation names no device type. */
+            device_type_id?: number;
+            requirement: string;
+            kind: string;
+            detail: string;
+        };
+        /** @description One server cluster with its inventory (contract 0.4.0). */
+        ClusterDetail: {
+            id: number;
+            id_hex: string;
+            /** @description The cluster's name; absent for one no definition names. */
+            name?: string;
+            revision: number;
+            feature_map_hex: string;
+            /** @description The features the feature map sets, in bit order. */
+            features: components["schemas"]["ClusterFeature"][];
+            /** @description The cluster's DataVersion; absent while unknown. */
+            data_version?: number;
+            /** @description The AttributeList in id order. */
+            attributes: components["schemas"]["ClusterAttribute"][];
+            /** @description The AcceptedCommandList. */
+            accepted: components["schemas"]["ClusterElement"][];
+            /** @description The GeneratedCommandList. */
+            generated: components["schemas"]["ClusterElement"][];
+            /** @description The EventList where the peer reports one. */
+            events: components["schemas"]["ClusterElement"][];
+        };
+        ClusterFeature: {
+            /** @description The short name ("LT"). */
+            code: string;
+            /** @description The long name ("Lighting"); absent where no definition names it. */
+            title?: string;
+            bit: number;
+        };
+        ClusterAttribute: {
+            id: number;
+            id_hex: string;
+            name?: string;
+            /** @description The attribute's value as JSON by field name; absent in a structure-only answer or while unknown. */
+            value?: unknown;
+            /** @description The status the attribute was answered with; absent on success. */
+            status?: number;
+        };
+        ClusterElement: {
+            id: number;
+            id_hex: string;
+            name?: string;
         };
         ControllerNodeDetail: {
             node: components["schemas"]["ControllerNodeSummary"];
@@ -1828,6 +2000,8 @@ export interface components {
     parameters: {
         /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
         NodeID: string;
+        /** @description The endpoint number. */
+        EndpointNumber: number;
     };
     requestBodies: never;
     headers: never;
@@ -2384,6 +2558,63 @@ export interface operations {
             404: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
+        };
+    };
+    getNodeEndpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                id: components["parameters"]["NodeID"];
+                /** @description The endpoint number. */
+                ep: components["parameters"]["EndpointNumber"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The endpoint. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndpointDetail"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    getNodeCluster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                id: components["parameters"]["NodeID"];
+                /** @description The endpoint number. */
+                ep: components["parameters"]["EndpointNumber"];
+                /** @description The cluster id in hex, `0x` optional ("0x0006"). */
+                cluster_hex: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cluster. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusterDetail"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
         };
     };
     interviewNode: {

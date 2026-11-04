@@ -173,8 +173,9 @@ type nodeDetail struct {
 		Addresses   []string `json:"addresses"`
 	} `json:"record"`
 	Endpoints []struct {
-		Endpoint int `json:"endpoint"`
-		Clusters []struct {
+		Endpoint  int   `json:"endpoint"`
+		Reachable *bool `json:"reachable"`
+		Clusters  []struct {
 			ID   int    `json:"id"`
 			Name string `json:"name"`
 		} `json:"clusters"`
@@ -245,6 +246,11 @@ func TestEndToEnd_Controller(t *testing.T) {
 	if len(detail.Endpoints) < 2 || onOff < 1 {
 		t.Fatalf("detail endpoints %+v", detail.Endpoints)
 	}
+	for _, ep := range detail.Endpoints {
+		if ep.Endpoint == onOff && (ep.Reachable == nil || !*ep.Reachable) {
+			t.Fatalf("the bridged plug's endpoint is not reachable: %s", mustJSON(t, ep))
+		}
+	}
 
 	// The window for another administrator: codes and the passcode.
 	var w struct {
@@ -309,6 +315,86 @@ func TestEndToEnd_Controller(t *testing.T) {
 		http.StatusOK, &read)
 	if len(read.Values) != 2 || string(read.Values[0].Value) != "false" || read.Values[1].Status == nil {
 		t.Fatalf("read %s", mustJSON(t, read))
+	}
+
+	// The inventory from the controller's image (no interaction): the
+	// plug's endpoint with its DeviceTypeList, Reachable, no TagList, its
+	// clusters without values; OnOff with its value, feature and commands.
+	var epd struct {
+		Reachable   bool `json:"reachable"`
+		DeviceTypes []struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		} `json:"device_types"`
+		Tags []struct {
+			Namespace int    `json:"namespace"`
+			Tag       int    `json:"tag"`
+			Label     string `json:"label"`
+			MfgCode   *int   `json:"mfg_code"`
+		} `json:"tags"`
+		Clusters []struct {
+			ID         int `json:"id"`
+			Attributes []struct {
+				Value json.RawMessage `json:"value"`
+			} `json:"attributes"`
+		} `json:"clusters"`
+		Conformance *struct {
+			Status string `json:"status"`
+		} `json:"conformance"`
+	}
+	s.json(http.MethodGet, fmt.Sprintf("/controller/nodes/%s/endpoints/%d", id, onOff), "", http.StatusOK, &epd)
+	types := map[int]string{}
+	for _, dt := range epd.DeviceTypes {
+		types[dt.ID] = dt.Name
+	}
+	if !epd.Reachable || types[0x010A] != "OnOffPlugInUnit" || types[0x0013] != "BridgedNode" || epd.Tags == nil || len(epd.Tags) != 0 ||
+		epd.Conformance == nil || epd.Conformance.Status != "clean" || len(epd.Clusters) == 0 {
+		t.Fatalf("endpoint detail %s", mustJSON(t, epd))
+	}
+	for _, c := range epd.Clusters {
+		for _, a := range c.Attributes {
+			if a.Value != nil {
+				t.Fatalf("the endpoint detail carries a value: %s", mustJSON(t, c))
+			}
+		}
+	}
+	type element struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	var cd struct {
+		Name          string `json:"name"`
+		FeatureMapHex string `json:"feature_map_hex"`
+		Features      []struct {
+			Code  string `json:"code"`
+			Title string `json:"title"`
+			Bit   int    `json:"bit"`
+		} `json:"features"`
+		DataVersion *int `json:"data_version"`
+		Attributes  []struct {
+			ID    int             `json:"id"`
+			Name  string          `json:"name"`
+			Value json.RawMessage `json:"value"`
+		} `json:"attributes"`
+		Accepted []element `json:"accepted"`
+	}
+	s.json(http.MethodGet, fmt.Sprintf("/controller/nodes/%s/endpoints/%d/clusters/0x0006", id, onOff), "", http.StatusOK, &cd)
+	var onOffValue string
+	for _, a := range cd.Attributes {
+		if a.ID == 0 && a.Name == "OnOff" {
+			onOffValue = string(a.Value)
+		}
+	}
+	if cd.Name != "OnOff" || cd.FeatureMapHex != "0x00000001" || len(cd.Features) != 1 || cd.Features[0].Code != "LT" ||
+		cd.Features[0].Title != "Lighting" || cd.Features[0].Bit != 0 || cd.DataVersion == nil || onOffValue != "false" ||
+		!slices.Contains(cd.Accepted, element{ID: 2, Name: "Toggle"}) {
+		t.Fatalf("cluster detail %s", mustJSON(t, cd))
+	}
+	if st, out := s.call(http.MethodGet, fmt.Sprintf("/controller/nodes/%s/endpoints/%d/clusters/0x0300", id, onOff), ""); st != http.StatusNotFound {
+		t.Fatalf("an absent cluster answers %d %s", st, out)
+	}
+	if st, out := s.call(http.MethodGet, "/controller/nodes/"+id+"/endpoints/99", ""); st != http.StatusNotFound {
+		t.Fatalf("an absent endpoint answers %d %s", st, out)
 	}
 
 	// An invoke the plug answers, then the read shows it.

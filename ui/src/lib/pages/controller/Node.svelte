@@ -1,5 +1,5 @@
-<!-- One node: its record and properties, endpoints, a targeted attribute
-     reader, ACL, bindings, a commissioning window for another
+<!-- One node: its record and properties, endpoints, the inventory from
+     the controller's image, a targeted attribute reader, ACL, bindings, a commissioning window for another
      administrator, ICD, the fabrics on it and its pending updates — one
      tab each. The page reloads the node when the stream names it. -->
 <script lang="ts">
@@ -13,6 +13,7 @@
   import { nodeName } from "./format";
   import Overview from "./node/Overview.svelte";
   import Endpoints from "./node/Endpoints.svelte";
+  import Inventory from "./node/Inventory.svelte";
   import Attributes from "./node/Attributes.svelte";
   import Acl from "./node/Acl.svelte";
   import Bindings from "./node/Bindings.svelte";
@@ -25,7 +26,7 @@
 
   const { t, client, controller, routes } = useFabricUI();
 
-  const TABS = ["overview", "endpoints", "attributes", "acl", "bindings", "window", "icd", "fabrics", "updates"] as const;
+  const TABS = ["overview", "endpoints", "inventory", "attributes", "acl", "bindings", "window", "icd", "fabrics", "updates"] as const;
   type Tab = (typeof TABS)[number];
   const isTab = (v: string): v is Tab => (TABS as readonly string[]).includes(v);
 
@@ -33,6 +34,8 @@
   let active = $state<Tab>(isTab(tab) ? tab : "overview");
   let detail = $state<ControllerNodeDetail | null>(null);
   let error = $state<string | null>(null);
+  // The endpoint the endpoints tab opened the inventory at.
+  let focus = $state<number | undefined>(undefined);
 
   async function load() {
     error = null;
@@ -70,7 +73,15 @@
       {#if active === "overview"}
         <Overview {detail} />
       {:else if active === "endpoints"}
-        <Endpoints {detail} />
+        <Endpoints
+          {detail}
+          onInventory={(n) => {
+            focus = n;
+            active = "inventory";
+          }}
+        />
+      {:else if active === "inventory"}
+        <Inventory {nodeId} {detail} {focus} />
       {:else if active === "attributes"}
         <Attributes {nodeId} {detail} />
       {:else if active === "acl"}

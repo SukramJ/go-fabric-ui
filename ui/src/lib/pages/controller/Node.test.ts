@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import NodeHarness from "../../../test/NodeHarness.svelte";
-import { testUI } from "../../../test/support";
+import { body, testUI } from "../../../test/support";
+import type { ControllerNodeDetail, EndpointDetail } from "../../api/client";
 
 afterEach(cleanup);
 
@@ -101,6 +102,75 @@ describe("Controller Node", () => {
     renderNode(L, "updates", ["controller-updates.200"]);
     const card = await screen.findByTestId("node-updates");
     await waitFor(() => expect(card).toHaveTextContent("controller.updates.status.queued"));
+  });
+
+  // The inventory answers endpoint 1 and OnOff from the fixtures, the root
+  // endpoint from the same fixture renumbered.
+  function renderInventory(extra: Parameters<typeof testUI>[0] = {}) {
+    const root: EndpointDetail = { ...body<EndpointDetail>("controller-node-endpoint.200"), endpoint_id: 0, clusters: [], tags: [] };
+    return renderNode(L, "inventory", ["controller-node-endpoint.200", "controller-node-cluster.200"], {
+      ...extra,
+      answers: { [`GET /controller/nodes/${L}/endpoints/0`]: { status: 200, body: root }, ...extra.answers },
+    });
+  }
+  const clusterReads = (ui: ReturnType<typeof testUI>) => ui.sent.filter((s) => s.path.includes("/clusters/")).length;
+
+  it("shows the inventory from the controller's image and loads a cluster when it is opened", async () => {
+    const ui = renderInventory();
+    const ep1 = await screen.findByTestId("inventory-endpoint-1");
+    await waitFor(() => expect(ep1).toHaveTextContent("OnOffLight r3"));
+    expect(ep1).toHaveTextContent("One");
+    expect(ep1).toHaveTextContent("controller.inventory.conformance.clean");
+    expect(ep1).toHaveTextContent("OnOff");
+    expect(clusterReads(ui)).toBe(0);
+    await fireEvent.click(screen.getByTestId("cluster-1-0x0006"));
+    const view = await screen.findByTestId("cluster-view-0x0006");
+    expect(view).toHaveTextContent("LT · Lighting");
+    expect(view).toHaveTextContent("0x00000001");
+    expect(view).toHaveTextContent('inventory.data_version:{"version":7}');
+    expect(screen.getByTestId("attribute-0x0000")).toHaveTextContent("true");
+    expect(view).toHaveTextContent("Toggle");
+    expect(clusterReads(ui)).toBe(1);
+    // Closed and opened again: one more request, never one for a closed cluster.
+    await fireEvent.click(screen.getByTestId("cluster-1-0x0006"));
+    expect(screen.queryByTestId("cluster-view-0x0006")).toBeNull();
+    await fireEvent.click(screen.getByTestId("cluster-1-0x0006"));
+    await screen.findByTestId("cluster-view-0x0006");
+    expect(clusterReads(ui)).toBe(2);
+  });
+
+  it("reloads the inventory and the open cluster when the stream names the node", async () => {
+    const ui = renderInventory();
+    await fireEvent.click(await screen.findByTestId("cluster-1-0x0006"));
+    await screen.findByTestId("cluster-view-0x0006");
+    ui.controller.applyEvent({ type: "node_updated", data: { node_id_hex: L } });
+    await waitFor(() => expect(clusterReads(ui)).toBe(2));
+  });
+
+  it("shows the error state for an endpoint or a cluster the image lacks", async () => {
+    renderInventory({
+      answers: {
+        [`GET /controller/nodes/${L}/endpoints/0`]: { status: 404, body: body("controller-node-endpoint.404") },
+        [`GET /controller/nodes/${L}/endpoints/1/clusters/0x0003`]: { status: 404, body: body("controller-node-cluster.404") },
+      },
+    });
+    const ep0 = await screen.findByTestId("inventory-endpoint-0");
+    await waitFor(() => expect(ep0).toHaveTextContent("common.error"));
+    await fireEvent.click(await screen.findByTestId("cluster-1-0x0003"));
+    const ep1 = screen.getByTestId("inventory-endpoint-1");
+    await waitFor(() => expect(ep1).toHaveTextContent("common.error"));
+    expect(ep1).toHaveTextContent("no such cluster");
+  });
+
+  it("shows Reachable on a bridged endpoint and opens the inventory at an endpoint", async () => {
+    const node = body<ControllerNodeDetail>("controller-node.200");
+    node.endpoints[1].reachable = false;
+    renderNode(L, "endpoints", ["controller-node-endpoint.200"], { answers: { [`GET /controller/nodes/${L}`]: { status: 200, body: node } } });
+    const ep1 = await screen.findByTestId("endpoint-1");
+    expect(ep1).toHaveTextContent("controller.endpoints.unreachable");
+    expect(screen.getByTestId("endpoint-0")).not.toHaveTextContent("controller.endpoints.reachable");
+    await fireEvent.click(screen.getByTestId("inventory-link-1"));
+    expect(await screen.findByTestId("inventory-endpoint-1")).toBeInTheDocument();
   });
 
   it("switches tabs", async () => {

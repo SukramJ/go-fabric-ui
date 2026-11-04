@@ -66,6 +66,17 @@ export type NodeProperties = S["NodeProperties"];
 export type NodeEndpoint = S["NodeEndpoint"];
 export type NodeCluster = S["NodeCluster"];
 export type NodeDeviceType = S["NodeDeviceType"];
+// The inventory (contract 0.4.0).
+export type EndpointDetail = S["EndpointDetail"];
+export type EndpointDeviceType = S["EndpointDeviceType"];
+export type SemanticTag = S["SemanticTag"];
+export type EndpointLabel = S["EndpointLabel"];
+export type ConformanceVerdict = S["ConformanceVerdict"];
+export type ConformanceViolation = S["ConformanceViolation"];
+export type ClusterDetail = S["ClusterDetail"];
+export type ClusterFeature = S["ClusterFeature"];
+export type ClusterAttribute = S["ClusterAttribute"];
+export type ClusterElement = S["ClusterElement"];
 export type NodeWindow = S["NodeWindow"];
 export type AttributePath = S["AttributePath"];
 export type AttributeValue = S["AttributeValue"];
@@ -150,6 +161,10 @@ export interface FabricClient {
   controllerStatus(): Promise<ControllerStatus>;
   controllerNodes(): Promise<ControllerNodeList>;
   controllerNode(id: string): Promise<ControllerNodeDetail>;
+  /** One endpoint of the node from the controller's image: its structure, no values; nothing is read from the node. */
+  controllerEndpointDetail(id: string, endpoint: number): Promise<EndpointDetail>;
+  /** One cluster of an endpoint with the values the controller's image holds; nothing is read from the node. */
+  controllerClusterDetail(id: string, endpoint: number, clusterHex: string): Promise<ClusterDetail>;
   decommissionNode(id: string): Promise<void>;
   interviewNode(id: string): Promise<void>;
   enableNode(id: string): Promise<void>;
@@ -256,6 +271,9 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
     },
     controllerNodes: () => call("GET", "/controller/nodes"),
     controllerNode: (id) => call("GET", node(id)),
+    controllerEndpointDetail: (id, endpoint) => call("GET", `${node(id)}/endpoints/${endpoint}`),
+    controllerClusterDetail: (id, endpoint, clusterHex) =>
+      call("GET", `${node(id)}/endpoints/${endpoint}/clusters/${encodeURIComponent(clusterHex)}`),
     decommissionNode: (id) => call("DELETE", node(id), { admin: true }),
     interviewNode: (id) => call("POST", node(id) + "/interview", { admin: true }),
     enableNode: (id) => call("POST", node(id) + "/enable", { admin: true }),

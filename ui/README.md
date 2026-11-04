@@ -50,8 +50,8 @@ Controller pages (v0.2.0): `ControllerNodes` (with the tabs `list` and
 alone, v0.4.1), `ControllerCommission`,
 `ControllerSettings`, and `ControllerNode` with the props `nodeId` (the
 16-digit hex `node_id_hex`) and an optional first `tab` (`overview`,
-`endpoints`, `attributes`, `acl`, `bindings`, `window`, `icd`, `fabrics`,
-`updates`). They read `ui.controller` (`createControllerStore`); the
+`endpoints`, `inventory` (v0.5.0), `attributes`, `acl`, `bindings`,
+`window`, `icd`, `fabrics`, `updates`). They read `ui.controller` (`createControllerStore`); the
 routes `controllerNodes`, `controllerCommission`, `controllerSettings` and
 the prefix `controllerNode` link them. `ui.controller.loadStatus()` sets
 `present` to false on a 404: the host serves no controller.

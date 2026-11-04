@@ -10,6 +10,9 @@ import Card from "./Card.svelte";
 import DataTableComponent from "./DataTable.svelte";
 import EmptyState from "./EmptyState.svelte";
 import ErrorState from "./ErrorState.svelte";
+import AttributeTable from "./AttributeTable.svelte";
+import ClusterView from "./ClusterView.svelte";
+import TagChips from "./TagChips.svelte";
 import LoadingState from "./LoadingState.svelte";
 import Select from "./Select.svelte";
 import type { DataColumn } from "./data-table";
@@ -155,5 +158,41 @@ describe("makeTextMatcher", () => {
     expect(makeTextMatcher("Kitchen (left)")("Kitchen (left) lamp")).toBe(true);
     expect(makeTextMatcher("(")("a(b")).toBe(true);
     expect(makeTextMatcher("")("anything")).toBe(true);
+  });
+});
+
+describe("TagChips", () => {
+  it("shows a tag's label, else namespace:tag, with the numbers in the title", () => {
+    render(TagChips, { tags: [{ namespace: 7, tag: 1, label: "One" }, { namespace: 8, tag: 2, mfg_code: 0xfff1 }] });
+    expect(screen.getByText("One")).toHaveAttribute("title", "namespace 7 · tag 1");
+    expect(screen.getByText("8:2")).toHaveAttribute("title", "namespace 8 · tag 2 · mfg 0xFFF1");
+  });
+  it("shows the empty text only when given", () => {
+    const { container } = render(TagChips, { tags: [] });
+    expect(container.textContent?.trim()).toBe("");
+    cleanup();
+    render(TagChips, { tags: [], empty: "No tags" });
+    expect(screen.getByText("No tags")).toBeInTheDocument();
+  });
+});
+
+describe("ClusterView and AttributeTable", () => {
+  it("shows a feature without a title by its code and an attribute without a value or with a status", () => {
+    render(ClusterView, {
+      cluster: {
+        id: 0xfc00, id_hex: "0xFC00", revision: 1, feature_map_hex: "0x00000002", features: [{ code: "X", bit: 1 }],
+        attributes: [{ id: 0, id_hex: "0x0000" }, { id: 1, id_hex: "0x0001", name: "Level", value: { a: [1, 2] }, status: 0x86 }],
+        accepted: [], generated: [{ id: 3, id_hex: "0x0003" }], events: [],
+      },
+    });
+    expect(screen.getByTestId("feature-chips")).toHaveTextContent(/^X$/);
+    expect(screen.getByTestId("attribute-0x0000")).toHaveTextContent("no value");
+    expect(screen.getByTestId("attribute-0x0001")).toHaveTextContent("0x86");
+    expect(screen.getByTestId("attribute-0x0001").querySelector("pre")?.textContent).toBe(JSON.stringify({ a: [1, 2] }, null, 2));
+    expect(screen.getByText("0x0003")).toBeInTheDocument();
+  });
+  it("renders an empty attribute table", () => {
+    render(AttributeTable, { attributes: [] });
+    expect(screen.getByTestId("attribute-table").querySelectorAll("tbody tr")).toHaveLength(0);
   });
 });

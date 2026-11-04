@@ -131,6 +131,16 @@ type ControllerNode interface {
 	Disabled() bool
 	// Endpoints are the image's endpoints in number order.
 	Endpoints() []NodeEndpoint
+	// EndpointDetail is one endpoint of the image with its inventory,
+	// its clusters without attribute values; nothing is read from the
+	// node. ErrEndpointNotFound when the image holds no such endpoint.
+	EndpointDetail(ep uint16) (EndpointDetail, error)
+	// ClusterDetail is one server cluster of an endpoint of the image
+	// with the attribute values the controller holds; nothing is read
+	// from the node. ErrEndpointNotFound or ErrClusterNotFound when the
+	// image lacks it, ErrNotRead while the endpoint's ServerList names
+	// the cluster but the controller has not read it yet.
+	ClusterDetail(ep uint16, cluster uint32) (ClusterDetail, error)
 	// Read reads concrete attribute paths; a path the node refuses is an
 	// AttributeValue with its status, not an error.
 	Read(ctx context.Context, paths []AttributePath, fabricFiltered bool) ([]AttributeValue, error)
@@ -240,8 +250,11 @@ type NodeEndpoint struct {
 	Number uint16
 	// Parent is the endpoint whose parts list names this one; nil for the
 	// root and top-level endpoints.
-	Parent      *uint16
-	Name        string
+	Parent *uint16
+	Name   string
+	// Reachable is BridgedDeviceBasicInformation Reachable; nil for an
+	// endpoint that does not serve it.
+	Reachable   *bool
 	DeviceTypes []NodeDeviceType
 	Clusters    []NodeCluster
 }
@@ -259,6 +272,121 @@ type NodeCluster struct {
 	Name     string
 	Revision uint16
 	Features []string
+}
+
+// EndpointDetail is one endpoint of a node's image with its inventory
+// (contract 0.4.0, EndpointDetail).
+type EndpointDetail struct {
+	Number uint16
+	// Parent is the endpoint whose parts list names this one; nil for the
+	// root and top-level endpoints.
+	Parent *uint16
+	Name   string
+	// Reachable is BridgedDeviceBasicInformation Reachable where the
+	// endpoint serves it, true elsewhere.
+	Reachable bool
+	// DeviceTypes is the Descriptor's DeviceTypeList in its order.
+	DeviceTypes []NodeDeviceType
+	// Tags is the Descriptor's TagList.
+	Tags []SemanticTag
+	// Labels are the FixedLabel entries, then the UserLabel ones.
+	Labels []EndpointLabel
+	// Parts are the numbers of the endpoint's parts.
+	Parts []uint16
+	// Clusters are the server clusters in id order; EndpointDetail leaves
+	// their attribute values out.
+	Clusters []ClusterDetail
+	// Conformance is the device type conformance verdict; nil when the
+	// source judges none.
+	Conformance *Conformance
+}
+
+// SemanticTag is one entry of a Descriptor's TagList.
+type SemanticTag struct {
+	// MfgCode is the manufacturer code; nil when null.
+	MfgCode   *uint16
+	Namespace uint8
+	Tag       uint8
+	Label     string
+}
+
+// EndpointLabel is one FixedLabel or UserLabel entry.
+type EndpointLabel struct {
+	Label, Value string
+	// User marks a UserLabel entry.
+	User bool
+}
+
+// The conformance statuses (ConformanceVerdict.status).
+const (
+	ConformanceUnknown    = "unknown"
+	ConformanceIncomplete = "incomplete"
+	ConformanceClean      = "clean"
+	ConformanceViolated   = "violated"
+)
+
+// Conformance is an endpoint's device type conformance verdict.
+type Conformance struct {
+	// Status is one of the Conformance* constants.
+	Status     string
+	Violations []ConformanceViolation
+	// Unjudged are the server clusters whose inside was not judged.
+	Unjudged []ClusterElement
+}
+
+// ConformanceViolation is one departure from a device type requirement.
+type ConformanceViolation struct {
+	DeviceType string
+	// DeviceTypeID is 0 for Base and where the violation names none.
+	DeviceTypeID uint32
+	Requirement  string
+	Kind         string
+	Detail       string
+}
+
+// ClusterDetail is one server cluster with its inventory (contract 0.4.0,
+// ClusterDetail).
+type ClusterDetail struct {
+	ID uint32
+	// Name is empty for a cluster no definition names.
+	Name       string
+	Revision   uint16
+	FeatureMap uint32
+	// Features are the features the FeatureMap sets, in bit order.
+	Features []ClusterFeature
+	// DataVersion is nil while unknown.
+	DataVersion *uint32
+	// Attributes are the AttributeList in id order.
+	Attributes []ClusterAttribute
+	Accepted   []ClusterElement
+	Generated  []ClusterElement
+	// Events are the EventList where the peer reports one.
+	Events []ClusterElement
+}
+
+// ClusterFeature is one FeatureMap bit a cluster sets.
+type ClusterFeature struct {
+	// Code is the short name ("LT"), Title the long one ("Lighting"),
+	// empty where no definition names it.
+	Code, Title string
+	Bit         uint8
+}
+
+// ClusterAttribute is one attribute of a ClusterDetail.
+type ClusterAttribute struct {
+	ID   uint32
+	Name string
+	// Value is the value as JSON by field name; nil when left out or
+	// unknown.
+	Value json.RawMessage
+	// Status is the status the attribute was answered with; 0 on success.
+	Status uint8
+}
+
+// ClusterElement is a command or event id with its name.
+type ClusterElement struct {
+	ID   uint32
+	Name string
 }
 
 // AttributePath is a concrete attribute path.
@@ -504,4 +632,10 @@ var (
 	ErrUnknownCredential = errors.New("fabricui: no such credential")
 	// ErrNotImplemented: the source does not serve the route yet (501).
 	ErrNotImplemented = errors.New("fabricui: not implemented")
+	// ErrEndpointNotFound: the node's image holds no such endpoint (404).
+	ErrEndpointNotFound = errors.New("fabricui: no such endpoint")
+	// ErrClusterNotFound: the endpoint holds no such server cluster (404).
+	ErrClusterNotFound = errors.New("fabricui: no such cluster")
+	// ErrNotRead: the controller has not read the element yet (503).
+	ErrNotRead = errors.New("fabricui: not read yet")
 )

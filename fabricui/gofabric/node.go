@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 	"time"
 
 	"github.com/SukramJ/go-fabric/cluster/spec"
@@ -19,8 +20,28 @@ import (
 	"github.com/SukramJ/go-fabric/cluster/spec/icdmanagement"
 	"github.com/SukramJ/go-fabric/cluster/spec/operationalcredentials"
 	"github.com/SukramJ/go-fabric/controller/client"
+	"github.com/SukramJ/go-fabric/schema"
 
 	"github.com/SukramJ/go-fabric-ui/fabricui"
+)
+
+// The Matter 1.6.1 ids of the attributes the inventory reads from the
+// image: Descriptor (0x001D) DeviceTypeList (0x0000), ServerList
+// (0x0001) and TagList (0x0004); BridgedDeviceBasicInformation (0x0039)
+// Reachable (0x0011); FixedLabel (0x0040) and UserLabel (0x0041)
+// LabelList (0x0000) — the ids of go-fabric's generated cluster/spec
+// packages, which the import rule (internal/arch) keeps this adapter
+// from importing beyond the ones it encodes with.
+const (
+	clusterDescriptor       uint32 = 0x001D
+	attrDeviceTypeList      uint32 = 0x0000
+	attrServerList          uint32 = 0x0001
+	attrTagList             uint32 = 0x0004
+	clusterBridgedBasicInfo uint32 = 0x0039
+	attrReachable           uint32 = 0x0011
+	clusterFixedLabel       uint32 = 0x0040
+	clusterUserLabel        uint32 = 0x0041
+	attrLabelList           uint32 = 0x0000
 )
 
 // node is a commissioned client.Node as a fabricui.ControllerNode.
@@ -73,6 +94,13 @@ func (w *node) imageValue(cluster, attr uint32, v any) bool {
 	if e == nil {
 		return false
 	}
+	return endpointValue(e, cluster, attr, v)
+}
+
+// endpointValue decodes an attribute of an endpoint of the image into v,
+// rendered by name as Read renders it; false when the image lacks it or
+// it does not fit.
+func endpointValue(e *client.Endpoint, cluster, attr uint32, v any) bool {
 	c := e.Cluster(cluster)
 	if c == nil {
 		return false
@@ -111,23 +139,265 @@ func (w *node) Endpoints() []fabricui.NodeEndpoint {
 	eps := w.n.Endpoints()
 	out := make([]fabricui.NodeEndpoint, 0, len(eps))
 	for _, ep := range eps {
-		e := fabricui.NodeEndpoint{Number: ep.Number(), Name: ep.Name(), DeviceTypes: []fabricui.NodeDeviceType{}, Clusters: []fabricui.NodeCluster{}}
-		if o := ep.Owner(); o != nil && o.Number() != 0 {
-			p := o.Number()
-			e.Parent = &p
-		}
-		if dt := ep.DeviceType(); dt != 0 {
-			t := fabricui.NodeDeviceType{ID: dt}
-			if d := ep.Device(); d != nil {
-				t.Name = d.Name
-			}
-			if rev, ok := ep.DeviceRevision(); ok {
-				t.Revision = rev
-			}
-			e.DeviceTypes = append(e.DeviceTypes, t)
+		e := fabricui.NodeEndpoint{Number: ep.Number(), Name: ep.Name(), Parent: parentOf(ep), DeviceTypes: deviceTypes(ep), Clusters: []fabricui.NodeCluster{}}
+		var reachable bool
+		if endpointValue(ep, clusterBridgedBasicInfo, attrReachable, &reachable) {
+			e.Reachable = &reachable
 		}
 		for _, c := range ep.Clusters() {
 			e.Clusters = append(e.Clusters, fabricui.NodeCluster{ID: c.ID(), Name: c.Name(), Revision: c.Revision(), Features: append([]string{}, c.Features()...)})
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// parentOf is the endpoint whose parts list names ep; nil for the root
+// and a top-level endpoint.
+func parentOf(ep *client.Endpoint) *uint16 {
+	if o := ep.Owner(); o != nil && o.Number() != 0 {
+		p := o.Number()
+		return &p
+	}
+	return nil
+}
+
+// deviceTypes is the endpoint's Descriptor DeviceTypeList in its order,
+// each with the schema's name; the endpoint's device type alone while the
+// image holds no list.
+func deviceTypes(ep *client.Endpoint) []fabricui.NodeDeviceType {
+	var list []struct {
+		DeviceType uint32 `json:"deviceType"`
+		Revision   uint16 `json:"revision"`
+	}
+	out := []fabricui.NodeDeviceType{}
+	if endpointValue(ep, clusterDescriptor, attrDeviceTypeList, &list) && len(list) > 0 {
+		for _, dt := range list {
+			out = append(out, fabricui.NodeDeviceType{ID: dt.DeviceType, Name: deviceTypeName(dt.DeviceType), Revision: dt.Revision})
+		}
+		return out
+	}
+	if dt := ep.DeviceType(); dt != 0 {
+		t := fabricui.NodeDeviceType{ID: dt}
+		if d := ep.Device(); d != nil {
+			t.Name = d.Name
+		}
+		if rev, ok := ep.DeviceRevision(); ok {
+			t.Revision = rev
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+// deviceTypeName is the schema's name of a device type; empty for a
+// manufacturer-specific or unknown one.
+func deviceTypeName(id uint32) string {
+	if dt, ok := schema.DeviceTypeIDOf(id); ok {
+		if name, ok := schema.DeviceTypeName(dt); ok {
+			return name
+		}
+	}
+	return ""
+}
+
+// clusterName is a cluster's name: its definition's, else the schema's;
+// empty for one neither names.
+func clusterName(id uint32, def *spec.Cluster) string {
+	if def != nil {
+		return def.Name
+	}
+	name, _ := schema.ClusterName(id)
+	return name
+}
+
+// globalAttributeNames are the global attributes' names (Matter Core
+// §7.13), which no generated definition lists.
+var globalAttributeNames = map[uint32]string{
+	spec.AttrGeneratedCommandList: "GeneratedCommandList",
+	spec.AttrAcceptedCommandList:  "AcceptedCommandList",
+	spec.AttrEventList:            "EventList",
+	spec.AttrAttributeList:        "AttributeList",
+	spec.AttrFeatureMap:           "FeatureMap",
+	spec.AttrClusterRevision:      "ClusterRevision",
+}
+
+// EndpointDetail is one endpoint of the image with its inventory, read
+// from the controller's cache only (owner decision U4 0.1): the
+// Descriptor's DeviceTypeList and TagList, FixedLabel and UserLabel,
+// BridgedDeviceBasicInformation Reachable, the parts on the image's tree,
+// the device type conformance (client.Endpoint.Conformance) and every
+// ready cluster without its values.
+func (w *node) EndpointDetail(number uint16) (fabricui.EndpointDetail, error) {
+	ep := w.n.Endpoint(number)
+	if ep == nil {
+		return fabricui.EndpointDetail{}, fmt.Errorf("%w: %d", fabricui.ErrEndpointNotFound, number)
+	}
+	d := fabricui.EndpointDetail{
+		Number: number, Parent: parentOf(ep), Name: ep.Name(), Reachable: true, DeviceTypes: deviceTypes(ep),
+		Tags: tagsOf(ep), Labels: labelsOf(ep), Parts: []uint16{}, Clusters: []fabricui.ClusterDetail{},
+	}
+	endpointValue(ep, clusterBridgedBasicInfo, attrReachable, &d.Reachable)
+	for _, p := range ep.Parts() {
+		d.Parts = append(d.Parts, p.Number())
+	}
+	for _, c := range ep.Clusters() {
+		d.Clusters = append(d.Clusters, clusterDetail(c, false))
+	}
+	d.Conformance = conformanceOf(ep.Conformance())
+	return d, nil
+}
+
+// ClusterDetail is one ready cluster of an endpoint of the image with the
+// values the controller holds, rendered by name as Read renders them.
+func (w *node) ClusterDetail(number uint16, cluster uint32) (fabricui.ClusterDetail, error) {
+	ep := w.n.Endpoint(number)
+	if ep == nil {
+		return fabricui.ClusterDetail{}, fmt.Errorf("%w: %d", fabricui.ErrEndpointNotFound, number)
+	}
+	c := ep.Cluster(cluster)
+	if c == nil {
+		var servers []uint32
+		if endpointValue(ep, clusterDescriptor, attrServerList, &servers) && slices.Contains(servers, cluster) {
+			return fabricui.ClusterDetail{}, fmt.Errorf("%w: cluster 0x%04X on endpoint %d", fabricui.ErrNotRead, cluster, number)
+		}
+		return fabricui.ClusterDetail{}, fmt.Errorf("%w: 0x%04X on endpoint %d", fabricui.ErrClusterNotFound, cluster, number)
+	}
+	return clusterDetail(c, true), nil
+}
+
+// tagsOf is the endpoint's Descriptor TagList; empty without one.
+func tagsOf(ep *client.Endpoint) []fabricui.SemanticTag {
+	var list []struct {
+		MfgCode     *uint16 `json:"mfgCode"`
+		NamespaceID uint8   `json:"namespaceId"`
+		Tag         uint8   `json:"tag"`
+		Label       *string `json:"label"`
+	}
+	endpointValue(ep, clusterDescriptor, attrTagList, &list)
+	out := make([]fabricui.SemanticTag, 0, len(list))
+	for _, t := range list {
+		st := fabricui.SemanticTag{MfgCode: t.MfgCode, Namespace: t.NamespaceID, Tag: t.Tag}
+		if t.Label != nil {
+			st.Label = *t.Label
+		}
+		out = append(out, st)
+	}
+	return out
+}
+
+// labelsOf is the endpoint's FixedLabel LabelList, then its UserLabel
+// LabelList.
+func labelsOf(ep *client.Endpoint) []fabricui.EndpointLabel {
+	return append(labelList(ep, clusterFixedLabel, false), labelList(ep, clusterUserLabel, true)...)
+}
+
+// labelList is the LabelList of a FixedLabel or UserLabel cluster.
+func labelList(ep *client.Endpoint, cluster uint32, user bool) []fabricui.EndpointLabel {
+	var list []struct {
+		Label string `json:"label"`
+		Value string `json:"value"`
+	}
+	endpointValue(ep, cluster, attrLabelList, &list)
+	out := make([]fabricui.EndpointLabel, 0, len(list))
+	for _, l := range list {
+		out = append(out, fabricui.EndpointLabel{Label: l.Label, Value: l.Value, User: user})
+	}
+	return out
+}
+
+// conformanceOf is the port's form of client.ConformanceReport; its
+// informational client findings stay out.
+func conformanceOf(r client.ConformanceReport) *fabricui.Conformance {
+	out := &fabricui.Conformance{Status: r.Status.String(), Violations: []fabricui.ConformanceViolation{}, Unjudged: []fabricui.ClusterElement{}}
+	for i := range r.Violations {
+		v := &r.Violations[i]
+		out.Violations = append(out.Violations, fabricui.ConformanceViolation{
+			DeviceType: v.DeviceType, DeviceTypeID: v.DeviceTypeID, Requirement: v.Requirement, Kind: string(v.Kind), Detail: v.Detail,
+		})
+	}
+	for _, id := range r.Unjudged {
+		out.Unjudged = append(out.Unjudged, fabricui.ClusterElement{ID: id, Name: clusterName(id, nil)})
+	}
+	return out
+}
+
+// clusterDetail is a ready cluster's inventory from the image: revision,
+// FeatureMap with its features (the codes of client.Cluster.Features, the
+// bit from the schema, the title from the definition), DataVersion,
+// AttributeList — with the values when values is set — the command lists
+// and the EventList where the peer reports one, each named by the
+// definition where it has one.
+func clusterDetail(c *client.Cluster, values bool) fabricui.ClusterDetail {
+	def := c.Definition()
+	d := fabricui.ClusterDetail{
+		ID: c.ID(), Name: clusterName(c.ID(), def), Revision: c.Revision(), FeatureMap: c.FeatureMap(),
+		Features: []fabricui.ClusterFeature{}, Attributes: []fabricui.ClusterAttribute{},
+		Accepted: commands(def, c.AcceptedCommands(), spec.Request), Generated: commands(def, c.GeneratedCommands(), spec.Response),
+		Events: []fabricui.ClusterElement{},
+	}
+	if v, ok := c.Version(); ok {
+		d.DataVersion = &v
+	}
+	known := schema.ClusterFeatures(c.ID())
+	for _, code := range c.Features() {
+		f := fabricui.ClusterFeature{Code: code}
+		if i := slices.IndexFunc(known, func(k schema.ClusterFeature) bool { return k.Name == code }); i >= 0 {
+			f.Bit = known[i].Bit
+		}
+		if def != nil {
+			if df := def.Feature(code); df != nil {
+				f.Title = df.Title
+			}
+		}
+		d.Features = append(d.Features, f)
+	}
+	for _, id := range c.AttributeList() {
+		a := fabricui.ClusterAttribute{ID: id, Name: globalAttributeNames[id]}
+		if def != nil {
+			if da := def.Attribute(id); da != nil {
+				a.Name = da.Name
+			}
+		}
+		if values {
+			if v, ok := c.Value(id); ok {
+				raw, err := client.DecodeJSON(client.AttributeField(c.ID(), id), v, client.NameBased)
+				if err != nil {
+					raw = json.RawMessage("null")
+				}
+				a.Value = raw
+			}
+		}
+		d.Attributes = append(d.Attributes, a)
+	}
+	var events []uint32
+	if v, ok := c.Value(spec.AttrEventList); ok {
+		if raw, err := client.DecodeJSON(client.AttributeField(c.ID(), spec.AttrEventList), v, client.NameBased); err == nil {
+			_ = json.Unmarshal(raw, &events)
+		}
+	}
+	for _, id := range events {
+		e := fabricui.ClusterElement{ID: id}
+		if def != nil {
+			if de := def.Event(id); de != nil {
+				e.Name = de.Name
+			}
+		}
+		d.Events = append(d.Events, e)
+	}
+	return d
+}
+
+// commands names a command list by the definition's commands of the
+// direction.
+func commands(def *spec.Cluster, ids []uint32, dir spec.Direction) []fabricui.ClusterElement {
+	out := make([]fabricui.ClusterElement, 0, len(ids))
+	for _, id := range ids {
+		e := fabricui.ClusterElement{ID: id}
+		if def != nil {
+			if dc := def.Command(id, dir); dc != nil {
+				e.Name = dc.Name
+			}
 		}
 		out = append(out, e)
 	}
