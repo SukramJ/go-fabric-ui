@@ -72,6 +72,19 @@ describe("Diagnostics", () => {
     expect(await screen.findAllByTestId("event")).toHaveLength(2);
   });
 
+  it("reloads the trace in place once per burst of diagnostic_event", async () => {
+    const ui = renderDiag();
+    await screen.findByText("A controller's pairing attempt was refused.");
+    const count = () => ui.sent.filter((s) => s.path === "/api/v1/node/events").length;
+    expect(count()).toBe(1);
+    const trace = { at: "2026-10-25T12:00:00Z", kind: "session" as const, severity: "info" as const, message: "m" };
+    ui.node.applyEvent({ type: "diagnostic_event", data: trace });
+    ui.node.applyEvent({ type: "diagnostic_event", data: trace });
+    await vi.waitFor(() => expect(count()).toBe(2));
+    // In place: the page never went back to its loading state.
+    expect(screen.getByText("A controller's pairing attempt was refused.")).toBeInTheDocument();
+  });
+
   it("does not claim an empty trace when the fetch failed", async () => {
     const ui = testUI({ fixtures: [...ALL, "node-sessions.503"] });
     render(Harness, { ui, page: Diagnostics });

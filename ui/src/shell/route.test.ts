@@ -17,6 +17,15 @@ describe("routeOf", () => {
     expect(routeOf("#/node/endpoint")).toEqual({ family: "node", page: "endpoints" });
   });
 
+  it("reads a node's key before its page, and the Operation page", () => {
+    expect(routeOf("#/node/second/pair")).toEqual({ family: "node", page: "pair", nodeKey: "second" });
+    expect(routeOf("#/node/second")).toEqual({ family: "node", page: "status", nodeKey: "second" });
+    expect(routeOf("#/node/second/endpoint/3")).toEqual({ family: "node", page: "endpoint", endpoint: 3, nodeKey: "second" });
+    expect(routeOf("#/node/second/endpoint/x")).toEqual({ family: "node", page: "endpoints", nodeKey: "second" });
+    expect(routeOf("#/node/b%2Ec")).toEqual({ family: "node", page: "status", nodeKey: "b.c" });
+    expect(routeOf("#/operation")).toEqual({ family: "operation", page: "operation" });
+  });
+
   it("reads the controller family's pages and a node's page with its tab", () => {
     expect(routeOf("#/controller/commission")).toEqual({ family: "controller", page: "commission" });
     expect(routeOf("#/controller")).toEqual({ family: "controller", page: "nodes" });

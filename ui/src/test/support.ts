@@ -70,6 +70,7 @@ export function testUI(
     client?: FabricClient;
     confirm?: boolean;
     t?: Translate;
+    subscribeLog?: FabricUI["subscribeLog"];
   } = {},
 ): TestUI {
   const ff = fixtureFetch(opts.fixtures ?? []);
@@ -88,6 +89,7 @@ export function testUI(
     confirm: confirmSpy as unknown as Confirm,
     subscribe: () => () => {},
     subscribeController: () => () => {},
+    subscribeLog: opts.subscribeLog ?? (() => () => {}),
   });
   return Object.assign(ui, { toastSpy, confirmSpy, sent: ff.sent });
 }

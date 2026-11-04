@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.4.1
+  version: 0.5.0
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
@@ -30,6 +30,12 @@ tags:
       The controller page family — the commissioner side of a go-fabric
       controller. Present only when the host serves it; otherwise every
       `/controller/*` path answers 404.
+  - name: operation
+    description: |
+      The daemon's operation, beside both page families: its log level,
+      its log ring and stream, its version and uptime. Present when the
+      host attaches an operations port; otherwise every `/operation/*`
+      path answers 503.
 paths:
   /node/status:
     get:
@@ -378,11 +384,16 @@ paths:
         `event:` is one of fabric_added, fabric_removed, window_opened,
         window_closed, endpoints_changed, exposure_changed, surface_changed,
         session_opened, session_closed, subscriptions_changed,
-        attribute_changed; `data:` is the JSON payload (`FabricEvent`,
-        `WindowEvent`, `{}`, `ExposureEvent`, `SurfaceChangedEvent`,
-        `SessionEvent`, `AttributeChangedEvent`).
+        attribute_changed, health_sample, diagnostic_event; `data:` is the
+        JSON payload (`FabricEvent`, `WindowEvent`, `{}`, `ExposureEvent`,
+        `SurfaceChangedEvent`, `SessionEvent`, `AttributeChangedEvent`,
+        `HealthSampleEvent`, `DiagnosticEvent`).
         attribute_changed (0.4.1) names the attributes that changed, never
         their values: a page refetches what it shows.
+        health_sample (0.5.0) is every verdict of the node's health probe
+        (go-fabric `Node.OnHealthSample`); diagnostic_event (0.5.0) is every
+        entry the node adds to the trace `GET /node/events` serves (go-fabric
+        `Node.OnDiagnosticEvent`), in the same shape.
         session_opened reports CASE sessions only (go-fabric
         node.Observers.OnSessionOpened); a PASE session is not reported, and
         session_closed and subscriptions_changed follow only a session
@@ -394,6 +405,504 @@ paths:
           content:
             text/event-stream:
               schema: { type: string }
+  /nodes:
+    get:
+      tags: [node]
+      operationId: listNodes
+      summary: The device nodes the host serves, the default node first (0.5.0).
+      description: |
+        Every node of the node family, in the host's order; the first is the
+        default node, the one the `/node/*` routes serve. Each is reached under
+        `/nodes/{node}/…` by its key as well, with the operations of `/node/*`.
+        Empty when the host serves no node. A page shows a node selector when
+        the list holds more than one.
+      responses:
+        "200":
+          description: The nodes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NodeSummaryList" }
+  /nodes/{node}/status:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: getNodeStatusForNode
+      summary: Health, counts and the commissioning window.
+      description: "As `GET /node/status` (`getNodeStatus`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The status; `enabled` is false when the host serves no node.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/fabrics:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: listFabricsForNode
+      summary: The commissioned fabrics.
+      description: "As `GET /node/fabrics` (`listFabrics`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The fabrics.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FabricList" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/fabrics/{index}:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    delete:
+      tags: [node]
+      operationId: removeFabricForNode
+      summary: Remove one fabric.
+      description: "As `DELETE /node/fabrics/{index}` (`removeFabric`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      x-admin: true
+      parameters:
+        - name: index
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 254 }
+      responses:
+        "204": { description: Removed. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/pairing:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: getPairingForNode
+      summary: The pairing codes — of the window this handler opened while it is open, else the configured ones.
+      description: "As `GET /node/pairing` (`getPairing`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      x-admin: true
+      responses:
+        "200":
+          description: The codes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pairing" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/pairing/window:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    post:
+      tags: [node]
+      operationId: openWindowForNode
+      summary: Open a commissioning window.
+      description: "As `POST /node/pairing/window` (`openWindow`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      x-admin: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WindowRequest" }
+      responses:
+        "200":
+          description: The window is open; the codes commission through it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Window" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/pairing/window/close:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    post:
+      tags: [node]
+      operationId: closeWindowForNode
+      summary: Close the open commissioning window.
+      description: "As `POST /node/pairing/window/close` (`closeWindow`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      x-admin: true
+      responses:
+        "204": { description: Closed. }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/endpoints:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: listEndpointsForNode
+      summary: The bridged endpoints a controller sees.
+      description: "As `GET /node/endpoints` (`listEndpoints`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The endpoints.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EndpointList" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/endpoints/{ep}:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+      - $ref: "#/components/parameters/EndpointNumber"
+    get:
+      tags: [node]
+      operationId: getEndpointDetailForNode
+      summary: One endpoint the node serves, with its attribute values (0.4.1).
+      description: "As `GET /node/endpoints/{ep}` (`getEndpointDetail`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The endpoint.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EndpointDetail" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/endpoints/{ep}/events:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+      - $ref: "#/components/parameters/EndpointNumber"
+    get:
+      tags: [node]
+      operationId: listEndpointEventsForNode
+      summary: The events the node's event log holds for one endpoint (0.4.1).
+      description: "As `GET /node/endpoints/{ep}/events` (`listEndpointEvents`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      parameters:
+        - $ref: "#/components/parameters/EventSince"
+        - $ref: "#/components/parameters/EventLimit"
+      responses:
+        "200":
+          description: The events, oldest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventRecordList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/surface:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: getNodeSurfaceForNode
+      summary: The node's surface report.
+      description: "As `GET /node/surface` (`getNodeSurface`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SurfaceReport" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/sessions:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: listSessionsForNode
+      summary: The open secure sessions and the session-id occupancy.
+      description: "As `GET /node/sessions` (`listSessions`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The sessions.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionList" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/topology:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: getNodeTopologyForNode
+      summary: The node as a graph — its bridge, its fabrics and the sessions on them.
+      description: "As `GET /node/topology` (`getNodeTopology`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The graph.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TopologyGraph" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/mdns:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: getMdnsForNode
+      summary: The live DNS-SD advertisement and its diagnosis.
+      description: "As `GET /node/mdns` (`getMdns`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The advertisement.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Mdns" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/compatibility:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: getCompatibilityForNode
+      summary: The commissioned ecosystems and known incompatibilities.
+      description: "As `GET /node/compatibility` (`getCompatibility`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Compatibility" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/events:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: listDiagnosticEventsForNode
+      summary: The pairing, session and discovery trace, newest first.
+      description: "As `GET /node/events` (`listDiagnosticEvents`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The trace.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DiagnosticEventList" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/exposure/schema:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: getExposureSchemaForNode
+      summary: How the selection page shows the host's items.
+      description: "As `GET /node/exposure/schema` (`getExposureSchema`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The schema.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExposureSchema" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/exposure:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: listExposureForNode
+      summary: Every item the host could expose.
+      description: "As `GET /node/exposure` (`listExposure`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The items.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ItemList" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+    put:
+      tags: [node]
+      operationId: applyExposureForNode
+      summary: Apply a batch of item changes and reassemble the endpoints.
+      description: "As `PUT /node/exposure` (`applyExposure`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      x-admin: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateList" }
+      responses:
+        "200":
+          description: Applied.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Applied" }
+        "204": { description: The batch was empty. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/exposure/preview:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    post:
+      tags: [node]
+      operationId: previewExposureForNode
+      summary: The items as a batch of changes would leave them; nothing is written.
+      description: "As `POST /node/exposure/preview` (`previewExposure`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      x-admin: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateList" }
+      responses:
+        "200":
+          description: The touched items after the changes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ItemList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/maintenance/reassemble:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    post:
+      tags: [node]
+      operationId: reassembleForNode
+      summary: Rebuild the endpoints from the host's current selection; pairings are untouched.
+      description: "As `POST /node/maintenance/reassemble` (`reassemble`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      x-admin: true
+      responses:
+        "204": { description: Reassembled. }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/maintenance/factory-reset:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    post:
+      tags: [node]
+      operationId: factoryResetForNode
+      summary: Remove every fabric. The body must name the action.
+      description: "As `POST /node/maintenance/factory-reset` (`factoryReset`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      x-admin: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FactoryResetRequest" }
+      responses:
+        "204": { description: Every fabric is removed. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/stream:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    get:
+      tags: [node]
+      operationId: streamForNode
+      summary: Server-sent events.
+      description: "As `GET /node/stream` (`stream`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
+      responses:
+        "200":
+          description: The event stream.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "404": { $ref: "#/components/responses/Problem" }
+  /operation/info:
+    get:
+      tags: [operation]
+      operationId: getOperationInfo
+      summary: The daemon's version, the go-fabric version it is built with and its uptime (0.5.0).
+      responses:
+        "200":
+          description: The information.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperationInfo" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /operation/log/level:
+    get:
+      tags: [operation]
+      operationId: getLogLevel
+      summary: The level the daemon logs at and the levels it accepts (0.5.0).
+      responses:
+        "200":
+          description: The level.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogLevel" }
+        "503": { $ref: "#/components/responses/Problem" }
+    put:
+      tags: [operation]
+      operationId: setLogLevel
+      summary: Set the level the daemon logs at, until it restarts (0.5.0).
+      x-admin: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LogLevelRequest" }
+      responses:
+        "200":
+          description: The level now in force.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogLevel" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /operation/log:
+    get:
+      tags: [operation]
+      operationId: listLogRecords
+      summary: The records the daemon's log ring holds, oldest first (0.5.0).
+      description: |
+        The ring is bounded and in memory: a record falls out when it is
+        full and every record is gone after a restart. A record below the
+        level in force when it was logged never reaches it. Nothing the
+        daemon logs carries a passcode.
+      parameters:
+        - $ref: "#/components/parameters/LogSince"
+        - $ref: "#/components/parameters/LogLimit"
+      responses:
+        "200":
+          description: The records, oldest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogRecordList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /operation/log/stream:
+    get:
+      tags: [operation]
+      operationId: logStream
+      summary: Server-sent log records (0.5.0).
+      description: |
+        `event:` is log_record; `data:` is the `LogRecord`, one per record
+        the ring takes from the moment the stream opens. A page reads
+        `GET /operation/log` first and appends from here; a client that
+        falls behind loses the oldest records, as on the other streams. A
+        comment line arrives every 15 s.
+      responses:
+        "200":
+          description: The record stream.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "503": { $ref: "#/components/responses/Problem" }
   /controller/status:
     get:
       tags: [controller]
@@ -541,6 +1050,31 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
+  /controller/nodes/{id}/ping:
+    parameters:
+      - $ref: "#/components/parameters/NodeID"
+    post:
+      tags: [controller]
+      operationId: pingNode
+      x-admin: true
+      summary: Whether the node answers a Matter read, and how fast (0.5.0).
+      description: |
+        Not an ICMP echo: the controller reads the node's BasicInformation
+        DataModelRevision (0x0028/0x0000) through its session, as
+        go-fabric-server's `ping_node` does, and measures the round trip.
+        `per_address` says whether each address was tried on its own; when
+        false, the one read stands for every address the node advertises.
+        A failed read is `reachable: false`, not an error. 404 for an
+        unknown node.
+      responses:
+        "200":
+          description: The outcome.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PingResult" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/enable:
     parameters:
       - $ref: "#/components/parameters/NodeID"
@@ -1079,6 +1613,22 @@ paths:
               schema: { type: string }
 components:
   parameters:
+    NodeKey:
+      name: node
+      in: path
+      required: true
+      description: The key of a device node as `GET /nodes` lists it (0.5.0).
+      schema: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" }
+    LogSince:
+      name: since
+      in: query
+      description: The lowest record sequence number returned (inclusive); absent is every record the ring holds. A page passes the last number it has plus one.
+      schema: { type: integer, minimum: 0 }
+    LogLimit:
+      name: limit
+      in: query
+      description: Only the newest `limit` of the matching records; absent is 200.
+      schema: { type: integer, minimum: 1, maximum: 2000 }
     NodeID:
       name: id
       in: path
@@ -1141,6 +1691,7 @@ components:
           description: Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one; absent without a node.
         window_deadline: { type: string, format: date-time, description: When the open window's timer closes it, on the node's clock; absent while no window is open. }
         exposure: { type: boolean, description: Whether the host serves a selection. }
+        exposure_reason: { type: string, description: "Why the host serves no selection, in the host's language; absent when it serves one or gives no reason (0.5.0)." }
         csrf_token: { type: string, description: The admin token of token mode; absent when the host decides admin rights. }
         warnings:
           type: array
@@ -1409,6 +1960,85 @@ components:
         severity: { type: string, enum: [info, warning, error] }
         message: { type: string }
         detail: { type: object, additionalProperties: { type: string } }
+    HealthSampleEvent:
+      type: object
+      description: The payload of health_sample (0.5.0) — one verdict of the node's health probe.
+      required: [healthy, note, sampled_at]
+      properties:
+        healthy: { type: boolean }
+        note: { type: string, description: "The probe's stable English note." }
+        sampled_at: { type: string, format: date-time, description: "When the handler received the verdict, on the node's clock." }
+    NodeSummary:
+      type: object
+      required: [key, label, enabled]
+      properties:
+        key: { type: string, description: "The node's stable key, the `{node}` of `/nodes/{node}/…`." }
+        label: { type: string, description: "The host's name for the node; the key when the host names none." }
+        kind: { type: string, description: "What the host says the node is (\"bridge\", \"device\"); absent when it says nothing." }
+        enabled: { type: boolean, description: "Whether the node family is served for the node, as the node's `Status.enabled`." }
+    NodeSummaryList:
+      type: object
+      required: [nodes]
+      properties:
+        nodes:
+          type: array
+          description: The default node first.
+          items: { $ref: "#/components/schemas/NodeSummary" }
+    LogLevel:
+      type: object
+      required: [level, levels]
+      properties:
+        level: { type: string, enum: [debug, info, warn, error], description: "The level in force; a level between two names is the lower one." }
+        levels: { type: array, items: { type: string, enum: [debug, info, warn, error] }, description: "The levels the daemon accepts, lowest first." }
+    LogLevelRequest:
+      type: object
+      required: [level]
+      properties:
+        level: { type: string, enum: [debug, info, warn, error] }
+    LogRecord:
+      type: object
+      required: [seq, time, level, msg, attrs]
+      properties:
+        seq: { type: integer, minimum: 1, description: "The record's sequence number, increasing by one per record the ring takes." }
+        time: { type: string, format: date-time }
+        level: { type: string, enum: [debug, info, warn, error] }
+        msg: { type: string }
+        attrs: { type: object, additionalProperties: { type: string }, description: "The record's attributes as text, a group's by dotted key." }
+    LogRecordList:
+      type: object
+      required: [records]
+      properties:
+        records:
+          type: array
+          items: { $ref: "#/components/schemas/LogRecord" }
+    OperationInfo:
+      type: object
+      required: [version, go_fabric, uptime_s, started_at]
+      properties:
+        version: { type: string, description: "The daemon's version, as its host names it." }
+        go_fabric: { type: string, description: "The go-fabric module version the daemon is built with; empty when the build does not say." }
+        uptime_s: { type: integer, minimum: 0, description: "Seconds since started_at." }
+        started_at: { type: string, format: date-time }
+    PingResult:
+      type: object
+      required: [method, per_address, reachable, addresses]
+      properties:
+        method: { type: string, enum: [matter-read], description: "What was measured: a Matter read of BasicInformation DataModelRevision, not an ICMP echo." }
+        per_address: { type: boolean, description: "Whether each address was read on its own; false when one read through the node's session stands for every address." }
+        reachable: { type: boolean, description: "Whether the read answered." }
+        rtt_ms: { type: number, minimum: 0, description: "The read's round trip in milliseconds; absent when it failed." }
+        error: { type: string, description: "Why the read failed; absent when it answered." }
+        addresses:
+          type: array
+          description: "The addresses the controller knows for the node, each with the outcome that applies to it."
+          items: { $ref: "#/components/schemas/PingAddress" }
+    PingAddress:
+      type: object
+      required: [ip, reachable]
+      properties:
+        ip: { type: string, description: "The address with its port, as `ControllerNodeDetail.record.addresses` lists it." }
+        reachable: { type: boolean }
+        rtt_ms: { type: number, minimum: 0 }
     DiagnosticEventList:
       type: object
       required: [events]

@@ -1,0 +1,26 @@
+{
+  "route": "POST /controller/nodes/{id}/ping",
+  "request": {
+    "method": "POST",
+    "path": "/controller/nodes/0000000000000011/ping",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "addresses": [
+        {
+          "ip": "[fd00::11]:5540",
+          "reachable": true,
+          "rtt_ms": 12.5
+        }
+      ],
+      "method": "matter-read",
+      "per_address": false,
+      "reachable": true,
+      "rtt_ms": 12.5
+    }
+  }
+}

@@ -6,8 +6,10 @@ listed here with its licence.
 ## npm packages in the built bundle
 
 The committed bundle `fabricui/dist/` (and so every binary that embeds the
-Go module) carries these packages, compiled into its `vendor` chunk. The
-list is checked in CI against the chunk itself (`make notices-check`:
+Go module) carries these packages, compiled into its `vendor` chunk — except
+`jsqr`, the QR decoder, which is compiled into the `scan` chunk the
+commissioning page loads on its first camera scan. The list is checked in
+CI against the chunks themselves (`make notices-check`:
 the build writes the chunk's package list and `ui/scripts/check-notices.mjs`
 fails on a package missing here or without its licence text). The full
 licence texts are under `licenses/npm/`.
@@ -17,12 +19,13 @@ licence texts are under `licenses/npm/`.
 | `@lucide/svelte` | 1.66.0 | ISC | [`licenses/npm/lucide-svelte.txt`](./licenses/npm/lucide-svelte.txt) |
 | `clsx` | 2.1.1 | MIT | [`licenses/npm/clsx.txt`](./licenses/npm/clsx.txt) |
 | `dijkstrajs` | 1.0.3 | MIT | [`licenses/npm/dijkstrajs.txt`](./licenses/npm/dijkstrajs.txt) |
+| `jsqr` | 1.4.0 | Apache-2.0 | [`licenses/npm/jsqr.txt`](./licenses/npm/jsqr.txt) |
 | `qrcode` | 1.5.4 | MIT | [`licenses/npm/qrcode.txt`](./licenses/npm/qrcode.txt) |
 | `svelte` | 5.57.3 | MIT | [`licenses/npm/svelte.txt`](./licenses/npm/svelte.txt) |
 | `tailwind-merge` | 3.7.0 | MIT | [`licenses/npm/tailwind-merge.txt`](./licenses/npm/tailwind-merge.txt) |
 
 The npm package `@sukramj/fabric-ui` itself ships sources, not this bundle;
-its runtime dependencies (`@lucide/svelte`, `clsx`, `qrcode`,
+its runtime dependencies (`@lucide/svelte`, `clsx`, `jsqr`, `qrcode`,
 `tailwind-merge`; `svelte` is a peer dependency) are installed by the
 consumer's package manager with their own licence files. Build-time
 tools (Vite, Tailwind CSS, TypeScript, the test stack) are not shipped.

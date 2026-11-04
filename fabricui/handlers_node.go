@@ -43,6 +43,9 @@ type statusResponse struct {
 	// node's clock (node.Window); absent while none is open.
 	WindowDeadline string `json:"window_deadline,omitempty"`
 	Exposure       bool   `json:"exposure"`
+	// ExposureReason is why the host serves no selection
+	// (Options.ExposureReason); absent with a selection.
+	ExposureReason string `json:"exposure_reason,omitempty"`
 	CSRFToken      string `json:"csrf_token,omitempty"`
 	// Warnings is nil, and omitted, without Options.Warnings; with the
 	// hook it is a list, empty when the host finds nothing.
@@ -95,6 +98,9 @@ func summariseSurface(r *surface.Report) *surfaceSummary {
 // family is off (loom matter_exposures.go:363-372).
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	res := statusResponse{Exposure: h.exposure != nil, CSRFToken: h.token}
+	if h.exposure == nil {
+		res.ExposureReason = h.exposureReason
+	}
 	if h.warnings != nil {
 		// The host's findings are about its configuration, not the node,
 		// so a host without a node reports them too.

@@ -13,8 +13,60 @@ The controller family's device details (brief U4b, concept
 `docs/concept-u4-device-details.md`, wave D.1); contract 0.4.0, additive
 over 0.3.1. The node family's device details and the event log of both
 families (brief U4a, wave D.3); contract 0.4.1, additive over 0.4.0.
+Operation — the UI half (brief U5a, concept `docs/concept-u5-operation.md`,
+wave D.1); contract 0.5.0, additive over 0.4.1.
 
 ### Added
+
+- The node selector (contract 0.5.0): `GET /nodes` (`NodeSummaryList`,
+  the default node first) and every node route also under
+  `/nodes/{node}/…` (operation ids suffixed `ForNode`; 404 for an unlisted
+  key). `Options.Nodes []NodeEntry{Key, Label, Kind, Source}` beside
+  `Options.Node`, which stays the default node under `/node/*` and the
+  key `default`. The shell shows a selector in its header when there are
+  two nodes and routes a node's pages under `#/node/<key>/…`; the client's
+  `forNode(key)` and `nodes()`.
+- `Status.exposure_reason` and `Options.ExposureReason`: the selection page
+  of a node without a selection says why instead of hiding.
+- The **Operation** page and its routes (0.5.0): `GET /operation/info`,
+  `GET`/`PUT /operation/log/level`, `GET /operation/log` (`since`,
+  `limit` 1..2000, default 200) and `GET /operation/log/stream`
+  (`log_record`), 503 without a port. New port `fabricui.Operations`
+  (`Options.Operations`) with `LogRecord` and `OperationInfo`,
+  `fabricui.MemoryOperations` as its double, `fabricui.GoFabricVersion`.
+  The page sets the level (admin) and shows the ring and the stream with
+  pause, a level and a text filter and copy; its tab shows when the
+  host attaches the port.
+- `POST /controller/nodes/{id}/ping` (admin, `PingResult`): a Matter read
+  of BasicInformation DataModelRevision through the node's session with
+  its round trip, not an ICMP echo, as go-fabric-server's `ping_node`;
+  `ControllerNode.Ping`, in the go-fabric adapter and `MemoryController`.
+  A Ping button on the controller's node overview with the outcome per
+  address and the sentence what was measured.
+- Stream events `health_sample` (`HealthSampleEvent`) and
+  `diagnostic_event` (the trace entry's shape, `fabricui.TraceEvent`),
+  from `Node.OnHealthSample` and `Node.OnDiagnosticEvent`, registered per
+  stream; `fabricui.ObserveNode` registers them beside `NodeObservers`
+  for a host's own channel. The status page reloads on a burst of health
+  samples, the diagnostics page in place on a burst of trace entries.
+- Camera QR scan on the commissioning page: the decoder (`jsqr` 1.4.0,
+  Apache-2.0, in `THIRD-PARTY-NOTICES.md`) and the scan are a chunk loaded
+  on the first scan, the browser's `BarcodeDetector` used when it reads QR
+  codes; outside a secure context the page explains why there is no
+  button. The payload fills the code field.
+- Pairing hints per ecosystem (Apple, Google, Alexa, SmartThings, Home
+  Assistant) below the pairing flow, from matter.js `docs/ECOSYSTEMS.md`,
+  with the ecosystems already holding a fabric marked and their
+  compatibility findings beside them.
+- A Playwright smoke per page (`ui/e2e`, Chromium only, `make e2e-web`,
+  CI job `e2e-web`) against `TestServeE2EWeb`, a test binary serving the
+  bundle on the handler tests' doubles.
+- Fixtures `nodes.200`, `nodes-status.200`, `nodes-status.404`,
+  `operation-info.200`, `operation-info.503`, `operation-log.200`,
+  `operation-log.400`, `operation-log-level.200`,
+  `operation-log-level-set.200`, `operation-log-level-set.400`,
+  `operation-log-level-set.403`, `controller-node-ping.200`,
+  `controller-node-ping.404`.
 
 - `GET /controller/nodes/{id}/endpoints/{ep}` (`EndpointDetail`) and
   `GET /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}`
@@ -93,6 +145,14 @@ families (brief U4a, wave D.3); contract 0.4.1, additive over 0.4.0.
 
 ### Changed
 
+- **Breaking** for a host with its own `NodeSource`: the interface gains
+  `OnHealthSample(func(node.HealthSample)) func()` and
+  `OnDiagnosticEvent(func(node.DiagnosticEvent)) func()` (owner decision
+  U5 F.3). `*node.Node` satisfies both; a wrapper forwards them to its
+  node. Likewise `ControllerNode` gains `Ping(ctx) (PingResult, error)`;
+  `gofabric.ControllerOf` and `MemoryController` implement it.
+- The selection page loads the selection only once the status says the
+  host serves one, so a node without a selection is never asked for one.
 - An event a node delivers to the controller raises the node's
   `node_updated` (`gofabric.Hooks`), and `Hooks.Wrap` chains the host's
   own `Event` hook instead of replacing ours with it.

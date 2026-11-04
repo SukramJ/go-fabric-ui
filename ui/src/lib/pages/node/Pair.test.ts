@@ -105,3 +105,38 @@ describe("Pair — duration picker follows a live locale switch", () => {
     expect(await screen.findByText("5 Min.")).toBeInTheDocument();
   });
 });
+
+describe("Pair — ecosystem hints", () => {
+  it("shows a hint per ecosystem with its links, and marks the ecosystems already paired with their findings", async () => {
+    const c = body<{ ecosystems: unknown[]; findings: unknown[] }>("node-compatibility.200");
+    c.findings = [{ ecosystem: "apple", code: "x", message: "Apple shows this device type as a switch." }];
+    const ui = testUI({
+      fixtures: ["node-pairing.200-window", "node-compatibility.200"],
+      answers: { "GET /node/status": status({ commissioning_window_open: false }), "GET /node/compatibility": { status: 200, body: c } },
+    });
+    await ui.node.loadStatus();
+    render(Harness, { ui, page: Pair });
+    const hints = await screen.findAllByTestId("ecosystem-hint");
+    expect(hints.map((h) => h.querySelector("summary")?.textContent?.trim().split(/\s+/)[0])).toEqual([
+      "node.diag.ecosystem.apple",
+      "node.diag.ecosystem.google",
+      "node.diag.ecosystem.amazon",
+      "node.diag.ecosystem.smartthings",
+      "node.diag.ecosystem.home_assistant",
+    ]);
+    await waitFor(() => expect(hints[0]).toHaveTextContent("node.pair.hints.paired"));
+    expect(hints[1]).toHaveTextContent("node.pair.hints.paired");
+    expect(hints[2]).not.toHaveTextContent("node.pair.hints.paired");
+    expect(hints[2]).toHaveTextContent("node.pair.hints.amazon");
+    expect(hints[0]).toHaveTextContent("Apple shows this device type as a switch.");
+    const link = screen.getByText("node.pair.hints.apple.hub").closest("a");
+    expect(link).toHaveAttribute("href", "https://support.apple.com/en-us/HT207057");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("shows the hints alone when the node reports no compatibility", async () => {
+    await renderPair({ commissioning_window_open: false });
+    expect(await screen.findAllByTestId("ecosystem-hint")).toHaveLength(5);
+    expect(screen.queryByText("node.pair.hints.paired")).toBeNull();
+  });
+});

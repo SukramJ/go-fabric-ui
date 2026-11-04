@@ -5,6 +5,7 @@ package fabricui
 
 import (
 	"sync"
+	"time"
 
 	"github.com/SukramJ/go-fabric/eligibility"
 	"github.com/SukramJ/go-fabric/node"
@@ -29,6 +30,13 @@ const (
 	// EventAttributeChanged carries an [AttributeChangedEvent]: go-fabric's
 	// node.Observers.OnAttributeChanged, ids only.
 	EventAttributeChanged = "attribute_changed"
+	// EventHealthSample carries a [HealthSampleEvent]: go-fabric's
+	// Node.OnHealthSample (contract 0.5.0).
+	EventHealthSample = "health_sample"
+	// EventDiagnosticEvent carries a [TraceEvent]: go-fabric's
+	// Node.OnDiagnosticEvent, one entry of the trace GET /node/events
+	// serves (contract 0.5.0).
+	EventDiagnosticEvent = "diagnostic_event"
 )
 
 // Event is one server-sent event: its type and a JSON-encodable payload.
@@ -75,6 +83,73 @@ type AttributeChangedEvent struct {
 	Endpoint   uint16   `json:"endpoint"`
 	ClusterHex string   `json:"cluster_hex"`
 	Attributes []string `json:"attributes"`
+}
+
+// HealthSampleEvent is the payload of health_sample: one verdict of the
+// node's health probe (go-fabric node.HealthSample: Healthy, Note) and when
+// the handler received it, on the node's clock — the sample carries no time
+// of its own.
+type HealthSampleEvent struct {
+	Healthy   bool   `json:"healthy"`
+	Note      string `json:"note"`
+	SampledAt string `json:"sampled_at"`
+}
+
+// TraceEvent is one entry of the node's diagnostic trace: an element of GET
+// /node/events and the payload of diagnostic_event (loom matter.go:558-565).
+type TraceEvent struct {
+	At       string            `json:"at"`
+	Kind     string            `json:"kind"`
+	Severity string            `json:"severity"`
+	Message  string            `json:"message"`
+	Detail   map[string]string `json:"detail,omitempty"`
+}
+
+// traceEventOf is the wire shape of one trace entry.
+func traceEventOf(e *node.DiagnosticEvent) TraceEvent {
+	return TraceEvent{
+		At:       e.At.UTC().Format(time.RFC3339),
+		Kind:     string(e.Kind),
+		Severity: string(e.Severity),
+		Message:  e.Message,
+		Detail:   e.Detail,
+	}
+}
+
+// healthSampleEvent is health_sample's payload for a verdict received at.
+func healthSampleEvent(s node.HealthSample, at time.Time) HealthSampleEvent {
+	return HealthSampleEvent{Healthy: s.Healthy, Note: s.Note, SampledAt: at.UTC().Format(time.RFC3339)}
+}
+
+// ObserveNode registers push for every transition of n the node stream
+// carries — [NodeObservers] through n.Observe, and the health probe's
+// verdicts and the diagnostic trace's entries (health_sample,
+// diagnostic_event) through n.OnHealthSample and n.OnDiagnosticEvent,
+// which node.Observers does not hold — and returns the function that
+// unregisters all three. A host carrying the family's events over a
+// channel of its own calls it once:
+//
+//	unobserve := fabricui.ObserveNode(n, push)
+func ObserveNode(n NodeSource, push func(Event)) (unsubscribe func()) {
+	return observeNode(nodeAdapter{n: n}, push)
+}
+
+// observeNode is ObserveNode on the handler's port.
+func observeNode(p nodePort, push func(Event)) (unsubscribe func()) {
+	unsubs := []func(){
+		p.observe(NodeObservers(push, p.window().Open)),
+		p.onHealthSample(func(s node.HealthSample) {
+			push(Event{Type: EventHealthSample, Data: healthSampleEvent(s, p.now())})
+		}),
+		p.onDiagnosticEvent(func(e node.DiagnosticEvent) {
+			push(Event{Type: EventDiagnosticEvent, Data: traceEventOf(&e)})
+		}),
+	}
+	return func() {
+		for _, u := range unsubs {
+			u()
+		}
+	}
 }
 
 // SessionEvent is the payload of session_opened, session_closed and
@@ -159,7 +234,8 @@ func (e *Events) Publish(ev Event) {
 // The handler registers it with node.Observe for each open stream, and the
 // transitions reach those streams alone, never [Events]. A host that
 // carries the node page family's events over a channel of its own (a
-// WebSocket hub, an audit log) registers it the same way:
+// WebSocket hub, an audit log) registers it the same way — or, for the
+// health samples and the trace entries too, with [ObserveNode]:
 //
 //	unobserve := n.Observe(fabricui.NodeObservers(push, n.Window().Open))
 //

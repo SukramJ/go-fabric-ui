@@ -399,11 +399,16 @@ export interface paths {
          * @description `event:` is one of fabric_added, fabric_removed, window_opened,
          *     window_closed, endpoints_changed, exposure_changed, surface_changed,
          *     session_opened, session_closed, subscriptions_changed,
-         *     attribute_changed; `data:` is the JSON payload (`FabricEvent`,
-         *     `WindowEvent`, `{}`, `ExposureEvent`, `SurfaceChangedEvent`,
-         *     `SessionEvent`, `AttributeChangedEvent`).
+         *     attribute_changed, health_sample, diagnostic_event; `data:` is the
+         *     JSON payload (`FabricEvent`, `WindowEvent`, `{}`, `ExposureEvent`,
+         *     `SurfaceChangedEvent`, `SessionEvent`, `AttributeChangedEvent`,
+         *     `HealthSampleEvent`, `DiagnosticEvent`).
          *     attribute_changed (0.4.1) names the attributes that changed, never
          *     their values: a page refetches what it shows.
+         *     health_sample (0.5.0) is every verdict of the node's health probe
+         *     (go-fabric `Node.OnHealthSample`); diagnostic_event (0.5.0) is every
+         *     entry the node adds to the trace `GET /node/events` serves (go-fabric
+         *     `Node.OnDiagnosticEvent`), in the same shape.
          *     session_opened reports CASE sessions only (go-fabric
          *     node.Observers.OnSessionOpened); a PASE session is not reported, and
          *     session_closed and subscriptions_changed follow only a session
@@ -411,6 +416,603 @@ export interface paths {
          *     A comment line arrives every 15 s. No payload carries a passcode.
          */
         get: operations["stream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The device nodes the host serves, the default node first (0.5.0).
+         * @description Every node of the node family, in the host's order; the first is the
+         *     default node, the one the `/node/*` routes serve. Each is reached under
+         *     `/nodes/{node}/…` by its key as well, with the operations of `/node/*`.
+         *     Empty when the host serves no node. A page shows a node selector when
+         *     the list holds more than one.
+         */
+        get: operations["listNodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Health, counts and the commissioning window.
+         * @description As `GET /node/status` (`getNodeStatus`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["getNodeStatusForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/fabrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The commissioned fabrics.
+         * @description As `GET /node/fabrics` (`listFabrics`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["listFabricsForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/fabrics/{index}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove one fabric.
+         * @description As `DELETE /node/fabrics/{index}` (`removeFabric`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        delete: operations["removeFabricForNode"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/pairing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The pairing codes — of the window this handler opened while it is open, else the configured ones.
+         * @description As `GET /node/pairing` (`getPairing`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["getPairingForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/pairing/window": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open a commissioning window.
+         * @description As `POST /node/pairing/window` (`openWindow`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        post: operations["openWindowForNode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/pairing/window/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close the open commissioning window.
+         * @description As `POST /node/pairing/window/close` (`closeWindow`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        post: operations["closeWindowForNode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/endpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The bridged endpoints a controller sees.
+         * @description As `GET /node/endpoints` (`listEndpoints`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["listEndpointsForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/endpoints/{ep}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+                /** @description The endpoint number. */
+                ep: components["parameters"]["EndpointNumber"];
+            };
+            cookie?: never;
+        };
+        /**
+         * One endpoint the node serves, with its attribute values (0.4.1).
+         * @description As `GET /node/endpoints/{ep}` (`getEndpointDetail`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["getEndpointDetailForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/endpoints/{ep}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+                /** @description The endpoint number. */
+                ep: components["parameters"]["EndpointNumber"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The events the node's event log holds for one endpoint (0.4.1).
+         * @description As `GET /node/endpoints/{ep}/events` (`listEndpointEvents`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["listEndpointEventsForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/surface": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The node's surface report.
+         * @description As `GET /node/surface` (`getNodeSurface`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["getNodeSurfaceForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The open secure sessions and the session-id occupancy.
+         * @description As `GET /node/sessions` (`listSessions`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["listSessionsForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/topology": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The node as a graph — its bridge, its fabrics and the sessions on them.
+         * @description As `GET /node/topology` (`getNodeTopology`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["getNodeTopologyForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/mdns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The live DNS-SD advertisement and its diagnosis.
+         * @description As `GET /node/mdns` (`getMdns`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["getMdnsForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/compatibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The commissioned ecosystems and known incompatibilities.
+         * @description As `GET /node/compatibility` (`getCompatibility`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["getCompatibilityForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The pairing, session and discovery trace, newest first.
+         * @description As `GET /node/events` (`listDiagnosticEvents`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["listDiagnosticEventsForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/exposure/schema": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * How the selection page shows the host's items.
+         * @description As `GET /node/exposure/schema` (`getExposureSchema`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["getExposureSchemaForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/exposure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Every item the host could expose.
+         * @description As `GET /node/exposure` (`listExposure`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["listExposureForNode"];
+        /**
+         * Apply a batch of item changes and reassemble the endpoints.
+         * @description As `PUT /node/exposure` (`applyExposure`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        put: operations["applyExposureForNode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/exposure/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The items as a batch of changes would leave them; nothing is written.
+         * @description As `POST /node/exposure/preview` (`previewExposure`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        post: operations["previewExposureForNode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/maintenance/reassemble": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rebuild the endpoints from the host's current selection; pairings are untouched.
+         * @description As `POST /node/maintenance/reassemble` (`reassemble`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        post: operations["reassembleForNode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/maintenance/factory-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove every fabric. The body must name the action.
+         * @description As `POST /node/maintenance/factory-reset` (`factoryReset`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        post: operations["factoryResetForNode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Server-sent events.
+         * @description As `GET /node/stream` (`stream`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
+         */
+        get: operations["streamForNode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/operation/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The daemon's version, the go-fabric version it is built with and its uptime (0.5.0). */
+        get: operations["getOperationInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/operation/log/level": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The level the daemon logs at and the levels it accepts (0.5.0). */
+        get: operations["getLogLevel"];
+        /** Set the level the daemon logs at, until it restarts (0.5.0). */
+        put: operations["setLogLevel"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/operation/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The records the daemon's log ring holds, oldest first (0.5.0).
+         * @description The ring is bounded and in memory: a record falls out when it is
+         *     full and every record is gone after a restart. A record below the
+         *     level in force when it was logged never reaches it. Nothing the
+         *     daemon logs carries a passcode.
+         */
+        get: operations["listLogRecords"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/operation/log/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Server-sent log records (0.5.0).
+         * @description `event:` is log_record; `data:` is the `LogRecord`, one per record
+         *     the ring takes from the moment the stream opens. A page reads
+         *     `GET /operation/log` first and appends from here; a client that
+         *     falls behind loses the oldest records, as on the other streams. A
+         *     comment line arrives every 15 s.
+         */
+        get: operations["logStream"];
         put?: never;
         post?: never;
         delete?: never;
@@ -586,6 +1188,35 @@ export interface paths {
         put?: never;
         /** Read the whole node again, without data version filters. */
         post: operations["interviewNode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/controller/nodes/{id}/ping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                id: components["parameters"]["NodeID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Whether the node answers a Matter read, and how fast (0.5.0).
+         * @description Not an ICMP echo: the controller reads the node's BasicInformation
+         *     DataModelRevision (0x0028/0x0000) through its session, as
+         *     go-fabric-server's `ping_node` does, and measures the round trip.
+         *     `per_address` says whether each address was tried on its own; when
+         *     false, the one read stands for every address the node advertises.
+         *     A failed read is `reachable: false`, not an error. 404 for an
+         *     unknown node.
+         */
+        post: operations["pingNode"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1115,6 +1746,8 @@ export interface components {
             window_deadline?: string;
             /** @description Whether the host serves a selection. */
             exposure: boolean;
+            /** @description Why the host serves no selection, in the host's language; absent when it serves one or gives no reason (0.5.0). */
+            exposure_reason?: string;
             /** @description The admin token of token mode; absent when the host decides admin rights. */
             csrf_token?: string;
             /** @description The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing. */
@@ -1379,6 +2012,93 @@ export interface components {
             detail?: {
                 [key: string]: string;
             };
+        };
+        /** @description The payload of health_sample (0.5.0) — one verdict of the node's health probe. */
+        HealthSampleEvent: {
+            healthy: boolean;
+            /** @description The probe's stable English note. */
+            note: string;
+            /**
+             * Format: date-time
+             * @description When the handler received the verdict, on the node's clock.
+             */
+            sampled_at: string;
+        };
+        NodeSummary: {
+            /** @description The node's stable key, the `{node}` of `/nodes/{node}/…`. */
+            key: string;
+            /** @description The host's name for the node; the key when the host names none. */
+            label: string;
+            /** @description What the host says the node is ("bridge", "device"); absent when it says nothing. */
+            kind?: string;
+            /** @description Whether the node family is served for the node, as the node's `Status.enabled`. */
+            enabled: boolean;
+        };
+        NodeSummaryList: {
+            /** @description The default node first. */
+            nodes: components["schemas"]["NodeSummary"][];
+        };
+        LogLevel: {
+            /**
+             * @description The level in force; a level between two names is the lower one.
+             * @enum {string}
+             */
+            level: "debug" | "info" | "warn" | "error";
+            /** @description The levels the daemon accepts, lowest first. */
+            levels: ("debug" | "info" | "warn" | "error")[];
+        };
+        LogLevelRequest: {
+            /** @enum {string} */
+            level: "debug" | "info" | "warn" | "error";
+        };
+        LogRecord: {
+            /** @description The record's sequence number, increasing by one per record the ring takes. */
+            seq: number;
+            /** Format: date-time */
+            time: string;
+            /** @enum {string} */
+            level: "debug" | "info" | "warn" | "error";
+            msg: string;
+            /** @description The record's attributes as text, a group's by dotted key. */
+            attrs: {
+                [key: string]: string;
+            };
+        };
+        LogRecordList: {
+            records: components["schemas"]["LogRecord"][];
+        };
+        OperationInfo: {
+            /** @description The daemon's version, as its host names it. */
+            version: string;
+            /** @description The go-fabric module version the daemon is built with; empty when the build does not say. */
+            go_fabric: string;
+            /** @description Seconds since started_at. */
+            uptime_s: number;
+            /** Format: date-time */
+            started_at: string;
+        };
+        PingResult: {
+            /**
+             * @description What was measured: a Matter read of BasicInformation DataModelRevision, not an ICMP echo.
+             * @enum {string}
+             */
+            method: "matter-read";
+            /** @description Whether each address was read on its own; false when one read through the node's session stands for every address. */
+            per_address: boolean;
+            /** @description Whether the read answered. */
+            reachable: boolean;
+            /** @description The read's round trip in milliseconds; absent when it failed. */
+            rtt_ms?: number;
+            /** @description Why the read failed; absent when it answered. */
+            error?: string;
+            /** @description The addresses the controller knows for the node, each with the outcome that applies to it. */
+            addresses: components["schemas"]["PingAddress"][];
+        };
+        PingAddress: {
+            /** @description The address with its port, as `ControllerNodeDetail.record.addresses` lists it. */
+            ip: string;
+            reachable: boolean;
+            rtt_ms?: number;
         };
         DiagnosticEventList: {
             events: components["schemas"]["DiagnosticEvent"][];
@@ -2122,6 +2842,12 @@ export interface components {
         };
     };
     parameters: {
+        /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+        NodeKey: string;
+        /** @description The lowest record sequence number returned (inclusive); absent is every record the ring holds. A page passes the last number it has plus one. */
+        LogSince: number;
+        /** @description Only the newest `limit` of the matching records; absent is 200. */
+        LogLimit: number;
         /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
         NodeID: string;
         /** @description The endpoint number. */
@@ -2654,6 +3380,745 @@ export interface operations {
             };
         };
     };
+    listNodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The nodes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeSummaryList"];
+                };
+            };
+        };
+    };
+    getNodeStatusForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The status; `enabled` is false when the host serves no node. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Status"];
+                };
+            };
+            404: components["responses"]["Problem"];
+        };
+    };
+    listFabricsForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The fabrics. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FabricList"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    removeFabricForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+                index: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    getPairingForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The codes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pairing"];
+                };
+            };
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    openWindowForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WindowRequest"];
+            };
+        };
+        responses: {
+            /** @description The window is open; the codes commission through it. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Window"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    closeWindowForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Closed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listEndpointsForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The endpoints. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndpointList"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    getEndpointDetailForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+                /** @description The endpoint number. */
+                ep: components["parameters"]["EndpointNumber"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The endpoint. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndpointDetail"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listEndpointEventsForNode: {
+        parameters: {
+            query?: {
+                /** @description The lowest event number returned (inclusive); absent is every event the log holds. A page passes the last number it has plus one to fetch only the newer ones. */
+                since?: components["parameters"]["EventSince"];
+                /** @description Only the newest `limit` of the matching events; absent is 100. */
+                limit?: components["parameters"]["EventLimit"];
+            };
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+                /** @description The endpoint number. */
+                ep: components["parameters"]["EndpointNumber"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The events, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventRecordList"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    getNodeSurfaceForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurfaceReport"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listSessionsForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sessions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionList"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    getNodeTopologyForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The graph. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopologyGraph"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    getMdnsForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The advertisement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mdns"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    getCompatibilityForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Compatibility"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listDiagnosticEventsForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The trace. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticEventList"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    getExposureSchemaForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The schema. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExposureSchema"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listExposureForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The items. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemList"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    applyExposureForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateList"];
+            };
+        };
+        responses: {
+            /** @description Applied. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Applied"];
+                };
+            };
+            /** @description The batch was empty. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    previewExposureForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateList"];
+            };
+        };
+        responses: {
+            /** @description The touched items after the changes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemList"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    reassembleForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reassembled. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    factoryResetForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FactoryResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Every fabric is removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    streamForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event stream. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            404: components["responses"]["Problem"];
+        };
+    };
+    getOperationInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The information. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationInfo"];
+                };
+            };
+            503: components["responses"]["Problem"];
+        };
+    };
+    getLogLevel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The level. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogLevel"];
+                };
+            };
+            503: components["responses"]["Problem"];
+        };
+    };
+    setLogLevel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogLevelRequest"];
+            };
+        };
+        responses: {
+            /** @description The level now in force. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogLevel"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listLogRecords: {
+        parameters: {
+            query?: {
+                /** @description The lowest record sequence number returned (inclusive); absent is every record the ring holds. A page passes the last number it has plus one. */
+                since?: components["parameters"]["LogSince"];
+                /** @description Only the newest `limit` of the matching records; absent is 200. */
+                limit?: components["parameters"]["LogLimit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The records, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogRecordList"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    logStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The record stream. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            503: components["responses"]["Problem"];
+        };
+    };
     getControllerStatus: {
         parameters: {
             query?: never;
@@ -2855,6 +4320,32 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
+        };
+    };
+    pingNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                id: components["parameters"]["NodeID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The outcome. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PingResult"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
         };
     };
     enableNode: {

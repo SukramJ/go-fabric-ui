@@ -20,3 +20,8 @@ export { default as ControllerNetwork } from "./controller/Network.svelte";
 export { default as ControllerCommission } from "./controller/Commission.svelte";
 export { default as ControllerNode } from "./controller/Node.svelte";
 export { default as ControllerSettings } from "./controller/Settings.svelte";
+// The daemon's operation, beside both families (wave U5a): log level, log
+// view and version.
+export { default as Operation } from "./operation/Operation.svelte";
+// The pairing hints per ecosystem, below NodePair's flow (wave U5a).
+export { default as NodeEcosystemHints } from "./node/EcosystemHints.svelte";

@@ -24,7 +24,10 @@ an unknown path under the API prefix answers a 404 problem.
 
 | Field | Purpose |
 | --- | --- |
-| `Node` | The node (`*node.Node` satisfies `NodeSource`); nil serves the family as disabled. |
+| `Node` | The default node (`*node.Node` satisfies `NodeSource`), served under `/node/*` and listed first by `GET /nodes` under the key `default`; nil serves the family as disabled unless `Nodes` names one. |
+| `Nodes` | Further device nodes (0.5.0), `[]NodeEntry{Key, Label, Kind, Source}` in the selector's order, each under `/nodes/{key}/*`; with `Node` nil the first is the default. See [Several nodes](#several-nodes). |
+| `Operations` | The daemon's log level, log ring and version (0.5.0) for the Operation page; nil answers 503 there and hides the page. See [Operation](#operation). |
+| `ExposureReason` | Why the host serves no selection (0.5.0), in the host's language; the selection page shows it instead of hiding. |
 | `Exposure` | The host's `ExposureProvider` ([provider.md](provider.md)); nil hides the selection page. A list-valued (`Multi`) column reads `Item.Lists`, one entry per value; the comma-separated `Item.Fields` form is deprecated. |
 | `Controller` | The controller family's source (`gofabric.ControllerOf` over a `*controller.Controller`, see below); nil serves no controller family and every `/controller/*` path answers 404. |
 | `Admin` | Who may write, read the pairing secret and use a controller route marked admin; nil selects token mode ([contract.md](contract.md#admin-rights)). |
@@ -58,11 +61,15 @@ session opened or closed and every change of its subscriptions
 (`session_opened`, `session_closed`, `subscriptions_changed`, from
 `OnSessionOpened`, `OnSessionClosed`, `OnSubscriptionsChanged`) and every
 attribute change of a cluster server (`attribute_changed`, from
-`OnAttributeChanged`: the ids, never the values).
+`OnAttributeChanged`: the ids, never the values). Since 0.5.0 each stream
+also registers `Node.OnHealthSample` and `Node.OnDiagnosticEvent`
+(`health_sample`, `diagnostic_event`), so the status and diagnostics pages
+update without a reload.
 `node.Config.Observers` stays the host's own. A host that carries these
-events over a channel of its own registers `fabricui.NodeObservers` with
-`Node.Observe` the same way; publishing them into `Options.Events` instead
-would hand every stream each one twice.
+events over a channel of its own registers them with
+`fabricui.ObserveNode(n, push)` — `NodeObservers` through `Node.Observe`
+plus the two callbacks `node.Observers` does not hold; publishing them
+into `Options.Events` instead would hand every stream each one twice.
 
 Everything the handlers read is on the node facade: the window from
 `Node.Window` (its kind, discriminator and deadline on the node's clock),
@@ -72,8 +79,68 @@ endpoint, parts included, from `Topology`, fresh window credentials from
 `Node.SessionDiagnostics`, the surface summary of the status (level,
 profiles, extensions and counts) from `Node.Surface`, an endpoint's values
 from `Node.ReadCluster` and `Node.ReadAttribute` and its events from
-`Node.Events` (0.5.0). A host wrapping its node in its own `NodeSource`
-implements those methods.
+`Node.Events` (0.5.0), and the stream's health samples and trace entries
+from `Node.OnHealthSample` and `Node.OnDiagnosticEvent` (0.5.0). A host
+wrapping its node in its own `NodeSource` implements those methods — the
+two callbacks are new in 0.5.0 and break such a wrapper until it forwards
+them:
+
+```go
+func (w wrapped) OnHealthSample(fn func(node.HealthSample)) func()       { return w.n.OnHealthSample(fn) }
+func (w wrapped) OnDiagnosticEvent(fn func(node.DiagnosticEvent)) func() { return w.n.OnDiagnosticEvent(fn) }
+```
+
+### Several nodes
+
+A daemon that hosts more than one device node lists them all (0.5.0):
+
+```go
+fabricui.Handler(fabricui.Options{
+	Nodes: []fabricui.NodeEntry{
+		{Key: "bridge", Label: "Bridge", Kind: "bridge", Source: bridgeNode},
+		{Key: "lights", Label: "Lights", Kind: "device", Source: lightsNode},
+	},
+	Exposure: provider, // the default node's selection: the first entry's
+})
+```
+
+`GET /nodes` lists them in that order; `/node/*` serves the first, and
+`/nodes/{key}/*` every one. A key is stable across restarts, matches
+`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$` and is no page name of the node family
+(`status`, `pair`, …); `Handler` panics and `Mount` fails on a bad or
+repeated key. `Options.Node` is the shorthand for one node under the key
+`default`; with both, `Node` comes first. The selection, `Reassemble` and
+`Events` belong to the default node; every other node reports no selection
+and `ExposureReason`. The shell shows a node selector in its header once
+there are two nodes, and routes a node's pages under `#/node/<key>/…`; a
+host with its own app builds a node's client with `client.forNode(key)`.
+
+### Operation
+
+`Options.Operations` gives the Operation page its data (0.5.0): the level
+the daemon logs at and a way to set it, a bounded ring of its recent log
+records with a way to observe new ones, and its version and uptime. The
+port is five methods:
+
+```go
+type Operations interface {
+	LogLevel() slog.Level
+	SetLogLevel(slog.Level) error
+	Log(since uint64, limit int) []LogRecord
+	ObserveLog(fn func(LogRecord)) (unsubscribe func())
+	Info() OperationInfo
+}
+```
+
+The level and the ring belong in front of the host's logger, the one
+`node.Config.Logger` receives: a `slog.Handler` with a `slog.LevelVar` that
+keeps the newest records. go-fabric's `logring` package is that handler
+once it lands (go-fabric issue #393, concept U5 C.4); until then a host
+writes the adapter itself, and `fabricui.MemoryOperations` is the test
+double the handler tests and the browser smoke use. `fabricui.GoFabricVersion()`
+reads the go-fabric version from the binary's build information for
+`OperationInfo.GoFabric`. The ring holds no passcode because nothing the
+host and go-fabric log carries one; the handler adds nothing to it.
 
 ## The controller family
 

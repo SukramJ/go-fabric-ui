@@ -1,8 +1,10 @@
-<!-- A node's record, properties and connection. -->
+<!-- A node's record, properties and connection, and the ping (admin,
+     contract 0.5.0): a Matter read of DataModelRevision, with its outcome
+     per address and the sentence that says what was measured. -->
 <script lang="ts">
   import { useFabricUI } from "../../../context";
   import { errorText } from "../../../store.svelte";
-  import type { ControllerNodeDetail } from "../../../api/client";
+  import type { ControllerNodeDetail, PingResult } from "../../../api/client";
   import Badge from "../../../kit/Badge.svelte";
   import Button from "../../../kit/Button.svelte";
   import Card from "../../../kit/Card.svelte";
@@ -28,6 +30,19 @@
       ] as const
     ).filter(([, on]) => on).map(([k]) => k),
   );
+
+  let pinging = $state(false);
+  let ping = $state<PingResult | null>(null);
+  async function runPing() {
+    pinging = true;
+    try {
+      ping = await client.pingNode(n.node_id_hex);
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      pinging = false;
+    }
+  }
 
   let busy = $state(false);
   async function setAutoSubscribe(on: boolean) {
@@ -64,7 +79,29 @@
       <Button size="sm" variant="outline" disabled={busy} onclick={() => void setAutoSubscribe(!n.subscription_active)}>
         {n.subscription_active ? t("controller.overview.unsubscribe") : t("controller.overview.subscribe")}
       </Button>
+      <Button size="sm" variant="outline" disabled={pinging} onclick={() => void runPing()}>
+        {pinging ? t("controller.ping.running") : t("controller.ping.button")}
+      </Button>
     </div>
+    {#if ping}
+      <div class="mt-3 text-sm" data-testid="ping-result">
+        <p class="text-[var(--ha-secondary-text-color)]">{ping.per_address ? t("controller.ping.method_per_address") : t("controller.ping.method_session")}</p>
+        <p class="mt-1">
+          <Badge variant={ping.reachable ? "success" : "danger"}>{ping.reachable ? t("controller.ping.reachable") : t("controller.ping.unreachable")}</Badge>
+          {#if ping.rtt_ms !== undefined}<span class="ml-2">{t("controller.ping.rtt", { ms: ping.rtt_ms })}</span>{/if}
+          {#if ping.error}<span class="ml-2 text-[var(--ha-error-color)]">{ping.error}</span>{/if}
+        </p>
+        {#if ping.addresses.length > 0}
+          <ul class="mt-1 space-y-0.5 font-mono text-xs">
+            {#each ping.addresses as a (a.ip)}
+              <li data-testid="ping-address">
+                {a.ip} · {a.reachable ? t("controller.ping.reachable") : t("controller.ping.unreachable")}{#if a.rtt_ms !== undefined}&nbsp;· {t("controller.ping.rtt", { ms: a.rtt_ms })}{/if}
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+    {/if}
   </Card>
   <Card class="p-4">
     <h3 class="mb-2 font-medium text-[var(--ha-primary-text-color)]">{t("controller.overview.properties")}</h3>

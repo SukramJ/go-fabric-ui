@@ -213,6 +213,21 @@ func (e PendingUpdateStatus) Valid() bool {
 	}
 }
 
+// Defines values for PingResultMethod.
+const (
+	PingResultMethodMatterRead PingResultMethod = "matter-read"
+)
+
+// Valid indicates whether the value is a known member of the PingResultMethod enum.
+func (e PingResultMethod) Valid() bool {
+	switch e {
+	case PingResultMethodMatterRead:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProblemCode.
 const (
 	ProblemCodeBadRequest      ProblemCode = "bad_request"
@@ -1126,6 +1141,38 @@ type PendingUpdate struct {
 // PendingUpdateStatus defines model for PendingUpdate.Status.
 type PendingUpdateStatus string
 
+// PingAddress defines model for PingAddress.
+type PingAddress struct {
+	// IP The address with its port, as `ControllerNodeDetail.record.addresses` lists it.
+	IP        string   `json:"ip"`
+	Reachable bool     `json:"reachable"`
+	RttMs     *float32 `json:"rtt_ms,omitempty"`
+}
+
+// PingResult defines model for PingResult.
+type PingResult struct {
+	// Addresses The addresses the controller knows for the node, each with the outcome that applies to it.
+	Addresses []PingAddress `json:"addresses"`
+
+	// Error Why the read failed; absent when it answered.
+	Error *string `json:"error,omitempty"`
+
+	// Method What was measured: a Matter read of BasicInformation DataModelRevision, not an ICMP echo.
+	Method PingResultMethod `json:"method"`
+
+	// PerAddress Whether each address was read on its own; false when one read through the node's session stands for every address.
+	PerAddress bool `json:"per_address"`
+
+	// Reachable Whether the read answered.
+	Reachable bool `json:"reachable"`
+
+	// RttMs The read's round trip in milliseconds; absent when it failed.
+	RttMs *float32 `json:"rtt_ms,omitempty"`
+}
+
+// PingResultMethod What was measured: a Matter read of BasicInformation DataModelRevision, not an ICMP echo.
+type PingResultMethod string
+
 // Problem defines model for Problem.
 type Problem struct {
 	Code     ProblemCode `json:"code"`
@@ -1340,6 +1387,9 @@ type EventSince = int
 // NodeID defines model for NodeID.
 type NodeID = string
 
+// NodeKey defines model for NodeKey.
+type NodeKey = string
+
 // RemoveCredentialParams defines parameters for RemoveCredential.
 type RemoveCredentialParams struct {
 	Kind RemoveCredentialParamsKind `form:"kind" json:"kind"`
@@ -1504,6 +1554,9 @@ type ServerInterface interface {
 	// InterviewNode Read the whole node again, without data version filters.
 	// (POST /controller/nodes/{id}/interview)
 	InterviewNode(w http.ResponseWriter, r *http.Request, id NodeID)
+	// PingNode Whether the node answers a Matter read, and how fast (0.5.0).
+	// (POST /controller/nodes/{id}/ping)
+	PingNode(w http.ResponseWriter, r *http.Request, id NodeID)
 	// OpenNodeWindow Open an enhanced commissioning window on the node for another administrator.
 	// (POST /controller/nodes/{id}/window)
 	OpenNodeWindow(w http.ResponseWriter, r *http.Request, id NodeID)
@@ -2325,6 +2378,32 @@ func (siw *ServerInterfaceWrapper) InterviewNode(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// PingNode operation middleware
+func (siw *ServerInterfaceWrapper) PingNode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id NodeID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PingNode(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // OpenNodeWindow operation middleware
 func (siw *ServerInterfaceWrapper) OpenNodeWindow(w http.ResponseWriter, r *http.Request) {
 
@@ -2608,6 +2687,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}", wrapper.GetNodeCluster)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}/events", wrapper.ListNodeEvents)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/nodes/{id}/interview", wrapper.InterviewNode)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/nodes/{id}/ping", wrapper.PingNode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/nodes/{id}/enable", wrapper.EnableNode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/nodes/{id}/disable", wrapper.DisableNode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/nodes/{id}/auto-subscribe", wrapper.SetNodeAutoSubscribe)
@@ -4599,6 +4679,72 @@ func (response InterviewNode502ApplicationProblemPlusJSONResponse) VisitIntervie
 	return err
 }
 
+type PingNodeRequestObject struct {
+	ID NodeID `json:"id"`
+}
+
+type PingNodeResponseObject interface {
+	VisitPingNodeResponse(w http.ResponseWriter) error
+}
+
+type PingNode200JSONResponse PingResult
+
+func (response PingNode200JSONResponse) VisitPingNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PingNode400ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response PingNode400ApplicationProblemPlusJSONResponse) VisitPingNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PingNode403ApplicationProblemPlusJSONResponse Problem
+
+func (response PingNode403ApplicationProblemPlusJSONResponse) VisitPingNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PingNode404ApplicationProblemPlusJSONResponse Problem
+
+func (response PingNode404ApplicationProblemPlusJSONResponse) VisitPingNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type OpenNodeWindowRequestObject struct {
 	ID   NodeID `json:"id"`
 	Body *OpenNodeWindowJSONRequestBody
@@ -5151,6 +5297,9 @@ type StrictServerInterface interface {
 	// InterviewNode Read the whole node again, without data version filters.
 	// (POST /controller/nodes/{id}/interview)
 	InterviewNode(ctx context.Context, request InterviewNodeRequestObject) (InterviewNodeResponseObject, error)
+	// PingNode Whether the node answers a Matter read, and how fast (0.5.0).
+	// (POST /controller/nodes/{id}/ping)
+	PingNode(ctx context.Context, request PingNodeRequestObject) (PingNodeResponseObject, error)
 	// OpenNodeWindow Open an enhanced commissioning window on the node for another administrator.
 	// (POST /controller/nodes/{id}/window)
 	OpenNodeWindow(ctx context.Context, request OpenNodeWindowRequestObject) (OpenNodeWindowResponseObject, error)
@@ -6015,6 +6164,32 @@ func (sh *strictHandler) InterviewNode(w http.ResponseWriter, r *http.Request, i
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(InterviewNodeResponseObject); ok {
 		if err := validResponse.VisitInterviewNodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PingNode operation middleware
+func (sh *strictHandler) PingNode(w http.ResponseWriter, r *http.Request, id NodeID) {
+	var request PingNodeRequestObject
+
+	request.ID = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PingNode(ctx, request.(PingNodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PingNode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PingNodeResponseObject); ok {
+		if err := validResponse.VisitPingNodeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

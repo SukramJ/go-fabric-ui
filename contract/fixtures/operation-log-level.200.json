@@ -1,0 +1,19 @@
+{
+  "route": "GET /operation/log/level",
+  "request": {
+    "method": "GET",
+    "path": "/operation/log/level"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "level": "info",
+      "levels": [
+        "debug",
+        "info",
+        "warn",
+        "error"
+      ]
+    }
+  }
+}

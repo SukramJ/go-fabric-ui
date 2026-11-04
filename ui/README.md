@@ -60,11 +60,25 @@ routes `controllerNodes`, `controllerCommission`, `controllerSettings` and
 the prefix `controllerNode` link them. `ui.controller.loadStatus()` sets
 `present` to false on a 404: the host serves no controller.
 
+`Operation` (v0.5.0): the daemon's version, log level and log, beside both
+families (routes key `operation`); it answers its empty state when the host
+serves no operations port (503). It reads the log stream through the
+context's `subscribeLog` (default `subscribeLogStream` on
+`client.logStreamUrl()`). `NodeEcosystemHints` is the pairing hints card
+`NodePair` renders below its flow.
+
+Several device nodes (v0.5.0): `client.nodes()` lists them, the default
+first; `client.forNode(key)` is the client of one node's routes
+(`/nodes/{key}/…`, the token shared), and `routesForNode(routes, key)` the
+node family's routes under `#/node/<key>/…`. A host gives each node's
+pages a context of their own: `createFabricUI` (or the shell's
+`NodeScope`) with that client and a `createNodeStore` on it.
+
 ### Translator
 
 `t(key, vars)` is the host's. `createTranslator(locale, extra)` builds one
 over the package's catalogues (`catalogs.en`, `catalogs.de`, keys
-`node.*`, `controller.*`, `graph.*`, `events.*`, `inventory.*`, `shell.*`, `common.*`) plus the host's own; a `locale` getter that reads
+`node.*`, `controller.*`, `graph.*`, `events.*`, `inventory.*`, `operation.*`, `shell.*`, `common.*`) plus the host's own; a `locale` getter that reads
 reactive state re-renders the pages on a language switch.
 
 ### Stylesheet

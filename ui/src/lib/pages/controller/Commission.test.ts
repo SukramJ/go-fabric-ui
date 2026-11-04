@@ -1,9 +1,17 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
 import { fixture, testUI } from "../../../test/support";
 import Commission from "./Commission.svelte";
+
+// The scan chunk stands in for the camera: it reads the fixture's QR payload at once.
+vi.mock("../../scan", () => ({
+  startScan: async (_video: HTMLVideoElement, onCode: (payload: string) => void) => {
+    onCode("MT:Y.K9042C00KA0648G00");
+    return () => {};
+  },
+}));
 
 afterEach(cleanup);
 
@@ -57,5 +65,28 @@ describe("Controller Commission", () => {
     render(Harness, { ui, page: Commission });
     ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "failed", detail: "timeout" } });
     expect(await screen.findByText("controller.commission.failed")).toBeInTheDocument();
+  });
+
+  it("explains that the camera needs a secure context instead of offering the scan", () => {
+    vi.stubGlobal("isSecureContext", false);
+    render(Harness, { ui: testUI({}), page: Commission });
+    expect(screen.getByTestId("scan-insecure")).toHaveTextContent("controller.commission.scan_insecure");
+    expect(screen.queryByText("controller.commission.scan")).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it("fills the code from a scanned QR payload", async () => {
+    vi.stubGlobal("isSecureContext", true);
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: vi.fn() } });
+    const ui = testUI({});
+    render(Harness, { ui, page: Commission });
+    await fireEvent.click(screen.getByText("controller.commission.scan"));
+    const input = screen.getByLabelText("controller.commission.code") as HTMLInputElement;
+    await waitFor(() => expect(input.value).toBe("MT:Y.K9042C00KA0648G00"));
+    expect(ui.toastSpy.success).toHaveBeenCalledWith("controller.commission.scan_read");
+    // Nothing is sent before the operator starts the commissioning.
+    expect(ui.sent).toEqual([]);
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(navigator, "mediaDevices");
   });
 });

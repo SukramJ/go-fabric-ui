@@ -66,6 +66,7 @@ var controllerAdmin = map[string]bool{
 	"PUT /controller/credentials":                   true,
 	"DELETE /controller/credentials":                true,
 	"PUT /controller/fabric/label":                  true,
+	"POST /controller/nodes/{id}/ping":              true,
 	"POST /controller/updates/consent":              true,
 	"POST /controller/updates/check":                true,
 }
@@ -549,6 +550,42 @@ func (s *controllerServer) DecommissionNode(ctx context.Context, req api.Decommi
 	}
 	return api.DecommissionNode204Response{}, nil
 }
+
+// PingNode serves POST /controller/nodes/{id}/ping: the port's Matter
+// read, as go-fabric-server's ping_node answers it (controllerapi/cmd_node.go:167-204).
+func (s *controllerServer) PingNode(ctx context.Context, req api.PingNodeRequestObject) (api.PingNodeResponseObject, error) {
+	n, err := s.node(req.ID)
+	if err != nil {
+		return nil, err
+	}
+	res, err := n.Ping(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return api.PingNode200JSONResponse(pingResult(&res)), nil
+}
+
+// pingResult is the contract's PingResult of the port's.
+func pingResult(r *PingResult) api.PingResult {
+	out := api.PingResult{
+		Method: api.PingResultMethodMatterRead, PerAddress: r.PerAddress, Reachable: r.Reachable,
+		Error: optString(r.Error), Addresses: make([]api.PingAddress, 0, len(r.Addresses)),
+	}
+	if r.Reachable {
+		out.RttMs = ptr(rttMS(r.RTT))
+	}
+	for _, a := range r.Addresses {
+		pa := api.PingAddress{IP: a.Address, Reachable: a.Reachable}
+		if a.Reachable {
+			pa.RttMs = ptr(rttMS(a.RTT))
+		}
+		out.Addresses = append(out.Addresses, pa)
+	}
+	return out
+}
+
+// rttMS is d in milliseconds, to the microsecond.
+func rttMS(d time.Duration) float32 { return float32(d.Microseconds()) / 1000 }
 
 func (s *controllerServer) InterviewNode(ctx context.Context, req api.InterviewNodeRequestObject) (api.InterviewNodeResponseObject, error) {
 	n, err := s.node(req.ID)

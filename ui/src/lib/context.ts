@@ -3,7 +3,8 @@
 // links between the pages. A host provides it once above the pages (provideFabricUI); the
 // standalone shell provides its own.
 import { getContext, hasContext, setContext } from "svelte";
-import type { FabricClient, TopologyRef } from "./api/client";
+import type { FabricClient, LogRecord, TopologyRef } from "./api/client";
+import { subscribeLogStream } from "./api/stream";
 import { defaultT, type Translate } from "./i18n";
 import { createNodeStore, type NodeStore, type NodeStoreDeps, type Toast } from "./store.svelte";
 import { createControllerStore, type ControllerStore, type ControllerStoreDeps } from "./controller-store.svelte";
@@ -38,6 +39,8 @@ export interface Routes {
   controllerSettings: string;
   /** The prefix of one node's page; the page appends the node's 16-digit hex id. */
   controllerNode: string;
+  /** The Operation page (contract 0.5.0). */
+  operation: string;
 }
 
 export const defaultRoutes: Routes = {
@@ -55,7 +58,23 @@ export const defaultRoutes: Routes = {
   controllerCommission: "#/controller/commission",
   controllerSettings: "#/controller/settings",
   controllerNode: "#/controller/node/",
+  operation: "#/operation",
 };
+
+/** The node family's routes in defaultRoutes, the ones a keyed node's routes rewrite. */
+export const NODE_ROUTES = ["status", "pair", "fabrics", "selection", "endpoints", "endpoint", "surface", "diagnostics", "topology"] as const;
+
+/**
+ * The routes of the standalone shell for the node `key` lists: the node
+ * family's under #/node/<key>/…, everything else as given. Without a key,
+ * the routes unchanged (the default node).
+ */
+export function routesForNode(routes: Routes, key: string | undefined): Routes {
+  if (!key) return routes;
+  const out = { ...routes };
+  for (const r of NODE_ROUTES) out[r] = routes[r].replace(/^#\/node\//, `#/node/${encodeURIComponent(key)}/`);
+  return out;
+}
 
 /** The pages a topology node's ref names (TopologyRef.page) that list it by the id alone. */
 const REF_PAGES = ["status", "endpoints", "fabrics", "diagnostics"] as const;
@@ -81,6 +100,8 @@ export interface FabricUI {
   node: NodeStore;
   controller: ControllerStore;
   routes: Routes;
+  /** Subscribes to the log stream (GET /operation/log/stream); returns the close function. */
+  subscribeLog: (onRecord: (rec: LogRecord) => void) => () => void;
 }
 
 export interface FabricUIOptions {
@@ -91,6 +112,8 @@ export interface FabricUIOptions {
   routes?: Partial<Routes>;
   subscribe?: NodeStoreDeps["subscribe"];
   subscribeController?: ControllerStoreDeps["subscribe"];
+  /** Subscribes to the log stream; the default opens an EventSource on the client's log stream URL. */
+  subscribeLog?: FabricUI["subscribeLog"];
 }
 
 const KEY = Symbol.for("@sukramj/fabric-ui");
@@ -113,6 +136,7 @@ export function createFabricUI(opts: FabricUIOptions): FabricUI {
     node: createNodeStore(opts.client, { t, toast, subscribe: opts.subscribe }),
     controller: createControllerStore(opts.client, { t, toast, subscribe: opts.subscribeController }),
     routes: { ...defaultRoutes, ...opts.routes },
+    subscribeLog: opts.subscribeLog ?? ((fn) => subscribeLogStream(opts.client.logStreamUrl(), fn)),
   };
 }
 

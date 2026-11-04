@@ -30,6 +30,8 @@ describe("subscribeStream", () => {
     src.emit("session_opened", '{"session_id":17,"subscriptions":0}');
     src.emit("subscriptions_changed", '{"session_id":17,"subscriptions":2}');
     src.emit("attribute_changed", '{"endpoint":2,"cluster_hex":"0x0006","attributes":["0x0000"]}');
+    src.emit("health_sample", '{"healthy":false,"note":"listener closed","sampled_at":"2026-10-25T12:00:00Z"}');
+    src.emit("diagnostic_event", '{"at":"2026-10-25T12:00:00Z","kind":"session","severity":"info","message":"m"}');
     expect(got).toEqual([
       { type: "fabric_added", data: { fabric_index: 3, label: "Home" } },
       { type: "window_closed", data: {} },
@@ -37,6 +39,8 @@ describe("subscribeStream", () => {
       { type: "session_opened", data: { session_id: 17, subscriptions: 0 } },
       { type: "subscriptions_changed", data: { session_id: 17, subscriptions: 2 } },
       { type: "attribute_changed", data: { endpoint: 2, cluster_hex: "0x0006", attributes: ["0x0000"] } },
+      { type: "health_sample", data: { healthy: false, note: "listener closed", sampled_at: "2026-10-25T12:00:00Z" } },
+      { type: "diagnostic_event", data: { at: "2026-10-25T12:00:00Z", kind: "session", severity: "info", message: "m" } },
     ]);
     close();
     expect(src.closed).toBe(true);
@@ -57,6 +61,21 @@ describe("subscribeControllerStream", () => {
       { type: "connection", data: { node_id_hex: "0000000000000011", connection: "disconnected" } },
       { type: "topology_changed", data: {} },
     ]);
+    close();
+    expect(src.closed).toBe(true);
+  });
+});
+
+describe("subscribeLogStream", () => {
+  it("delivers log_record payloads, skips what is not JSON and closes", async () => {
+    const { subscribeLogStream } = await import("./stream");
+    const src = new FakeSource();
+    const got: unknown[] = [];
+    const close = subscribeLogStream("/api/v1/operation/log/stream", (r) => got.push(r), () => src);
+    expect([...src.listeners.keys()]).toEqual(["log_record"]);
+    src.emit("log_record", '{"seq":5,"level":"warn","msg":"m","attrs":{},"time":"2026-10-25T12:00:00Z"}');
+    src.emit("log_record", "broken");
+    expect(got).toEqual([{ seq: 5, level: "warn", msg: "m", attrs: {}, time: "2026-10-25T12:00:00Z" }]);
     close();
     expect(src.closed).toBe(true);
   });

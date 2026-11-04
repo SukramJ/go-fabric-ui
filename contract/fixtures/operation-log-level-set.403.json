@@ -1,0 +1,21 @@
+{
+  "route": "PUT /operation/log/level",
+  "request": {
+    "method": "PUT",
+    "path": "/operation/log/level",
+    "body": {
+      "level": "debug"
+    }
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "code": "forbidden",
+      "detail": "this route changes the daemon's log level",
+      "instance": "/api/v1/operation/log/level",
+      "status": 403,
+      "title": "Admin rights required",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-forbidden"
+    }
+  }
+}

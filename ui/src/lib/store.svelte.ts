@@ -45,6 +45,9 @@ const GRAPH_EVENTS = new Set<StreamEvent["type"]>([
 /** How long a burst of attribute_changed is coalesced before an endpoint's epoch moves. */
 const ATTRIBUTE_DELAY = 250;
 
+/** How long a burst of health_sample or diagnostic_event is coalesced before the reload. */
+const LIVE_DELAY = 300;
+
 const IDLE: Commissioning = { phase: "idle", window: null, remaining: null, addedFabricLabel: null };
 
 export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
@@ -72,6 +75,9 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   // attribute_changed: the endpoint page refetches when its counter moves.
   let attributeEpochs = $state<Record<number, number>>({});
   const attributePending = new Set<number>();
+  // diagnosticEpoch moves once per burst of diagnostic_event: the
+  // diagnostics page refetches its trace when it moves (0.5.0).
+  let diagnosticEpoch = $state(0);
 
   let unsub: (() => void) | null = null;
   let countdown: ReturnType<typeof setInterval> | null = null;
@@ -79,6 +85,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   let closedTimer: ReturnType<typeof setTimeout> | null = null;
   let graphTimer: ReturnType<typeof setTimeout> | null = null;
   let attributeTimer: ReturnType<typeof setTimeout> | null = null;
+  let healthTimer: ReturnType<typeof setTimeout> | null = null;
+  let diagnosticTimer: ReturnType<typeof setTimeout> | null = null;
 
   const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -149,6 +157,23 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       for (const ep of attributePending) attributeEpochs[ep] = (attributeEpochs[ep] ?? 0) + 1;
       attributePending.clear();
     }, ATTRIBUTE_DELAY);
+  }
+
+  // A health verdict changes the status; a burst of them is one reload.
+  function scheduleHealthReload() {
+    if (healthTimer) return;
+    healthTimer = setTimeout(() => {
+      healthTimer = null;
+      void loadStatus();
+    }, LIVE_DELAY);
+  }
+
+  function scheduleDiagnosticReload() {
+    if (diagnosticTimer) return;
+    diagnosticTimer = setTimeout(() => {
+      diagnosticTimer = null;
+      diagnosticEpoch++;
+    }, LIVE_DELAY);
   }
 
   function markDirty(item: Item, patch: { enabled?: boolean; name?: string }) {
@@ -295,6 +320,12 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       case "attribute_changed":
         scheduleAttributeReload(ev.data.endpoint);
         break;
+      case "health_sample":
+        scheduleHealthReload();
+        break;
+      case "diagnostic_event":
+        scheduleDiagnosticReload();
+        break;
     }
   }
 
@@ -306,8 +337,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
 
   function close() {
     stopCountdown();
-    for (const timer of [exposureReload, closedTimer, graphTimer, attributeTimer]) if (timer) clearTimeout(timer);
-    exposureReload = closedTimer = graphTimer = attributeTimer = null;
+    for (const timer of [exposureReload, closedTimer, graphTimer, attributeTimer, healthTimer, diagnosticTimer]) if (timer) clearTimeout(timer);
+    exposureReload = closedTimer = graphTimer = attributeTimer = healthTimer = diagnosticTimer = null;
     attributePending.clear();
     unsub?.();
     unsub = null;
@@ -329,6 +360,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     get commissioning() { return commissioning; },
     get topologyEpoch() { return topologyEpoch; },
     get graphEpoch() { return graphEpoch; },
+    /** Moves once per burst of diagnostic_event; the diagnostics page refetches when it does. */
+    get diagnosticEpoch() { return diagnosticEpoch; },
     /** Moves once per burst of attribute_changed for the endpoint; its page refetches when it does. */
     attributeEpoch(endpoint: number) { return attributeEpochs[endpoint] ?? 0; },
     loadStatus,

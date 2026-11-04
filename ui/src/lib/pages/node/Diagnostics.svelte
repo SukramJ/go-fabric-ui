@@ -2,7 +2,9 @@
      findings), the connected controllers and the session-id occupancy,
      ecosystem compatibility, and the recent events. Ported from openccu-loom
      assets/ui/src/routes/matter/MatterDiagnostics.svelte:1-352 at b40b289a;
-     the endpoint inspector moved to the Endpoints page. -->
+     the endpoint inspector moved to the Endpoints page. A burst of the
+     stream's diagnostic_event reloads it in place (contract 0.5.0); the
+     Refresh button stays. -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -17,7 +19,7 @@
   import ErrorState from "../../kit/ErrorState.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
 
-  const { t, client } = useFabricUI();
+  const { t, client, node } = useFabricUI();
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -27,24 +29,40 @@
   let compat = $state<Compatibility | null>(null);
   let events = $state<DiagnosticEvent[]>([]);
 
-  async function load() {
-    loading = true;
+  // seq guards against an older load landing after a newer one.
+  let seq = 0;
+
+  // A quiet load keeps what the page shows until the answer is there: the
+  // stream's reloads must not blank the page.
+  async function load(quiet = false) {
+    const mine = ++seq;
+    if (!quiet) loading = true;
     error = null;
     try {
       const [s, m, c, ev] = await Promise.all([client.sessions(), client.mdns(), client.compatibility(), client.events()]);
+      if (mine !== seq) return;
       sessions = s.sessions;
       occupancy = s.occupancy;
       mdns = m;
       compat = c;
       events = ev.events;
     } catch (err) {
-      error = errorText(err);
+      if (mine === seq) error = errorText(err);
     } finally {
-      loading = false;
+      if (mine === seq) loading = false;
     }
   }
 
-  onMount(load);
+  onMount(() => void load());
+
+  // The trace moved: reload in place. The first run only records the epoch.
+  let seenEpoch = node.diagnosticEpoch;
+  $effect(() => {
+    const epoch = node.diagnosticEpoch;
+    if (epoch === seenEpoch) return;
+    seenEpoch = epoch;
+    void load(true);
+  });
 
   function age(seconds: number): string {
     if (seconds < 60) return t("node.diag.age_seconds", { n: seconds });

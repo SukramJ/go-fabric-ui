@@ -52,7 +52,10 @@ export default defineConfig({
     chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
+        // The QR decoder stays out of the vendor chunk: the commissioning
+        // page loads it with lib/scan on the first scan (a chunk of its own).
         manualChunks(id: string) {
+          if (id.includes("node_modules/jsqr/")) return undefined;
           return id.includes("node_modules") ? "vendor" : undefined;
         },
       },
