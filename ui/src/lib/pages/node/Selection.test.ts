@@ -8,6 +8,7 @@ import Harness from "../../../test/Harness.svelte";
 import { body, testUI } from "../../../test/support";
 import type { ExposureSchema, ItemList } from "../../api/client";
 import Selection from "./Selection.svelte";
+import { createNodeStore } from "../../store.svelte";
 
 afterEach(() => {
   cleanup();
@@ -216,5 +217,16 @@ describe("Selection — changes, preview, apply", () => {
     await fireEvent.click(screen.getByText("node.selection.discard"));
     expect(await screen.findByText("Kitchen lamp")).toBeInTheDocument();
     expect(ui.node.hasDirty).toBe(false);
+  });
+
+  it("shows the host's reason when it serves no selection", async () => {
+    const ui = testUI({ fixtures: ["nodes-status.200"] });
+    const second = ui.client.forNode("second");
+    const scoped = { ...ui, client: second, node: createNodeStore(second, { t: ui.t, toast: ui.toast, subscribe: () => () => {} }) };
+    await scoped.node.loadStatus();
+    render(Harness, { ui: scoped, page: Selection });
+    expect(await screen.findByText("node.selection.unavailable")).toBeInTheDocument();
+    expect(screen.getByTestId("exposure-reason")).toHaveTextContent("This host builds its endpoints without a selection.");
+    expect(ui.sent.some((r) => r.path.includes("/exposure"))).toBe(false);
   });
 });

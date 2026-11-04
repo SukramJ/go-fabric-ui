@@ -2,7 +2,8 @@
 # (go-ha2fabric, go-fabric-server): lint, security, the OS test triplet
 # (race detector on, the end-to-end test on fabrictest included), coverage
 # (the per-package floors), build, web (svelte-check, vitest, the build,
-# the byte-identical dist guard and the bundled-package notices) and
+# the byte-identical dist guard and the bundled-package notices), e2e-web
+# (a Playwright smoke per page in Chromium against the Go e2e server) and
 # contract (fixture use on both sides, no removal against the last
 # release). No fuzz-smoke job: the module has no decoder of its own; the
 # request bodies are encoding/json with DisallowUnknownFields and a size
@@ -147,6 +148,33 @@ jobs:
         run: make notices-check
       - name: version-check
         run: make version-check
+
+  e2e-web:
+    name: e2e-web (Playwright smoke, Chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: npm ci
+        run: make web-install
+      # The browser is keyed by the lockfile, which pins @playwright/test.
+      - name: Playwright browser cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('ui/package-lock.json') }}
+      - name: Chromium's system libraries
+        run: cd ui && npx playwright install-deps chromium
+      - name: browser smoke per page
+        run: make e2e-web
 
   contract:
     name: contract

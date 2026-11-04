@@ -23,17 +23,20 @@ const e2eWebAddr = "FABRIC_UI_E2E_ADDR"
 // TestServeE2EWeb is the server of the browser smoke tests (ui/e2e,
 // make e2e-web): the committed bundle and the API on the test doubles the
 // fixtures come from — two device nodes (the second with a selection
-// reason), the memory selection, the memory controller and the operations
-// ring — until the process is interrupted. It is not a test of its own.
+// reason), the memory selection, the memory controller with the network
+// graph of the topology fixture and the operations ring — until the process is interrupted. It is not a test of its own.
 func TestServeE2EWeb(t *testing.T) {
 	addr := os.Getenv(e2eWebAddr)
 	if addr == "" {
 		t.Skip(e2eWebAddr + " is not set: the browser smoke tests start this server")
 	}
 	ops := sampleOperations()
+	ctrl := NewMemoryController()
+	topo := controllerTopology()
+	ctrl.Topology = &topo
 	_, mux := newTestHandler(t, testOptions{
 		node: sampleNode(), second: secondNode(), exposure: newMemoryProvider(),
-		controller: NewMemoryController(), operations: ops,
+		controller: ctrl, operations: ops,
 		exposureReason: "This host builds its endpoints without a selection.",
 	})
 	mux.Handle("/", spaHandler())

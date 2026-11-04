@@ -52,6 +52,25 @@ describe("node store", () => {
     expect(paths(ui).filter((p) => p === "GET /node/status")).toHaveLength(3);
   });
 
+  it("reloads the status once per burst of health_sample and moves the diagnostic epoch once per burst of diagnostic_event", async () => {
+    const ui = testUI({ fixtures: ["node-status.200"] });
+    const sample = { healthy: false, note: "listener closed", sampled_at: "2026-10-25T12:00:00Z" };
+    const trace = { at: "2026-10-25T12:00:00Z", kind: "session" as const, severity: "info" as const, message: "m" };
+    ui.node.applyEvent({ type: "health_sample", data: sample });
+    ui.node.applyEvent({ type: "health_sample", data: sample });
+    ui.node.applyEvent({ type: "diagnostic_event", data: trace });
+    ui.node.applyEvent({ type: "diagnostic_event", data: trace });
+    expect(ui.node.diagnosticEpoch).toBe(0);
+    expect(paths(ui)).toEqual([]);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(ui.node.diagnosticEpoch).toBe(1);
+    expect(paths(ui)).toEqual(["GET /node/status"]);
+    ui.node.applyEvent({ type: "diagnostic_event", data: trace });
+    ui.node.close();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(ui.node.diagnosticEpoch).toBe(1);
+  });
+
   it("moves an endpoint's attribute epoch once per burst of its attribute_changed", async () => {
     const ui = testUI({});
     const change = (endpoint: number) => ui.node.applyEvent({ type: "attribute_changed", data: { endpoint, cluster_hex: "0x0006", attributes: ["0x0000"] } });

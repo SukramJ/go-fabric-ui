@@ -1,8 +1,9 @@
 <!-- Commissioning: a QR payload or a manual pairing code, or a device a
      discovery found and its passcode; the stored credential that puts a
      Wi-Fi or Thread device on its network; the progress from the stream
-     and the result. The camera is not used (wave U2). The code and the
-     passcode go to the admin route only and are cleared after the call. -->
+     and the result. A camera scan fills the code (QrScan, contract 0.5.0;
+     the decoder is a chunk loaded on demand). The code and the passcode go
+     to the admin route only and are cleared after the call. -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -17,6 +18,7 @@
   import Select from "../../kit/Select.svelte";
   import Spinner from "../../kit/Spinner.svelte";
   import { nodeName, vendorLabel } from "./format";
+  import QrScan from "./QrScan.svelte";
 
   const { t, toast, client, controller, routes } = useFabricUI();
 
@@ -114,6 +116,7 @@
     <form class="flex flex-wrap items-center gap-3" onsubmit={(e) => { e.preventDefault(); void byCode(); }}>
       <Input class="max-w-sm font-mono" bind:value={code} placeholder={t("controller.commission.code_placeholder")} aria-label={t("controller.commission.code")} autocomplete="off" />
       <Button type="submit" disabled={running || !code.trim()}>{t("controller.commission.start")}</Button>
+      <QrScan disabled={running} onCode={(payload) => (code = payload)} />
     </form>
     <div class="mt-3 flex flex-wrap items-center gap-3">
       <Select class="w-auto" ariaLabel={t("controller.commission.network")} value={network} onValueChange={(v) => (network = v as typeof network)} options={networkOptions} />

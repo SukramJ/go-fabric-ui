@@ -1,6 +1,17 @@
 // The event stream helper: GET /node/stream as typed callbacks. A host with
 // a hub of its own feeds it from here (see ui/README.md).
-import type { AttributeChangedEvent, ControllerEvent, ExposureEvent, FabricEvent, SessionEvent, SurfaceChangedEvent, WindowEvent } from "./client";
+import type {
+  AttributeChangedEvent,
+  ControllerEvent,
+  DiagnosticEvent,
+  ExposureEvent,
+  FabricEvent,
+  HealthSampleEvent,
+  LogRecord,
+  SessionEvent,
+  SurfaceChangedEvent,
+  WindowEvent,
+} from "./client";
 
 /** The event types of the stream, as the contract names them. */
 export const STREAM_EVENTS = [
@@ -15,6 +26,8 @@ export const STREAM_EVENTS = [
   "session_closed",
   "subscriptions_changed",
   "attribute_changed",
+  "health_sample",
+  "diagnostic_event",
 ] as const;
 
 export type StreamEventType = (typeof STREAM_EVENTS)[number];
@@ -26,7 +39,9 @@ export type StreamEvent =
   | { type: "exposure_changed"; data: ExposureEvent }
   | { type: "surface_changed"; data: SurfaceChangedEvent }
   | { type: "session_opened" | "session_closed" | "subscriptions_changed"; data: SessionEvent }
-  | { type: "attribute_changed"; data: AttributeChangedEvent };
+  | { type: "attribute_changed"; data: AttributeChangedEvent }
+  | { type: "health_sample"; data: HealthSampleEvent }
+  | { type: "diagnostic_event"; data: DiagnosticEvent };
 
 /** The part of EventSource the helper uses, so a test can hand in a fake. */
 export interface EventSourceLike {
@@ -98,5 +113,27 @@ export function subscribeControllerStream(
       onEvent({ type, data: data as ControllerEvent });
     });
   }
+  return () => es.close();
+}
+
+/**
+ * Subscribes to the log stream at `url` (GET /operation/log/stream) and
+ * calls `onRecord` for every log_record. Returns the close function.
+ */
+export function subscribeLogStream(
+  url: string,
+  onRecord: (rec: LogRecord) => void,
+  open: EventSourceFactory = (u) => new EventSource(u, { withCredentials: true }),
+): () => void {
+  const es = open(url);
+  es.addEventListener("log_record", (msg: MessageEvent) => {
+    let data: unknown;
+    try {
+      data = JSON.parse(String(msg.data));
+    } catch {
+      return;
+    }
+    onRecord(data as LogRecord);
+  });
   return () => es.close();
 }

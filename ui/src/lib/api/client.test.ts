@@ -52,6 +52,19 @@ const cases: [string, Call][] = [
   ["node-maintenance-reassemble.503", (c) => c.reassemble()],
   ["node-maintenance-factory-reset.204", (c) => c.factoryReset()],
   ["node-maintenance-factory-reset.400", (c) => c.factoryReset()],
+  // The node selector and a keyed node's routes (0.5.0).
+  ["nodes.200", (c) => c.nodes()],
+  ["nodes-status.200", (c) => c.forNode("second").status()],
+  ["nodes-status.404", (c) => c.forNode("unknown").status()],
+  // Operation (0.5.0).
+  ["operation-info.200", (c) => c.operationInfo()],
+  ["operation-info.503", (c) => c.operationInfo()],
+  ["operation-log.200", (c) => c.logRecords({ since: 2 })],
+  ["operation-log.400", (c) => c.logRecords({ limit: 0 })],
+  ["operation-log-level.200", (c) => c.logLevel()],
+  ["operation-log-level-set.200", (c, b) => c.setLogLevel((b as { level: "debug" }).level)],
+  ["operation-log-level-set.400", (c, b) => c.setLogLevel((b as { level: "debug" }).level)],
+  ["operation-log-level-set.403", (c, b) => c.setLogLevel((b as { level: "debug" }).level)],
 ];
 
 describe("client against the contract fixtures", () => {
@@ -107,6 +120,27 @@ describe("client against the contract fixtures", () => {
     await client.nodeEndpointEvents(2, { since: 8, limit: 5 }).catch(() => undefined);
     await client.controllerNodeEvents("0000000000000011", { since: 43 }).catch(() => undefined);
     expect(ff.sent.map((s) => s.path)).toEqual(["/api/v1/node/endpoints/2/events?since=8&limit=5", "/api/v1/controller/nodes/0000000000000011/events?since=43"]);
+  });
+
+  it("addresses a keyed node's routes and shares the token with it", async () => {
+    const ff = fixtureFetch(["nodes-status.200"]);
+    const client = createClient("/api/v1", ff.fetch);
+    const second = client.forNode("second");
+    expect(second.nodeKey).toBe("second");
+    expect(client.nodeKey).toBeUndefined();
+    expect(client.forNode("second")).toBe(second);
+    expect(second.forNode()).toBe(client);
+    expect(client.forNode("")).toBe(client);
+    await second.status();
+    await second.closeWindow().catch(() => undefined);
+    await client.closeWindow().catch(() => undefined);
+    expect(ff.sent.map((s) => `${s.method} ${s.path} ${s.headers[TOKEN_HEADER] ?? "-"}`)).toEqual([
+      "GET /api/v1/nodes/second/status -",
+      "POST /api/v1/nodes/second/pairing/window/close test-token",
+      "POST /api/v1/node/pairing/window/close test-token",
+    ]);
+    expect(second.streamUrl()).toBe("/api/v1/nodes/second/stream");
+    expect(client.logStreamUrl()).toBe("/api/v1/operation/log/stream");
   });
 
   it("never sends the token on a read route", async () => {

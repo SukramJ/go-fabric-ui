@@ -111,6 +111,19 @@ export type UpdateConsentRequest = S["UpdateConsentRequest"];
 export type AvailableUpdate = S["AvailableUpdate"];
 export type AvailableUpdateList = S["AvailableUpdateList"];
 export type ControllerEvent = S["ControllerEvent"];
+// Operation, the node selector, ping and the stream's health and trace events (contract 0.5.0).
+export type NodeSummary = S["NodeSummary"];
+export type NodeSummaryList = S["NodeSummaryList"];
+export type LogLevelName = S["LogLevel"]["level"];
+export type LogLevel = S["LogLevel"];
+export type LogRecord = S["LogRecord"];
+export type LogRecordList = S["LogRecordList"];
+export type OperationInfo = S["OperationInfo"];
+export type PingResult = S["PingResult"];
+export type PingAddress = S["PingAddress"];
+export type HealthSampleEvent = S["HealthSampleEvent"];
+/** What GET /operation/log selects: the lowest sequence number (inclusive) and how many of the newest. */
+export type LogWindow = { since?: number; limit?: number };
 /** What GET /controller/discovery selects by. */
 export type DiscoverFilter = { filter?: "any" | "long_discriminator" | "short_discriminator" | "vendor" | "device_type"; value?: number; timeout?: number };
 
@@ -165,6 +178,25 @@ export interface FabricClient {
   factoryReset(): Promise<void>;
   /** The URL of the event stream. */
   streamUrl(): string;
+  /**
+   * The same client with the node routes on the node `key` lists
+   * (/nodes/{key}/…); without a key, on the default node (/node/…). The
+   * admin token is shared.
+   */
+  forNode(key?: string): FabricClient;
+  /** The key of the node the node routes address; undefined for the default node. */
+  readonly nodeKey: string | undefined;
+  /** The device nodes the host serves, the default first (0.5.0). */
+  nodes(): Promise<NodeSummaryList>;
+
+  // Operation (0.5.0): 503 when the host attached no operations port.
+  operationInfo(): Promise<OperationInfo>;
+  logLevel(): Promise<LogLevel>;
+  setLogLevel(level: LogLevelName): Promise<LogLevel>;
+  /** The log ring's records, oldest first. */
+  logRecords(window?: LogWindow): Promise<LogRecordList>;
+  /** The URL of the log stream (log_record events). */
+  logStreamUrl(): string;
 
   // The controller family. Every node id is the 16-digit hex of node_id_hex.
   /** The controller's status; it sets the admin token from csrf_token, as status() does. 404 when the host serves no controller. */
@@ -179,6 +211,8 @@ export interface FabricClient {
   controllerNodeEvents(id: string, window?: EventWindow): Promise<EventRecordList>;
   decommissionNode(id: string): Promise<void>;
   interviewNode(id: string): Promise<void>;
+  /** Whether the node answers a Matter read of DataModelRevision, and how fast (admin; 0.5.0). */
+  pingNode(id: string): Promise<PingResult>;
   enableNode(id: string): Promise<void>;
   disableNode(id: string): Promise<void>;
   setNodeAutoSubscribe(id: string, enabled: boolean): Promise<void>;
@@ -220,12 +254,13 @@ type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
  */
 export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fetch(i, init)): FabricClient {
   const base = baseUrl.replace(/\/+$/, "");
-  let token: string | undefined;
+  // One token for every node's client: the handler issues one per process.
+  const auth: { token?: string } = {};
 
   async function call<T>(method: string, path: string, opts: { body?: unknown; admin?: boolean } = {}): Promise<T> {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
-    if (opts.admin && token) headers[TOKEN_HEADER] = token;
+    if (opts.admin && auth.token) headers[TOKEN_HEADER] = auth.token;
     const res = await fetchImpl(base + path, {
       method,
       headers,
@@ -242,101 +277,127 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
     return data as T;
   }
 
-  return {
-    baseUrl: base,
-    setToken(t) {
-      token = t || undefined;
-    },
-    async status() {
-      const s = await call<Status>("GET", "/node/status");
-      if (s.csrf_token) token = s.csrf_token;
-      return s;
-    },
-    fabrics: () => call("GET", "/node/fabrics"),
-    removeFabric: (i) => call("DELETE", `/node/fabrics/${encodeURIComponent(String(i))}`, { admin: true }),
-    pairing: () => call("GET", "/node/pairing", { admin: true }),
-    openWindow: (d) => call("POST", "/node/pairing/window", { admin: true, body: { duration_seconds: d } }),
-    closeWindow: () => call("POST", "/node/pairing/window/close", { admin: true }),
-    endpoints: () => call("GET", "/node/endpoints"),
-    nodeEndpointDetail: (endpoint) => call("GET", `/node/endpoints/${endpoint}`),
-    nodeEndpointEvents: (endpoint, w) => call("GET", `/node/endpoints/${endpoint}/events${eventQuery(w)}`),
-    surface: () => call("GET", "/node/surface"),
-    sessions: () => call("GET", "/node/sessions"),
-    topology: () => call("GET", "/node/topology"),
-    mdns: () => call("GET", "/node/mdns"),
-    compatibility: () => call("GET", "/node/compatibility"),
-    events: () => call("GET", "/node/events"),
-    exposureSchema: () => call("GET", "/node/exposure/schema"),
-    exposure: () => call("GET", "/node/exposure"),
-    async applyExposure(items) {
-      const res = await call<Applied | undefined>("PUT", "/node/exposure", { admin: true, body: { items } });
-      return res?.applied ?? 0;
-    },
-    previewExposure: (items) => call("POST", "/node/exposure/preview", { admin: true, body: { items } }),
-    reassemble: () => call("POST", "/node/maintenance/reassemble", { admin: true }),
-    factoryReset: () =>
-      call("POST", "/node/maintenance/factory-reset", { admin: true, body: { confirm: FACTORY_RESET_CONFIRMATION } }),
-    streamUrl: () => base + "/node/stream",
-
-    async controllerStatus() {
-      const s = await call<ControllerStatus>("GET", "/controller/status");
-      if (s.csrf_token) token = s.csrf_token;
-      return s;
-    },
-    controllerNodes: () => call("GET", "/controller/nodes"),
-    controllerNode: (id) => call("GET", node(id)),
-    controllerEndpointDetail: (id, endpoint) => call("GET", `${node(id)}/endpoints/${endpoint}`),
-    controllerClusterDetail: (id, endpoint, clusterHex) =>
-      call("GET", `${node(id)}/endpoints/${endpoint}/clusters/${encodeURIComponent(clusterHex)}`),
-    controllerNodeEvents: (id, w) => call("GET", `${node(id)}/events${eventQuery(w)}`),
-    decommissionNode: (id) => call("DELETE", node(id), { admin: true }),
-    interviewNode: (id) => call("POST", node(id) + "/interview", { admin: true }),
-    enableNode: (id) => call("POST", node(id) + "/enable", { admin: true }),
-    disableNode: (id) => call("POST", node(id) + "/disable", { admin: true }),
-    setNodeAutoSubscribe: (id, enabled) => call("POST", node(id) + "/auto-subscribe", { admin: true, body: { enabled } }),
-    openNodeWindow: (id, timeoutSeconds) =>
-      call("POST", node(id) + "/window", { admin: true, body: timeoutSeconds === undefined ? {} : { timeout_seconds: timeoutSeconds } }),
-    closeNodeWindow: (id) => call("POST", node(id) + "/window/close", { admin: true }),
-    readAttributes: (id, paths, fabricFiltered) =>
-      call("POST", node(id) + "/attributes", { body: fabricFiltered === undefined ? { paths } : { paths, fabric_filtered: fabricFiltered } }),
-    writeAttribute: (id, req) => call("PUT", node(id) + "/attributes", { admin: true, body: req }),
-    invokeCommand: (id, req) => call("POST", node(id) + "/commands", { admin: true, body: req }),
-    nodeAcl: (id) => call("GET", node(id) + "/acl"),
-    setNodeAcl: (id, entries) => call("PUT", node(id) + "/acl", { admin: true, body: { entries } }),
-    nodeBindings: (id) => call("GET", node(id) + "/bindings"),
-    setNodeBindings: (id, endpoint, bindings) => call("PUT", node(id) + "/bindings", { admin: true, body: { endpoint, bindings } }),
-    nodeIcd: (id) => call("GET", node(id) + "/icd"),
-    registerNodeIcd: (id, allowMultiAdmin) =>
-      call("POST", node(id) + "/icd/register", { admin: true, body: allowMultiAdmin === undefined ? {} : { allow_multi_admin: allowMultiAdmin } }),
-    unregisterNodeIcd: (id, force) =>
-      call("POST", node(id) + "/icd/unregister", { admin: true, body: force === undefined ? {} : { force } }),
-    nodeFabrics: (id) => call("GET", node(id) + "/fabrics"),
-    removeNodeFabric: (id, i) => call("DELETE", `${node(id)}/fabrics/${encodeURIComponent(String(i))}`, { admin: true }),
-    commission: (req) => call("POST", "/controller/commission", { admin: true, body: req }),
-    discover(f = {}) {
-      const q = new URLSearchParams();
-      if (f.filter) q.set("filter", f.filter);
-      if (f.value !== undefined) q.set("value", String(f.value));
-      if (f.timeout !== undefined) q.set("timeout", String(f.timeout));
-      const qs = q.toString();
-      return call("GET", "/controller/discovery" + (qs ? "?" + qs : ""), { admin: true });
-    },
-    credentials: () => call("GET", "/controller/credentials"),
-    setCredential: (req) => call("PUT", "/controller/credentials", { admin: true, body: req }),
-    removeCredential: (kind, id) =>
-      call("DELETE", `/controller/credentials?${new URLSearchParams({ kind, id }).toString()}`, { admin: true }),
-    setFabricLabel: (label) => call("PUT", "/controller/fabric/label", { admin: true, body: { label } }),
-    updates: () => call("GET", "/controller/updates"),
-    consentUpdate: (req) => call("POST", "/controller/updates/consent", { admin: true, body: req }),
-    checkUpdates: () => call("POST", "/controller/updates/check", { admin: true }),
-    controllerTopology: (refresh) =>
-      refresh ? call("GET", "/controller/topology?refresh=true", { admin: true }) : call("GET", "/controller/topology"),
-    controllerStreamUrl: () => base + "/controller/stream",
+  const clients = new Map<string, FabricClient>();
+  const forNode = (key?: string): FabricClient => {
+    const k = key || "";
+    let c = clients.get(k);
+    if (!c) {
+      c = build(k || undefined);
+      clients.set(k, c);
+    }
+    return c;
   };
+
+  function build(nodeKey: string | undefined): FabricClient {
+    // np is the node routes' prefix: the default node's or the keyed node's.
+    const np = nodeKey === undefined ? "/node" : `/nodes/${encodeURIComponent(nodeKey)}`;
+    return {
+      baseUrl: base,
+      nodeKey,
+      forNode,
+      setToken(t) {
+        auth.token = t || undefined;
+      },
+      async status() {
+        const s = await call<Status>("GET", np + "/status");
+        if (s.csrf_token) auth.token = s.csrf_token;
+        return s;
+      },
+      fabrics: () => call("GET", np + "/fabrics"),
+      removeFabric: (i) => call("DELETE", `${np}/fabrics/${encodeURIComponent(String(i))}`, { admin: true }),
+      pairing: () => call("GET", np + "/pairing", { admin: true }),
+      openWindow: (d) => call("POST", np + "/pairing/window", { admin: true, body: { duration_seconds: d } }),
+      closeWindow: () => call("POST", np + "/pairing/window/close", { admin: true }),
+      endpoints: () => call("GET", np + "/endpoints"),
+      nodeEndpointDetail: (endpoint) => call("GET", `${np}/endpoints/${endpoint}`),
+      nodeEndpointEvents: (endpoint, w) => call("GET", `${np}/endpoints/${endpoint}/events${eventQuery(w)}`),
+      surface: () => call("GET", np + "/surface"),
+      sessions: () => call("GET", np + "/sessions"),
+      topology: () => call("GET", np + "/topology"),
+      mdns: () => call("GET", np + "/mdns"),
+      compatibility: () => call("GET", np + "/compatibility"),
+      events: () => call("GET", np + "/events"),
+      exposureSchema: () => call("GET", np + "/exposure/schema"),
+      exposure: () => call("GET", np + "/exposure"),
+      async applyExposure(items) {
+        const res = await call<Applied | undefined>("PUT", np + "/exposure", { admin: true, body: { items } });
+        return res?.applied ?? 0;
+      },
+      previewExposure: (items) => call("POST", np + "/exposure/preview", { admin: true, body: { items } }),
+      reassemble: () => call("POST", np + "/maintenance/reassemble", { admin: true }),
+      factoryReset: () =>
+        call("POST", np + "/maintenance/factory-reset", { admin: true, body: { confirm: FACTORY_RESET_CONFIRMATION } }),
+      streamUrl: () => base + np + "/stream",
+      nodes: () => call("GET", "/nodes"),
+      operationInfo: () => call("GET", "/operation/info"),
+      logLevel: () => call("GET", "/operation/log/level"),
+      setLogLevel: (level) => call("PUT", "/operation/log/level", { admin: true, body: { level } }),
+      logRecords: (w) => call("GET", `/operation/log${eventQuery(w)}`),
+      logStreamUrl: () => base + "/operation/log/stream",
+
+      async controllerStatus() {
+        const s = await call<ControllerStatus>("GET", "/controller/status");
+        if (s.csrf_token) auth.token = s.csrf_token;
+        return s;
+      },
+      controllerNodes: () => call("GET", "/controller/nodes"),
+      controllerNode: (id) => call("GET", node(id)),
+      controllerEndpointDetail: (id, endpoint) => call("GET", `${node(id)}/endpoints/${endpoint}`),
+      controllerClusterDetail: (id, endpoint, clusterHex) =>
+        call("GET", `${node(id)}/endpoints/${endpoint}/clusters/${encodeURIComponent(clusterHex)}`),
+      controllerNodeEvents: (id, w) => call("GET", `${node(id)}/events${eventQuery(w)}`),
+      decommissionNode: (id) => call("DELETE", node(id), { admin: true }),
+      interviewNode: (id) => call("POST", node(id) + "/interview", { admin: true }),
+      pingNode: (id) => call("POST", node(id) + "/ping", { admin: true }),
+      enableNode: (id) => call("POST", node(id) + "/enable", { admin: true }),
+      disableNode: (id) => call("POST", node(id) + "/disable", { admin: true }),
+      setNodeAutoSubscribe: (id, enabled) => call("POST", node(id) + "/auto-subscribe", { admin: true, body: { enabled } }),
+      openNodeWindow: (id, timeoutSeconds) =>
+        call("POST", node(id) + "/window", { admin: true, body: timeoutSeconds === undefined ? {} : { timeout_seconds: timeoutSeconds } }),
+      closeNodeWindow: (id) => call("POST", node(id) + "/window/close", { admin: true }),
+      readAttributes: (id, paths, fabricFiltered) =>
+        call("POST", node(id) + "/attributes", { body: fabricFiltered === undefined ? { paths } : { paths, fabric_filtered: fabricFiltered } }),
+      writeAttribute: (id, req) => call("PUT", node(id) + "/attributes", { admin: true, body: req }),
+      invokeCommand: (id, req) => call("POST", node(id) + "/commands", { admin: true, body: req }),
+      nodeAcl: (id) => call("GET", node(id) + "/acl"),
+      setNodeAcl: (id, entries) => call("PUT", node(id) + "/acl", { admin: true, body: { entries } }),
+      nodeBindings: (id) => call("GET", node(id) + "/bindings"),
+      setNodeBindings: (id, endpoint, bindings) => call("PUT", node(id) + "/bindings", { admin: true, body: { endpoint, bindings } }),
+      nodeIcd: (id) => call("GET", node(id) + "/icd"),
+      registerNodeIcd: (id, allowMultiAdmin) =>
+        call("POST", node(id) + "/icd/register", { admin: true, body: allowMultiAdmin === undefined ? {} : { allow_multi_admin: allowMultiAdmin } }),
+      unregisterNodeIcd: (id, force) =>
+        call("POST", node(id) + "/icd/unregister", { admin: true, body: force === undefined ? {} : { force } }),
+      nodeFabrics: (id) => call("GET", node(id) + "/fabrics"),
+      removeNodeFabric: (id, i) => call("DELETE", `${node(id)}/fabrics/${encodeURIComponent(String(i))}`, { admin: true }),
+      commission: (req) => call("POST", "/controller/commission", { admin: true, body: req }),
+      discover(f = {}) {
+        const q = new URLSearchParams();
+        if (f.filter) q.set("filter", f.filter);
+        if (f.value !== undefined) q.set("value", String(f.value));
+        if (f.timeout !== undefined) q.set("timeout", String(f.timeout));
+        const qs = q.toString();
+        return call("GET", "/controller/discovery" + (qs ? "?" + qs : ""), { admin: true });
+      },
+      credentials: () => call("GET", "/controller/credentials"),
+      setCredential: (req) => call("PUT", "/controller/credentials", { admin: true, body: req }),
+      removeCredential: (kind, id) =>
+        call("DELETE", `/controller/credentials?${new URLSearchParams({ kind, id }).toString()}`, { admin: true }),
+      setFabricLabel: (label) => call("PUT", "/controller/fabric/label", { admin: true, body: { label } }),
+      updates: () => call("GET", "/controller/updates"),
+      consentUpdate: (req) => call("POST", "/controller/updates/consent", { admin: true, body: req }),
+      checkUpdates: () => call("POST", "/controller/updates/check", { admin: true }),
+      controllerTopology: (refresh) =>
+        refresh ? call("GET", "/controller/topology?refresh=true", { admin: true }) : call("GET", "/controller/topology"),
+      controllerStreamUrl: () => base + "/controller/stream",
+    };
+  }
+
+  return forNode();
 }
 
 /** The query of an event route; empty without since and limit. */
-function eventQuery(w: EventWindow = {}): string {
+function eventQuery(w: EventWindow | LogWindow = {}): string {
   const q = new URLSearchParams();
   if (w.since !== undefined) q.set("since", String(w.since));
   if (w.limit !== undefined) q.set("limit", String(w.limit));

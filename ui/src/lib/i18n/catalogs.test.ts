@@ -10,6 +10,8 @@ import { describe, expect, it } from "vitest";
 import { body } from "../../test/support";
 import type { ConformanceVerdict, EventRecord, TopologyGraph } from "../api/client";
 import { TOPOLOGY_KINDS, TOPOLOGY_STATES, TOPOLOGY_STRENGTHS } from "../kit/graph-layout";
+import { ECOSYSTEM_HINTS } from "../pages/node/ecosystems";
+import { LEVELS } from "../pages/operation/log";
 import { catalogKeys } from ".";
 
 const SRC = fileURLToPath(new URL("../../", import.meta.url));
@@ -68,6 +70,14 @@ describe("i18n catalogues", () => {
       for (const n of g.nodes) keys.push(`graph.kind.${n.kind}`, `graph.state.${n.state}`, ...n.details.map((d) => `graph.detail.${d.key}`));
       for (const e of g.edges) if (e.strength) keys.push(`graph.strength.${e.strength}`);
     }
+    expect(keys.filter((k) => !en.has(k))).toEqual([]);
+  });
+
+  it("name every ecosystem hint with its links and every log level (0.5.0)", () => {
+    const keys = [
+      ...ECOSYSTEM_HINTS.flatMap((h) => [`node.diag.ecosystem.${h.ecosystem}`, `node.pair.hints.${h.ecosystem}`, ...h.links.map((l) => `node.pair.hints.${h.ecosystem}.${l.key}`)]),
+      ...LEVELS.map((l) => `operation.level.${l}`),
+    ];
     expect(keys.filter((k) => !en.has(k))).toEqual([]);
   });
 });

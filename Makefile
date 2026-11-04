@@ -114,6 +114,16 @@ generate-check: ## fail when internal/api/api.gen.go is not the generation of co
 gen-types: ## regenerate ui/src/lib/api/schema.gen.ts from contract/openapi.yaml
 	cd $(UI_DIR) && $(NPM) run gen:types
 
+# The browser smoke tests: the server is fabricui's TestServeE2EWeb, built
+# once as a test binary; Chromium is installed into Playwright's cache.
+E2E_BIN := $(CHECK_DIR)/fabricui-e2e.test
+
+e2e-web: ## the browser smoke per page (Playwright, Chromium) against the Go e2e server
+	mkdir -p $(CHECK_DIR)
+	CGO_ENABLED=0 $(GO) test -c -o $(E2E_BIN) ./fabricui
+	cd $(UI_DIR) && npx playwright install chromium
+	cd $(UI_DIR) && FABRIC_UI_E2E_BIN=$(E2E_BIN) npx playwright test
+
 version-check: ## internal/version, ui/package.json and the changelog's newest section agree
 	@if [ -z "$(VERSION_GO)" ] || [ "$(VERSION_GO)" != "$(VERSION_NPM)" ] || [ "$(VERSION_GO)" != "$(VERSION_LOG)" ]; then \
 		echo "version-check: internal/version=$(VERSION_GO) ui/package.json=$(VERSION_NPM) changelog=$(VERSION_LOG)"; exit 1; fi
@@ -124,4 +134,4 @@ ci: build vet test lint generate-check web-check dist-check ## everything the pi
 clean: ## remove local build artefacts (never the committed bundle)
 	rm -rf coverage.out $(CHECK_DIR)
 
-.PHONY: help setup build vet test race e2e fmt fmt-check lint tidy-check cover cover-check vuln licenses secrets web-install web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean
+.PHONY: help setup build vet test race e2e e2e-web fmt fmt-check lint tidy-check cover cover-check vuln licenses secrets web-install web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean
