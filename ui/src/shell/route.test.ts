@@ -9,6 +9,14 @@ describe("routeOf", () => {
     expect(routeOf("#/elsewhere")).toEqual({ family: "node", page: "status" });
   });
 
+  it("reads an endpoint's page with its number, else the endpoint list", () => {
+    expect(routeOf("#/node/endpoint/0")).toEqual({ family: "node", page: "endpoint", endpoint: 0 });
+    expect(routeOf("#/node/endpoint/12")).toEqual({ family: "node", page: "endpoint", endpoint: 12 });
+    expect(routeOf("#/node/endpoint/x")).toEqual({ family: "node", page: "endpoints" });
+    expect(routeOf("#/node/endpoint/70000")).toEqual({ family: "node", page: "endpoints" });
+    expect(routeOf("#/node/endpoint")).toEqual({ family: "node", page: "endpoints" });
+  });
+
   it("reads the controller family's pages and a node's page with its tab", () => {
     expect(routeOf("#/controller/commission")).toEqual({ family: "controller", page: "commission" });
     expect(routeOf("#/controller")).toEqual({ family: "controller", page: "nodes" });

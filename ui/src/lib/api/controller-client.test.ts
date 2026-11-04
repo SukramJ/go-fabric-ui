@@ -22,6 +22,7 @@ const cases: [string, Call][] = [
   ["controller-node-endpoint.404", (c) => c.controllerEndpointDetail(L, 9)],
   ["controller-node-cluster.200", (c) => c.controllerClusterDetail(L, 1, "0x0006")],
   ["controller-node-cluster.404", (c) => c.controllerClusterDetail(L, 1, "0x0008")],
+  ["controller-node-events.200", (c) => c.controllerNodeEvents(L)],
   ["controller-node-decommission.204", (c) => c.decommissionNode(S)],
   ["controller-node-decommission.403", (c) => c.decommissionNode(S)],
   ["controller-node-interview.204", (c) => c.interviewNode(L)],

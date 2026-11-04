@@ -5,6 +5,9 @@ export { default as NodePair } from "./node/Pair.svelte";
 export { default as NodeFabrics } from "./node/Fabrics.svelte";
 export { default as NodeSelection } from "./node/Selection.svelte";
 export { default as NodeEndpoints } from "./node/Endpoints.svelte";
+// NodeEndpointDetail is one endpoint's page; it takes the endpoint number
+// as `endpoint` (brief U4a).
+export { default as NodeEndpointDetail } from "./node/Endpoint.svelte";
 export { default as NodeSurface } from "./node/Surface.svelte";
 export { default as NodeDiagnostics } from "./node/Diagnostics.svelte";
 export { default as NodeTopology } from "./node/Topology.svelte";

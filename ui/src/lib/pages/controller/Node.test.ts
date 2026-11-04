@@ -2,8 +2,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import NodeHarness from "../../../test/NodeHarness.svelte";
-import { body, testUI } from "../../../test/support";
-import type { ControllerNodeDetail, EndpointDetail } from "../../api/client";
+import { body, fixtureFetch, testUI } from "../../../test/support";
+import { createClient, type ControllerNodeDetail, type EndpointDetail } from "../../api/client";
 
 afterEach(cleanup);
 
@@ -162,6 +162,24 @@ describe("Controller Node", () => {
     expect(ep1).toHaveTextContent("no such cluster");
   });
 
+  it("keeps the newest endpoint detail when an older reload answers last", async () => {
+    const client = createClient("/api/v1", fixtureFetch(["controller-node.200"]).fetch);
+    const answers: ((d: EndpointDetail) => void)[] = [];
+    const ep = body<EndpointDetail>("controller-node-endpoint.200");
+    client.controllerEndpointDetail = (_id, n) => (n === 1 ? new Promise((resolve) => answers.push(resolve)) : Promise.resolve({ ...ep, endpoint_id: 0 }));
+    const ui = renderNode(L, "inventory", [], { client });
+    const ep1 = await screen.findByTestId("inventory-endpoint-1");
+    await waitFor(() => expect(answers).toHaveLength(1));
+    ui.controller.applyEvent({ type: "node_updated", data: { node_id_hex: L } });
+    await waitFor(() => expect(answers).toHaveLength(2));
+    answers[1]({ ...ep, name: "Newer" });
+    await waitFor(() => expect(ep1).toHaveTextContent("Newer"));
+    answers[0]({ ...ep, name: "Older" });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(ep1).toHaveTextContent("Newer");
+    expect(ep1).not.toHaveTextContent("Older");
+  });
+
   it("shows Reachable on a bridged endpoint and opens the inventory at an endpoint", async () => {
     const node = body<ControllerNodeDetail>("controller-node.200");
     node.endpoints[1].reachable = false;
@@ -171,6 +189,25 @@ describe("Controller Node", () => {
     expect(screen.getByTestId("endpoint-0")).not.toHaveTextContent("controller.endpoints.reachable");
     await fireEvent.click(screen.getByTestId("inventory-link-1"));
     expect(await screen.findByTestId("inventory-endpoint-1")).toBeInTheDocument();
+  });
+
+  it("lists the events the controller received, newest first, and fetches the newer ones on node_updated", async () => {
+    const ui = renderNode(L, "events", ["controller-node-events.200"], {
+      answers: {
+        [`GET /controller/nodes/${L}/events?since=43`]: {
+          status: 200,
+          body: { events: [{ number: 44, priority: "info", endpoint: 1, cluster_hex: "0x0039", event_hex: "0x0003", name: "ReachableChanged", data: { reachableNewValue: false } }] },
+        },
+      },
+    });
+    const list = await screen.findByTestId("event-list");
+    expect([...list.querySelectorAll("li")].map((li) => li.getAttribute("data-testid"))).toEqual(["event-42", "event-41"]);
+    expect(screen.getByTestId("event-42")).toHaveTextContent("StartUp");
+    expect(screen.getByTestId("event-42")).toHaveTextContent('"softwareVersion": 1');
+    expect(screen.getByTestId("event-41")).toHaveTextContent("events.priority.critical");
+    ui.controller.applyEvent({ type: "node_updated", data: { node_id_hex: L } });
+    expect(await screen.findByTestId("event-44")).toHaveTextContent("ReachableChanged");
+    expect(ui.sent.map((s) => s.path)).toContain(`/api/v1/controller/nodes/${L}/events?since=43`);
   });
 
   it("switches tabs", async () => {

@@ -26,6 +26,8 @@ export interface Routes {
   fabrics: string;
   selection: string;
   endpoints: string;
+  /** The prefix of one endpoint's page; the page appends the endpoint number (contract 0.4.1). */
+  endpoint: string;
   surface: string;
   diagnostics: string;
   topology: string;
@@ -44,6 +46,7 @@ export const defaultRoutes: Routes = {
   fabrics: "#/node/fabrics",
   selection: "#/node/selection",
   endpoints: "#/node/endpoints",
+  endpoint: "#/node/endpoint/",
   surface: "#/node/surface",
   diagnostics: "#/node/diagnostics",
   topology: "#/node/topology",
@@ -59,12 +62,14 @@ const REF_PAGES = ["status", "endpoints", "fabrics", "diagnostics"] as const;
 
 /**
  * The href of a topology node's ref: the page that already lists the node,
- * on the host's routes; a controller node's own page with its id. Undefined
- * for a page these routes do not know.
+ * on the host's routes; a controller node's own page with its id, an
+ * endpoint's own page with its number. Undefined for a page these routes
+ * do not know.
  */
 export function refHref(ref: TopologyRef | undefined, routes: Routes): string | undefined {
   if (!ref) return undefined;
   if (ref.page === "controller_node") return routes.controllerNode + ref.id;
+  if (ref.page === "endpoints" && /^\d+$/.test(ref.id)) return routes.endpoint + ref.id;
   return (REF_PAGES as readonly string[]).includes(ref.page) ? routes[ref.page as (typeof REF_PAGES)[number]] : undefined;
 }
 

@@ -52,6 +52,21 @@ describe("node store", () => {
     expect(paths(ui).filter((p) => p === "GET /node/status")).toHaveLength(3);
   });
 
+  it("moves an endpoint's attribute epoch once per burst of its attribute_changed", async () => {
+    const ui = testUI({});
+    const change = (endpoint: number) => ui.node.applyEvent({ type: "attribute_changed", data: { endpoint, cluster_hex: "0x0006", attributes: ["0x0000"] } });
+    change(2);
+    change(2);
+    change(3);
+    expect(ui.node.attributeEpoch(2)).toBe(0);
+    await vi.advanceTimersByTimeAsync(300);
+    expect([ui.node.attributeEpoch(2), ui.node.attributeEpoch(3), ui.node.attributeEpoch(4)]).toEqual([1, 1, 0]);
+    change(2);
+    ui.node.close();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(ui.node.attributeEpoch(2)).toBe(1);
+  });
+
   it("moves the graph epoch once per burst of session, fabric and endpoint events", async () => {
     const ui = testUI({ fixtures: ["node-status.200", "node-fabrics.200"] });
     const s = { session_id: 17, fabric_index: 1 } as never;

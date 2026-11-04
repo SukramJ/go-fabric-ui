@@ -30,21 +30,30 @@
 
   const keyOf = (ep: number, hex: string) => `${ep}/${hex}`;
 
+  // The latest load of each endpoint and cluster: a reload's answer that
+  // arrives after a newer one's is dropped, so an older image never lands
+  // last.
+  const seq: Record<string, number> = {};
+  const begin = (key: string) => (seq[key] = (seq[key] ?? 0) + 1);
+
   async function loadEndpoint(ep: number) {
+    const mine = begin(`ep:${ep}`);
     try {
-      endpoints[ep] = { value: await client.controllerEndpointDetail(nodeId, ep) };
+      const value = await client.controllerEndpointDetail(nodeId, ep);
+      if (seq[`ep:${ep}`] === mine) endpoints[ep] = { value };
     } catch (err) {
-      endpoints[ep] = { error: errorText(err) };
+      if (seq[`ep:${ep}`] === mine) endpoints[ep] = { error: errorText(err) };
     }
   }
 
   async function loadCluster(ep: number, hex: string) {
     const key = keyOf(ep, hex);
+    const mine = begin(key);
     try {
       const value = await client.controllerClusterDetail(nodeId, ep, hex);
-      if (key in clusters) clusters[key] = { value };
+      if (key in clusters && seq[key] === mine) clusters[key] = { value };
     } catch (err) {
-      if (key in clusters) clusters[key] = { error: errorText(err) };
+      if (key in clusters && seq[key] === mine) clusters[key] = { error: errorText(err) };
     }
   }
 

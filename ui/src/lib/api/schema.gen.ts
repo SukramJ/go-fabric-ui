@@ -121,6 +121,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/node/endpoints/{ep}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The endpoint number. */
+                ep: components["parameters"]["EndpointNumber"];
+            };
+            cookie?: never;
+        };
+        /**
+         * One endpoint the node serves, with its attribute values (0.4.1).
+         * @description Read through the node's own read path (go-fabric `Node.ReadCluster`),
+         *     as a controller's read reaches it, without access control: the
+         *     Descriptor's DeviceTypeList, TagList and PartsList, the FixedLabel
+         *     and UserLabel entries, and every server cluster of its ServerList
+         *     with its revision, feature map, attribute values (JSON by field
+         *     name), data version and the names go-fabric's schema gives its
+         *     attributes, commands and events. `decisions` are the surface
+         *     report's decisions on this endpoint. The root endpoint and the
+         *     Aggregator answer too. 404 for an endpoint the node does not serve,
+         *     503 before the node started.
+         */
+        get: operations["getEndpointDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/node/endpoints/{ep}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The endpoint number. */
+                ep: components["parameters"]["EndpointNumber"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The events the node's event log holds for one endpoint (0.4.1).
+         * @description The records a controller's event read is answered from (go-fabric
+         *     `Node.Events` with the endpoint's filter), oldest first: the log is
+         *     bounded and volatile, emptied when the node stops. An endpoint no
+         *     longer served keeps the events it emitted while the log holds them,
+         *     so an unknown endpoint is an empty list, not 404. Not the
+         *     diagnostic trace of `GET /node/events`.
+         */
+        get: operations["listEndpointEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/node/surface": {
         parameters: {
             query?: never;
@@ -338,9 +398,12 @@ export interface paths {
          * Server-sent events.
          * @description `event:` is one of fabric_added, fabric_removed, window_opened,
          *     window_closed, endpoints_changed, exposure_changed, surface_changed,
-         *     session_opened, session_closed, subscriptions_changed; `data:` is
-         *     the JSON payload (`FabricEvent`, `WindowEvent`, `{}`,
-         *     `ExposureEvent`, `SurfaceChangedEvent`, `SessionEvent`).
+         *     session_opened, session_closed, subscriptions_changed,
+         *     attribute_changed; `data:` is the JSON payload (`FabricEvent`,
+         *     `WindowEvent`, `{}`, `ExposureEvent`, `SurfaceChangedEvent`,
+         *     `SessionEvent`, `AttributeChangedEvent`).
+         *     attribute_changed (0.4.1) names the attributes that changed, never
+         *     their values: a page refetches what it shows.
          *     session_opened reports CASE sessions only (go-fabric
          *     node.Observers.OnSessionOpened); a PASE session is not reported, and
          *     session_closed and subscriptions_changed follow only a session
@@ -473,6 +536,34 @@ export interface paths {
          *     but the controller has not read it yet.
          */
         get: operations["getNodeCluster"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/controller/nodes/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                id: components["parameters"]["NodeID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The events the controller received from the node (0.4.1).
+         * @description The node's event history in the controller (go-fabric
+         *     `client.Node.EventHistory`): the events its default subscription,
+         *     the subscription's bootstrap read and the read after commissioning
+         *     delivered, oldest first, bounded (the newest 100 by default) and in
+         *     memory only. A host's own reads and subscriptions do not reach it.
+         *     No interaction with the node, no admin. 404 for an unknown node.
+         */
+        get: operations["listNodeEvents"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1395,6 +1486,14 @@ export interface components {
             /** @description The key of the endpoint whose served surface an assembly changed (go-fabric node.Observers.OnSurfaceChanged, one endpoint per event); "" is the root endpoint. */
             endpoints: string[];
         };
+        /** @description The payload of attribute_changed (0.4.1) — go-fabric node.Observers.OnAttributeChanged, one cluster of one endpoint per event, ids only. */
+        AttributeChangedEvent: {
+            endpoint: number;
+            /** @description The cluster id as `id_hex` elsewhere: "0x" and at least four uppercase hex digits. */
+            cluster_hex: string;
+            /** @description The ids of the attributes that changed, ascending, in hex. */
+            attributes: string[];
+        };
         /** @description go-fabric surface.Report (surface/policy.go wireReport). */
         SurfaceReport: {
             /** @description The report reads the assembled topology. */
@@ -1620,7 +1719,10 @@ export interface components {
         /**
          * @description One endpoint with its inventory (contract 0.4.0), one shape for both
          *     families. The controller family fills it from its image of the node:
-         *     `conformance`, never `scope`; its `clusters` carry no attribute values.
+         *     `conformance`, never `scope` or `decisions`; its `clusters` carry no
+         *     attribute values. The node family (0.4.1) fills it from what the node
+         *     serves: `scope` for a bridged endpoint, `decisions`, never
+         *     `conformance`; its `clusters` carry the values.
          */
         EndpointDetail: {
             endpoint_id: number;
@@ -1638,11 +1740,13 @@ export interface components {
             tags: components["schemas"]["SemanticTag"][];
             /** @description The FixedLabel LabelList, then the UserLabel LabelList. */
             labels: components["schemas"]["EndpointLabel"][];
-            /** @description The endpoint numbers of its parts. */
+            /** @description The endpoint numbers of its direct children — the endpoints whose parent it is, not every descendant its PartsList names. */
             parts: number[];
             /** @description The server clusters in id order. */
             clusters: components["schemas"]["ClusterDetail"][];
             conformance?: components["schemas"]["ConformanceVerdict"];
+            /** @description The node's surface decisions on this endpoint (0.4.1, node family only), as `GET /node/surface` lists them. */
+            decisions?: components["schemas"]["SurfaceDecision"][];
         };
         EndpointDeviceType: {
             id: number;
@@ -1721,6 +1825,26 @@ export interface components {
             id: number;
             id_hex: string;
             name?: string;
+        };
+        /** @description One Matter event (0.4.1), one shape for both families — an event the node served, or one the controller received from a node. */
+        EventRecord: {
+            /** @description The node-wide event number (Matter Core §7.14.2.1). */
+            number: number;
+            /** @enum {string} */
+            priority: "debug" | "info" | "critical";
+            endpoint: number;
+            cluster_hex: string;
+            event_hex: string;
+            /** @description The event's name in go-fabric's schema; absent for one it does not name. */
+            name?: string;
+            /** @description The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only. */
+            epoch_ms?: number;
+            /** @description The event's data as JSON by field name; absent without data or when it cannot be rendered. */
+            data?: unknown;
+        };
+        EventRecordList: {
+            /** @description Oldest first. */
+            events: components["schemas"]["EventRecord"][];
         };
         ControllerNodeDetail: {
             node: components["schemas"]["ControllerNodeSummary"];
@@ -2002,6 +2126,10 @@ export interface components {
         NodeID: string;
         /** @description The endpoint number. */
         EndpointNumber: number;
+        /** @description The lowest event number returned (inclusive); absent is every event the log holds. A page passes the last number it has plus one to fetch only the newer ones. */
+        EventSince: number;
+        /** @description Only the newest `limit` of the matching events; absent is 100. */
+        EventLimit: number;
     };
     requestBodies: never;
     headers: never;
@@ -2165,6 +2293,63 @@ export interface operations {
                     "application/json": components["schemas"]["EndpointList"];
                 };
             };
+            503: components["responses"]["Problem"];
+        };
+    };
+    getEndpointDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The endpoint number. */
+                ep: components["parameters"]["EndpointNumber"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The endpoint. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EndpointDetail"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    listEndpointEvents: {
+        parameters: {
+            query?: {
+                /** @description The lowest event number returned (inclusive); absent is every event the log holds. A page passes the last number it has plus one to fetch only the newer ones. */
+                since?: components["parameters"]["EventSince"];
+                /** @description Only the newest `limit` of the matching events; absent is 100. */
+                limit?: components["parameters"]["EventLimit"];
+            };
+            header?: never;
+            path: {
+                /** @description The endpoint number. */
+                ep: components["parameters"]["EndpointNumber"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The events, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventRecordList"];
+                };
+            };
+            400: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -2615,6 +2800,36 @@ export interface operations {
             400: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
+        };
+    };
+    listNodeEvents: {
+        parameters: {
+            query?: {
+                /** @description The lowest event number returned (inclusive); absent is every event the log holds. A page passes the last number it has plus one to fetch only the newer ones. */
+                since?: components["parameters"]["EventSince"];
+                /** @description Only the newest `limit` of the matching events; absent is 100. */
+                limit?: components["parameters"]["EventLimit"];
+            };
+            header?: never;
+            path: {
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                id: components["parameters"]["NodeID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The events, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventRecordList"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
         };
     };
     interviewNode: {

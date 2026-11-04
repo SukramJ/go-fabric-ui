@@ -34,7 +34,7 @@ describe("Topology", () => {
     await screen.findByTestId("graph");
     const panel = screen.getByTestId("graph-panel");
     for (const [id, href] of [
-      ["ep:4", "#/node/endpoints"],
+      ["ep:4", "#/node/endpoint/4"],
       ["fabric:2", "#/node/fabrics"],
       ["session:18", "#/node/diagnostics"],
       ["node", "#/node/status"],
