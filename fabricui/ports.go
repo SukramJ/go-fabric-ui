@@ -37,6 +37,13 @@ type nodePort interface {
 	diagnosticEvents() []node.DiagnosticEvent
 	// surface is the node's surface report (Node.Surface).
 	surface() surface.Report
+	// endpointDetail is one endpoint the node serves with its values
+	// (readEndpointDetail); ErrEndpointNotFound for one it does not serve,
+	// node.ErrNotStarted before the node started.
+	endpointDetail(ctx context.Context, ep uint16) (EndpointDetail, error)
+	// eventLog are the event log's records q selects, oldest first
+	// (Node.Events).
+	eventLog(q node.EventQuery) []EventRecord
 }
 
 // nodeAdapter reads a [NodeSource] through the facade only.
@@ -134,3 +141,16 @@ func (a nodeAdapter) mdns() mdnsResponse {
 func (a nodeAdapter) diagnosticEvents() []node.DiagnosticEvent { return a.n.DiagnosticEvents() }
 
 func (a nodeAdapter) surface() surface.Report { return a.n.Surface() }
+
+func (a nodeAdapter) endpointDetail(ctx context.Context, ep uint16) (EndpointDetail, error) {
+	return readEndpointDetail(ctx, a.n, ep)
+}
+
+func (a nodeAdapter) eventLog(q node.EventQuery) []EventRecord {
+	evs := a.n.Events(q)
+	out := make([]EventRecord, 0, len(evs))
+	for i := range evs {
+		out = append(out, eventRecordOf(&evs[i]))
+	}
+	return out
+}

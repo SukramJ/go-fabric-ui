@@ -141,6 +141,10 @@ type ControllerNode interface {
 	// image lacks it, ErrNotRead while the endpoint's ServerList names
 	// the cluster but the controller has not read it yet.
 	ClusterDetail(ep uint16, cluster uint32) (ClusterDetail, error)
+	// Events are the events the controller received from the node, those
+	// numbered since or later, oldest first; with limit > 0 only the
+	// newest limit of them. Nothing is read from the node.
+	Events(since uint64, limit int) []EventRecord
 	// Read reads concrete attribute paths; a path the node refuses is an
 	// AttributeValue with its status, not an error.
 	Read(ctx context.Context, paths []AttributePath, fabricFiltered bool) ([]AttributeValue, error)
@@ -291,8 +295,11 @@ type EndpointDetail struct {
 	Tags []SemanticTag
 	// Labels are the FixedLabel entries, then the UserLabel ones.
 	Labels []EndpointLabel
-	// Parts are the numbers of the endpoint's parts.
+	// Parts are the numbers of the endpoint's direct children.
 	Parts []uint16
+	// Scope is the snapshot scope a node-side endpoint was assembled from;
+	// empty on the controller side.
+	Scope string
 	// Clusters are the server clusters in id order; EndpointDetail leaves
 	// their attribute values out.
 	Clusters []ClusterDetail
@@ -387,6 +394,41 @@ type ClusterAttribute struct {
 type ClusterElement struct {
 	ID   uint32
 	Name string
+}
+
+// EventRecord is one Matter event (contract 0.4.1, EventRecord): one the
+// node served or one the controller received from a node.
+type EventRecord struct {
+	// Number is the node-wide event number.
+	Number uint64
+	// Priority is one of "debug", "info" and "critical"
+	// ([EventPriorityName]).
+	Priority string
+	Endpoint uint16
+	Cluster  uint32
+	Event    uint32
+	// Name is the event's name; empty where the schema names none.
+	Name string
+	// EpochMS is the epoch timestamp in milliseconds; nil when the event
+	// carries none.
+	EpochMS *int64
+	// Data is the event's data as JSON by field name; nil without data or
+	// when it does not render.
+	Data json.RawMessage
+}
+
+// EventPriorityName is the contract's name of a Matter event priority
+// (Matter Core §10.6.6.1: 0 debug, 1 info, 2 critical); a value the
+// specification does not define is "debug".
+func EventPriorityName(p uint8) string {
+	switch p {
+	case 1:
+		return "info"
+	case 2:
+		return "critical"
+	default:
+		return "debug"
+	}
 }
 
 // AttributePath is a concrete attribute path.

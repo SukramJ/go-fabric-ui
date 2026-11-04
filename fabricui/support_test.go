@@ -169,6 +169,13 @@ type fakeNode struct {
 	events []node.DiagnosticEvent
 	rep    surface.Report
 
+	// details are the endpoints endpointDetail serves; detailErr fails it.
+	details   map[uint16]EndpointDetail
+	detailErr error
+	// logged is what eventLog filters; query is the last query it ran.
+	logged []EventRecord
+	query  node.EventQuery
+
 	// observers are what node.Observe registered; the fake reports its
 	// route-caused transitions to them as the node does.
 	observers map[int]node.Observers
@@ -338,6 +345,91 @@ func (f *fakeNode) mdns() mdnsResponse                       { return f.md }
 func (f *fakeNode) diagnosticEvents() []node.DiagnosticEvent { return f.events }
 func (f *fakeNode) surface() surface.Report                  { return f.rep }
 
+func (f *fakeNode) endpointDetail(_ context.Context, ep uint16) (EndpointDetail, error) {
+	if f.detailErr != nil {
+		return EndpointDetail{}, f.detailErr
+	}
+	d, ok := f.details[ep]
+	if !ok {
+		return EndpointDetail{}, fmt.Errorf("%w: %d", ErrEndpointNotFound, ep)
+	}
+	return d, nil
+}
+
+// eventLog filters logged as Node.Events does: endpoint, MinNumber, then
+// the newest Limit.
+func (f *fakeNode) eventLog(q node.EventQuery) []EventRecord {
+	f.mu.Lock()
+	f.query = q
+	f.mu.Unlock()
+	out := []EventRecord{}
+	for _, e := range f.logged {
+		if (q.Endpoint == nil || *q.Endpoint == e.Endpoint) && e.Number >= q.MinNumber {
+			out = append(out, e)
+		}
+	}
+	if q.Limit > 0 && len(out) > q.Limit {
+		out = out[len(out)-q.Limit:]
+	}
+	return out
+}
+
+// sampleDetails are the endpoint details of sampleNode: the lamp at
+// endpoint 2 as a node serves it — an OnOff light under the Aggregator,
+// its OnOff values and its BridgedDeviceBasicInformation, a semantic tag
+// and a fixed label.
+func sampleDetails() map[uint16]EndpointDetail {
+	dv := uint32(41)
+	agg := uint16(1)
+	return map[uint16]EndpointDetail{2: {
+		Number: 2, Parent: &agg, Name: "Kitchen lamp", Reachable: true, Scope: "default",
+		DeviceTypes: []NodeDeviceType{{ID: 0x0100, Name: "OnOffLight", Revision: 3}, {ID: 0x0013, Name: "BridgedNode", Revision: 3}},
+		Tags:        []SemanticTag{{Namespace: 7, Tag: 1, Label: "One"}},
+		Labels:      []EndpointLabel{{Label: "room", Value: "Kitchen"}},
+		Parts:       []uint16{},
+		Clusters: []ClusterDetail{
+			{
+				ID: 0x0006, Name: "OnOff", Revision: 6, FeatureMap: 0x1, DataVersion: &dv,
+				Features: []ClusterFeature{{Code: "LT", Title: "Lighting", Bit: 0}},
+				Attributes: []ClusterAttribute{
+					{ID: 0x0000, Name: "OnOff", Value: json.RawMessage(`true`)},
+					{ID: 0x4000, Name: "GlobalSceneControl", Value: json.RawMessage(`true`)},
+					{ID: 0x4001, Name: "OnTime", Value: json.RawMessage(`0`)},
+					{ID: 0x4002, Name: "OffWaitTime", Value: json.RawMessage(`0`)},
+					{ID: 0x4003, Name: "StartUpOnOff", Value: json.RawMessage(`null`)},
+					{ID: 0xFFFC, Name: "FeatureMap", Value: json.RawMessage(`1`)},
+					{ID: 0xFFFD, Name: "ClusterRevision", Value: json.RawMessage(`6`)},
+				},
+				Accepted:  []ClusterElement{{0x00, "Off"}, {0x01, "On"}, {0x02, "Toggle"}, {0x40, "OffWithEffect"}, {0x41, "OnWithRecallGlobalScene"}, {0x42, "OnWithTimedOff"}},
+				Generated: []ClusterElement{},
+				Events:    []ClusterElement{},
+			},
+			{
+				ID: 0x0039, Name: "BridgedDeviceBasicInformation", Revision: 5, DataVersion: &dv,
+				Features: []ClusterFeature{},
+				Attributes: []ClusterAttribute{
+					{ID: 0x0005, Name: "NodeLabel", Value: json.RawMessage(`"Kitchen lamp"`)},
+					{ID: 0x0011, Name: "Reachable", Value: json.RawMessage(`true`)},
+					{ID: 0x0012, Name: "UniqueId", Value: json.RawMessage(`"lamp-1"`)},
+				},
+				Accepted: []ClusterElement{}, Generated: []ClusterElement{},
+				Events: []ClusterElement{{0x03, "ReachableChanged"}},
+			},
+		},
+	}}
+}
+
+// sampleEventLog is sampleNode's event log: the lamp went unreachable and
+// back (BridgedDeviceBasicInformation ReachableChanged), the root started.
+func sampleEventLog() []EventRecord {
+	at := func(d time.Duration) *int64 { ms := testNow.Add(-d).UnixMilli(); return &ms }
+	return []EventRecord{
+		{Number: 1, Priority: "critical", Endpoint: 0, Cluster: 0x0028, Event: 0x00, Name: "StartUp", EpochMS: at(time.Hour), Data: json.RawMessage(`{"softwareVersion":1}`)},
+		{Number: 7, Priority: "info", Endpoint: 2, Cluster: 0x0039, Event: 0x03, Name: "ReachableChanged", EpochMS: at(2 * time.Minute), Data: json.RawMessage(`{"reachableNewValue":false}`)},
+		{Number: 9, Priority: "info", Endpoint: 2, Cluster: 0x0039, Event: 0x03, Name: "ReachableChanged", EpochMS: at(time.Minute), Data: json.RawMessage(`{"reachableNewValue":true}`)},
+	}
+}
+
 // stringKey is a node.BridgedDevice key.
 type stringKey string
 
@@ -415,6 +507,8 @@ func sampleSurface() surface.Report {
 func sampleNode() *fakeNode {
 	return &fakeNode{
 		rep:      sampleSurface(),
+		details:  sampleDetails(),
+		logged:   sampleEventLog(),
 		healthOK: true, healthy: true, note: "listener ok",
 		addr: "[::]:5540",
 		fabricList: []node.FabricInfo{

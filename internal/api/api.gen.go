@@ -153,6 +153,27 @@ func (e CredentialRequestKind) Valid() bool {
 	}
 }
 
+// Defines values for EventRecordPriority.
+const (
+	EventRecordPriorityCritical EventRecordPriority = "critical"
+	EventRecordPriorityDebug    EventRecordPriority = "debug"
+	EventRecordPriorityInfo     EventRecordPriority = "info"
+)
+
+// Valid indicates whether the value is a known member of the EventRecordPriority enum.
+func (e EventRecordPriority) Valid() bool {
+	switch e {
+	case EventRecordPriorityCritical:
+		return true
+	case EventRecordPriorityDebug:
+		return true
+	case EventRecordPriorityInfo:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for IcdStateOperatingMode.
 const (
 	IcdStateOperatingModeLit IcdStateOperatingMode = "lit"
@@ -225,6 +246,84 @@ func (e ProblemCode) Valid() bool {
 	case ProblemCodePayloadTooLarge:
 		return true
 	case ProblemCodeServiceUnready:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SurfaceDecisionKind.
+const (
+	SurfaceDecisionKindAttribute  SurfaceDecisionKind = "attribute"
+	SurfaceDecisionKindCluster    SurfaceDecisionKind = "cluster"
+	SurfaceDecisionKindCommand    SurfaceDecisionKind = "command"
+	SurfaceDecisionKindDeviceType SurfaceDecisionKind = "device-type"
+	SurfaceDecisionKindEvent      SurfaceDecisionKind = "event"
+	SurfaceDecisionKindFeature    SurfaceDecisionKind = "feature"
+)
+
+// Valid indicates whether the value is a known member of the SurfaceDecisionKind enum.
+func (e SurfaceDecisionKind) Valid() bool {
+	switch e {
+	case SurfaceDecisionKindAttribute:
+		return true
+	case SurfaceDecisionKindCluster:
+		return true
+	case SurfaceDecisionKindCommand:
+		return true
+	case SurfaceDecisionKindDeviceType:
+		return true
+	case SurfaceDecisionKindEvent:
+		return true
+	case SurfaceDecisionKindFeature:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SurfaceDecisionOrigin.
+const (
+	SurfaceDecisionOriginClusterMandatory SurfaceDecisionOrigin = "cluster-mandatory"
+	SurfaceDecisionOriginDeviceType       SurfaceDecisionOrigin = "device-type"
+	SurfaceDecisionOriginHostDeclared     SurfaceDecisionOrigin = "host-declared"
+	SurfaceDecisionOriginKitDefault       SurfaceDecisionOrigin = "kit-default"
+)
+
+// Valid indicates whether the value is a known member of the SurfaceDecisionOrigin enum.
+func (e SurfaceDecisionOrigin) Valid() bool {
+	switch e {
+	case SurfaceDecisionOriginClusterMandatory:
+		return true
+	case SurfaceDecisionOriginDeviceType:
+		return true
+	case SurfaceDecisionOriginHostDeclared:
+		return true
+	case SurfaceDecisionOriginKitDefault:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SurfaceDecisionVerdict.
+const (
+	SurfaceDecisionVerdictKeep   SurfaceDecisionVerdict = "keep"
+	SurfaceDecisionVerdictRefuse SurfaceDecisionVerdict = "refuse"
+	SurfaceDecisionVerdictRemove SurfaceDecisionVerdict = "remove"
+	SurfaceDecisionVerdictWarn   SurfaceDecisionVerdict = "warn"
+)
+
+// Valid indicates whether the value is a known member of the SurfaceDecisionVerdict enum.
+func (e SurfaceDecisionVerdict) Valid() bool {
+	switch e {
+	case SurfaceDecisionVerdictKeep:
+		return true
+	case SurfaceDecisionVerdictRefuse:
+		return true
+	case SurfaceDecisionVerdictRemove:
+		return true
+	case SurfaceDecisionVerdictWarn:
 		return true
 	default:
 		return false
@@ -758,13 +857,19 @@ type EndpointBindings struct {
 
 // EndpointDetail One endpoint with its inventory (contract 0.4.0), one shape for both
 // families. The controller family fills it from its image of the node:
-// `conformance`, never `scope`; its `clusters` carry no attribute values.
+// `conformance`, never `scope` or `decisions`; its `clusters` carry no
+// attribute values. The node family (0.4.1) fills it from what the node
+// serves: `scope` for a bridged endpoint, `decisions`, never
+// `conformance`; its `clusters` carry the values.
 type EndpointDetail struct {
 	// Clusters The server clusters in id order.
 	Clusters []ClusterDetail `json:"clusters"`
 
 	// Conformance The device type conformance of the endpoint as the controller judges its image.
 	Conformance *ConformanceVerdict `json:"conformance,omitempty"`
+
+	// Decisions The node's surface decisions on this endpoint (0.4.1, node family only), as `GET /node/surface` lists them.
+	Decisions *[]SurfaceDecision `json:"decisions,omitempty"`
 
 	// DeviceTypes The Descriptor's DeviceTypeList in its order.
 	DeviceTypes []EndpointDeviceType `json:"device_types"`
@@ -779,7 +884,7 @@ type EndpointDetail struct {
 	// ParentEndpointID The endpoint whose parts list names this one; absent for the root and top-level endpoints.
 	ParentEndpointID *int `json:"parent_endpoint_id,omitempty"`
 
-	// Parts The endpoint numbers of its parts.
+	// Parts The endpoint numbers of its direct children — the endpoints whose parent it is, not every descendant its PartsList names.
 	Parts []int `json:"parts"`
 
 	// Reachable BridgedDeviceBasicInformation Reachable where the endpoint serves it; true elsewhere.
@@ -809,6 +914,35 @@ type EndpointLabel struct {
 	// User An entry of UserLabel; FixedLabel's otherwise.
 	User  bool   `json:"user"`
 	Value string `json:"value"`
+}
+
+// EventRecord One Matter event (0.4.1), one shape for both families — an event the node served, or one the controller received from a node.
+type EventRecord struct {
+	ClusterHex string `json:"cluster_hex"`
+
+	// Data The event's data as JSON by field name; absent without data or when it cannot be rendered.
+	Data     *json.RawMessage `json:"data,omitempty"`
+	Endpoint int              `json:"endpoint"`
+
+	// EpochMs The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only.
+	EpochMs  *int   `json:"epoch_ms,omitempty"`
+	EventHex string `json:"event_hex"`
+
+	// Name The event's name in go-fabric's schema; absent for one it does not name.
+	Name *string `json:"name,omitempty"`
+
+	// Number The node-wide event number (Matter Core §7.14.2.1).
+	Number   int                 `json:"number"`
+	Priority EventRecordPriority `json:"priority"`
+}
+
+// EventRecordPriority defines model for EventRecord.Priority.
+type EventRecordPriority string
+
+// EventRecordList defines model for EventRecordList.
+type EventRecordList struct {
+	// Events Oldest first.
+	Events []EventRecord `json:"events"`
 }
 
 // FabricLabelRequest defines model for FabricLabelRequest.
@@ -1022,6 +1156,33 @@ type SemanticTag struct {
 	Tag       int  `json:"tag"`
 }
 
+// SurfaceDecision One policy's judgement of one element (surface.Decision).
+type SurfaceDecision struct {
+	Cluster   string                `json:"cluster"`
+	Endpoint  string                `json:"endpoint"`
+	ID        string                `json:"id"`
+	Kind      SurfaceDecisionKind   `json:"kind"`
+	Mandatory bool                  `json:"mandatory"`
+	Origin    SurfaceDecisionOrigin `json:"origin"`
+
+	// Policy The policy's name: "level", "reference", "profile:<name>" or a host's own.
+	Policy string `json:"policy"`
+
+	// Reason Empty for a silent keep.
+	Reason    string                 `json:"reason"`
+	Reference string                 `json:"reference"`
+	Verdict   SurfaceDecisionVerdict `json:"verdict"`
+}
+
+// SurfaceDecisionKind defines model for SurfaceDecision.Kind.
+type SurfaceDecisionKind string
+
+// SurfaceDecisionOrigin defines model for SurfaceDecision.Origin.
+type SurfaceDecisionOrigin string
+
+// SurfaceDecisionVerdict defines model for SurfaceDecision.Verdict.
+type SurfaceDecisionVerdict string
+
 // TopologyDetail defines model for TopologyDetail.
 type TopologyDetail struct {
 	// Key A stable key a page translates (`device_type`, `clusters`, …).
@@ -1170,6 +1331,12 @@ type WriteResult struct {
 // EndpointNumber defines model for EndpointNumber.
 type EndpointNumber = int
 
+// EventLimit defines model for EventLimit.
+type EventLimit = int
+
+// EventSince defines model for EventSince.
+type EventSince = int
+
 // NodeID defines model for NodeID.
 type NodeID = string
 
@@ -1196,6 +1363,15 @@ type DiscoverDevicesParams struct {
 
 // DiscoverDevicesParamsFilter defines parameters for DiscoverDevices.
 type DiscoverDevicesParamsFilter string
+
+// ListNodeEventsParams defines parameters for ListNodeEvents.
+type ListNodeEventsParams struct {
+	// Since The lowest event number returned (inclusive); absent is every event the log holds. A page passes the last number it has plus one to fetch only the newer ones.
+	Since *EventSince `form:"since,omitempty" json:"since,omitempty"`
+
+	// Limit Only the newest `limit` of the matching events; absent is 100.
+	Limit *EventLimit `form:"limit,omitempty" json:"limit,omitempty"`
+}
 
 // GetControllerTopologyParams defines parameters for GetControllerTopology.
 type GetControllerTopologyParams struct {
@@ -1307,6 +1483,9 @@ type ServerInterface interface {
 	// GetNodeCluster One server cluster of an endpoint with its attribute values from the controller's image.
 	// (GET /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex})
 	GetNodeCluster(w http.ResponseWriter, r *http.Request, id NodeID, ep EndpointNumber, clusterHex string)
+	// ListNodeEvents The events the controller received from the node (0.4.1).
+	// (GET /controller/nodes/{id}/events)
+	ListNodeEvents(w http.ResponseWriter, r *http.Request, id NodeID, params ListNodeEventsParams)
 	// ListNodeFabrics Every fabric on the node, ours marked.
 	// (GET /controller/nodes/{id}/fabrics)
 	ListNodeFabrics(w http.ResponseWriter, r *http.Request, id NodeID)
@@ -1926,6 +2105,61 @@ func (siw *ServerInterfaceWrapper) GetNodeCluster(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// ListNodeEvents operation middleware
+func (siw *ServerInterfaceWrapper) ListNodeEvents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id NodeID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListNodeEventsParams
+
+	// ------------- Optional query parameter "since" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "since", r.URL.Query(), &params.Since, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "since"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "since", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNodeEvents(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListNodeFabrics operation middleware
 func (siw *ServerInterfaceWrapper) ListNodeFabrics(w http.ResponseWriter, r *http.Request) {
 
@@ -2372,6 +2606,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}", wrapper.GetControllerNode)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}/endpoints/{ep}", wrapper.GetNodeEndpoint)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}", wrapper.GetNodeCluster)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}/events", wrapper.ListNodeEvents)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/nodes/{id}/interview", wrapper.InterviewNode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/nodes/{id}/enable", wrapper.EnableNode)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/nodes/{id}/disable", wrapper.DisableNode)
@@ -3868,6 +4103,59 @@ func (response GetNodeCluster503ApplicationProblemPlusJSONResponse) VisitGetNode
 	return err
 }
 
+type ListNodeEventsRequestObject struct {
+	ID     NodeID `json:"id"`
+	Params ListNodeEventsParams
+}
+
+type ListNodeEventsResponseObject interface {
+	VisitListNodeEventsResponse(w http.ResponseWriter) error
+}
+
+type ListNodeEvents200JSONResponse EventRecordList
+
+func (response ListNodeEvents200JSONResponse) VisitListNodeEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNodeEvents400ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response ListNodeEvents400ApplicationProblemPlusJSONResponse) VisitListNodeEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNodeEvents404ApplicationProblemPlusJSONResponse Problem
+
+func (response ListNodeEvents404ApplicationProblemPlusJSONResponse) VisitListNodeEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListNodeFabricsRequestObject struct {
 	ID NodeID `json:"id"`
 }
@@ -4842,6 +5130,9 @@ type StrictServerInterface interface {
 	// GetNodeCluster One server cluster of an endpoint with its attribute values from the controller's image.
 	// (GET /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex})
 	GetNodeCluster(ctx context.Context, request GetNodeClusterRequestObject) (GetNodeClusterResponseObject, error)
+	// ListNodeEvents The events the controller received from the node (0.4.1).
+	// (GET /controller/nodes/{id}/events)
+	ListNodeEvents(ctx context.Context, request ListNodeEventsRequestObject) (ListNodeEventsResponseObject, error)
 	// ListNodeFabrics Every fabric on the node, ours marked.
 	// (GET /controller/nodes/{id}/fabrics)
 	ListNodeFabrics(ctx context.Context, request ListNodeFabricsRequestObject) (ListNodeFabricsResponseObject, error)
@@ -5520,6 +5811,33 @@ func (sh *strictHandler) GetNodeCluster(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetNodeClusterResponseObject); ok {
 		if err := validResponse.VisitGetNodeClusterResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListNodeEvents operation middleware
+func (sh *strictHandler) ListNodeEvents(w http.ResponseWriter, r *http.Request, id NodeID, params ListNodeEventsParams) {
+	var request ListNodeEventsRequestObject
+
+	request.ID = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListNodeEvents(ctx, request.(ListNodeEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListNodeEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListNodeEventsResponseObject); ok {
+		if err := validResponse.VisitListNodeEventsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

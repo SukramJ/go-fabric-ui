@@ -39,6 +39,7 @@ func TestControllerFixtures(t *testing.T) {
 		"controller-node-endpoint.404",
 		"controller-node-cluster.200",
 		"controller-node-cluster.404",
+		"controller-node-events.200",
 		"controller-node-decommission.204",
 		"controller-node-decommission.403",
 		"controller-node-interview.204",

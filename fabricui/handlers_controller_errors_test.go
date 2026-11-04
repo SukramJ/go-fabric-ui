@@ -99,6 +99,7 @@ var controllerRoutes = []struct{ method, path, body string }{
 	{http.MethodDelete, "/controller/nodes/{id}/fabrics/2", ""},
 	{http.MethodGet, "/controller/nodes/{id}/endpoints/1", ""},
 	{http.MethodGet, "/controller/nodes/{id}/endpoints/1/clusters/0x0006", ""},
+	{http.MethodGet, "/controller/nodes/{id}/events", ""},
 }
 
 // An unknown node is 404 and a malformed id 400 on every node route.
@@ -123,7 +124,9 @@ func TestController_FailuresMapToProblems(t *testing.T) {
 		path := strings.ReplaceAll(r.path, "{id}", "0000000000000011")
 		rec := do(t, mux, r.method, path, r.body)
 		switch {
-		case r.method == http.MethodGet && (strings.HasSuffix(path, "/icd") || strings.HasSuffix(path, "0011")):
+		case r.method == http.MethodGet && (strings.HasSuffix(path, "/icd") || strings.HasSuffix(path, "/events") || strings.HasSuffix(path, "0011")):
+			// The ICD state, the event history and the node detail are
+			// read from the image, no interaction to fail.
 			if rec.Code != http.StatusOK {
 				t.Errorf("%s %s: %d %s", r.method, path, rec.Code, rec.Body)
 			}
@@ -178,6 +181,10 @@ func TestController_BadRequests(t *testing.T) {
 		{http.MethodGet, "/controller/nodes/11/endpoints/70000", ""},
 		{http.MethodGet, "/controller/nodes/11/endpoints/x", ""},
 		{http.MethodGet, "/controller/nodes/11/endpoints/1/clusters/zz", ""},
+		{http.MethodGet, "/controller/nodes/11/events?limit=0", ""},
+		{http.MethodGet, "/controller/nodes/11/events?limit=1001", ""},
+		{http.MethodGet, "/controller/nodes/11/events?since=-1", ""},
+		{http.MethodGet, "/controller/nodes/11/events?since=x", ""},
 		{http.MethodPost, "/controller/nodes/11/icd/unregister", `{}`},
 		{http.MethodGet, "/controller/discovery?filter=colour", ""},
 		{http.MethodGet, "/controller/discovery?filter=vendor&value=-1", ""},

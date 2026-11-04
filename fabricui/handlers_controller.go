@@ -524,6 +524,21 @@ func (s *controllerServer) GetNodeCluster(_ context.Context, req api.GetNodeClus
 	return api.GetNodeCluster200JSONResponse(clusterDetail(d)), nil
 }
 
+// ListNodeEvents serves the node's event history in the controller
+// (client.Node.EventHistory, go-fabric controller/client/event_history.go:100-115
+// at 894adbcd): no interaction, no admin.
+func (s *controllerServer) ListNodeEvents(_ context.Context, req api.ListNodeEventsRequestObject) (api.ListNodeEventsResponseObject, error) {
+	n, err := s.node(req.ID)
+	if err != nil {
+		return nil, err
+	}
+	since, limit, err := eventWindow(req.Params.Since, req.Params.Limit)
+	if err != nil {
+		return nil, err
+	}
+	return api.ListNodeEvents200JSONResponse(eventRecords(n.Events(since, limit))), nil
+}
+
 func (s *controllerServer) DecommissionNode(ctx context.Context, req api.DecommissionNodeRequestObject) (api.DecommissionNodeResponseObject, error) {
 	n, err := s.node(req.ID)
 	if err != nil {

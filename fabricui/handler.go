@@ -112,6 +112,8 @@ func (h *handler) register(mux *http.ServeMux) {
 	write("POST "+p+"/pairing/window", h.openWindow)
 	write("POST "+p+"/pairing/window/close", h.closeWindow)
 	read("GET "+p+"/endpoints", h.endpoints)
+	read("GET "+p+"/endpoints/{ep}", h.nodeEndpoint)
+	read("GET "+p+"/endpoints/{ep}/events", h.nodeEndpointEvents)
 	read("GET "+p+"/surface", h.surfaceReport)
 	read("GET "+p+"/sessions", h.sessions)
 	read("GET "+p+"/topology", h.topology)

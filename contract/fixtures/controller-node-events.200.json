@@ -1,0 +1,35 @@
+{
+  "route": "GET /controller/nodes/{id}/events",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nodes/0000000000000011/events"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "events": [
+        {
+          "cluster_hex": "0x0028",
+          "endpoint": 0,
+          "epoch_ms": 1792483080000,
+          "event_hex": "0x0001",
+          "name": "ShutDown",
+          "number": 41,
+          "priority": "critical"
+        },
+        {
+          "cluster_hex": "0x0028",
+          "data": {
+            "softwareVersion": 1
+          },
+          "endpoint": 0,
+          "epoch_ms": 1792483140000,
+          "event_hex": "0x0000",
+          "name": "StartUp",
+          "number": 42,
+          "priority": "critical"
+        }
+      ]
+    }
+  }
+}
