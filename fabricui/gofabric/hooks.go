@@ -20,7 +20,9 @@ const updateDelay = 500 * time.Millisecond
 // Hooks turn the controller's node hooks (client.Hooks) into the
 // controller stream's events: node_added on Commissioned, node_removed
 // on Decommissioned, connection, subscription, and node_updated for a
-// structure change or a report (coalesced). The host builds them before
+// structure change, a report or an event the node delivered (coalesced;
+// the event is in client.Node.EventHistory when its hook runs, go-fabric
+// controller/client/config.go Hooks.Event at 894adbcd). The host builds them before
 // controller.New, wires [Hooks.For] or [Hooks.Wrap] into
 // controller.Config.HooksFor, passes them to [ControllerOf], and calls
 // [Hooks.Close] before it closes the controller. Events before
@@ -168,6 +170,7 @@ func (h *Hooks) For(id string) client.Hooks {
 		Changed:                     func() { h.updated(id) },
 		Seeded:                      func() { h.updated(id) },
 		ConfigurationVersionChanged: func(*client.Endpoint) { h.updated(id) },
+		Event:                       func(uint16, uint32, uint32, client.EventData, any) { h.updated(id) },
 		ConnectionStateChanged:      conn,
 		SubscriptionStatusChanged: func(active bool) {
 			h.emit(id, fabricui.ControllerEvent{Type: fabricui.EventSubscription, Active: active})
@@ -196,7 +199,7 @@ func chain(a, b client.Hooks) client.Hooks {
 		ConnectionStateChanged:      both1(a.ConnectionStateChanged, b.ConnectionStateChanged),
 		SubscriptionStatusChanged:   both1(a.SubscriptionStatusChanged, b.SubscriptionStatusChanged),
 		SubscriptionAlive:           both0(a.SubscriptionAlive, b.SubscriptionAlive),
-		Event:                       a.Event,
+		Event:                       bothEvent(a.Event, b.Event),
 		Seeded:                      both0(a.Seeded, b.Seeded),
 		Decommissioned:              both0(a.Decommissioned, b.Decommissioned),
 		Commissioned:                both0(a.Commissioned, b.Commissioned),
@@ -232,6 +235,16 @@ func both2[T, U any](a, b func(T, U)) func(T, U) {
 		return a
 	}
 	return func(v T, w U) { a(v, w); b(v, w) }
+}
+
+func bothEvent(a, b func(uint16, uint32, uint32, client.EventData, any)) func(uint16, uint32, uint32, client.EventData, any) {
+	switch {
+	case a == nil:
+		return b
+	case b == nil:
+		return a
+	}
+	return func(ep uint16, c, ev uint32, e client.EventData, v any) { a(ep, c, ev, e, v); b(ep, c, ev, e, v) }
 }
 
 func connectionOf(s client.ConnectionState) fabricui.ConnectionState {
