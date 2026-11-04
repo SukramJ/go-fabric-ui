@@ -6,6 +6,7 @@ package fabricui
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,7 +14,10 @@ import (
 	"time"
 
 	"github.com/SukramJ/go-fabric/eligibility"
+	"github.com/SukramJ/go-fabric/node"
 	"github.com/SukramJ/go-fabric/surface"
+
+	"github.com/SukramJ/go-fabric-ui/internal/api"
 )
 
 // statusResponse is the body of GET /node/status. Mirrors loom's
@@ -282,3 +286,189 @@ func (h *handler) factoryReset(w http.ResponseWriter, r *http.Request) {
 // hex64 is a 64-bit id as the 16-digit uppercase hex controllers and
 // chip-tool print.
 func hex64(v uint64) string { return fmt.Sprintf("%016X", v) }
+
+// eventWindow is the since and limit of an event route (contract
+// EventSince, EventLimit): since absent is 0, limit absent is
+// defaultEventLimit and at most maxEventLimit.
+const (
+	defaultEventLimit = 100
+	maxEventLimit     = 1000
+)
+
+func eventWindow(sinceQ, limitQ *int) (since uint64, limit int, err error) {
+	if sinceQ != nil {
+		if *sinceQ < 0 {
+			return 0, 0, badRequest("since: %d is not an event number", *sinceQ)
+		}
+		since = uint64(*sinceQ)
+	}
+	limit = defaultEventLimit
+	if limitQ != nil {
+		if *limitQ < 1 || *limitQ > maxEventLimit {
+			return 0, 0, badRequest("limit: %d is not within 1..%d", *limitQ, maxEventLimit)
+		}
+		limit = *limitQ
+	}
+	return since, limit, nil
+}
+
+// eventRecords is the contract's EventRecordList of the port's records.
+func eventRecords(in []EventRecord) api.EventRecordList {
+	out := api.EventRecordList{Events: make([]api.EventRecord, 0, len(in))}
+	for i := range in {
+		e := &in[i]
+		r := api.EventRecord{
+			Number: int(e.Number), Priority: api.EventRecordPriority(e.Priority), Endpoint: int(e.Endpoint), //nolint:gosec // an event number fits int64
+			ClusterHex: hexID(e.Cluster), EventHex: hexID(e.Event), Name: optString(e.Name),
+		}
+		if e.EpochMS != nil {
+			r.EpochMs = ptr(int(*e.EpochMS))
+		}
+		if e.Data != nil {
+			r.Data = ptr(e.Data)
+		}
+		out.Events = append(out.Events, r)
+	}
+	return out
+}
+
+// queryInt is an optional integer query parameter; nil when absent.
+func queryInt(r *http.Request, name string) (*int, error) {
+	s := r.URL.Query().Get(name)
+	if s == "" {
+		return nil, nil //nolint:nilnil // absent is no value and no error
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return nil, badRequest("%s: %q is not an integer", name, s)
+	}
+	return &v, nil
+}
+
+// pathEndpoint is the {ep} path value as an endpoint number.
+func pathEndpoint(r *http.Request) (uint16, error) {
+	v, err := strconv.ParseUint(r.PathValue("ep"), 10, 16)
+	if err != nil {
+		return 0, badRequest("ep: %q is not an endpoint number", r.PathValue("ep"))
+	}
+	return uint16(v), nil
+}
+
+// writeAPIError answers a node route's error: an apiProblem as it says,
+// ErrEndpointNotFound 404, node.ErrNotStarted 503, anything else 500.
+func (h *handler) writeAPIError(w http.ResponseWriter, r *http.Request, title string, err error) {
+	var p *apiProblem
+	switch {
+	case errors.As(err, &p):
+		writeProblem(w, r, p.status, p.code, p.title, p.detail)
+	case errors.Is(err, ErrEndpointNotFound):
+		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such endpoint", err.Error())
+	case errors.Is(err, node.ErrNotStarted):
+		unready(w, r, "Node not started", err.Error())
+	default:
+		h.serverError(w, r, title, err)
+	}
+}
+
+// nodeEndpoint serves GET /node/endpoints/{ep}: one endpoint the node
+// serves with its values (readEndpointDetail) and the surface report's
+// decisions on it — the root's under the key "", the Aggregator's under
+// node.AggregatorSurfaceKey, a bridged endpoint's under its stable key
+// (go-fabric node/surface.go:33-36 at 894adbcd).
+func (h *handler) nodeEndpoint(w http.ResponseWriter, r *http.Request) {
+	if h.node == nil {
+		nodeUnready(w, r)
+		return
+	}
+	ep, err := pathEndpoint(r)
+	if err != nil {
+		h.writeAPIError(w, r, "", err)
+		return
+	}
+	d, err := h.node.endpointDetail(r.Context(), ep)
+	if err != nil {
+		h.writeAPIError(w, r, "Failed to read the endpoint", err)
+		return
+	}
+	out := endpointDetail(d)
+	out.Scope = optString(d.Scope)
+	decisions, err := h.decisionsOf(surfaceKeyOf(h.node.topology(), ep))
+	if err != nil {
+		h.serverError(w, r, "Failed to encode the surface report", err)
+		return
+	}
+	out.Decisions = &decisions
+	writeJSON(w, out)
+}
+
+// surfaceKeyOf is the key endpoint ep has in the node's surface report;
+// ok false for an endpoint the report keys by no name of the topology.
+func surfaceKeyOf(topo node.BridgeTopology, ep uint16) (key string, ok bool) {
+	switch ep {
+	case 0:
+		return "", true
+	case topo.Aggregator:
+		return node.AggregatorSurfaceKey, true
+	}
+	if dev, _ := findDevice(topo, ep); dev != nil && dev.Key != nil {
+		return dev.Key.String(), true
+	}
+	return "", false
+}
+
+// decisionsOf are the surface report's decisions on the endpoint keyed
+// key, in the report's encoding (surface.Report.MarshalJSON); none when ok
+// is false.
+func (h *handler) decisionsOf(key string, ok bool) ([]api.SurfaceDecision, error) {
+	out := []api.SurfaceDecision{}
+	if !ok {
+		return out, nil
+	}
+	b, err := json.Marshal(h.node.surface())
+	if err != nil {
+		return nil, err
+	}
+	var rep struct {
+		Decisions []api.SurfaceDecision `json:"decisions"`
+	}
+	if err := json.Unmarshal(b, &rep); err != nil {
+		return nil, err
+	}
+	for i := range rep.Decisions {
+		if rep.Decisions[i].Endpoint == key {
+			out = append(out, rep.Decisions[i])
+		}
+	}
+	return out, nil
+}
+
+// nodeEndpointEvents serves GET /node/endpoints/{ep}/events: the node's
+// event log filtered to the endpoint (Node.Events, go-fabric
+// node/served.go:159-184 at 894adbcd), oldest first.
+func (h *handler) nodeEndpointEvents(w http.ResponseWriter, r *http.Request) {
+	if h.node == nil {
+		nodeUnready(w, r)
+		return
+	}
+	ep, err := pathEndpoint(r)
+	if err != nil {
+		h.writeAPIError(w, r, "", err)
+		return
+	}
+	since, err := queryInt(r, "since")
+	if err != nil {
+		h.writeAPIError(w, r, "", err)
+		return
+	}
+	limit, err := queryInt(r, "limit")
+	if err != nil {
+		h.writeAPIError(w, r, "", err)
+		return
+	}
+	s, l, err := eventWindow(since, limit)
+	if err != nil {
+		h.writeAPIError(w, r, "", err)
+		return
+	}
+	writeJSON(w, eventRecords(h.node.eventLog(node.EventQuery{Endpoint: &ep, MinNumber: s, Limit: l})))
+}

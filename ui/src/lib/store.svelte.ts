@@ -42,6 +42,9 @@ const GRAPH_EVENTS = new Set<StreamEvent["type"]>([
   "fabric_removed",
 ]);
 
+/** How long a burst of attribute_changed is coalesced before an endpoint's epoch moves. */
+const ATTRIBUTE_DELAY = 250;
+
 const IDLE: Commissioning = { phase: "idle", window: null, remaining: null, addedFabricLabel: null };
 
 export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
@@ -65,12 +68,17 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   // node's graph (GET /node/topology): the sessions, the fabrics and the
   // endpoints.
   let graphEpoch = $state(0);
+  // attributeEpochs moves an endpoint's counter once per burst of its
+  // attribute_changed: the endpoint page refetches when its counter moves.
+  let attributeEpochs = $state<Record<number, number>>({});
+  const attributePending = new Set<number>();
 
   let unsub: (() => void) | null = null;
   let countdown: ReturnType<typeof setInterval> | null = null;
   let exposureReload: ReturnType<typeof setTimeout> | null = null;
   let closedTimer: ReturnType<typeof setTimeout> | null = null;
   let graphTimer: ReturnType<typeof setTimeout> | null = null;
+  let attributeTimer: ReturnType<typeof setTimeout> | null = null;
 
   const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -131,6 +139,16 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       graphTimer = null;
       graphEpoch++;
     }, 300);
+  }
+
+  function scheduleAttributeReload(endpoint: number) {
+    attributePending.add(endpoint);
+    if (attributeTimer) return;
+    attributeTimer = setTimeout(() => {
+      attributeTimer = null;
+      for (const ep of attributePending) attributeEpochs[ep] = (attributeEpochs[ep] ?? 0) + 1;
+      attributePending.clear();
+    }, ATTRIBUTE_DELAY);
   }
 
   function markDirty(item: Item, patch: { enabled?: boolean; name?: string }) {
@@ -274,6 +292,9 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       case "exposure_changed":
         scheduleExposureReload();
         break;
+      case "attribute_changed":
+        scheduleAttributeReload(ev.data.endpoint);
+        break;
     }
   }
 
@@ -285,8 +306,9 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
 
   function close() {
     stopCountdown();
-    for (const timer of [exposureReload, closedTimer, graphTimer]) if (timer) clearTimeout(timer);
-    exposureReload = closedTimer = graphTimer = null;
+    for (const timer of [exposureReload, closedTimer, graphTimer, attributeTimer]) if (timer) clearTimeout(timer);
+    exposureReload = closedTimer = graphTimer = attributeTimer = null;
+    attributePending.clear();
     unsub?.();
     unsub = null;
   }
@@ -307,6 +329,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     get commissioning() { return commissioning; },
     get topologyEpoch() { return topologyEpoch; },
     get graphEpoch() { return graphEpoch; },
+    /** Moves once per burst of attribute_changed for the endpoint; its page refetches when it does. */
+    attributeEpoch(endpoint: number) { return attributeEpochs[endpoint] ?? 0; },
     loadStatus,
     loadFabrics,
     loadExposure,

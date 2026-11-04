@@ -1,0 +1,217 @@
+{
+  "route": "GET /node/endpoints/{ep}",
+  "request": {
+    "method": "GET",
+    "path": "/node/endpoints/2"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "clusters": [
+        {
+          "accepted": [
+            {
+              "id": 0,
+              "id_hex": "0x0000",
+              "name": "Off"
+            },
+            {
+              "id": 1,
+              "id_hex": "0x0001",
+              "name": "On"
+            },
+            {
+              "id": 2,
+              "id_hex": "0x0002",
+              "name": "Toggle"
+            },
+            {
+              "id": 64,
+              "id_hex": "0x0040",
+              "name": "OffWithEffect"
+            },
+            {
+              "id": 65,
+              "id_hex": "0x0041",
+              "name": "OnWithRecallGlobalScene"
+            },
+            {
+              "id": 66,
+              "id_hex": "0x0042",
+              "name": "OnWithTimedOff"
+            }
+          ],
+          "attributes": [
+            {
+              "id": 0,
+              "id_hex": "0x0000",
+              "name": "OnOff",
+              "value": true
+            },
+            {
+              "id": 16384,
+              "id_hex": "0x4000",
+              "name": "GlobalSceneControl",
+              "value": true
+            },
+            {
+              "id": 16385,
+              "id_hex": "0x4001",
+              "name": "OnTime",
+              "value": 0
+            },
+            {
+              "id": 16386,
+              "id_hex": "0x4002",
+              "name": "OffWaitTime",
+              "value": 0
+            },
+            {
+              "id": 16387,
+              "id_hex": "0x4003",
+              "name": "StartUpOnOff",
+              "value": null
+            },
+            {
+              "id": 65532,
+              "id_hex": "0xFFFC",
+              "name": "FeatureMap",
+              "value": 1
+            },
+            {
+              "id": 65533,
+              "id_hex": "0xFFFD",
+              "name": "ClusterRevision",
+              "value": 6
+            }
+          ],
+          "data_version": 41,
+          "events": [],
+          "feature_map_hex": "0x00000001",
+          "features": [
+            {
+              "bit": 0,
+              "code": "LT",
+              "title": "Lighting"
+            }
+          ],
+          "generated": [],
+          "id": 6,
+          "id_hex": "0x0006",
+          "name": "OnOff",
+          "revision": 6
+        },
+        {
+          "accepted": [],
+          "attributes": [
+            {
+              "id": 5,
+              "id_hex": "0x0005",
+              "name": "NodeLabel",
+              "value": "Kitchen lamp"
+            },
+            {
+              "id": 17,
+              "id_hex": "0x0011",
+              "name": "Reachable",
+              "value": true
+            },
+            {
+              "id": 18,
+              "id_hex": "0x0012",
+              "name": "UniqueId",
+              "value": "lamp-1"
+            }
+          ],
+          "data_version": 41,
+          "events": [
+            {
+              "id": 3,
+              "id_hex": "0x0003",
+              "name": "ReachableChanged"
+            }
+          ],
+          "feature_map_hex": "0x00000000",
+          "features": [],
+          "generated": [],
+          "id": 57,
+          "id_hex": "0x0039",
+          "name": "BridgedDeviceBasicInformation",
+          "revision": 5
+        }
+      ],
+      "decisions": [
+        {
+          "cluster": "0x00000006",
+          "endpoint": "lamp-1",
+          "id": "0x00000006",
+          "kind": "cluster",
+          "mandatory": true,
+          "origin": "device-type",
+          "policy": "level",
+          "reason": "",
+          "reference": "",
+          "verdict": "keep"
+        },
+        {
+          "cluster": "0x00000006",
+          "endpoint": "lamp-1",
+          "id": "0x00004003",
+          "kind": "attribute",
+          "mandatory": false,
+          "origin": "host-declared",
+          "policy": "profile:apple-home",
+          "reason": "warning (Reported) profile apple-home: not reproduced in isolation (owner report)",
+          "reference": "",
+          "verdict": "warn"
+        },
+        {
+          "cluster": "0x00000006",
+          "endpoint": "lamp-1",
+          "id": "0x00000006",
+          "kind": "cluster",
+          "mandatory": true,
+          "origin": "device-type",
+          "policy": "profile:home-assistant",
+          "reason": "kept: mandatory at pin (removed by profile home-assistant: synthetic (test))",
+          "reference": "",
+          "verdict": "keep"
+        }
+      ],
+      "device_types": [
+        {
+          "id": 256,
+          "id_hex": "0x0100",
+          "name": "OnOffLight",
+          "revision": 3
+        },
+        {
+          "id": 19,
+          "id_hex": "0x0013",
+          "name": "BridgedNode",
+          "revision": 3
+        }
+      ],
+      "endpoint_id": 2,
+      "labels": [
+        {
+          "label": "room",
+          "user": false,
+          "value": "Kitchen"
+        }
+      ],
+      "name": "Kitchen lamp",
+      "parent_endpoint_id": 1,
+      "parts": [],
+      "reachable": true,
+      "scope": "default",
+      "tags": [
+        {
+          "label": "One",
+          "namespace": 7,
+          "tag": 1
+        }
+      ]
+    }
+  }
+}

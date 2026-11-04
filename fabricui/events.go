@@ -26,6 +26,9 @@ const (
 	EventSessionOpened        = "session_opened"
 	EventSessionClosed        = "session_closed"
 	EventSubscriptionsChanged = "subscriptions_changed"
+	// EventAttributeChanged carries an [AttributeChangedEvent]: go-fabric's
+	// node.Observers.OnAttributeChanged, ids only.
+	EventAttributeChanged = "attribute_changed"
 )
 
 // Event is one server-sent event: its type and a JSON-encodable payload.
@@ -61,6 +64,17 @@ type ExposureEvent struct {
 // of its surface.Report.Changed entry, "" for the root endpoint.
 type SurfaceChangedEvent struct {
 	Endpoints []string `json:"endpoints"`
+}
+
+// AttributeChangedEvent is the payload of attribute_changed: the
+// attributes of one cluster of one endpoint that changed, as the node's
+// Observers.OnAttributeChanged reports them (go-fabric node/observers.go
+// at 894adbcd) — their ids in hex, ascending, never their values: a page
+// refetches what it shows.
+type AttributeChangedEvent struct {
+	Endpoint   uint16   `json:"endpoint"`
+	ClusterHex string   `json:"cluster_hex"`
+	Attributes []string `json:"attributes"`
 }
 
 // SessionEvent is the payload of session_opened, session_closed and
@@ -129,10 +143,10 @@ func (e *Events) Publish(ev Event) {
 }
 
 // NodeObservers turns the node's fabric, window, surface and session
-// transitions into the node page family's events for push: fabric_added,
-// fabric_removed, window_opened, window_closed, surface_changed,
-// session_opened, session_closed and subscriptions_changed, with the
-// payloads the stream carries. go-fabric reports CASE sessions only
+// transitions and its attribute changes into the node page family's events
+// for push: fabric_added, fabric_removed, window_opened, window_closed,
+// surface_changed, session_opened, session_closed, subscriptions_changed
+// and attribute_changed, with the payloads the stream carries. go-fabric reports CASE sessions only
 // (node/observers.go OnSessionOpened), so a commissioning's PASE session
 // raises none of the three.
 // open is the window state the subscriber last saw, so a repeated snapshot
@@ -185,7 +199,19 @@ func NodeObservers(push func(Event), open bool) node.Observers {
 		OnSubscriptionsChanged: func(s node.SessionInfo) {
 			push(Event{Type: EventSubscriptionsChanged, Data: SessionEvent(sessionOf(&s))})
 		},
+		OnAttributeChanged: func(c node.AttributeChange) {
+			push(Event{Type: EventAttributeChanged, Data: attributeChangedEvent(c)})
+		},
 	}
+}
+
+// attributeChangedEvent is attribute_changed's payload for one change.
+func attributeChangedEvent(c node.AttributeChange) AttributeChangedEvent {
+	ids := make([]string, 0, len(c.Change.Attributes))
+	for _, a := range c.Change.Attributes {
+		ids = append(ids, hexID(a))
+	}
+	return AttributeChangedEvent{Endpoint: c.Endpoint, ClusterHex: hexID(c.Cluster), Attributes: ids}
 }
 
 // surfaceChangedEvent is surface_changed's payload for one change.

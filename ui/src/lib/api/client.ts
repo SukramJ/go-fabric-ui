@@ -77,6 +77,12 @@ export type ClusterDetail = S["ClusterDetail"];
 export type ClusterFeature = S["ClusterFeature"];
 export type ClusterAttribute = S["ClusterAttribute"];
 export type ClusterElement = S["ClusterElement"];
+// The events of both families and the node's endpoint detail (contract 0.4.1).
+export type EventRecord = S["EventRecord"];
+export type EventRecordList = S["EventRecordList"];
+export type AttributeChangedEvent = S["AttributeChangedEvent"];
+/** What an event route selects: the lowest event number (inclusive) and how many of the newest. */
+export type EventWindow = { since?: number; limit?: number };
 export type NodeWindow = S["NodeWindow"];
 export type AttributePath = S["AttributePath"];
 export type AttributeValue = S["AttributeValue"];
@@ -138,6 +144,10 @@ export interface FabricClient {
   openWindow(durationSeconds: number): Promise<Window>;
   closeWindow(): Promise<void>;
   endpoints(): Promise<EndpointList>;
+  /** One endpoint the node serves, with its attribute values, names and surface decisions (the root and the Aggregator too). */
+  nodeEndpointDetail(endpoint: number): Promise<EndpointDetail>;
+  /** The events the node's event log holds for one endpoint, oldest first. */
+  nodeEndpointEvents(endpoint: number, window?: EventWindow): Promise<EventRecordList>;
   /** The node's surface report, in go-fabric's encoding of surface.Report. */
   surface(): Promise<SurfaceReport>;
   sessions(): Promise<SessionList>;
@@ -165,6 +175,8 @@ export interface FabricClient {
   controllerEndpointDetail(id: string, endpoint: number): Promise<EndpointDetail>;
   /** One cluster of an endpoint with the values the controller's image holds; nothing is read from the node. */
   controllerClusterDetail(id: string, endpoint: number, clusterHex: string): Promise<ClusterDetail>;
+  /** The events the controller received from the node, oldest first; nothing is read from the node. */
+  controllerNodeEvents(id: string, window?: EventWindow): Promise<EventRecordList>;
   decommissionNode(id: string): Promise<void>;
   interviewNode(id: string): Promise<void>;
   enableNode(id: string): Promise<void>;
@@ -246,6 +258,8 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
     openWindow: (d) => call("POST", "/node/pairing/window", { admin: true, body: { duration_seconds: d } }),
     closeWindow: () => call("POST", "/node/pairing/window/close", { admin: true }),
     endpoints: () => call("GET", "/node/endpoints"),
+    nodeEndpointDetail: (endpoint) => call("GET", `/node/endpoints/${endpoint}`),
+    nodeEndpointEvents: (endpoint, w) => call("GET", `/node/endpoints/${endpoint}/events${eventQuery(w)}`),
     surface: () => call("GET", "/node/surface"),
     sessions: () => call("GET", "/node/sessions"),
     topology: () => call("GET", "/node/topology"),
@@ -274,6 +288,7 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
     controllerEndpointDetail: (id, endpoint) => call("GET", `${node(id)}/endpoints/${endpoint}`),
     controllerClusterDetail: (id, endpoint, clusterHex) =>
       call("GET", `${node(id)}/endpoints/${endpoint}/clusters/${encodeURIComponent(clusterHex)}`),
+    controllerNodeEvents: (id, w) => call("GET", `${node(id)}/events${eventQuery(w)}`),
     decommissionNode: (id) => call("DELETE", node(id), { admin: true }),
     interviewNode: (id) => call("POST", node(id) + "/interview", { admin: true }),
     enableNode: (id) => call("POST", node(id) + "/enable", { admin: true }),
@@ -318,6 +333,15 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       refresh ? call("GET", "/controller/topology?refresh=true", { admin: true }) : call("GET", "/controller/topology"),
     controllerStreamUrl: () => base + "/controller/stream",
   };
+}
+
+/** The query of an event route; empty without since and limit. */
+function eventQuery(w: EventWindow = {}): string {
+  const q = new URLSearchParams();
+  if (w.since !== undefined) q.set("since", String(w.since));
+  if (w.limit !== undefined) q.set("limit", String(w.limit));
+  const qs = q.toString();
+  return qs ? "?" + qs : "";
 }
 
 /** The path of a controller node. */

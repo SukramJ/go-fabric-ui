@@ -27,6 +27,9 @@ const cases: [string, Call][] = [
   ["node-pairing-window.503", (c, b) => c.openWindow((b as { duration_seconds: number }).duration_seconds)],
   ["node-pairing-window-close.204", (c) => c.closeWindow()],
   ["node-endpoints.200", (c) => c.endpoints()],
+  ["node-endpoint.200", (c) => c.nodeEndpointDetail(2)],
+  ["node-endpoint.404", (c) => c.nodeEndpointDetail(9)],
+  ["node-endpoint-events.200", (c) => c.nodeEndpointEvents(2)],
   ["node-surface.200", (c) => c.surface()],
   ["node-surface.503", (c) => c.surface()],
   ["node-sessions.200", (c) => c.sessions()],
@@ -96,6 +99,14 @@ describe("client against the contract fixtures", () => {
     expect(ff.sent[1].headers[TOKEN_HEADER]).toBe("abc");
     expect(ff.sent[0].headers[TOKEN_HEADER]).toBeUndefined();
     expect(client.streamUrl()).toBe("/api/v1/node/stream");
+  });
+
+  it("sends since and limit as the event routes' query", async () => {
+    const ff = fixtureFetch([]);
+    const client = createClient("/api/v1", ff.fetch);
+    await client.nodeEndpointEvents(2, { since: 8, limit: 5 }).catch(() => undefined);
+    await client.controllerNodeEvents("0000000000000011", { since: 43 }).catch(() => undefined);
+    expect(ff.sent.map((s) => s.path)).toEqual(["/api/v1/node/endpoints/2/events?since=8&limit=5", "/api/v1/controller/nodes/0000000000000011/events?since=43"]);
   });
 
   it("never sends the token on a read route", async () => {

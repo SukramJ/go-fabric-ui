@@ -13,6 +13,7 @@ import ErrorState from "./ErrorState.svelte";
 import AttributeTable from "./AttributeTable.svelte";
 import ClusterView from "./ClusterView.svelte";
 import TagChips from "./TagChips.svelte";
+import EventList from "./EventList.svelte";
 import LoadingState from "./LoadingState.svelte";
 import Select from "./Select.svelte";
 import type { DataColumn } from "./data-table";
@@ -194,5 +195,33 @@ describe("ClusterView and AttributeTable", () => {
   it("renders an empty attribute table", () => {
     render(AttributeTable, { attributes: [] });
     expect(screen.getByTestId("attribute-table").querySelectorAll("tbody tr")).toHaveLength(0);
+  });
+});
+
+describe("EventList", () => {
+  it("lists the events newest first: number, priority, name or id, endpoint, time and data", () => {
+    // events is a Svelte mount option too: the props go under props.
+    render(EventList, {
+      props: {
+        empty: "none",
+        events: [
+          { number: 3, priority: "debug", endpoint: 0, cluster_hex: "0xFC00", event_hex: "0x0001" },
+          { number: 5, priority: "critical", endpoint: 1, cluster_hex: "0x0028", event_hex: "0x0000", name: "StartUp", epoch_ms: 1792929480000, data: { softwareVersion: 1 } },
+        ],
+      },
+    });
+    const items = [...screen.getByTestId("event-list").querySelectorAll("li")];
+    expect(items.map((li) => li.getAttribute("data-testid"))).toEqual(["event-5", "event-3"]);
+    expect(items[0]).toHaveTextContent("StartUp");
+    expect(items[0]).toHaveTextContent("Critical");
+    expect(items[0].querySelector("time")).toHaveAttribute("datetime", new Date(1792929480000).toISOString());
+    expect(items[0].querySelector("pre")?.textContent).toBe(JSON.stringify({ softwareVersion: 1 }, null, 2));
+    expect(items[1]).toHaveTextContent("0x0001");
+    expect(items[1].querySelector("time")).toBeNull();
+    expect(items[1].querySelector("pre")).toBeNull();
+  });
+  it("shows the empty text without events", () => {
+    render(EventList, { props: { events: [], empty: "No events" } });
+    expect(screen.getByTestId("event-list-empty")).toHaveTextContent("No events");
   });
 });

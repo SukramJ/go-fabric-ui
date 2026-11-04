@@ -3,11 +3,12 @@
   import type { Component } from "svelte";
   import { provideFabricUI, type FabricUI } from "../lib/context";
 
-  let { ui, page }: { ui: FabricUI; page: Component } = $props();
+  // pageProps are the page's own (an endpoint page's number).
+  let { ui, page, pageProps = {} }: { ui: FabricUI; page: Component<any>; pageProps?: Record<string, unknown> } = $props();
   // The context is provided once, for the page's lifetime.
   // svelte-ignore state_referenced_locally
   provideFabricUI(ui);
   const Page = $derived(page);
 </script>
 
-<Page />
+<Page {...pageProps} />

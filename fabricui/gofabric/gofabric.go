@@ -420,7 +420,7 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 	if reg == nil {
 		return nil, fmt.Errorf("%w: the controller is closed", fabricui.ErrNodeFailed)
 	}
-	n, err := reg.ForDevice(ctx, dev)
+	n, err := reg.ForDevice(ctx, dev, "")
 	if err != nil {
 		return nil, commissionError(err)
 	}

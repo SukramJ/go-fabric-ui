@@ -16,11 +16,15 @@ each project.
 > both page families — the node family (status, pairing, fabrics,
 > selection, endpoints, surface, diagnostics, topology) and the controller
 > family (nodes, commissioning, a node's endpoints, attributes, ACL,
-> bindings, window, ICD, fabrics and updates, settings). `0.5.0` (wave
-> U4b, unreleased) adds a node's inventory from the controller's image:
+> bindings, window, ICD, fabrics and updates, settings). `0.5.0` (waves
+> U4b and U4a, unreleased) adds a node's inventory from the controller's image:
 > per endpoint its device types, tags, labels, reachability and device
 > type conformance, per cluster its revision, decoded feature map, data
-> version, attribute values and command and event lists.
+> version, attribute values and command and event lists; the node
+> family's endpoint page with what the node serves — the same inventory
+> with the values, the host's surface decisions and the endpoint's events
+> — refetched on the stream's `attribute_changed`; and the events tab of
+> the controller's node page.
 
 ## Two artefacts, one version
 

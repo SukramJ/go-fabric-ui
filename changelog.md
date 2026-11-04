@@ -11,7 +11,8 @@ All notable changes to this project are documented here. The format follows
 
 The controller family's device details (brief U4b, concept
 `docs/concept-u4-device-details.md`, wave D.1); contract 0.4.0, additive
-over 0.3.1.
+over 0.3.1. The node family's device details and the event log of both
+families (brief U4a, wave D.3); contract 0.4.1, additive over 0.4.0.
 
 ### Added
 
@@ -50,14 +51,64 @@ over 0.3.1.
   `controllerClusterDetail`.
 - Fixtures `controller-node-endpoint.200`, `controller-node-endpoint.404`,
   `controller-node-cluster.200`, `controller-node-cluster.404`.
+- `GET /node/endpoints/{ep}` (`EndpointDetail`, 0.4.1): one endpoint the
+  node serves, read through its own read path (go-fabric
+  `Node.ReadCluster`) — the Descriptor's DeviceTypeList with each
+  revision and its TagList, the FixedLabel and UserLabel entries, every
+  server cluster with its values, data version, feature map and the
+  names go-fabric's schema gives its attributes, commands and events; a
+  bridged endpoint's name, Reachable, `scope`, parent and parts; the
+  surface report's `decisions` on the endpoint. The root endpoint and the
+  Aggregator answer too. 404 for an endpoint the node does not serve, 503
+  before the node started.
+- `GET /node/endpoints/{ep}/events` and `GET /controller/nodes/{id}/events`
+  (`EventRecordList` of `EventRecord`, 0.4.1, `since` and `limit`): the
+  node's event log for one endpoint (`Node.Events`) and the events the
+  controller received from a node (`client.Node.EventHistory`), oldest
+  first, each with its priority, name and data by field name.
+- The stream event `attribute_changed` (`AttributeChangedEvent`:
+  endpoint, cluster and the attribute ids, never a value) from go-fabric's
+  `node.Observers.OnAttributeChanged`, through `fabricui.NodeObservers`.
+- `NodeSource` gains `ReadCluster`, `ReadAttribute` and `Events`, which
+  `*node.Node` has; `ControllerNode` gains `Events`, served by
+  `gofabric.ControllerOf` and `MemoryController` (two events).
+  `EndpointDetail.Scope`, `EventRecord`, `EventPriorityName`.
+- The node family's endpoint page `NodeEndpointDetail`
+  (`#/node/endpoint/<n>`, routes key `endpoint`): device types with
+  revisions, tags (with the reason when there are none), labels, scope,
+  parent and parts, the clusters with their values, the surface decisions
+  and the endpoint's events; it refetches on the endpoint's
+  `attribute_changed` (coalesced per 250 ms in the store's
+  `attributeEpoch`) and on `endpoints_changed`/`surface_changed`, the
+  events after the last one only. The endpoint list links every endpoint,
+  the root endpoint and the Aggregator to it and shows each device type's
+  revision; the topology's endpoint refs lead to it.
+- The **Events** tab of the controller's node page (`tab=events`): the
+  events the controller received, newest first, fetching the newer ones on
+  the node's `node_updated`.
+- Kit component `EventList`; the client's `nodeEndpointDetail`,
+  `nodeEndpointEvents` and `controllerNodeEvents`.
+- Fixtures `node-endpoint.200`, `node-endpoint.404`,
+  `node-endpoint-events.200`, `controller-node-events.200`.
 
 ### Changed
 
+- An event a node delivers to the controller raises the node's
+  `node_updated` (`gofabric.Hooks`), and `Hooks.Wrap` chains the host's
+  own `Event` hook instead of replacing ours with it.
+- `GET /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}`
+  answers 503, not 404, while the controller has not read the endpoint's
+  Descriptor; a value that does not render is absent, not `null`.
+  `EndpointDetail.parts` are the direct children (the contract says so),
+  in `MemoryController` too. The Inventory tab drops a reload's answer
+  that arrives after a newer one's.
 - The endpoints of `GET /controller/nodes/{id}` list every device type of
   the Descriptor's DeviceTypeList, each with its revision, not only the
   endpoint's own.
-- go-fabric `v0.16.1-0.20261103194851-53b0d93d8942` (main at `53b0d93d`),
-  a pseudo-version until go-fabric's next tag; no migration was needed.
+- go-fabric `v0.16.1-0.20261104133901-894adbcd4cd3` (main at `894adbcd`,
+  the M9 module wave), a pseudo-version until go-fabric's next tag. One
+  migration: `Registry.ForDevice` takes the new node's local id, and the
+  pairing adapter passes `""` so the registry allocates one, as before.
 
 ## [0.4.1] - 2026-11-03
 

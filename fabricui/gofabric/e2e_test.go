@@ -35,6 +35,7 @@ type ctrlSite struct {
 	t      *testing.T
 	site   *fabrictest.Site
 	dev    *fabrictest.Device
+	plug   *device.OnOffPlugInUnit
 	ctrl   *controller.Controller
 	srv    *httptest.Server
 	token  string
@@ -80,8 +81,10 @@ func newCtrlSite(t *testing.T) *ctrlSite {
 		// The site's device carries the module's test attestation.
 		Pair: controller.PairOptions{OnAttestationFailure: attestation.Accept()},
 	})
-	s := &ctrlSite{t: t, site: site, dev: dev, ctrl: ctrl, events: make(chan string, 256)}
-	s.srv = httptest.NewServer(fabricui.Handler(fabricui.Options{Controller: src}))
+	s := &ctrlSite{t: t, site: site, dev: dev, plug: plug, ctrl: ctrl, events: make(chan string, 256)}
+	// The node family beside the controller family: the device's node
+	// is the node the controller commissions.
+	s.srv = httptest.NewServer(fabricui.Handler(fabricui.Options{Controller: src, Node: dev.Node()}))
 	t.Cleanup(s.srv.Close)
 	src.Observe(func(e fabricui.ControllerEvent) {
 		select {
@@ -435,4 +438,233 @@ func mustJSON(t *testing.T, v any) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// eventRecord is one EventRecord of an event route.
+type eventRecord struct {
+	Number   int             `json:"number"`
+	Priority string          `json:"priority"`
+	Endpoint int             `json:"endpoint"`
+	Cluster  string          `json:"cluster_hex"`
+	Event    string          `json:"event_hex"`
+	Name     string          `json:"name"`
+	EpochMS  *int64          `json:"epoch_ms"`
+	Data     json.RawMessage `json:"data"`
+}
+
+// events reads an event route.
+func (s *ctrlSite) eventList(path string) []eventRecord {
+	s.t.Helper()
+	var l struct {
+		Events []eventRecord `json:"events"`
+	}
+	s.json(http.MethodGet, path, "", http.StatusOK, &l)
+	return l.Events
+}
+
+// find is the first event of cluster and event, nil without one.
+func find(evs []eventRecord, cluster, event string) *eventRecord {
+	for i := range evs {
+		if evs[i].Cluster == cluster && evs[i].Event == event {
+			return &evs[i]
+		}
+	}
+	return nil
+}
+
+// endpointDetail is the part of an EndpointDetail the test reads.
+type endpointDetail struct {
+	Name        string `json:"name"`
+	Parent      *int   `json:"parent_endpoint_id"`
+	Parts       []int  `json:"parts"`
+	Scope       string `json:"scope"`
+	DeviceTypes []struct {
+		ID       int    `json:"id"`
+		Name     string `json:"name"`
+		Revision int    `json:"revision"`
+	} `json:"device_types"`
+	Clusters []struct {
+		ID         int    `json:"id"`
+		Name       string `json:"name"`
+		Revision   int    `json:"revision"`
+		FeatureMap string `json:"feature_map_hex"`
+		Features   []struct {
+			Code string `json:"code"`
+		} `json:"features"`
+		DataVersion *int `json:"data_version"`
+		Attributes  []struct {
+			ID    int             `json:"id"`
+			Name  string          `json:"name"`
+			Value json.RawMessage `json:"value"`
+		} `json:"attributes"`
+		Accepted []struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		} `json:"accepted"`
+	} `json:"clusters"`
+	Decisions []struct {
+		Endpoint string `json:"endpoint"`
+	} `json:"decisions"`
+}
+
+// value is the JSON value of attribute attr of cluster in d; "" without one.
+func (d *endpointDetail) value(cluster, attr int) string {
+	for i := range d.Clusters {
+		c := &d.Clusters[i]
+		if c.ID != cluster {
+			continue
+		}
+		for _, a := range c.Attributes {
+			if a.ID == attr {
+				return string(a.Value)
+			}
+		}
+	}
+	return ""
+}
+
+// TestEndToEnd_DetailsAndEvents: the node family's endpoint detail and
+// event log and the controller family's event history, on the real
+// adapters of a fabrictest pair — the root, the Aggregator and the plug
+// with OnOff's value; an On the controller invokes reaches the node's
+// attribute_changed and the plug's detail; the root's StartUp reaches the
+// controller's history with the newly-commissioned read, and the plug's
+// ReachableChanged with the default subscription.
+func TestEndToEnd_DetailsAndEvents(t *testing.T) {
+	s := newCtrlSite(t)
+	changes := make(chan fabricui.AttributeChangedEvent, 64)
+	defer s.dev.Node().Observe(fabricui.NodeObservers(func(e fabricui.Event) {
+		if c, ok := e.Data.(fabricui.AttributeChangedEvent); ok {
+			select {
+			case changes <- c:
+			default:
+			}
+		}
+	}, false))()
+	sp, err := s.dev.Node().SetupPayload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var added nodeDetail
+	s.json(http.MethodPost, "/controller/commission", fmt.Sprintf(`{"code":%q}`, sp.Manual), http.StatusOK, &added)
+	id := added.Node.NodeIDHex
+	plugEP, ok := s.plug.EndpointNumber()
+	if !ok {
+		t.Fatal("the plug has no endpoint")
+	}
+	agg := s.dev.Node().Topology().Aggregator
+
+	// The root and the Aggregator answer, each with its direct children.
+	var root, aggr, plug endpointDetail
+	s.json(http.MethodGet, "/node/endpoints/0", "", http.StatusOK, &root)
+	if len(root.DeviceTypes) == 0 || root.DeviceTypes[0].Name != "RootNode" || root.DeviceTypes[0].Revision == 0 ||
+		!slices.Equal(root.Parts, []int{int(agg)}) || root.Parent != nil || len(root.Decisions) == 0 || root.value(0x0028, 0x0003) == "" {
+		t.Fatalf("root %s", mustJSON(t, root))
+	}
+	s.json(http.MethodGet, fmt.Sprintf("/node/endpoints/%d", agg), "", http.StatusOK, &aggr)
+	if aggr.Name != "Aggregator" || !slices.Equal(aggr.Parts, []int{int(plugEP)}) || aggr.Parent != nil {
+		t.Fatalf("aggregator %s", mustJSON(t, aggr))
+	}
+	// The plug: its device types, OnOff's value, feature and commands by
+	// name, its parent, scope and decisions.
+	s.json(http.MethodGet, fmt.Sprintf("/node/endpoints/%d", plugEP), "", http.StatusOK, &plug)
+	if plug.Name != "Plug" || plug.Parent == nil || *plug.Parent != int(agg) || plug.Scope == "" || len(plug.Decisions) == 0 ||
+		plug.value(0x0006, 0x0000) != "false" {
+		t.Fatalf("plug %s", mustJSON(t, plug))
+	}
+	for i := range plug.Clusters {
+		c := &plug.Clusters[i]
+		if c.ID != 0x0006 {
+			continue
+		}
+		if c.Name != "OnOff" || c.Revision == 0 || c.FeatureMap != "0x00000001" || len(c.Features) != 1 || c.Features[0].Code != "LT" ||
+			c.DataVersion == nil || c.Attributes[0].Name != "OnOff" || !slices.ContainsFunc(c.Accepted, func(a struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		},
+		) bool {
+			return a.ID == 2 && a.Name == "Toggle"
+		}) {
+			t.Fatalf("plug OnOff %s", mustJSON(t, c))
+		}
+	}
+	if st, out := s.call(http.MethodGet, "/node/endpoints/99", ""); st != http.StatusNotFound {
+		t.Fatalf("an endpoint the node does not serve: %d %s", st, out)
+	}
+
+	// The controller's On reaches the node: attribute_changed names
+	// OnOff's attribute 0, the detail reads true.
+	var wr struct {
+		Status int `json:"status"`
+	}
+	s.json(http.MethodPost, "/controller/nodes/"+id+"/commands", fmt.Sprintf(`{"endpoint":%d,"cluster_hex":"0x0006","command_hex":"0x01"}`, plugEP), http.StatusOK, &wr)
+	deadline := time.After(10 * time.Second)
+	for seen := false; !seen; {
+		select {
+		case c := <-changes:
+			seen = c.Endpoint == plugEP && c.ClusterHex == "0x0006" && slices.Contains(c.Attributes, "0x0000")
+		case <-deadline:
+			t.Fatal("no attribute_changed for the plug's OnOff")
+		}
+	}
+	s.json(http.MethodGet, fmt.Sprintf("/node/endpoints/%d", plugEP), "", http.StatusOK, &plug)
+	if plug.value(0x0006, 0x0000) != "true" {
+		t.Fatalf("plug after On %s", mustJSON(t, plug))
+	}
+
+	// The root's StartUp: in the node's log and, read when the controller
+	// commissioned the node, in the controller's history.
+	startUp := find(s.eventList("/node/endpoints/0/events"), "0x0028", "0x0000")
+	if startUp == nil || startUp.Name != "StartUp" || startUp.Priority != "critical" || startUp.EpochMS == nil ||
+		!strings.Contains(string(startUp.Data), `"softwareVersion"`) {
+		t.Fatalf("node StartUp %+v", startUp)
+	}
+	history := s.eventList("/controller/nodes/" + id + "/events")
+	got := find(history, "0x0028", "0x0000")
+	if got == nil || got.Number != startUp.Number || got.Name != "StartUp" || string(got.Data) != string(startUp.Data) {
+		t.Fatalf("controller StartUp %+v, node's %+v", got, startUp)
+	}
+	last := history[len(history)-1].Number
+	if newer := s.eventList(fmt.Sprintf("/controller/nodes/%s/events?since=%d", id, last+1)); len(newer) != 0 {
+		t.Fatalf("events after the last %+v", newer)
+	}
+
+	// The plug's ReachableChanged reaches the controller through the
+	// default subscription.
+	s.json(http.MethodPost, "/controller/nodes/"+id+"/auto-subscribe", `{"enabled":true}`, http.StatusNoContent, nil)
+	s.plug.SetReachable(context.Background(), false)
+	reach := find(s.eventList(fmt.Sprintf("/node/endpoints/%d/events", plugEP)), "0x0039", "0x0003")
+	if reach == nil || reach.Name != "ReachableChanged" || string(reach.Data) != `{"reachableNewValue":false}` {
+		t.Fatalf("node ReachableChanged %+v", reach)
+	}
+	// The route reads the controller's memory, no interaction: it is
+	// called while Eventually moves the site's clock to the report.
+	got = nil
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	if err := s.site.Eventually(ctx, "the plug's ReachableChanged in the controller's history", func() bool {
+		got = find(s.rawEvents(fmt.Sprintf("/controller/nodes/%s/events?since=%d", id, last+1)), "0x0039", "0x0003")
+		return got != nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got.Endpoint != int(plugEP) || got.Number != reach.Number || string(got.Data) != string(reach.Data) {
+		t.Fatalf("controller ReachableChanged %+v, node's %+v", got, reach)
+	}
+}
+
+// rawEvents reads an event route outside Site.Run; nil on any failure.
+func (s *ctrlSite) rawEvents(path string) []eventRecord {
+	resp, err := s.srv.Client().Get(s.srv.URL + fabricui.DefaultPrefix + path)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	var l struct {
+		Events []eventRecord `json:"events"`
+	}
+	if resp.StatusCode != http.StatusOK || json.NewDecoder(resp.Body).Decode(&l) != nil {
+		return nil
+	}
+	return l.Events
 }

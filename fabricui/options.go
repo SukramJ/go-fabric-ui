@@ -48,6 +48,13 @@ type NodeSource interface {
 	// surface is composed under, with the decisions, the withheld elements
 	// and the announced changes (go-fabric node/surface.go:372, v0.15.2).
 	Surface() surface.Report
+	// ReadCluster and ReadAttribute read the values the node serves through
+	// its own read path, as a controller's read reaches them; Events lists
+	// the events its event log holds (go-fabric node/served.go:53-94 and
+	// :164-184 at 894adbcd). The endpoint detail and its events read them.
+	ReadCluster(ctx context.Context, endpoint uint16, cluster uint32) ([]node.AttributeValue, error)
+	ReadAttribute(ctx context.Context, endpoint uint16, cluster, attribute uint32) (node.AttributeValue, error)
+	Events(q node.EventQuery) []node.Event
 }
 
 // Options configures the handlers.

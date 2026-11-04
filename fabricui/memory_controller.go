@@ -397,6 +397,8 @@ type memorySpec struct {
 	tags        map[uint16][]SemanticTag
 	conformance map[uint16]Conformance
 	inventory   map[memoryClusterKey]memoryCluster
+	// events are what Events serves, oldest first.
+	events []EventRecord
 }
 
 // memoryClusterKey is one cluster of one endpoint.
@@ -481,6 +483,14 @@ func memoryLight() memorySpec {
 				featureMap: 0x1, features: []ClusterFeature{{Code: "LT", Title: "Lighting", Bit: 0}}, dataVersion: 7,
 				names:    map[uint32]string{0x0000: "OnOff", 0x4000: "GlobalSceneControl", 0xFFFC: "FeatureMap"},
 				accepted: []ClusterElement{{0x00, "Off"}, {0x01, "On"}, {0x02, "Toggle"}},
+			},
+		},
+		// BasicInformation ShutDown (0x01, no data) and StartUp (0x00).
+		events: []EventRecord{
+			{Number: 41, Priority: "critical", Endpoint: 0, Cluster: 0x0028, Event: 0x01, Name: "ShutDown", EpochMS: ptr(memoryTime.Add(-2 * time.Minute).UnixMilli())},
+			{
+				Number: 42, Priority: "critical", Endpoint: 0, Cluster: 0x0028, Event: 0x00, Name: "StartUp",
+				EpochMS: ptr(memoryTime.Add(-time.Minute).UnixMilli()), Data: json.RawMessage(`{"softwareVersion":1}`),
 			},
 		},
 	}
@@ -605,9 +615,10 @@ func (n *memoryNode) EndpointDetail(ep uint16) (EndpointDetail, error) {
 	if d.Name == "" && len(e.DeviceTypes) > 0 {
 		d.Name = e.DeviceTypes[0].Name
 	}
-	// The root lists every other endpoint, any other endpoint its children.
+	// The direct children: the root's are the top-level endpoints, any
+	// other endpoint's those it is the parent of.
 	for _, o := range n.spec.endpoints {
-		if o.Number != ep && (ep == 0 || (o.Parent != nil && *o.Parent == ep)) {
+		if o.Number != 0 && o.Number != ep && ((ep == 0 && o.Parent == nil) || (o.Parent != nil && *o.Parent == ep)) {
 			d.Parts = append(d.Parts, o.Number)
 		}
 	}
@@ -635,6 +646,23 @@ func (n *memoryNode) ClusterDetail(ep uint16, cluster uint32) (ClusterDetail, er
 		}
 	}
 	return ClusterDetail{}, fmt.Errorf("%w: 0x%04X on endpoint %d", ErrClusterNotFound, cluster, ep)
+}
+
+// Events are the node's events numbered since or later, oldest first; with
+// limit > 0 the newest limit of them.
+func (n *memoryNode) Events(since uint64, limit int) []EventRecord {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	out := []EventRecord{}
+	for _, e := range n.spec.events {
+		if e.Number >= since {
+			out = append(out, e)
+		}
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[len(out)-limit:]
+	}
+	return out
 }
 
 // cluster is one cluster's detail, with its values when values is set;

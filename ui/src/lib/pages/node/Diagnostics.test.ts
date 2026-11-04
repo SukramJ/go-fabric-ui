@@ -86,9 +86,20 @@ describe("Endpoints", () => {
     render(Harness, { ui, page: Endpoints });
     expect(await screen.findAllByTestId("endpoint")).toHaveLength(3);
     expect(screen.getByText("Kitchen lamp")).toBeInTheDocument();
-    expect(screen.getByText("On/Off Light")).toBeInTheDocument();
+    expect(screen.getByText("On/Off Light r4")).toBeInTheDocument();
     expect(screen.getByText('node.endpoints.part_of:{"id":3}')).toBeInTheDocument();
     expect(screen.getByText("node.endpoints.unreachable")).toBeInTheDocument();
+  });
+
+  it("links every endpoint, the root and the Aggregator to its page", async () => {
+    const ui = testUI({ fixtures: ["node-endpoints.200", "node-surface.200"] });
+    render(Harness, { ui, page: Endpoints });
+    await screen.findAllByTestId("endpoint");
+    expect(screen.getByText("Kitchen lamp").closest("a")).toHaveAttribute("href", "#/node/endpoint/2");
+    const structural = screen.getByTestId("structural-endpoints");
+    expect([...structural.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual(["#/node/endpoint/0", "#/node/endpoint/1"]);
+    expect(structural).toHaveTextContent("node.endpoints.root");
+    expect(structural).toHaveTextContent("node.endpoints.aggregator");
   });
 
   it("marks the endpoint whose surface changed, by its key, and none without a report", async () => {

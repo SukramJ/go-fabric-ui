@@ -257,6 +257,11 @@ func (w *node) ClusterDetail(number uint16, cluster uint32) (fabricui.ClusterDet
 	}
 	c := ep.Cluster(cluster)
 	if c == nil {
+		// Until the Descriptor is read the image cannot tell a cluster
+		// the endpoint lacks from one not read yet.
+		if ep.Cluster(clusterDescriptor) == nil {
+			return fabricui.ClusterDetail{}, fmt.Errorf("%w: the Descriptor of endpoint %d", fabricui.ErrNotRead, number)
+		}
 		var servers []uint32
 		if endpointValue(ep, clusterDescriptor, attrServerList, &servers) && slices.Contains(servers, cluster) {
 			return fabricui.ClusterDetail{}, fmt.Errorf("%w: cluster 0x%04X on endpoint %d", fabricui.ErrNotRead, cluster, number)
@@ -361,11 +366,10 @@ func clusterDetail(c *client.Cluster, values bool) fabricui.ClusterDetail {
 		}
 		if values {
 			if v, ok := c.Value(id); ok {
-				raw, err := client.DecodeJSON(client.AttributeField(c.ID(), id), v, client.NameBased)
-				if err != nil {
-					raw = json.RawMessage("null")
+				// A value that does not render is left out, not null.
+				if raw, err := client.DecodeJSON(client.AttributeField(c.ID(), id), v, client.NameBased); err == nil {
+					a.Value = raw
 				}
-				a.Value = raw
 			}
 		}
 		d.Attributes = append(d.Attributes, a)
@@ -400,6 +404,37 @@ func commands(def *spec.Cluster, ids []uint32, dir spec.Direction) []fabricui.Cl
 			}
 		}
 		out = append(out, e)
+	}
+	return out
+}
+
+// Events are the events the controller received from the node, from its
+// event history (client.Node.EventHistory, go-fabric
+// controller/client/event_history.go:100-115 at 894adbcd), each named by
+// the schema (schema.EventName) and its data rendered by name as Read
+// renders a value (client.DecodeJSON with client.EventField); data that
+// does not render is left out.
+func (w *node) Events(since uint64, limit int) []fabricui.EventRecord {
+	hist := w.n.EventHistory(since, limit)
+	out := make([]fabricui.EventRecord, 0, len(hist))
+	for i := range hist {
+		e := &hist[i]
+		p := e.Path
+		r := fabricui.EventRecord{
+			Number: e.Number, Priority: fabricui.EventPriorityName(uint8(e.Priority)),
+			Endpoint: p.Endpoint, Cluster: p.Cluster, Event: p.Event,
+		}
+		r.Name, _ = schema.EventName(p.Cluster, p.Event)
+		if e.EpochTimestamp != nil {
+			ms := int64(*e.EpochTimestamp) //nolint:gosec // an epoch in milliseconds fits int64
+			r.EpochMS = &ms
+		}
+		if e.HasValue {
+			if raw, err := client.DecodeJSON(client.EventField(p.Cluster, p.Event), e.Value, client.NameBased); err == nil {
+				r.Data = raw
+			}
+		}
+		out = append(out, r)
 	}
 	return out
 }

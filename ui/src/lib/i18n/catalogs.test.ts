@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { body } from "../../test/support";
-import type { ConformanceVerdict, TopologyGraph } from "../api/client";
+import type { ConformanceVerdict, EventRecord, TopologyGraph } from "../api/client";
 import { TOPOLOGY_KINDS, TOPOLOGY_STATES, TOPOLOGY_STRENGTHS } from "../kit/graph-layout";
 import { catalogKeys } from ".";
 
@@ -41,13 +41,19 @@ describe("i18n catalogues", () => {
     expect([...missing]).toEqual([]);
   });
 
-  it("name every tab of the controller's node page and every conformance status", () => {
+  it("name every tab of the controller's node page, every conformance status and every event priority", () => {
     const page = fs.readFileSync(path.join(SRC, "lib/pages/controller/Node.svelte"), "utf8");
     const tabs = [...(page.match(/const TABS = \[([^\]]*)\]/)?.[1] ?? "").matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
     // A Record over the contract's enum: a new status fails the type check here.
     const statuses: Record<ConformanceVerdict["status"], true> = { unknown: true, incomplete: true, clean: true, violated: true };
+    const priorities: Record<EventRecord["priority"], true> = { debug: true, info: true, critical: true };
     expect(tabs).toContain("inventory");
-    const keys = [...tabs.map((k) => `controller.node.tab.${k}`), ...Object.keys(statuses).map((s) => `controller.inventory.conformance.${s}`)];
+    expect(tabs).toContain("events");
+    const keys = [
+      ...tabs.map((k) => `controller.node.tab.${k}`),
+      ...Object.keys(statuses).map((s) => `controller.inventory.conformance.${s}`),
+      ...Object.keys(priorities).map((p) => `events.priority.${p}`),
+    ];
     expect(keys.filter((k) => !en.has(k))).toEqual([]);
   });
 

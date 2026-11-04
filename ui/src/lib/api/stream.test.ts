@@ -29,12 +29,14 @@ describe("subscribeStream", () => {
     src.emit("surface_changed", '{"endpoints":["lamp-1"]}');
     src.emit("session_opened", '{"session_id":17,"subscriptions":0}');
     src.emit("subscriptions_changed", '{"session_id":17,"subscriptions":2}');
+    src.emit("attribute_changed", '{"endpoint":2,"cluster_hex":"0x0006","attributes":["0x0000"]}');
     expect(got).toEqual([
       { type: "fabric_added", data: { fabric_index: 3, label: "Home" } },
       { type: "window_closed", data: {} },
       { type: "surface_changed", data: { endpoints: ["lamp-1"] } },
       { type: "session_opened", data: { session_id: 17, subscriptions: 0 } },
       { type: "subscriptions_changed", data: { session_id: 17, subscriptions: 2 } },
+      { type: "attribute_changed", data: { endpoint: 2, cluster_hex: "0x0006", attributes: ["0x0000"] } },
     ]);
     close();
     expect(src.closed).toBe(true);

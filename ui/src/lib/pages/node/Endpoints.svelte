@@ -3,7 +3,9 @@
      assets/ui/src/routes/matter/MatterDiagnostics.svelte:229-260 at
      b40b289a: the host's name for the endpoint, its parent, its device
      type and clusters. An endpoint whose surface changed in this process
-     (GET /node/surface, changed[]) carries a marker. -->
+     (GET /node/surface, changed[]) carries a marker. Each endpoint links to
+     its own page (GET /node/endpoints/{n}), the root endpoint and the
+     Aggregator, which the route does not list, included. -->
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { useFabricUI } from "../../context";
@@ -16,7 +18,7 @@
   import ErrorState from "../../kit/ErrorState.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
 
-  const { t, client, node } = useFabricUI();
+  const { t, client, node, routes } = useFabricUI();
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -62,6 +64,13 @@
 
   const hex = (n: number, w = 4) => `0x${n.toString(16).toUpperCase().padStart(w, "0")}`;
   const topLevel = $derived(new Set(endpoints.map((e) => e.endpoint_id)));
+  // The Aggregator is the parent the top-level endpoints name; the route
+  // lists the bridged endpoints only.
+  const aggregator = $derived(endpoints.find((e) => !topLevel.has(e.parent_endpoint_id))?.parent_endpoint_id);
+  const structural = $derived([
+    { number: 0, label: t("node.endpoints.root") },
+    ...(aggregator !== undefined && aggregator !== 0 ? [{ number: aggregator, label: t("node.endpoints.aggregator") }] : []),
+  ]);
 </script>
 
 <Card class="p-4">
@@ -74,22 +83,35 @@
     <LoadingState />
   {:else if error}
     <ErrorState class="mt-3" message={error} onRetry={() => void load()} />
-  {:else if endpoints.length === 0}
-    <EmptyState class="mt-3" message={t("node.endpoints.empty")} />
   {:else}
+    <ul class="mt-3 flex flex-wrap gap-2" data-testid="structural-endpoints">
+      {#each structural as s (s.number)}
+        <li>
+          <a class="rounded border border-[var(--ha-divider-color)] px-3 py-1 text-sm text-[var(--ha-primary-color)] hover:underline" href={routes.endpoint + s.number}>
+            <span class="font-mono text-[var(--ha-secondary-text-color)]">#{s.number}</span> {s.label}
+          </a>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+  {#if !loading && !error && endpoints.length === 0}
+    <EmptyState class="mt-3" message={t("node.endpoints.empty")} />
+  {:else if !loading && !error}
     <ul class="mt-3 space-y-2">
       {#each endpoints as ep (ep.endpoint_id)}
         <li class="rounded border border-[var(--ha-divider-color)] p-3" data-testid="endpoint">
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-mono text-sm text-[var(--ha-secondary-text-color)]">#{ep.endpoint_id}</span>
-            <span class="font-medium text-[var(--ha-primary-text-color)]">{ep.name}</span>
+            <a class="font-medium text-[var(--ha-primary-color)] hover:underline" href={routes.endpoint + ep.endpoint_id}>{ep.name}</a>
             <Badge variant={ep.reachable ? "success" : "muted"}>
               {ep.reachable ? t("node.endpoints.reachable") : t("node.endpoints.unreachable")}
             </Badge>
             {#if surfaceChanged(ep)}
               <Badge variant="warning">{t("node.endpoints.surface_changed")}</Badge>
             {/if}
-            <span class="text-xs text-[var(--ha-secondary-text-color)]">{ep.device_type_name || hex(ep.device_type)}</span>
+            <span class="text-xs text-[var(--ha-secondary-text-color)]">
+              {ep.device_type_name || hex(ep.device_type)}{ep.device_type_revision ? ` r${ep.device_type_revision}` : ""}
+            </span>
             {#if topLevel.has(ep.parent_endpoint_id)}
               <span class="text-xs text-[var(--ha-secondary-text-color)]">{t("node.endpoints.part_of", { id: ep.parent_endpoint_id })}</span>
             {/if}

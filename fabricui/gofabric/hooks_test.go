@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/SukramJ/go-fabric/controller"
+	"github.com/SukramJ/go-fabric/controller/client"
 
 	"github.com/SukramJ/go-fabric-ui/fabricui"
 )
@@ -80,4 +81,27 @@ func TestHooks_ConcurrentCloseAndUpdates(t *testing.T) {
 	wg.Wait()
 	time.Sleep(10 * time.Millisecond)
 	h.Close()
+}
+
+// An event the node delivered schedules node_updated, after the host's own
+// Event hook ran: the events tab reloads on it.
+func TestHooks_EventChainsAndSchedulesAnUpdate(t *testing.T) {
+	h := NewHooks()
+	h.delay = time.Hour
+	_ = ControllerOf(&controller.Controller{}, ControllerOptions{Hooks: h})
+	defer h.Close()
+	var hostSaw atomic.Int32
+	hooks := h.Wrap(func(string) client.Hooks {
+		return client.Hooks{Event: func(uint16, uint32, uint32, client.EventData, any) { hostSaw.Add(1) }}
+	})("n1")
+	hooks.Event(1, 0x0039, 0x03, client.EventData{}, nil)
+	h.mu.Lock()
+	pending := h.pending["n1"] != nil
+	h.mu.Unlock()
+	if hostSaw.Load() != 1 || !pending {
+		t.Fatalf("host hook ran %d times, node_updated pending %v", hostSaw.Load(), pending)
+	}
+	if bothEvent(nil, nil) != nil {
+		t.Fatal("two absent hooks chain to one")
+	}
 }

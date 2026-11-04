@@ -1,0 +1,38 @@
+{
+  "route": "GET /node/endpoints/{ep}/events",
+  "request": {
+    "method": "GET",
+    "path": "/node/endpoints/2/events"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "events": [
+        {
+          "cluster_hex": "0x0039",
+          "data": {
+            "reachableNewValue": false
+          },
+          "endpoint": 2,
+          "epoch_ms": 1792929480000,
+          "event_hex": "0x0003",
+          "name": "ReachableChanged",
+          "number": 7,
+          "priority": "info"
+        },
+        {
+          "cluster_hex": "0x0039",
+          "data": {
+            "reachableNewValue": true
+          },
+          "endpoint": 2,
+          "epoch_ms": 1792929540000,
+          "event_hex": "0x0003",
+          "name": "ReachableChanged",
+          "number": 9,
+          "priority": "info"
+        }
+      ]
+    }
+  }
+}

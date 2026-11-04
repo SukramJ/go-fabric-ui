@@ -56,7 +56,9 @@ opened or closed, and every endpoint whose surface an assembly changed
 caused it, a reassembly the host runs on its own included — and every CASE
 session opened or closed and every change of its subscriptions
 (`session_opened`, `session_closed`, `subscriptions_changed`, from
-`OnSessionOpened`, `OnSessionClosed`, `OnSubscriptionsChanged`).
+`OnSessionOpened`, `OnSessionClosed`, `OnSubscriptionsChanged`) and every
+attribute change of a cluster server (`attribute_changed`, from
+`OnAttributeChanged`: the ids, never the values).
 `node.Config.Observers` stays the host's own. A host that carries these
 events over a channel of its own registers `fabricui.NodeObservers` with
 `Node.Observe` the same way; publishing them into `Options.Events` instead
@@ -67,9 +69,11 @@ Everything the handlers read is on the node facade: the window from
 the configured codes from `Node.SetupPayload`, the clusters of every
 endpoint, parts included, from `Topology`, fresh window credentials from
 `node.NewWindowCredentials`, the session table from
-`Node.SessionDiagnostics`, and the surface summary of the status (level,
-profiles, extensions and counts) from `Node.Surface`. A host wrapping its node in its own
-`NodeSource` implements those methods.
+`Node.SessionDiagnostics`, the surface summary of the status (level,
+profiles, extensions and counts) from `Node.Surface`, an endpoint's values
+from `Node.ReadCluster` and `Node.ReadAttribute` and its events from
+`Node.Events` (0.5.0). A host wrapping its node in its own `NodeSource`
+implements those methods.
 
 ## The controller family
 
@@ -100,7 +104,7 @@ mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Controller: src}))
 
 | Field | Purpose |
 | --- | --- |
-| `Hooks` | Turns the nodes' `client.Hooks` into the controller stream's events (`node_added`, `node_removed`, `connection`, `subscription`, `node_updated`, coalesced). `Wrap` chains them after the host's own `HooksFor`; `Close` (before the controller's) stops the pending timers; events after it, or while the controller has no registry, are dropped. Nil leaves the stream with the handler's own events. |
+| `Hooks` | Turns the nodes' `client.Hooks` into the controller stream's events (`node_added`, `node_removed`, `connection`, `subscription`, `node_updated`, coalesced — a structure change, a report or an event the node delivered). `Wrap` chains them after the host's own `HooksFor`, its `Event` hook included; `Close` (before the controller's) stops the pending timers; events after it, or while the controller has no registry, are dropped. Nil leaves the stream with the handler's own events. |
 | `Credentials` | The host's credential store: `fabricui.CredentialStore` (list names, set write-only, remove) plus `WiFi(id)` and `Thread(id)` for a commissioning that names one. `fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName)` is an in-memory one that checks a dataset with go-fabric's decoder. Nil answers 503 on the credential routes. |
 | `Pair` | The template of every commissioning: the attestation policy, the default subscription, the BLE central (`Capabilities().BLE`). The network a request names is set on a copy. |
 | `Logger` | The adapter's logger; nothing it logs carries a passcode or a credential. |

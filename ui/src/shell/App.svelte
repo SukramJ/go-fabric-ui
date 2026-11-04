@@ -23,6 +23,7 @@
   import NodeFabrics from "../lib/pages/node/Fabrics.svelte";
   import NodeSelection from "../lib/pages/node/Selection.svelte";
   import NodeEndpoints from "../lib/pages/node/Endpoints.svelte";
+  import NodeEndpoint from "../lib/pages/node/Endpoint.svelte";
   import NodeSurface from "../lib/pages/node/Surface.svelte";
   import NodeDiagnostics from "../lib/pages/node/Diagnostics.svelte";
   import NodeTopology from "../lib/pages/node/Topology.svelte";
@@ -77,7 +78,10 @@
     { key: "settings", label: t("controller.tab.settings"), href: ui.routes.controllerSettings },
   ]);
 
-  const nodePage = $derived(route.family === "node" && route.page in nodePages ? (route.page as keyof typeof nodePages) : "status");
+  // An endpoint's page sits under the endpoints tab.
+  const nodePage = $derived(
+    route.family === "node" && route.page === "endpoint" ? "endpoints" : route.family === "node" && route.page in nodePages ? (route.page as keyof typeof nodePages) : "status",
+  );
   const controllerPage = $derived(route.family === "controller" && route.page in controllerPages ? (route.page as keyof typeof controllerPages) : "nodes");
 
   async function probeNode() {
@@ -154,7 +158,15 @@
     {/if}
     {#if family === "node"}
       <Tabs items={nodeTabs} active={nodePage} />
-      <div class="mt-4"><NodeCurrent /></div>
+      <div class="mt-4">
+        {#if route.family === "node" && route.endpoint !== undefined}
+          {#key route.endpoint}
+            <NodeEndpoint endpoint={route.endpoint} />
+          {/key}
+        {:else}
+          <NodeCurrent />
+        {/if}
+      </div>
     {:else}
       <Tabs items={controllerTabs} active={route.nodeId ? "nodes" : controllerPage} />
       <div class="mt-4">
