@@ -56,8 +56,10 @@ over 0.3.1.
 - The endpoints of `GET /controller/nodes/{id}` list every device type of
   the Descriptor's DeviceTypeList, each with its revision, not only the
   endpoint's own.
-- go-fabric `v0.16.1-0.20261103194851-53b0d93d8942` (main at `53b0d93d`),
-  a pseudo-version until go-fabric's next tag; no migration was needed.
+- go-fabric `v0.16.1-0.20261104133901-894adbcd4cd3` (main at `894adbcd`,
+  the M9 module wave), a pseudo-version until go-fabric's next tag. One
+  migration: `Registry.ForDevice` takes the new node's local id, and the
+  pairing adapter passes `""` so the registry allocates one, as before.
 
 ## [0.4.1] - 2026-11-03
 
