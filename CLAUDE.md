@@ -9,7 +9,7 @@ One web interface for every daemon built on
 embedded by the projects (go-ha2fabric, go-fabric-server, openccu-loom).
 `CONCEPT.md` is the short design; the full one is go-fabric's
 `docs/concept-v9-fabric-ui.md`. **State:** wave U1 (the node page family)
-is `v0.1.0`, patched in `v0.1.1` (brief U1a) and `v0.1.2` (brief U1b, go-fabric v0.12.2's facade routes) and `v0.1.3` (brief F2, list-valued fields); wave U2 (brief U2) adds the controller family in `v0.2.0`; wave U3a (brief U3a) adds the node family's topology view in `v0.4.0`; wave U3b (brief U3b) the controller family's network graph in `v0.4.1`; wave U4b (brief U4b) the controller family's inventory and wave U4a (brief U4a) the node family's endpoint page and the event log of both families in `v0.5.0` (unreleased).
+is `v0.1.0`, patched in `v0.1.1` (brief U1a) and `v0.1.2` (brief U1b, go-fabric v0.12.2's facade routes) and `v0.1.3` (brief F2, list-valued fields); wave U2 (brief U2) adds the controller family in `v0.2.0`; wave U3a (brief U3a) adds the node family's topology view in `v0.4.0`; wave U3b (brief U3b) the controller family's network graph in `v0.4.1`; wave U4b (brief U4b) the controller family's inventory and wave U4a (brief U4a) the node family's endpoint page and the event log of both families, and wave U5a (brief U5a) operation — node selector, Operation page, ping, QR scan, pairing hints, live status, Playwright smoke — in `v0.5.0` (unreleased).
 
 ## Commands
 
@@ -17,6 +17,7 @@ is `v0.1.0`, patched in `v0.1.1` (brief U1a) and `v0.1.2` (brief U1b, go-fabric 
 make ci              # build vet test lint web-check dist-check — what the pipeline runs
 make race            # go test -race (CGO_ENABLED=1 for this run only)
 make e2e             # the end-to-end test: a fabrictest controller commissions through the handler
+make e2e-web         # the Playwright smoke per page (Chromium) against fabricui's TestServeE2EWeb
 make fmt             # gofumpt -w .
 make web-install     # npm ci in ui/
 make web             # rebuild the committed bundle fabricui/dist
@@ -62,7 +63,8 @@ responses are recorded from the handlers with
   Ingress panel, because that is how the pages adopt a host theme; and the
   ecosystem labels on the compatibility page name the controller vendors
   (Apple Home, Google Home, Amazon Alexa, Home Assistant) as go-fabric's
-  vendor table names them.
+  vendor table names them; the pairing hints (brief U5a) add SmartThings
+  and quote matter.js `docs/ECOSYSTEMS.md`.
 - **The bundle is committed** (`fabricui/dist/`) and guarded: pinned
   versions, `npm ci`, byte-identical rebuild in CI. Sourcemaps are not
   committed.

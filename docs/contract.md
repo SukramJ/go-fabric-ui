@@ -37,7 +37,47 @@ Paths are relative to the mount prefix (`Options.Prefix`, default
 | `/node/exposure/preview` | POST | yes | 200, 400, 403, 500, 503 | provider `Preview` |
 | `/node/maintenance/reassemble` | POST | yes | 204, 403, 500, 503 | `Options.Reassemble` |
 | `/node/maintenance/factory-reset` | POST | yes | 204, 400, 403, 500, 503 | `FabricInfos`, `RemoveFabric` for each |
-| `/node/stream` | GET | – | 200 (`text/event-stream`) | `Observe` (per stream), `Options.Events`, the handler's own events |
+| `/node/stream` | GET | – | 200 (`text/event-stream`) | `Observe`, `OnHealthSample`, `OnDiagnosticEvent` (per stream), `Options.Events`, the handler's own events |
+
+`GET /node/status` also reports `exposure_reason` (0.5.0): why the host
+serves no selection (`Options.ExposureReason`), absent with a selection.
+
+## The node selector (0.5.0)
+
+| Route | Method | Admin | Answers | Reads |
+| --- | --- | --- | --- | --- |
+| `/nodes` | GET | – | 200 | `Options.Node` (key `default`) and `Options.Nodes`, the default first: `{nodes: [{key, label, kind?, enabled}]}` |
+| `/nodes/{node}/…` | as `/node/…` | as `/node/…` | as `/node/…`, and 404 for a key `/nodes` does not list | the node of that key |
+
+Every node route is served twice: under `/node/…` for the **default node**
+— `Options.Node`, else the first of `Options.Nodes` — and under
+`/nodes/{node}/…` for every node by its key, the default included; the
+operation ids of the second set carry the suffix `ForNode`. A key matches
+`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$` and is no page name of the node family
+(`status`, `pair`, …), so the shell's hash route `#/node/<key>/<page>` stays
+unambiguous. The selection (`Options.Exposure`), `Options.Reassemble` and
+`Options.Events` belong to the default node; another node answers its
+exposure routes 503 and reports `exposure: false` with the host's
+`exposure_reason`. One admin token covers every node. A node listed
+without a source (`NodeEntry.Source` nil) is `enabled: false`, and its
+routes answer as the family's without a node. The standalone shell shows a
+node selector in its header when the list holds more than one node.
+
+## Operation (0.5.0)
+
+| Route | Method | Admin | Answers | Reads |
+| --- | --- | --- | --- | --- |
+| `/operation/info` | GET | – | 200, 503 | `Operations.Info`: `{version, go_fabric, uptime_s, started_at}` |
+| `/operation/log/level` | GET | – | 200, 503 | `Operations.LogLevel`: `{level, levels[]}` |
+| `/operation/log/level` | PUT | yes | 200, 400, 403, 500, 503 | `Operations.SetLogLevel` with `{level}` |
+| `/operation/log` | GET | – | 200, 400, 503 | `Operations.Log(since, limit)`: `{records: [{seq, time, level, msg, attrs}]}`, oldest first; `limit` 1..2000, default 200 |
+| `/operation/log/stream` | GET | – | 200 (`text/event-stream`), 503 | `Operations.ObserveLog`: `event: log_record` with a `LogRecord`, a comment line every 15 s, the oldest dropped for a client 64 records behind |
+
+The levels are slog's four, lower-case: `debug`, `info`, `warn`, `error`;
+a level between two names reads as the lower one. Every route answers 503
+`service_unready` while the host attaches no `Options.Operations`; the
+shell then hides the Operation tab. The page belongs to neither family: a
+daemon with a controller only has it as well.
 
 A route whose dependency the host did not wire answers
 `503 service_unready`: no node (`Options.Node` nil), no selection
@@ -74,10 +114,11 @@ Details the fixtures pin:
 - **Stream**: `event:` is `fabric_added`, `fabric_removed`,
   `window_opened`, `window_closed`, `endpoints_changed`,
   `exposure_changed`, `surface_changed`, `session_opened`,
-  `session_closed`, `subscriptions_changed` or `attribute_changed`
-  (0.4.1); `data:` is JSON (`FabricEvent`, `WindowEvent`, `{}`,
-  `ExposureEvent`, `SurfaceChangedEvent`, `SessionEvent`,
-  `AttributeChangedEvent`). A comment line arrives every 15 s. The fabric, window and surface events come from
+  `session_closed`, `subscriptions_changed`, `attribute_changed`
+  (0.4.1), `health_sample` or `diagnostic_event` (0.5.0); `data:` is JSON
+  (`FabricEvent`, `WindowEvent`, `{}`, `ExposureEvent`,
+  `SurfaceChangedEvent`, `SessionEvent`, `AttributeChangedEvent`,
+  `HealthSampleEvent`, `DiagnosticEvent`). A comment line arrives every 15 s. The fabric, window and surface events come from
   the node (`Node.Observe`, registered per stream), once per transition,
   whoever caused it. `surface_changed` is go-fabric's
   `Observers.OnSurfaceChanged`: one event per endpoint whose served surface
@@ -96,7 +137,13 @@ Details the fixtures pin:
   `{endpoint, cluster_hex, attributes[]}` with the attribute ids in hex
   and never a value — a page refetches what it shows. A burst of changes
   is a burst of events; a stream that falls 64 events behind drops the
-  oldest.
+  oldest. `health_sample` (0.5.0) is every verdict of the node's health
+  probe (`Node.OnHealthSample`): `{healthy, note, sampled_at}`, the time
+  the handler received it on the node's clock — the status page reloads on
+  a burst of them. `diagnostic_event` (0.5.0) is every entry the node adds
+  to the trace `GET /node/events` serves (`Node.OnDiagnosticEvent`), in its
+  shape — the diagnostics page reloads on a burst of them. Both callbacks
+  are registered per stream and removed when it closes.
 
 ## The endpoint detail and the event log (0.4.1)
 
@@ -279,6 +326,7 @@ hand-written.
 | `/controller/nodes/{id}/events` | GET | – | 200, 400, 404 — served from 0.4.1 |
 | `/controller/nodes/{id}` | DELETE | yes | 204, 400, 403, 404, 500, 502 |
 | `/controller/nodes/{id}/interview` | POST | yes | 204, 400, 403, 404, 502 |
+| `/controller/nodes/{id}/ping` | POST | yes | 200, 400, 403, 404 — served from 0.5.0 |
 | `/controller/nodes/{id}/enable`, `/disable` | POST | yes | 204, 400, 403, 404, 500 |
 | `/controller/nodes/{id}/auto-subscribe` | POST | yes | 204, 400, 403, 404, 500 |
 | `/controller/nodes/{id}/window` | POST | yes | 200, 400, 403, 404, 502 |
@@ -336,6 +384,14 @@ Details the fixtures pin:
 - **Values** are JSON by the generated cluster definitions, a struct
   keyed by field name (`{"fabricIndex": 1}`); cluster, attribute, command
   and device type ids travel as `0x`-prefixed hex.
+- **Ping** (0.5.0): `POST …/ping` is a Matter read of the node's
+  BasicInformation DataModelRevision (0x0028/0x0000), not an ICMP echo —
+  go-fabric-server's `ping_node` measures the same. `{method:
+  "matter-read", per_address, reachable, rtt_ms?, error?, addresses[]}`:
+  go-fabric's controller reads through the node's session and cannot aim a
+  read at one address, so `per_address` is false and the one outcome
+  stands for every address the record lists. A failed read is 200 with
+  `reachable: false` and the reason, not an error.
 - **ACL and bindings** are written as one list. A subject naming the node
   itself is left out of an ACL write, and an entry left without subjects
   dropped, as matterjs-server does. The page warns before a list that
