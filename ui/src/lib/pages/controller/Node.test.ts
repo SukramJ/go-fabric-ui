@@ -26,6 +26,18 @@ describe("Controller Node", () => {
     expect(screen.getByText("controller.overview.flag.supports_wifi")).toBeInTheDocument();
   });
 
+  it("pings the node and says it measured a Matter read, per address", async () => {
+    const ui = renderNode(L, "overview", ["controller-node-ping.200"]);
+    await screen.findByTestId("node-overview");
+    await fireEvent.click(screen.getByText("controller.ping.button"));
+    const res = await screen.findByTestId("ping-result");
+    expect(res).toHaveTextContent("controller.ping.method_session");
+    expect(res).toHaveTextContent("controller.ping.reachable");
+    expect(res).toHaveTextContent('controller.ping.rtt:{"ms":12.5}');
+    expect(screen.getAllByTestId("ping-address")[0]).toHaveTextContent("[fd00::11]:5540");
+    expect(ui.sent.find((r) => r.method === "POST")?.headers["X-Fabric-UI-Token"]).toBe("test-token");
+  });
+
   it("lists the endpoints with device types and clusters", async () => {
     renderNode(L, "endpoints", []);
     const ep1 = await screen.findByTestId("endpoint-1");

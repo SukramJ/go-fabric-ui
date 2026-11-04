@@ -1,0 +1,40 @@
+{
+  "route": "GET /operation/log",
+  "request": {
+    "method": "GET",
+    "path": "/operation/log?since=2"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "records": [
+        {
+          "attrs": {},
+          "level": "warn",
+          "msg": "mdns: only a link-local address",
+          "seq": 2,
+          "time": "2026-10-25T11:59:57Z"
+        },
+        {
+          "attrs": {
+            "fabric": "1",
+            "peer.node": "000000000001B669"
+          },
+          "level": "info",
+          "msg": "session opened",
+          "seq": 3,
+          "time": "2026-10-25T11:59:58Z"
+        },
+        {
+          "attrs": {
+            "error": "timeout"
+          },
+          "level": "error",
+          "msg": "subscription failed",
+          "seq": 4,
+          "time": "2026-10-25T11:59:59Z"
+        }
+      ]
+    }
+  }
+}

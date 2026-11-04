@@ -1,0 +1,24 @@
+{
+  "route": "PUT /operation/log/level",
+  "request": {
+    "method": "PUT",
+    "path": "/operation/log/level",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "level": "verbose"
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "code": "bad_request",
+      "detail": "level \"verbose\" is not one of debug, info, warn, error",
+      "instance": "/api/v1/operation/log/level",
+      "status": 400,
+      "title": "Invalid log level",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-bad_request"
+    }
+  }
+}

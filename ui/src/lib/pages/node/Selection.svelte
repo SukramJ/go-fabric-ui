@@ -9,7 +9,8 @@
      are list-valued fields (Column.multi, Filter.multi) and the host's
      warnings above the list. Items whose verdict is unmappable — nothing
      the host could expose now — are hidden until the toggle above the list
-     shows them (0.2.5). -->
+     shows them (0.2.5). A host without a selection gets the page all the
+     same when it says why (Status.exposure_reason, 0.5.0). -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -41,6 +42,16 @@
     // The status carries the host's warnings; a host page that mounts the
     // selection alone has not loaded it yet.
     if (node.status === null && !node.statusLoading) void node.loadStatus();
+  });
+
+  // The selection loads once the status says the host serves one — or
+  // could not say (a failed status read loads it all the same), so a node
+  // without a selection is never asked for one.
+  let exposureRequested = false;
+  $effect(() => {
+    if (exposureRequested) return;
+    if (node.status === null && (node.statusLoading || node.statusError === null)) return;
+    exposureRequested = true;
     if (!unavailable) void node.loadExposure();
   });
 
@@ -255,6 +266,10 @@
 
 {#if unavailable}
   <EmptyState message={t("node.selection.unavailable")} />
+  <!-- The host's own reason (Status.exposure_reason, 0.5.0), in its language. -->
+  {#if node.status?.exposure_reason}
+    <p class="mt-2 text-center text-sm text-[var(--ha-secondary-text-color)]" data-testid="exposure-reason">{node.status.exposure_reason}</p>
+  {/if}
 {:else if node.exposureLoading && !schema}
   <LoadingState message={t("common.loading")} />
 {:else if node.exposureError}

@@ -24,7 +24,12 @@ each project.
 > family's endpoint page with what the node serves — the same inventory
 > with the values, the host's surface decisions and the endpoint's events
 > — refetched on the stream's `attribute_changed`; and the events tab of
-> the controller's node page.
+> the controller's node page. Wave U5a (unreleased) adds operation: a
+> node selector for daemons with several device nodes, an Operation page
+> (log level, log ring and stream, version, uptime), a ping of a
+> commissioned node by Matter read, the camera QR scan when
+> commissioning, pairing hints per ecosystem, status and diagnostics that
+> follow the stream, and a Playwright smoke per page.
 
 ## Two artefacts, one version
 

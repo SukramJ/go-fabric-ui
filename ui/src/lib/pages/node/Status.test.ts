@@ -20,6 +20,19 @@ describe("Status", () => {
     }
   });
 
+  it("reloads on a burst of health_sample and shows the new verdict", async () => {
+    const s = body<StatusT>("node-status.200");
+    const ui = testUI({ answers: { "GET /node/status": { status: 200, body: s } } });
+    render(Harness, { ui, page: Status });
+    expect(await screen.findByTestId("node-status")).toHaveTextContent("node.status.healthy");
+    s.healthy = false;
+    const sample = { healthy: false, note: "listener closed", sampled_at: "2026-10-25T12:00:00Z" };
+    ui.node.applyEvent({ type: "health_sample", data: sample });
+    ui.node.applyEvent({ type: "health_sample", data: sample });
+    expect(await screen.findByText("node.status.unhealthy")).toBeInTheDocument();
+    expect(ui.sent.filter((r) => r.path === "/api/v1/node/status")).toHaveLength(2);
+  });
+
   it("counts the open window down from its deadline", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-10-25T12:01:00Z"));

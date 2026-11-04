@@ -2,7 +2,8 @@
      countdown, close it, and report the controller that paired. Ported from
      openccu-loom assets/ui/src/routes/matter/MatterPair.svelte:1-279 at
      b40b289a; the host-readiness gate becomes the node's own "no endpoint
-     exposed yet" hint, and the colours are the theme tokens. -->
+     exposed yet" hint, and the colours are the theme tokens. Below the
+     flow, the ecosystems' pairing hints (EcosystemHints, 0.5.0). -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -11,6 +12,7 @@
   import Button from "../../kit/Button.svelte";
   import Card from "../../kit/Card.svelte";
   import Select from "../../kit/Select.svelte";
+  import EcosystemHints from "./EcosystemHints.svelte";
 
   const { t, toast, node } = useFabricUI();
 
@@ -182,5 +184,8 @@
       {/if}
       <Button onclick={() => node.resetCommissioning()}>{t("common.close")}</Button>
     </Card>
+  {/if}
+  {#if !hydrateLoading}
+    <EcosystemHints />
   {/if}
 </div>

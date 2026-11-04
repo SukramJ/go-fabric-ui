@@ -1,0 +1,25 @@
+{
+  "route": "PUT /operation/log/level",
+  "request": {
+    "method": "PUT",
+    "path": "/operation/log/level",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "level": "debug"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "level": "debug",
+      "levels": [
+        "debug",
+        "info",
+        "warn",
+        "error"
+      ]
+    }
+  }
+}

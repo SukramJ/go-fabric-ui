@@ -40,6 +40,8 @@ func TestControllerFixtures(t *testing.T) {
 		"controller-node-cluster.200",
 		"controller-node-cluster.404",
 		"controller-node-events.200",
+		"controller-node-ping.200",
+		"controller-node-ping.404",
 		"controller-node-decommission.204",
 		"controller-node-decommission.403",
 		"controller-node-interview.204",
@@ -109,6 +111,14 @@ func TestController_AbsentAnswers404(t *testing.T) {
 // (a path at two spaces, a method at four, x-admin at six).
 func adminRoutesOfContract(t *testing.T) []string {
 	t.Helper()
+	return contractAdminRoutes(t, func(path string) bool { return strings.HasPrefix(path, "/controller/") })
+}
+
+// contractAdminRoutes are the operations under the paths keep admits that
+// contract/openapi.yaml marks x-admin, scanned as adminRoutesOfContract
+// describes.
+func contractAdminRoutes(t *testing.T, keep func(path string) bool) []string {
+	t.Helper()
 	b, err := os.ReadFile("../contract/openapi.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -126,7 +136,7 @@ func adminRoutesOfContract(t *testing.T) []string {
 			method = strings.ToUpper(m[1])
 			continue
 		}
-		if strings.TrimSpace(line) == "x-admin: true" && method != "" && strings.HasPrefix(path, "/controller/") {
+		if strings.TrimSpace(line) == "x-admin: true" && method != "" && keep(path) {
 			out = append(out, method+" "+path)
 		}
 	}
@@ -371,5 +381,20 @@ func TestMemoryController_Flows(t *testing.T) {
 	}
 	if n, ok := m.Node(0x11); !ok || n.Disabled() {
 		t.Fatal("node state")
+	}
+}
+
+// A ping of a node that does not answer is a result, not an error: every
+// address unreachable, the reason given, no round trip.
+func TestPingNode_UnreachableIsAResult(t *testing.T) {
+	_, mux, m := controllerHandler(t, nil)
+	n, _ := m.Node(0x11)
+	if err := n.Disable(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	rec := do(t, mux, http.MethodPost, "/controller/nodes/0000000000000011/ping", "")
+	want := `{"addresses":[{"ip":"[fd00::11]:5540","reachable":false}],"error":"the node is disabled","method":"matter-read","per_address":false,"reachable":false}`
+	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != want {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
 }
