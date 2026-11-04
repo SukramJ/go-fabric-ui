@@ -180,6 +180,75 @@ type fakeNode struct {
 	// route-caused transitions to them as the node does.
 	observers map[int]node.Observers
 	nextObs   int
+	// healthFns and diagFns are what onHealthSample and onDiagnosticEvent
+	// registered.
+	healthFns map[int]func(node.HealthSample)
+	diagFns   map[int]func(node.DiagnosticEvent)
+}
+
+func (f *fakeNode) onHealthSample(fn func(node.HealthSample)) (unsubscribe func()) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.healthFns == nil {
+		f.healthFns = map[int]func(node.HealthSample){}
+	}
+	id := f.nextObs
+	f.nextObs++
+	f.healthFns[id] = fn
+	return func() {
+		f.mu.Lock()
+		delete(f.healthFns, id)
+		f.mu.Unlock()
+	}
+}
+
+func (f *fakeNode) onDiagnosticEvent(fn func(node.DiagnosticEvent)) (unsubscribe func()) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.diagFns == nil {
+		f.diagFns = map[int]func(node.DiagnosticEvent){}
+	}
+	id := f.nextObs
+	f.nextObs++
+	f.diagFns[id] = fn
+	return func() {
+		f.mu.Lock()
+		delete(f.diagFns, id)
+		f.mu.Unlock()
+	}
+}
+
+// sample hands s to every health callback, as the probe does.
+func (f *fakeNode) sample(s node.HealthSample) {
+	f.mu.Lock()
+	fns := make([]func(node.HealthSample), 0, len(f.healthFns))
+	for _, fn := range f.healthFns {
+		fns = append(fns, fn)
+	}
+	f.mu.Unlock()
+	for _, fn := range fns {
+		fn(s)
+	}
+}
+
+// trace hands e to every diagnostic callback, as the trace does.
+func (f *fakeNode) trace(e node.DiagnosticEvent) {
+	f.mu.Lock()
+	fns := make([]func(node.DiagnosticEvent), 0, len(f.diagFns))
+	for _, fn := range f.diagFns {
+		fns = append(fns, fn)
+	}
+	f.mu.Unlock()
+	for _, fn := range fns {
+		fn(e)
+	}
+}
+
+// callbackCount is how many health and diagnostic callbacks are registered.
+func (f *fakeNode) callbackCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.healthFns) + len(f.diagFns)
 }
 
 // notify runs fn on every registered observer set, outside the lock.
@@ -597,6 +666,12 @@ type testOptions struct {
 	warnings   func(context.Context) []Warning
 	log        *bytes.Buffer
 	controller ControllerSource
+	operations Operations
+	// exposureReason is Options.ExposureReason.
+	exposureReason string
+	// second, when set, is a second node under the key "second" with the
+	// label "Second bridge" and the kind "bridge".
+	second *fakeNode
 }
 
 // newTestHandler builds a handler on the fake node and returns it with its
@@ -610,7 +685,7 @@ func newTestHandler(t *testing.T, o testOptions) (*handler, *http.ServeMux) {
 	h, err := newHandler(Options{
 		Exposure: o.exposure, Admin: o.admin, Reassemble: o.reassemble, Events: o.events,
 		Logger: logger, ConfiguredWindow: o.configured, AllowEmptyTopology: o.allowEmpty,
-		Warnings: o.warnings, Controller: o.controller,
+		Warnings: o.warnings, Controller: o.controller, Operations: o.operations, ExposureReason: o.exposureReason,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -620,6 +695,9 @@ func newTestHandler(t *testing.T, o testOptions) (*handler, *http.ServeMux) {
 			o.node = sampleNode()
 		}
 		h.node = o.node
+	}
+	if o.second != nil {
+		h.nodes = []nodeEntry{{key: DefaultNodeKey, port: h.node}, {key: "second", label: "Second bridge", kind: "bridge", port: o.second}}
 	}
 	if o.admin == nil {
 		h.token = testToken

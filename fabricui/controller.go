@@ -163,6 +163,10 @@ type ControllerNode interface {
 	RevokeCommissioningWindow(ctx context.Context) error
 	// Interview reads the whole node again.
 	Interview(ctx context.Context) error
+	// Ping reads the node's BasicInformation DataModelRevision and
+	// measures the round trip; a failed read is a result with Reachable
+	// false, not an error.
+	Ping(ctx context.Context) (PingResult, error)
 	Enable(ctx context.Context) error
 	Disable(ctx context.Context) error
 	SetAutoSubscribe(ctx context.Context, on bool) error
@@ -469,6 +473,30 @@ type InvokeResult struct {
 	HasResponse bool
 	Command     uint32
 	Response    json.RawMessage
+}
+
+// PingResult is the outcome of [ControllerNode.Ping]: a Matter read, not
+// an ICMP echo.
+type PingResult struct {
+	// PerAddress says whether each address was read on its own; false
+	// when one read through the node's session stands for every address.
+	PerAddress bool
+	Reachable  bool
+	// RTT is the read's round trip; zero when it failed.
+	RTT time.Duration
+	// Error is why the read failed; empty when it answered.
+	Error string
+	// Addresses are the node's known addresses, each with its outcome.
+	Addresses []PingAddress
+}
+
+// PingAddress is one address of a [PingResult].
+type PingAddress struct {
+	// Address is the address with its port, as NodeRecord.Addresses
+	// lists it.
+	Address   string
+	Reachable bool
+	RTT       time.Duration
 }
 
 // WindowInfo is an open commissioning window on a node. Passcode is a

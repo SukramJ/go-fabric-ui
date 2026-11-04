@@ -55,14 +55,59 @@ type NodeSource interface {
 	ReadCluster(ctx context.Context, endpoint uint16, cluster uint32) ([]node.AttributeValue, error)
 	ReadAttribute(ctx context.Context, endpoint uint16, cluster, attribute uint32) (node.AttributeValue, error)
 	Events(q node.EventQuery) []node.Event
+	// OnHealthSample and OnDiagnosticEvent register a callback for every
+	// verdict of the node's health probe and every entry of its diagnostic
+	// trace, and return the function that unregisters it (go-fabric
+	// node/health.go:93 and node/diagnostics.go:40 at 19588e9b); the
+	// stream carries them as health_sample and diagnostic_event (contract
+	// 0.5.0). Both run on the goroutine that produced the value and must
+	// not block.
+	OnHealthSample(fn func(node.HealthSample)) (unsubscribe func())
+	OnDiagnosticEvent(fn func(node.DiagnosticEvent)) (unsubscribe func())
+}
+
+// DefaultNodeKey is the key GET /nodes lists [Options].Node under.
+const DefaultNodeKey = "default"
+
+// NodeEntry is one device node of the node family: a key the routes
+// /nodes/{key}/… carry, what the selector shows, and the node.
+type NodeEntry struct {
+	// Key identifies the node in the routes and the shell's hash routes;
+	// stable across restarts. It matches ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$
+	// and is not a page name of the node family (status, pair, fabrics,
+	// selection, endpoints, endpoint, surface, diagnostics, topology).
+	Key string
+	// Label is the host's name for the node; empty shows the key.
+	Label string
+	// Kind is what the host says the node is ("bridge", "device"); empty
+	// says nothing.
+	Kind string
+	// Source is the node; nil lists it as not enabled, and its routes
+	// answer as the family's routes without a node.
+	Source NodeSource
 }
 
 // Options configures the handlers.
 type Options struct {
 	// Node is the node the node family reads and drives; nil serves the
 	// family as disabled (status reports enabled false, every other node
-	// route answers 503 service_unready).
+	// route answers 503 service_unready). It is the default node: the
+	// /node/* routes serve it, and GET /nodes lists it first under
+	// [DefaultNodeKey].
 	Node NodeSource
+	// Nodes are the device nodes beside Node, in the selector's order,
+	// each served under /nodes/{key}/… (contract 0.5.0). With Node nil
+	// the first of them is the default node and the /node/* routes serve
+	// it. Exposure, Reassemble and Events belong to the default node; the
+	// other nodes serve no selection. Keys are unique.
+	Nodes []NodeEntry
+	// Operations is the daemon's log level, log ring and version, the
+	// Operation page's /operation/* routes; nil answers 503 there.
+	Operations Operations
+	// ExposureReason says why the host serves no selection (Exposure is
+	// nil), in the host's language; GET /node/status reports it and the
+	// selection page shows it. Empty gives no reason.
+	ExposureReason string
 	// Exposure is the host's selection; nil answers 503 on the exposure
 	// routes and hides the selection page.
 	Exposure ExposureProvider

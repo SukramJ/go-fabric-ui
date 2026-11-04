@@ -268,17 +268,8 @@ func (h *handler) compatibility(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, out)
 }
 
-// diagnosticEvent is one entry of GET /node/events (loom matter.go:558-565).
-type diagnosticEvent struct {
-	At       string            `json:"at"`
-	Kind     string            `json:"kind"`
-	Severity string            `json:"severity"`
-	Message  string            `json:"message"`
-	Detail   map[string]string `json:"detail,omitempty"`
-}
-
 type diagnosticEventList struct {
-	Events []diagnosticEvent `json:"events"`
+	Events []TraceEvent `json:"events"`
 }
 
 // diagnosticEvents serves GET /node/events: the pairing, session and
@@ -291,15 +282,9 @@ func (h *handler) diagnosticEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	events := h.node.diagnosticEvents()
-	out := make([]diagnosticEvent, 0, len(events))
-	for _, e := range events {
-		out = append(out, diagnosticEvent{
-			At:       e.At.UTC().Format(time.RFC3339),
-			Kind:     string(e.Kind),
-			Severity: string(e.Severity),
-			Message:  e.Message,
-			Detail:   e.Detail,
-		})
+	out := make([]TraceEvent, 0, len(events))
+	for i := range events {
+		out = append(out, traceEventOf(&events[i]))
 	}
 	writeJSON(w, diagnosticEventList{Events: out})
 }

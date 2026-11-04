@@ -44,6 +44,10 @@ type nodePort interface {
 	// eventLog are the event log's records q selects, oldest first
 	// (Node.Events).
 	eventLog(q node.EventQuery) []EventRecord
+	// onHealthSample and onDiagnosticEvent register fn until the returned
+	// function runs (Node.OnHealthSample, Node.OnDiagnosticEvent).
+	onHealthSample(fn func(node.HealthSample)) (unsubscribe func())
+	onDiagnosticEvent(fn func(node.DiagnosticEvent)) (unsubscribe func())
 }
 
 // nodeAdapter reads a [NodeSource] through the facade only.
@@ -144,6 +148,14 @@ func (a nodeAdapter) surface() surface.Report { return a.n.Surface() }
 
 func (a nodeAdapter) endpointDetail(ctx context.Context, ep uint16) (EndpointDetail, error) {
 	return readEndpointDetail(ctx, a.n, ep)
+}
+
+func (a nodeAdapter) onHealthSample(fn func(node.HealthSample)) (unsubscribe func()) {
+	return a.n.OnHealthSample(fn)
+}
+
+func (a nodeAdapter) onDiagnosticEvent(fn func(node.DiagnosticEvent)) (unsubscribe func()) {
+	return a.n.OnDiagnosticEvent(fn)
 }
 
 func (a nodeAdapter) eventLog(q node.EventQuery) []EventRecord {

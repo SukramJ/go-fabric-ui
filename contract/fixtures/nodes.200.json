@@ -1,0 +1,25 @@
+{
+  "route": "GET /nodes",
+  "request": {
+    "method": "GET",
+    "path": "/nodes"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "nodes": [
+        {
+          "enabled": true,
+          "key": "default",
+          "label": "default"
+        },
+        {
+          "enabled": true,
+          "key": "second",
+          "kind": "bridge",
+          "label": "Second bridge"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "route": "GET /operation/log",
+  "request": {
+    "method": "GET",
+    "path": "/operation/log?limit=0"
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "code": "bad_request",
+      "detail": "limit: 0 is not within 1..2000",
+      "instance": "/api/v1/operation/log",
+      "status": 400,
+      "title": "Invalid request",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-bad_request"
+    }
+  }
+}

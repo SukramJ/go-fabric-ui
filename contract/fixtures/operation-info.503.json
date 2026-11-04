@@ -1,0 +1,18 @@
+{
+  "route": "GET /operation/info",
+  "request": {
+    "method": "GET",
+    "path": "/operation/info"
+  },
+  "response": {
+    "status": 503,
+    "body": {
+      "code": "service_unready",
+      "detail": "the host serves no operations port (Options.Operations is nil)",
+      "instance": "/api/v1/operation/info",
+      "status": 503,
+      "title": "Operation not available",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-service_unready"
+    }
+  }
+}

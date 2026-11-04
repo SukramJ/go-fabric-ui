@@ -1,0 +1,39 @@
+{
+  "route": "GET /nodes/{node}/status",
+  "request": {
+    "method": "GET",
+    "path": "/nodes/second/status"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "advertising": true,
+      "commissioning_window_open": false,
+      "csrf_token": "test-token",
+      "enabled": true,
+      "endpoint_count": 2,
+      "exposure": false,
+      "exposure_reason": "This host builds its endpoints without a selection.",
+      "fabric_count": 1,
+      "listen_addr": "[::]:5541",
+      "listening": true,
+      "surface": {
+        "assembled": true,
+        "changed_count": 1,
+        "extensions": [
+          "BD-chip-Thermostat-Events",
+          "BD-chip-Thermostat-Schedules"
+        ],
+        "level": "1.5.1",
+        "level_origin": "explicit",
+        "profiles": [
+          "apple-home",
+          "home-assistant"
+        ],
+        "warning_count": 1,
+        "withheld_count": 1
+      },
+      "window_kind": "none"
+    }
+  }
+}

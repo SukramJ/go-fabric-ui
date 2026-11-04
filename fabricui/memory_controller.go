@@ -854,6 +854,24 @@ func (n *memoryNode) Interview(context.Context) error {
 	return nil
 }
 
+// memoryPingRTT is the round trip a memory node's ping reports.
+const memoryPingRTT = 12500 * time.Microsecond
+
+// Ping answers the fixture's result: one read stands for every address,
+// reachable unless the node is disabled.
+func (n *memoryNode) Ping(context.Context) (PingResult, error) {
+	res := PingResult{Reachable: !n.Disabled(), Addresses: []PingAddress{}}
+	if res.Reachable {
+		res.RTT = memoryPingRTT
+	} else {
+		res.Error = "the node is disabled"
+	}
+	for _, a := range n.Record().Addresses {
+		res.Addresses = append(res.Addresses, PingAddress{Address: a, Reachable: res.Reachable, RTT: res.RTT})
+	}
+	return res, nil
+}
+
 func (n *memoryNode) Enable(context.Context) error {
 	n.setDisabled(false)
 	return nil

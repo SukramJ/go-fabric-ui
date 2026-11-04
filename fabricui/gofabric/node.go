@@ -675,6 +675,39 @@ func (w *node) Interview(ctx context.Context) error {
 	return nil
 }
 
+// pingTimeout bounds the read of a ping, as go-fabric-server's ping_node
+// bounds each attempt (controllerapi/cmd_node.go:187).
+const pingTimeout = 10 * time.Second
+
+// Ping reads BasicInformation DataModelRevision (0x0028/0x0000) through the
+// node's session without data version filters and measures the round trip
+// — go-fabric-server's ping_node (controllerapi/cmd_node.go:167-204 at
+// e8bcd86), one attempt. The facade's read goes through the node's session
+// (client.Node.Read, go-fabric controller/client/interact.go:52 at
+// 894adbcd) and cannot be aimed at one address, so the one outcome stands
+// for every address the record lists (PerAddress false).
+func (w *node) Ping(ctx context.Context) (fabricui.PingResult, error) {
+	req := client.ReadRequest{IncludeKnownVersions: true}
+	req.Attributes = []client.AttributePath{client.AttributeAt(0, basicinformation.ClusterID, basicinformation.AttrDataModelRevision)}
+	rctx, cancel := context.WithTimeout(ctx, pingTimeout)
+	defer cancel()
+	start := time.Now()
+	_, err := w.n.Read(rctx, req)
+	rtt := time.Since(start)
+	// An answer is reachable, a status in place of the value included, as
+	// ping_node counts it (cmd_node.go:190-193: err == nil).
+	res := fabricui.PingResult{Addresses: []fabricui.PingAddress{}}
+	if err != nil {
+		res.Error = err.Error()
+	} else {
+		res.Reachable, res.RTT = true, rtt
+	}
+	for _, a := range w.Record().Addresses {
+		res.Addresses = append(res.Addresses, fabricui.PingAddress{Address: a, Reachable: res.Reachable, RTT: res.RTT})
+	}
+	return res, nil
+}
+
 func (w *node) Enable(ctx context.Context) error  { return nodeError(w.n.Enable(ctx)) }
 func (w *node) Disable(ctx context.Context) error { return nodeError(w.n.Disable(ctx)) }
 
