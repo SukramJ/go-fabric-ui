@@ -41,7 +41,11 @@ toast and confirm:
 Pages: `NodeStatus`, `NodePair`, `NodeFabrics` (with maintenance),
 `NodeSelection`, `NodeEndpoints`, `NodeSurface` (the node's surface
 report), `NodeDiagnostics`, `NodeTopology` (the node as a graph, v0.4.0;
-routes key `topology`, the kit's `Graph`). Each reads only the
+routes key `topology`, the kit's `Graph`), `NodeEndpointDetail` (one
+endpoint with its values, surface decisions and events, prop `endpoint`,
+v0.5.0; routes key `endpoint`, the prefix the page appends the number to,
+which the topology's endpoint refs and the endpoint list link to; the
+kit's `EventList`). Each reads only the
 context; none names a host concept. The selection page is driven by the
 provider's schema (see the repository's `docs/provider.md`).
 
@@ -50,7 +54,7 @@ Controller pages (v0.2.0): `ControllerNodes` (with the tabs `list` and
 alone, v0.4.1), `ControllerCommission`,
 `ControllerSettings`, and `ControllerNode` with the props `nodeId` (the
 16-digit hex `node_id_hex`) and an optional first `tab` (`overview`,
-`endpoints`, `inventory` (v0.5.0), `attributes`, `acl`, `bindings`,
+`endpoints`, `inventory` and `events` (v0.5.0), `attributes`, `acl`, `bindings`,
 `window`, `icd`, `fabrics`, `updates`). They read `ui.controller` (`createControllerStore`); the
 routes `controllerNodes`, `controllerCommission`, `controllerSettings` and
 the prefix `controllerNode` link them. `ui.controller.loadStatus()` sets
@@ -60,7 +64,7 @@ the prefix `controllerNode` link them. `ui.controller.loadStatus()` sets
 
 `t(key, vars)` is the host's. `createTranslator(locale, extra)` builds one
 over the package's catalogues (`catalogs.en`, `catalogs.de`, keys
-`node.*`, `controller.*`, `graph.*`, `shell.*`, `common.*`) plus the host's own; a `locale` getter that reads
+`node.*`, `controller.*`, `graph.*`, `events.*`, `inventory.*`, `shell.*`, `common.*`) plus the host's own; a `locale` getter that reads
 reactive state re-renders the pages on a language switch.
 
 ### Stylesheet

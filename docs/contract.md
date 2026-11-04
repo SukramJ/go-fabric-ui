@@ -23,6 +23,8 @@ Paths are relative to the mount prefix (`Options.Prefix`, default
 | `/node/pairing/window` | POST | yes | 200, 400, 403, 409, 500, 503 | `NewWindowCredentials`, `PairingCodesFor` and `OpenBasicWindow`, or `CommissioningWindow().OpenOwnWindow` and `SetupPayload` with `Options.ConfiguredWindow`; `Window` for the duration |
 | `/node/pairing/window/close` | POST | yes | 204, 403, 500, 503 | `Node.CloseWindow` |
 | `/node/endpoints` | GET | – | 200, 503 | `Topology` (`Clusters`, `DeviceTypeRevision` of every endpoint, parts included) |
+| `/node/endpoints/{ep}` | GET | – | 200, 400, 404, 500, 503 | `ReadCluster` (the Descriptor, then every cluster of its ServerList), `ReadAttribute` (the parts' PartsList), `Topology`, `Surface`, `schema` names — served from 0.4.1 |
+| `/node/endpoints/{ep}/events` | GET | – | 200, 400, 503 | `Events` with the endpoint's filter, `since` and `limit` — served from 0.4.1 |
 | `/node/surface` | GET | – | 200, 500, 503 | `Surface` — the `surface.Report` in go-fabric's own JSON encoding (`MarshalJSON`) |
 | `/node/sessions` | GET | – | 200, 503 | `SessionDiagnostics` (sessions with subscription counts and idle ages on the node's clock, occupancy) |
 | `/node/topology` | GET | – | 200, 500, 503 | `Topology`, `FabricInfos`, `SessionDiagnostics`, `Health`, `LocalAddr` → `TopologyGraph` (v0.4.0); 503 also before the node assembled (`Topology().Aggregator` 0) |
@@ -72,10 +74,10 @@ Details the fixtures pin:
 - **Stream**: `event:` is `fabric_added`, `fabric_removed`,
   `window_opened`, `window_closed`, `endpoints_changed`,
   `exposure_changed`, `surface_changed`, `session_opened`,
-  `session_closed` or `subscriptions_changed`; `data:` is JSON
-  (`FabricEvent`, `WindowEvent`, `{}`, `ExposureEvent`,
-  `SurfaceChangedEvent`, `SessionEvent`). A comment line arrives every
-  15 s. The fabric, window and surface events come from
+  `session_closed`, `subscriptions_changed` or `attribute_changed`
+  (0.4.1); `data:` is JSON (`FabricEvent`, `WindowEvent`, `{}`,
+  `ExposureEvent`, `SurfaceChangedEvent`, `SessionEvent`,
+  `AttributeChangedEvent`). A comment line arrives every 15 s. The fabric, window and surface events come from
   the node (`Node.Observe`, registered per stream), once per transition,
   whoever caused it. `surface_changed` is go-fabric's
   `Observers.OnSurfaceChanged`: one event per endpoint whose served surface
@@ -88,7 +90,54 @@ Details the fixtures pin:
   `Observers.OnSessionOpened`, `OnSessionClosed` and
   `OnSubscriptionsChanged`: CASE sessions only (a commissioning's PASE
   session raises none), the payload the session as `/node/sessions` lists
-  it with its subscription count after the change.
+  it with its subscription count after the change. `attribute_changed` is
+  `Observers.OnAttributeChanged`: one event per cluster of one endpoint
+  whose attributes a controller's write, a command or the host changed,
+  `{endpoint, cluster_hex, attributes[]}` with the attribute ids in hex
+  and never a value — a page refetches what it shows. A burst of changes
+  is a burst of events; a stream that falls 64 events behind drops the
+  oldest.
+
+## The endpoint detail and the event log (0.4.1)
+
+`GET /node/endpoints/{ep}` answers the `EndpointDetail` the controller
+family's inventory answers (one type for both families), filled from what
+the node serves, read through its own read path as a controller's read
+reaches it (`Node.ReadCluster`, no access control): the Descriptor's
+DeviceTypeList with each revision and its TagList (empty while the node
+serves none, which is every bridged endpoint's case today), the FixedLabel
+then UserLabel entries, every server cluster of the ServerList in id order
+as a `ClusterDetail` **with** its values (JSON by field name, as
+`AttributeValue.value`), its data version, its feature map with the
+features the schema names for its bits, and the attributes, accepted and
+generated commands and events named by go-fabric's schema. A bridged
+endpoint adds its name (the NodeLabel it serves), Reachable, its `scope`,
+its parent and its parts from `Node.Topology`; the root endpoint and the
+Aggregator, which the topology does not list, are named by their first
+device type, and their `parts` are the PartsList entries that no other
+entry's PartsList names — the direct children, as everywhere in
+`EndpointDetail`. `decisions` are the surface report's decisions on the
+endpoint: the root's under the key `""`, the Aggregator's under
+`aggregator`, a bridged endpoint's under its stable key. A cluster whose
+read fails is listed with the schema's name and revision and no values.
+404 for an endpoint the node does not serve, 503 before the node started.
+
+`GET /node/endpoints/{ep}/events` and `GET /controller/nodes/{id}/events`
+answer an `EventRecordList` of `EventRecord{number, priority, endpoint,
+cluster_hex, event_hex, name?, epoch_ms?, data?}`, oldest first:
+`priority` is `debug`, `info` or `critical`, `name` the schema's, `data`
+the event's fields by name — absent without data or when they do not
+render. `since` is the lowest event number returned (a page passes the
+last number it shows plus one), `limit` keeps the newest (default 100,
+1 to 1000, else 400). The node's log (`Node.Events`) is bounded and
+volatile, emptied when the node stops; an endpoint it no longer serves
+keeps its events there, so an unknown endpoint is an empty list. The
+controller's history (`client.Node.EventHistory`) holds the events the
+node's default subscription, its bootstrap read and the read after
+commissioning delivered — the newest 100 by default, in memory only; a
+host's own reads do not reach it, and an unknown node is 404. An event
+the node delivers raises the node's `node_updated`, so the events tab
+fetches the newer ones on it.
 
 ## The topology graph
 
@@ -227,6 +276,7 @@ hand-written.
 | `/controller/nodes/{id}` | GET | – | 200, 400, 404 |
 | `/controller/nodes/{id}/endpoints/{ep}` | GET | – | 200, 400, 404 — served from 0.4.0 |
 | `/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}` | GET | – | 200, 400, 404, 503 — served from 0.4.0 |
+| `/controller/nodes/{id}/events` | GET | – | 200, 400, 404 — served from 0.4.1 |
 | `/controller/nodes/{id}` | DELETE | yes | 204, 400, 403, 404, 500, 502 |
 | `/controller/nodes/{id}/interview` | POST | yes | 204, 400, 403, 404, 502 |
 | `/controller/nodes/{id}/enable`, `/disable` | POST | yes | 204, 400, 403, 404, 500 |
@@ -264,7 +314,7 @@ Details the fixtures pin:
 - **The inventory** (0.4.0): `GET …/endpoints/{ep}` answers an
   `EndpointDetail` — the Descriptor's DeviceTypeList in its order with
   each revision, its TagList (empty without one), the FixedLabel then
-  UserLabel entries, the parts on the image's tree,
+  UserLabel entries, its parts (the direct children on the image's tree),
   BridgedDeviceBasicInformation Reachable (true on an endpoint that does
   not serve it), the device type `conformance` verdict (`unknown`,
   `incomplete`, `clean`, `violated`, with the violations and the
@@ -276,8 +326,10 @@ Details the fixtures pin:
   names and values, the accepted and generated commands and the
   EventList where the peer reports one, each named where the cluster has
   a generated definition. An endpoint or cluster the image lacks is 404;
-  a cluster the ServerList names that the controller has not read yet is
-  503 `service_unready`. The page reloads both on the node's
+  a cluster the ServerList names that the controller has not read yet,
+  and any cluster while the controller has not read the endpoint's
+  Descriptor, is 503 `service_unready`. A value that does not render is
+  absent, not `null`. The page reloads both on the node's
   `node_updated`. `NodeEndpoint` carries `reachable` where the endpoint
   serves BridgedDeviceBasicInformation, and its `device_types` are the
   whole DeviceTypeList.
