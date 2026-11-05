@@ -12,6 +12,7 @@ import type { ConformanceVerdict, EventRecord, TopologyGraph } from "../api/clie
 import { TOPOLOGY_KINDS, TOPOLOGY_STATES, TOPOLOGY_STRENGTHS } from "../kit/graph-layout";
 import { ECOSYSTEM_HINTS } from "../pages/node/ecosystems";
 import { LEVELS } from "../pages/operation/log";
+import { IM_STATUS } from "../kit/im-status";
 import { catalogKeys } from ".";
 
 const SRC = fileURLToPath(new URL("../../", import.meta.url));
@@ -73,8 +74,9 @@ describe("i18n catalogues", () => {
     expect(keys.filter((k) => !en.has(k))).toEqual([]);
   });
 
-  it("name every ecosystem hint with its links and every log level (0.5.0)", () => {
+  it("name every ecosystem hint with its links, every log level and every IM status the attribute table names (0.5.0)", () => {
     const keys = [
+      ...Object.values(IM_STATUS).map((s) => `inventory.status.${s}`),
       ...ECOSYSTEM_HINTS.flatMap((h) => [`node.diag.ecosystem.${h.ecosystem}`, `node.pair.hints.${h.ecosystem}`, ...h.links.map((l) => `node.pair.hints.${h.ecosystem}.${l.key}`)]),
       ...LEVELS.map((l) => `operation.level.${l}`),
     ];

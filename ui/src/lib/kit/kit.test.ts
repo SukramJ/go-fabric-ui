@@ -192,6 +192,24 @@ describe("ClusterView and AttributeTable", () => {
     expect(screen.getByTestId("attribute-0x0001").querySelector("pre")?.textContent).toBe(JSON.stringify({ a: [1, 2] }, null, 2));
     expect(screen.getByText("0x0003")).toBeInTheDocument();
   });
+  it("names a status of the Interaction Model with its code, an unknown one by its code alone", () => {
+    render(AttributeTable, {
+      attributes: [
+        { id: 0, id_hex: "0x0000", name: "OnOff", status: 0x86 },
+        { id: 1, id_hex: "0x0001", status: 0x8f },
+        { id: 2, id_hex: "0x0002", status: 0x42 },
+        { id: 3, id_hex: "0x0003", value: true },
+      ],
+    });
+    const cell = (hex: string) => screen.getByTestId(`attribute-${hex}`).querySelector("td:last-child")!;
+    expect(cell("0x0000")).toHaveTextContent("Unsupported attribute 0x86");
+    expect(cell("0x0000").querySelector("[title]")?.getAttribute("title")).toBe("UNSUPPORTED_ATTRIBUTE (0x86)");
+    expect(cell("0x0001")).toHaveTextContent("Not readable 0x8F");
+    expect(cell("0x0002").textContent?.trim()).toBe("0x42");
+    expect(cell("0x0002").querySelector("[title]")).toBeNull();
+    expect(cell("0x0003").textContent?.trim()).toBe("");
+    expect(screen.getAllByTestId("attribute-status")).toHaveLength(3);
+  });
   it("renders an empty attribute table", () => {
     render(AttributeTable, { attributes: [] });
     expect(screen.getByTestId("attribute-table").querySelectorAll("tbody tr")).toHaveLength(0);

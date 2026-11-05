@@ -95,6 +95,39 @@
             "key": "sensor-2/humidity"
           }
         }
+      ],
+      "structural": [
+        {
+          "device_types": [
+            {
+              "id": 22,
+              "id_hex": "0x0016",
+              "name": "RootNode",
+              "revision": 5
+            }
+          ],
+          "endpoint_id": 0,
+          "name": "RootNode",
+          "parts": [
+            1
+          ]
+        },
+        {
+          "device_types": [
+            {
+              "id": 14,
+              "id_hex": "0x000E",
+              "name": "Aggregator",
+              "revision": 2
+            }
+          ],
+          "endpoint_id": 1,
+          "name": "Aggregator",
+          "parts": [
+            2,
+            3
+          ]
+        }
       ]
     }
   }

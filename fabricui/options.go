@@ -55,6 +55,12 @@ type NodeSource interface {
 	ReadCluster(ctx context.Context, endpoint uint16, cluster uint32) ([]node.AttributeValue, error)
 	ReadAttribute(ctx context.Context, endpoint uint16, cluster, attribute uint32) (node.AttributeValue, error)
 	Events(q node.EventQuery) []node.Event
+	// Endpoints lists every endpoint the node serves, the root first, with
+	// its parent, its PartsList and DeviceTypeList, its name and scope
+	// (go-fabric node/endpoints.go:14-66 at 82591648): the endpoint tree
+	// of the endpoint detail and the root and Aggregator of the endpoint
+	// list.
+	Endpoints() []node.EndpointInfo
 	// OnHealthSample and OnDiagnosticEvent register a callback for every
 	// verdict of the node's health probe and every entry of its diagnostic
 	// trace, and return the function that unregisters it (go-fabric

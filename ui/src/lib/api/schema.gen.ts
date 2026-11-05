@@ -111,7 +111,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The bridged endpoints a controller sees. */
+        /**
+         * The bridged endpoints a controller sees.
+         * @description `endpoints` are the bridged endpoints of the node's topology
+         *     (go-fabric `Node.Topology`), each device followed by its parts.
+         *     `structural` (0.5.0) are the endpoints no bridged device declares —
+         *     the root and the Aggregator — from the node's endpoint tree
+         *     (go-fabric `Node.Endpoints`), root first, then by number.
+         */
         get: operations["listEndpoints"];
         put?: never;
         post?: never;
@@ -139,7 +146,11 @@ export interface paths {
          *     and UserLabel entries, and every server cluster of its ServerList
          *     with its revision, feature map, attribute values (JSON by field
          *     name), data version and the names go-fabric's schema gives its
-         *     attributes, commands and events. `decisions` are the surface
+         *     attributes, commands and events. An attribute whose read failed
+         *     carries the IM `status` it was answered with and no `value` (0.5.0,
+         *     go-fabric `AttributeValue.Status`). The endpoint's parent, parts,
+         *     device types, name and scope come from the node's endpoint tree
+         *     (go-fabric `Node.Endpoints`, 0.5.0). `decisions` are the surface
          *     report's decisions on this endpoint. The root endpoint and the
          *     Aggregator answer too. 404 for an endpoint the node does not serve,
          *     503 before the node started.
@@ -1850,6 +1861,20 @@ export interface components {
         };
         EndpointList: {
             endpoints: components["schemas"]["Endpoint"][];
+            /** @description The root and the Aggregator — the endpoints `endpoints` does not list — root first, then by number (0.5.0). */
+            structural?: components["schemas"]["StructuralEndpoint"][];
+        };
+        /** @description An endpoint of the node's endpoint tree no bridged device declares (go-fabric `Node.Endpoints`, 0.5.0). */
+        StructuralEndpoint: {
+            endpoint_id: number;
+            /** @description The endpoint whose parts list names this one; absent for the root and top-level endpoints. */
+            parent_endpoint_id?: number;
+            /** @description The endpoint's node label; its first device type's name without one. */
+            name: string;
+            /** @description The Descriptor's DeviceTypeList in its order. */
+            device_types: components["schemas"]["EndpointDeviceType"][];
+            /** @description The endpoint numbers of its direct children — the endpoints whose parent it is, not every descendant its PartsList names. */
+            parts: number[];
         };
         Session: {
             session_id: number;
@@ -2538,7 +2563,7 @@ export interface components {
             name?: string;
             /** @description The attribute's value as JSON by field name; absent in a structure-only answer or while unknown. */
             value?: unknown;
-            /** @description The status the attribute was answered with; absent on success. */
+            /** @description The IM status the attribute was answered with; absent on success. The node family sets it, without a `value`, for an attribute its read path failed (0.5.0). */
             status?: number;
         };
         ClusterElement: {

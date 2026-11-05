@@ -4,6 +4,7 @@
 package fabricui
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/SukramJ/go-fabric/contract"
 	"github.com/SukramJ/go-fabric/node"
+	"github.com/SukramJ/go-fabric/schema"
 )
 
 // The node's endpoint detail: the lamp's values, its scope and the surface
@@ -153,5 +155,170 @@ func TestEventPriorityName(t *testing.T) {
 		if got := EventPriorityName(p); got != want {
 			t.Errorf("%d: %q, want %q", p, got, want)
 		}
+	}
+}
+
+// treeSource is a NodeSource with sampleNode's endpoint tree and topology:
+// every endpoint serves a Descriptor whose ServerList names the Descriptor
+// alone; an endpoint outside served answers UNSUPPORTED_ENDPOINT.
+type treeSource struct {
+	stubSource
+	infos  []node.EndpointInfo
+	served map[uint16]bool
+}
+
+func newTreeSource() *treeSource {
+	s := &treeSource{infos: sampleInfos(), served: map[uint16]bool{}}
+	for i := range s.infos {
+		s.served[s.infos[i].Endpoint] = true
+	}
+	return s
+}
+
+func (s *treeSource) Endpoints() []node.EndpointInfo { return s.infos }
+func (s *treeSource) Topology() node.BridgeTopology  { return sampleNode().topo }
+
+func (s *treeSource) ReadCluster(_ context.Context, ep uint16, cluster uint32) ([]node.AttributeValue, error) {
+	if !s.served[ep] {
+		return nil, contract.StatusError{Status: statusUnsupportedEndpoint}
+	}
+	return []node.AttributeValue{
+		{Endpoint: ep, Cluster: cluster, Attribute: attrServerList, Value: []uint32{clusterDescriptor}, DataVersion: 3},
+	}, nil
+}
+
+// The endpoint tree comes from Node.Endpoints: the root and the Aggregator
+// carry no parent (the Aggregator's is the root), a bridged device the
+// Aggregator, a part its device; the parts are the direct children, not
+// the full-family PartsList; Reachable from the topology.
+func TestReadEndpointDetail_TreeFromEndpoints(t *testing.T) {
+	src := newTreeSource()
+	agg, sensor := uint16(1), uint16(3)
+	for _, c := range []struct {
+		ep        uint16
+		name      string
+		parent    *uint16
+		parts     []uint16
+		reachable bool
+		scope     string
+	}{
+		{0, "RootNode", nil, []uint16{1}, true, ""},
+		{1, "Aggregator", nil, []uint16{2, 3}, true, ""},
+		{2, "Kitchen lamp", &agg, []uint16{}, true, "default"},
+		{3, "Hall sensor", &agg, []uint16{4}, false, "default"},
+		{4, "Hall humidity", &sensor, []uint16{}, true, "default"},
+	} {
+		d, err := readEndpointDetail(context.Background(), src, c.ep)
+		if err != nil {
+			t.Fatalf("endpoint %d: %v", c.ep, err)
+		}
+		if d.Name != c.name || !reflect.DeepEqual(d.Parent, c.parent) || !reflect.DeepEqual(d.Parts, c.parts) ||
+			d.Reachable != c.reachable || d.Scope != c.scope {
+			t.Errorf("endpoint %d: %+v", c.ep, d)
+		}
+		if want := sampleInfos()[c.ep].DeviceTypes[0]; len(d.DeviceTypes) != 1 || d.DeviceTypes[0].ID != want.ID || d.DeviceTypes[0].Revision != want.Revision {
+			t.Errorf("endpoint %d device types %+v", c.ep, d.DeviceTypes)
+		}
+		if len(d.Clusters) != 1 || d.Clusters[0].ID != clusterDescriptor {
+			t.Errorf("endpoint %d clusters %+v", c.ep, d.Clusters)
+		}
+	}
+	if _, err := readEndpointDetail(context.Background(), src, 9); !errors.Is(err, ErrEndpointNotFound) {
+		t.Fatalf("an endpoint the node does not serve: %v", err)
+	}
+	// Served at the Descriptor read, gone from the tree: not found.
+	src.served[5] = true
+	if _, err := readEndpointDetail(context.Background(), src, 5); !errors.Is(err, ErrEndpointNotFound) {
+		t.Fatalf("an endpoint outside the tree: %v", err)
+	}
+}
+
+// The list route renders the root and the Aggregator from Node.Endpoints.
+func TestStructuralEndpoints(t *testing.T) {
+	got := structuralEndpoints(sampleInfos(), flattenTopology(sampleNode().topo))
+	if len(got) != 2 {
+		t.Fatalf("structural %+v", got)
+	}
+	root, agg := got[0], got[1]
+	if root.EndpointID != 0 || root.ParentEndpointID != nil || root.Name != "RootNode" || !reflect.DeepEqual(root.Parts, []uint16{1}) ||
+		len(root.DeviceTypes) != 1 || root.DeviceTypes[0].IDHex != "0x0016" || root.DeviceTypes[0].Revision != 5 {
+		t.Errorf("root %+v", root)
+	}
+	if agg.EndpointID != 1 || agg.ParentEndpointID != nil || agg.Name != "Aggregator" || !reflect.DeepEqual(agg.Parts, []uint16{2, 3}) {
+		t.Errorf("aggregator %+v", agg)
+	}
+}
+
+// A failed attribute — of the AttributeList or not — is listed with its
+// status and no value; the DataVersion is a value's, not the failed
+// attribute's 0; with every attribute failed the revision is the schema's.
+func TestServedCluster_FailedAttributes(t *testing.T) {
+	const onOff = 0x0006
+	vals := []node.AttributeValue{
+		{Cluster: onOff, Attribute: 0x0000, Status: 0x86},
+		{Cluster: onOff, Attribute: attrAttributeList, Value: []uint32{0x0000, 0xFFFB, 0xFFFC, 0xFFFD}, DataVersion: 7},
+		{Cluster: onOff, Attribute: attrFeatureMap, Value: uint32(1), DataVersion: 7},
+		{Cluster: onOff, Attribute: attrClusterRevision, Value: uint16(6), DataVersion: 7},
+		{Cluster: onOff, Attribute: 0x4000, Status: 0x8F},
+	}
+	c := servedCluster(onOff, vals)
+	if c.DataVersion == nil || *c.DataVersion != 7 || c.Revision != 6 || c.FeatureMap != 1 {
+		t.Fatalf("cluster %+v", c)
+	}
+	ids := make([]uint32, 0, len(c.Attributes))
+	for _, a := range c.Attributes {
+		ids = append(ids, a.ID)
+	}
+	if !reflect.DeepEqual(ids, []uint32{0x0000, 0x4000, 0xFFFB, 0xFFFC, 0xFFFD}) {
+		t.Fatalf("attributes %v", ids)
+	}
+	if a := c.Attributes[0]; a.Status != 0x86 || a.Value != nil || a.Name != "OnOff" {
+		t.Errorf("failed OnOff %+v", a)
+	}
+	if a := c.Attributes[1]; a.Status != 0x8F || a.Value != nil {
+		t.Errorf("failed 0x4000 %+v", a)
+	}
+	if a := c.Attributes[3]; a.Status != 0 || string(a.Value) != "1" {
+		t.Errorf("FeatureMap %+v", a)
+	}
+
+	all := servedCluster(onOff, []node.AttributeValue{{Cluster: onOff, Attribute: 0x4000, Status: 0x8F}, {Cluster: onOff, Attribute: 0x0000, Status: 0x01}})
+	rev, _ := schema.ClusterRevision(onOff)
+	if all.DataVersion != nil || all.Revision != rev || len(all.Attributes) != 2 || all.Attributes[0].ID != 0 || all.Attributes[0].Status != 0x01 {
+		t.Fatalf("every attribute failed %+v", all)
+	}
+}
+
+// The handler renders a failed attribute with status and no value, a
+// value without status.
+func TestNodeEndpoint_FailedAttributeStatus(t *testing.T) {
+	_, mux := newTestHandler(t, testOptions{})
+	var d struct {
+		Clusters []struct {
+			IDHex      string `json:"id_hex"`
+			Attributes []map[string]json.RawMessage
+		} `json:"clusters"`
+	}
+	if err := json.Unmarshal(do(t, mux, http.MethodGet, "/node/endpoints/2", "").Body.Bytes(), &d); err != nil {
+		t.Fatal(err)
+	}
+	var seen int
+	for _, c := range d.Clusters {
+		for _, a := range c.Attributes {
+			_, hasValue := a["value"]
+			st, hasStatus := a["status"]
+			if hasStatus == hasValue {
+				t.Errorf("%s %s: status and value both or neither", c.IDHex, a["id_hex"])
+			}
+			if hasStatus {
+				seen++
+				if string(st) != "1" {
+					t.Errorf("status %s", st)
+				}
+			}
+		}
+	}
+	if seen != 1 {
+		t.Fatalf("%d failed attributes, want 1", seen)
 	}
 }

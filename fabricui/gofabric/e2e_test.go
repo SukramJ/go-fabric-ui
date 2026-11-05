@@ -613,6 +613,21 @@ func TestEndToEnd_DetailsAndEvents(t *testing.T) {
 	if st, out := s.call(http.MethodGet, "/node/endpoints/99", ""); st != http.StatusNotFound {
 		t.Fatalf("an endpoint the node does not serve: %d %s", st, out)
 	}
+	// The endpoint list names the root and the Aggregator from the same
+	// tree (Node.Endpoints), with the detail's parts.
+	var list struct {
+		Structural []struct {
+			Endpoint int    `json:"endpoint_id"`
+			Parent   *int   `json:"parent_endpoint_id"`
+			Name     string `json:"name"`
+			Parts    []int  `json:"parts"`
+		} `json:"structural"`
+	}
+	s.json(http.MethodGet, "/node/endpoints", "", http.StatusOK, &list)
+	if st := list.Structural; len(st) != 2 || st[0].Endpoint != 0 || st[0].Parent != nil || !slices.Equal(st[0].Parts, root.Parts) ||
+		st[1].Endpoint != int(agg) || st[1].Parent != nil || st[1].Name != aggr.Name || !slices.Equal(st[1].Parts, aggr.Parts) {
+		t.Fatalf("structural endpoints %s", mustJSON(t, list))
+	}
 
 	// The controller's On reaches the node: attribute_changed names
 	// OnOff's attribute 0, the detail reads true.

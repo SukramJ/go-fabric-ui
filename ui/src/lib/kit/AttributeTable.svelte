@@ -1,7 +1,11 @@
 <!-- A cluster's attributes: id in hex, name, value as formatted JSON and
-     the status it was answered with. Written for both families. -->
+     the status it was answered with — by name for a status of the
+     Interaction Model's (IM_STATUS), with its code; the code alone
+     otherwise. Written for both families. -->
 <script lang="ts">
   import { cn } from "./utils";
+  import Badge from "./Badge.svelte";
+  import { IM_STATUS, imStatusName, statusHex } from "./im-status";
   import type { ClusterAttribute } from "../api/client";
   import { useT } from "../context";
 
@@ -10,7 +14,6 @@
   const t = useT();
 
   const format = (v: unknown) => JSON.stringify(v, null, 2);
-  const statusHex = (s: number) => "0x" + s.toString(16).toUpperCase().padStart(2, "0");
 </script>
 
 <div class={cn("overflow-x-auto", className)}>
@@ -35,7 +38,14 @@
               <span class="text-xs text-[var(--ha-secondary-text-color)]">{t("inventory.no_value")}</span>
             {/if}
           </td>
-          <td class="py-1 font-mono text-xs">{a.status !== undefined ? statusHex(a.status) : ""}</td>
+          <td class="py-1 text-xs" data-testid={a.status !== undefined ? "attribute-status" : undefined}>
+            {#if a.status !== undefined}
+              {#if IM_STATUS[a.status]}
+                <Badge variant="warning" title={`${imStatusName(a.status)} (${statusHex(a.status)})`}>{t(`inventory.status.${IM_STATUS[a.status]}`)}</Badge>
+              {/if}
+              <span class="font-mono">{statusHex(a.status)}</span>
+            {/if}
+          </td>
         </tr>
       {/each}
     </tbody>

@@ -5,12 +5,13 @@
      type and clusters. An endpoint whose surface changed in this process
      (GET /node/surface, changed[]) carries a marker. Each endpoint links to
      its own page (GET /node/endpoints/{n}), the root endpoint and the
-     Aggregator, which the route does not list, included. -->
+     Aggregator included: the route's structural list (go-fabric
+     Node.Endpoints, contract 0.5.0). -->
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
-  import type { Endpoint, SurfaceReport } from "../../api/client";
+  import type { Endpoint, EndpointList, SurfaceReport } from "../../api/client";
   import Badge from "../../kit/Badge.svelte";
   import Button from "../../kit/Button.svelte";
   import Card from "../../kit/Card.svelte";
@@ -23,6 +24,7 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let endpoints = $state<Endpoint[]>([]);
+  let structuralList = $state<NonNullable<EndpointList["structural"]>>([]);
   let surface = $state<SurfaceReport | null>(null);
 
   async function load() {
@@ -33,6 +35,7 @@
       // server, a report that does not encode) does not fail the page.
       const [eps, rep] = await Promise.all([client.endpoints(), client.surface().catch(() => null)]);
       endpoints = eps.endpoints;
+      structuralList = eps.structural ?? [];
       surface = rep;
     } catch (err) {
       error = errorText(err);
@@ -64,13 +67,16 @@
 
   const hex = (n: number, w = 4) => `0x${n.toString(16).toUpperCase().padStart(w, "0")}`;
   const topLevel = $derived(new Set(endpoints.map((e) => e.endpoint_id)));
-  // The Aggregator is the parent the top-level endpoints name; the route
-  // lists the bridged endpoints only.
-  const aggregator = $derived(endpoints.find((e) => !topLevel.has(e.parent_endpoint_id))?.parent_endpoint_id);
-  const structural = $derived([
-    { number: 0, label: t("node.endpoints.root") },
-    ...(aggregator !== undefined && aggregator !== 0 ? [{ number: aggregator, label: t("node.endpoints.aggregator") }] : []),
-  ]);
+  // The root and the Aggregator as the node's endpoint tree lists them;
+  // the root (endpoint 0) is named by the page, the others by the name the
+  // route gives them. A server without the list (before 0.5.0) shows the
+  // root alone.
+  const structural = $derived(
+    (structuralList.length > 0 ? structuralList : [{ endpoint_id: 0, name: "" }]).map((s) => ({
+      number: s.endpoint_id,
+      label: s.endpoint_id === 0 ? t("node.endpoints.root") : s.name,
+    })),
+  );
 </script>
 
 <Card class="p-4">

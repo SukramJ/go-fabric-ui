@@ -112,7 +112,16 @@ describe("Endpoints", () => {
     const structural = screen.getByTestId("structural-endpoints");
     expect([...structural.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual(["#/node/endpoint/0", "#/node/endpoint/1"]);
     expect(structural).toHaveTextContent("node.endpoints.root");
-    expect(structural).toHaveTextContent("node.endpoints.aggregator");
+    expect(structural).toHaveTextContent("#1 Aggregator");
+  });
+
+  it("shows the root alone from a server without the structural list", async () => {
+    const list = body<Record<string, unknown>>("node-endpoints.200");
+    const ui = testUI({ fixtures: ["node-surface.200"], answers: { "GET /node/endpoints": { status: 200, body: { ...list, structural: undefined } } } });
+    render(Harness, { ui, page: Endpoints });
+    await screen.findAllByTestId("endpoint");
+    const structural = screen.getByTestId("structural-endpoints");
+    expect([...structural.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual(["#/node/endpoint/0"]);
   });
 
   it("marks the endpoint whose surface changed, by its key, and none without a report", async () => {

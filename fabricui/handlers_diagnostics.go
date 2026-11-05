@@ -5,10 +5,13 @@ package fabricui
 
 import (
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/SukramJ/go-fabric/eligibility"
 	"github.com/SukramJ/go-fabric/node"
+
+	"github.com/SukramJ/go-fabric-ui/internal/api"
 )
 
 // sessionResponse is one session of GET /node/sessions. Mirrors loom's
@@ -152,19 +155,59 @@ type endpointResponse struct {
 }
 
 type endpointList struct {
-	Endpoints []endpointResponse `json:"endpoints"`
+	Endpoints  []endpointResponse   `json:"endpoints"`
+	Structural []structuralEndpoint `json:"structural"`
+}
+
+// structuralEndpoint is one endpoint of the node's endpoint tree no
+// bridged device declares (the contract's StructuralEndpoint).
+type structuralEndpoint struct {
+	EndpointID       uint16                   `json:"endpoint_id"`
+	ParentEndpointID *uint16                  `json:"parent_endpoint_id,omitempty"`
+	Name             string                   `json:"name"`
+	DeviceTypes      []api.EndpointDeviceType `json:"device_types"`
+	Parts            []uint16                 `json:"parts"`
 }
 
 // endpoints serves GET /node/endpoints: what a controller sees, without
 // commissioning one first. Mirrors loom matter.go:496-506
 // (MatterEndpoints) and cmd/openccu-loom/daemon_matter.go:1307-1360
-// (matterEndpointInspector), on node.Topology.
+// (matterEndpointInspector), on node.Topology; the root and the
+// Aggregator from node.Endpoints.
 func (h *handler) endpoints(w http.ResponseWriter, r *http.Request) {
 	if h.node == nil {
 		nodeUnready(w, r)
 		return
 	}
-	writeJSON(w, endpointList{Endpoints: flattenTopology(h.node.topology())})
+	bridged := flattenTopology(h.node.topology())
+	writeJSON(w, endpointList{Endpoints: bridged, Structural: structuralEndpoints(h.node.endpointInfos(), bridged)})
+}
+
+// structuralEndpoints are the endpoints of infos (Node.Endpoints, the root
+// first, then by number) that bridged does not list — the root and the
+// Aggregator — with their tree parent, name, device types and direct
+// children as the endpoint detail renders them (readEndpointDetail).
+func structuralEndpoints(infos []node.EndpointInfo, bridged []endpointResponse) []structuralEndpoint {
+	out := []structuralEndpoint{}
+	for i := range infos {
+		info := &infos[i]
+		if slices.ContainsFunc(bridged, func(e endpointResponse) bool { return e.EndpointID == info.Endpoint }) {
+			continue
+		}
+		e := structuralEndpoint{
+			EndpointID: info.Endpoint, ParentEndpointID: treeParent(info), Name: info.Name,
+			DeviceTypes: []api.EndpointDeviceType{}, Parts: childrenOf(infos, info.Endpoint),
+		}
+		dts := deviceTypesOf(info.DeviceTypes)
+		for _, dt := range dts {
+			e.DeviceTypes = append(e.DeviceTypes, api.EndpointDeviceType{ID: int(dt.ID), IDHex: hexID(dt.ID), Name: optString(dt.Name), Revision: int(dt.Revision)})
+		}
+		if e.Name == "" && len(dts) > 0 {
+			e.Name = dts[0].Name
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 // flattenTopology lists every bridged endpoint, parts after the device

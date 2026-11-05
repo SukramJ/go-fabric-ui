@@ -164,6 +164,7 @@ type fakeNode struct {
 	codesErr   error
 
 	topo   node.BridgeTopology
+	infos  []node.EndpointInfo
 	sess   node.SessionDiagnostics
 	md     mdnsResponse
 	events []node.DiagnosticEvent
@@ -408,6 +409,7 @@ func (f *fakeNode) pairingCodesFor(creds node.WindowCredentials) (qr, manual str
 }
 
 func (f *fakeNode) topology() node.BridgeTopology            { return f.topo }
+func (f *fakeNode) endpointInfos() []node.EndpointInfo       { return f.infos }
 func (f *fakeNode) sessions() node.SessionDiagnostics        { return f.sess }
 func (f *fakeNode) now() time.Time                           { return testNow }
 func (f *fakeNode) mdns() mdnsResponse                       { return f.md }
@@ -477,6 +479,7 @@ func sampleDetails() map[uint16]EndpointDetail {
 				ID: 0x0039, Name: "BridgedDeviceBasicInformation", Revision: 5, DataVersion: &dv,
 				Features: []ClusterFeature{},
 				Attributes: []ClusterAttribute{
+					{ID: 0x0001, Name: "VendorName", Status: 0x01},
 					{ID: 0x0005, Name: "NodeLabel", Value: json.RawMessage(`"Kitchen lamp"`)},
 					{ID: 0x0011, Name: "Reachable", Value: json.RawMessage(`true`)},
 					{ID: 0x0012, Name: "UniqueId", Value: json.RawMessage(`"lamp-1"`)},
@@ -486,6 +489,22 @@ func sampleDetails() map[uint16]EndpointDetail {
 			},
 		},
 	}}
+}
+
+// sampleInfos is sampleNode's endpoint tree as Node.Endpoints lists it:
+// the root and the Aggregator, then the topology's lamp, sensor and the
+// sensor's humidity part, each PartsList the full-family list.
+func sampleInfos() []node.EndpointInfo {
+	dt := func(id uint32, rev uint16) []node.DeviceTypeInfo {
+		return []node.DeviceTypeInfo{{ID: id, Revision: rev}}
+	}
+	return []node.EndpointInfo{
+		{Endpoint: 0, Parts: []uint16{1, 2, 3, 4}, DeviceTypes: dt(0x0016, 5)},
+		{Endpoint: 1, Parent: 0, HasParent: true, Parts: []uint16{2, 3, 4}, DeviceTypes: dt(0x000E, 2)},
+		{Endpoint: 2, Parent: 1, HasParent: true, DeviceTypes: dt(0x0100, 3), Name: "Kitchen lamp", Key: stringKey("lamp-1"), Scope: "default"},
+		{Endpoint: 3, Parent: 1, HasParent: true, Parts: []uint16{4}, DeviceTypes: dt(0x0302, 3), Name: "Hall sensor", Key: stringKey("sensor-2"), Scope: "default"},
+		{Endpoint: 4, Parent: 3, HasParent: true, DeviceTypes: dt(0x0307, 3), Name: "Hall humidity", Key: stringKey("sensor-2/humidity"), Scope: "default"},
+	}
 }
 
 // sampleEventLog is sampleNode's event log: the lamp went unreachable and
@@ -577,6 +596,7 @@ func sampleNode() *fakeNode {
 	return &fakeNode{
 		rep:      sampleSurface(),
 		details:  sampleDetails(),
+		infos:    sampleInfos(),
 		logged:   sampleEventLog(),
 		healthOK: true, healthy: true, note: "listener ok",
 		addr: "[::]:5540",

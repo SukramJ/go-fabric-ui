@@ -105,6 +105,12 @@
           "accepted": [],
           "attributes": [
             {
+              "id": 1,
+              "id_hex": "0x0001",
+              "name": "VendorName",
+              "status": 1
+            },
+            {
               "id": 5,
               "id_hex": "0x0005",
               "name": "NodeLabel",
