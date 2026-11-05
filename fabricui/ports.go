@@ -28,6 +28,9 @@ type nodePort interface {
 	setupPayload() (node.SetupPayload, error)
 	pairingCodesFor(creds node.WindowCredentials) (qr, manual string, err error)
 	topology() node.BridgeTopology
+	// endpointInfos is every endpoint the node serves, the root first
+	// (Node.Endpoints).
+	endpointInfos() []node.EndpointInfo
 	sessions() node.SessionDiagnostics
 	// now is the node's clock, the one the window's deadline runs on.
 	now() time.Time
@@ -93,6 +96,8 @@ func (a nodeAdapter) pairingCodesFor(creds node.WindowCredentials) (qr, manual s
 }
 
 func (a nodeAdapter) topology() node.BridgeTopology { return a.n.Topology() }
+
+func (a nodeAdapter) endpointInfos() []node.EndpointInfo { return a.n.Endpoints() }
 
 func (a nodeAdapter) sessions() node.SessionDiagnostics { return a.n.SessionDiagnostics() }
 

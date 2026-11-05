@@ -130,6 +130,12 @@ paths:
       tags: [node]
       operationId: listEndpoints
       summary: The bridged endpoints a controller sees.
+      description: |
+        `endpoints` are the bridged endpoints of the node's topology
+        (go-fabric `Node.Topology`), each device followed by its parts.
+        `structural` (0.5.0) are the endpoints no bridged device declares —
+        the root and the Aggregator — from the node's endpoint tree
+        (go-fabric `Node.Endpoints`), root first, then by number.
       responses:
         "200":
           description: The endpoints.
@@ -151,7 +157,11 @@ paths:
         and UserLabel entries, and every server cluster of its ServerList
         with its revision, feature map, attribute values (JSON by field
         name), data version and the names go-fabric's schema gives its
-        attributes, commands and events. `decisions` are the surface
+        attributes, commands and events. An attribute whose read failed
+        carries the IM `status` it was answered with and no `value` (0.5.0,
+        go-fabric `AttributeValue.Status`). The endpoint's parent, parts,
+        device types, name and scope come from the node's endpoint tree
+        (go-fabric `Node.Endpoints`, 0.5.0). `decisions` are the surface
         report's decisions on this endpoint. The root endpoint and the
         Aggregator answer too. 404 for an endpoint the node does not serve,
         503 before the node started.
@@ -1795,6 +1805,26 @@ components:
         endpoints:
           type: array
           items: { $ref: "#/components/schemas/Endpoint" }
+        structural:
+          type: array
+          description: The root and the Aggregator — the endpoints `endpoints` does not list — root first, then by number (0.5.0).
+          items: { $ref: "#/components/schemas/StructuralEndpoint" }
+    StructuralEndpoint:
+      type: object
+      description: An endpoint of the node's endpoint tree no bridged device declares (go-fabric `Node.Endpoints`, 0.5.0).
+      required: [endpoint_id, name, device_types, parts]
+      properties:
+        endpoint_id: { type: integer }
+        parent_endpoint_id: { type: integer, description: The endpoint whose parts list names this one; absent for the root and top-level endpoints. }
+        name: { type: string, description: "The endpoint's node label; its first device type's name without one." }
+        device_types:
+          type: array
+          description: The Descriptor's DeviceTypeList in its order.
+          items: { $ref: "#/components/schemas/EndpointDeviceType" }
+        parts:
+          type: array
+          description: The endpoint numbers of its direct children — the endpoints whose parent it is, not every descendant its PartsList names.
+          items: { type: integer }
     Session:
       type: object
       required: [session_id, fabric_index, peer_node_id, peer_node_id_hex, local_node_id, local_node_id_hex, is_pase, subscriptions, last_activity, last_peer_activity, idle_seconds, peer_idle_seconds]
@@ -2549,7 +2579,7 @@ components:
         id_hex: { type: string }
         name: { type: string }
         value: { description: The attribute's value as JSON by field name; absent in a structure-only answer or while unknown., x-go-type: json.RawMessage }
-        status: { type: integer, description: The status the attribute was answered with; absent on success. }
+        status: { type: integer, description: "The IM status the attribute was answered with; absent on success. The node family sets it, without a `value`, for an attribute its read path failed (0.5.0)." }
     ClusterElement:
       type: object
       required: [id, id_hex]

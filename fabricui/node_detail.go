@@ -16,8 +16,7 @@ import (
 )
 
 // The Matter 1.6.1 ids the node's endpoint detail reads: Descriptor
-// (0x001D) DeviceTypeList (0x0000), ServerList (0x0001), PartsList
-// (0x0003) and TagList (0x0004); FixedLabel (0x0040) and UserLabel
+// (0x001D) ServerList (0x0001) and TagList (0x0004); FixedLabel (0x0040) and UserLabel
 // (0x0041) LabelList (0x0000); the global attributes (Matter Core §7.13)
 // GeneratedCommandList (0xFFF8), AcceptedCommandList (0xFFF9), EventList
 // (0xFFFA), AttributeList (0xFFFB), FeatureMap (0xFFFC) and
@@ -25,9 +24,7 @@ import (
 // definitions that name them out of this package (internal/arch).
 const (
 	clusterDescriptor     uint32 = 0x001D
-	attrDeviceTypeList    uint32 = 0x0000
 	attrServerList        uint32 = 0x0001
-	attrPartsList         uint32 = 0x0003
 	attrTagList           uint32 = 0x0004
 	clusterFixedLabel     uint32 = 0x0040
 	clusterUserLabel      uint32 = 0x0041
@@ -47,16 +44,17 @@ const (
 const statusUnsupportedEndpoint uint8 = 0x7F
 
 // readEndpointDetail builds an endpoint's detail from what the node
-// serves: the Descriptor's DeviceTypeList, TagList, ServerList and
-// PartsList and every server cluster's values through Node.ReadCluster
-// (go-fabric node/served.go:70-94 at 894adbcd), FixedLabel and UserLabel
-// from their values, and from the topology (Node.Topology) the bridged
-// endpoint's name, Reachable, scope, parent and parts. The root and the
-// Aggregator, which the topology does not list, take their name from
-// their first device type, are reachable, and have no parent; their parts
-// are the PartsList entries no other entry's PartsList names.
-// ErrEndpointNotFound for an endpoint the node does not serve,
-// node.ErrNotStarted before the node started.
+// serves: the Descriptor's TagList and ServerList and every server
+// cluster's values through Node.ReadCluster (go-fabric
+// node/served.go:20-40 and :70-94 at 82591648), a failed attribute with
+// its status; FixedLabel and UserLabel from their values; the place in the
+// tree, the DeviceTypeList, the name and the scope from the endpoint's
+// node.EndpointInfo (Node.Endpoints, node/endpoints.go:14-66 at 82591648)
+// — the root and the Aggregator from the same source as a bridged
+// endpoint — and Reachable from the topology (Node.Topology), true for an
+// endpoint the topology does not list. ErrEndpointNotFound for an
+// endpoint the node does not serve, node.ErrNotStarted before the node
+// started.
 func readEndpointDetail(ctx context.Context, n NodeSource, ep uint16) (EndpointDetail, error) {
 	desc, err := n.ReadCluster(ctx, ep, clusterDescriptor)
 	if err != nil {
@@ -66,22 +64,27 @@ func readEndpointDetail(ctx context.Context, n NodeSource, ep uint16) (EndpointD
 		}
 		return EndpointDetail{}, err
 	}
+	infos := n.Endpoints()
+	i := slices.IndexFunc(infos, func(e node.EndpointInfo) bool { return e.Endpoint == ep })
+	if i < 0 {
+		// Served at the Descriptor read, gone from the tree since: the
+		// node reassembled in between.
+		return EndpointDetail{}, fmt.Errorf("%w: %d", ErrEndpointNotFound, ep)
+	}
+	info := &infos[i]
 	d := EndpointDetail{
-		Number: ep, Reachable: true, DeviceTypes: []NodeDeviceType{}, Tags: []SemanticTag{},
-		Labels: []EndpointLabel{}, Parts: []uint16{}, Clusters: []ClusterDetail{},
+		Number: ep, Parent: treeParent(info), Name: info.Name, Reachable: true, Scope: info.Scope,
+		DeviceTypes: deviceTypesOf(info.DeviceTypes), Tags: tagsOf(desc),
+		Labels: []EndpointLabel{}, Parts: childrenOf(infos, ep), Clusters: []ClusterDetail{},
 	}
-	var dts []struct {
-		DeviceType uint32 `json:"deviceType"`
-		Revision   uint16 `json:"revision"`
+	if d.Name == "" && len(d.DeviceTypes) > 0 {
+		d.Name = d.DeviceTypes[0].Name
 	}
-	valueOf(desc, attrDeviceTypeList, &dts)
-	for _, dt := range dts {
-		d.DeviceTypes = append(d.DeviceTypes, NodeDeviceType{ID: dt.DeviceType, Name: schemaDeviceTypeName(dt.DeviceType), Revision: dt.Revision})
+	if dev, _ := findDevice(n.Topology(), ep); dev != nil {
+		d.Reachable = dev.Reachable
 	}
-	d.Tags = tagsOf(desc)
-	var servers, parts []uint32
+	var servers []uint32
 	valueOf(desc, attrServerList, &servers)
-	valueOf(desc, attrPartsList, &parts)
 	slices.Sort(servers)
 	for _, id := range servers {
 		vals := desc
@@ -100,19 +103,43 @@ func readEndpointDetail(ctx context.Context, n NodeSource, ep uint16) (EndpointD
 	}
 	// FixedLabel sorts before UserLabel, so the labels are in the
 	// contract's order already.
-	topo := n.Topology()
-	if dev, parent := findDevice(topo, ep); dev != nil {
-		d.Name, d.Reachable, d.Scope, d.Parent = dev.Name, dev.Reachable, dev.Scope, parent
-		for i := range dev.Parts {
-			d.Parts = append(d.Parts, dev.Parts[i].Endpoint)
-		}
-		return d, nil
-	}
-	if len(d.DeviceTypes) > 0 {
-		d.Name = d.DeviceTypes[0].Name
-	}
-	d.Parts = directParts(ctx, n, parts)
 	return d, nil
+}
+
+// treeParent is the contract's parent of an endpoint: its parent in the
+// node's endpoint tree (EndpointInfo.Parent where HasParent is set,
+// node/endpoints.go:19-24 at 82591648), absent for the root and for a
+// top-level endpoint — one whose parent is the root, the Aggregator — as
+// the controller family reads it (gofabric parentOf).
+func treeParent(info *node.EndpointInfo) *uint16 {
+	if !info.HasParent || info.Parent == 0 {
+		return nil
+	}
+	p := info.Parent
+	return &p
+}
+
+// childrenOf are the direct children of endpoint ep — the endpoints whose
+// tree parent it is — in endpoint order (Node.Endpoints lists the root
+// first, then by number). Not the PartsList, which names every descendant
+// on an endpoint that serves the full-family list.
+func childrenOf(infos []node.EndpointInfo, ep uint16) []uint16 {
+	out := []uint16{}
+	for i := range infos {
+		if infos[i].HasParent && infos[i].Parent == ep {
+			out = append(out, infos[i].Endpoint)
+		}
+	}
+	return out
+}
+
+// deviceTypesOf is a DeviceTypeList in its order, each named by the schema.
+func deviceTypesOf(dts []node.DeviceTypeInfo) []NodeDeviceType {
+	out := make([]NodeDeviceType, 0, len(dts))
+	for _, dt := range dts {
+		out = append(out, NodeDeviceType{ID: dt.ID, Name: schemaDeviceTypeName(dt.ID), Revision: dt.Revision})
+	}
+	return out
 }
 
 // findDevice is the bridged device or part at endpoint ep with its parent
@@ -136,33 +163,6 @@ func findDevice(topo node.BridgeTopology, ep uint16) (dev *node.BridgedDevice, p
 	return dev, parent
 }
 
-// directParts are the entries of a PartsList that no other entry's
-// PartsList names: the endpoint's children, whether its Descriptor lists
-// every descendant (the root's full-family list) or its children alone.
-func directParts(ctx context.Context, n NodeSource, parts []uint32) []uint16 {
-	nested := map[uint32]bool{}
-	for _, p := range parts {
-		v, err := n.ReadAttribute(ctx, uint16(p), clusterDescriptor, attrPartsList) //nolint:gosec // an endpoint number
-		if err != nil {
-			continue
-		}
-		var sub []uint32
-		if jsonOf(v, &sub) {
-			for _, s := range sub {
-				nested[s] = true
-			}
-		}
-	}
-	out := []uint16{}
-	for _, p := range parts {
-		if !nested[p] {
-			out = append(out, uint16(p)) //nolint:gosec // an endpoint number
-		}
-	}
-	slices.Sort(out)
-	return out
-}
-
 // servedCluster is a cluster's inventory from the values the node serves:
 // ClusterRevision, FeatureMap with the features the schema names for its
 // set bits, the DataVersion, the AttributeList in id order with each
@@ -170,19 +170,25 @@ func directParts(ctx context.Context, n NodeSource, parts []uint32) []uint16 {
 // read left the attribute out or the value does not render — and the
 // command and event lists, each named by go-fabric's schema
 // (schema.AttributeName, CommandName, ResponseCommandName, EventName,
-// ClusterFeatures; schema/lookup.go at 894adbcd). Without values (a read
-// that failed) it is the schema's revision and the cluster's name.
+// ClusterFeatures; schema/lookup.go at 894adbcd). An attribute whose read
+// failed (AttributeValue.Status, go-fabric node/served.go:20-40 at
+// 82591648) is listed with its status and no value, the AttributeList's or
+// not. Without a value (a read that failed as a whole, or every attribute
+// failed) it is the schema's revision and the cluster's name.
 func servedCluster(id uint32, vals []node.AttributeValue) ClusterDetail {
 	c := ClusterDetail{
 		ID: id, Features: []ClusterFeature{}, Attributes: []ClusterAttribute{},
 		Accepted: []ClusterElement{}, Generated: []ClusterElement{}, Events: []ClusterElement{},
 	}
 	c.Name, _ = schema.ClusterName(id)
-	if len(vals) == 0 {
+	first := slices.IndexFunc(vals, func(v node.AttributeValue) bool { return v.Status == 0 })
+	if first < 0 {
 		c.Revision, _ = schema.ClusterRevision(id)
+		c.Attributes = failedAttributes(id, vals)
 		return c
 	}
-	v := vals[0].DataVersion
+	// A failed attribute carries DataVersion 0: the version is a value's.
+	v := vals[first].DataVersion
 	c.DataVersion = &v
 	valueOf(vals, attrClusterRevision, &c.Revision)
 	valueOf(vals, attrFeatureMap, &c.FeatureMap)
@@ -196,12 +202,19 @@ func servedCluster(id uint32, vals []node.AttributeValue) ClusterDetail {
 	valueOf(vals, attrAcceptedCommands, &accepted)
 	valueOf(vals, attrGeneratedCommands, &generated)
 	valueOf(vals, attrEventList, &events)
+	for _, v := range vals {
+		if v.Status != 0 && !slices.Contains(attrs, v.Attribute) {
+			attrs = append(attrs, v.Attribute)
+		}
+	}
 	slices.Sort(attrs)
 	for _, a := range attrs {
 		e := ClusterAttribute{ID: a}
 		e.Name, _ = schema.AttributeName(id, a)
 		if i := slices.IndexFunc(vals, func(v node.AttributeValue) bool { return v.Attribute == a }); i >= 0 {
-			if raw, err := vals[i].JSON(); err == nil {
+			if vals[i].Status != 0 {
+				e.Status = vals[i].Status
+			} else if raw, err := vals[i].JSON(); err == nil {
 				e.Value = raw
 			}
 		}
@@ -211,6 +224,21 @@ func servedCluster(id uint32, vals []node.AttributeValue) ClusterDetail {
 	c.Generated = named(id, generated, schema.ResponseCommandName)
 	c.Events = named(id, events, schema.EventName)
 	return c
+}
+
+// failedAttributes are the attributes of vals whose read failed, in id
+// order, each with its status.
+func failedAttributes(cluster uint32, vals []node.AttributeValue) []ClusterAttribute {
+	out := []ClusterAttribute{}
+	for _, v := range vals {
+		if v.Status != 0 {
+			e := ClusterAttribute{ID: v.Attribute, Status: v.Status}
+			e.Name, _ = schema.AttributeName(cluster, v.Attribute)
+			out = append(out, e)
+		}
+	}
+	slices.SortFunc(out, func(a, b ClusterAttribute) int { return int(a.ID) - int(b.ID) })
+	return out
 }
 
 // named lists ids with the name lookup gives each.
@@ -258,9 +286,9 @@ func labelsOf(vals []node.AttributeValue, user bool) []EndpointLabel {
 }
 
 // valueOf decodes the attribute attr of vals, rendered by name, into v;
-// v stays as it is when vals lacks it or it does not fit.
+// v stays as it is when vals lacks it, its read failed or it does not fit.
 func valueOf(vals []node.AttributeValue, attr uint32, v any) {
-	if i := slices.IndexFunc(vals, func(x node.AttributeValue) bool { return x.Attribute == attr }); i >= 0 {
+	if i := slices.IndexFunc(vals, func(x node.AttributeValue) bool { return x.Attribute == attr && x.Status == 0 }); i >= 0 {
 		jsonOf(vals[i], v)
 	}
 }

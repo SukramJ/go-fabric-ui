@@ -637,7 +637,7 @@ type ClusterAttribute struct {
 	IDHex string  `json:"id_hex"`
 	Name  *string `json:"name,omitempty"`
 
-	// Status The status the attribute was answered with; absent on success.
+	// Status The IM status the attribute was answered with; absent on success. The node family sets it, without a `value`, for an attribute its read path failed (0.5.0).
 	Status *int `json:"status,omitempty"`
 
 	// Value The attribute's value as JSON by field name; absent in a structure-only answer or while unknown.
