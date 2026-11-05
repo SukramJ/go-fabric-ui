@@ -41,6 +41,17 @@ describe("Node Endpoint", () => {
     expect(screen.getByTestId("cluster-view-0x0039")).toHaveTextContent("ReachableChanged");
   });
 
+  it("shows a failed attribute with its status by name and no value", async () => {
+    renderEndpoint(2);
+    const view = await screen.findByTestId("cluster-view-0x0039");
+    const row = view.querySelector('[data-testid="attribute-0x0001"]')!;
+    expect(row).toHaveTextContent("VendorName");
+    expect(row).toHaveTextContent("inventory.no_value");
+    expect(row).toHaveTextContent("inventory.status.failure");
+    expect(row).toHaveTextContent("0x01");
+    expect(view.querySelector('[data-testid="attribute-0x0005"]')!.querySelector('[data-testid="attribute-status"]')).toBeNull();
+  });
+
   it("shows the decisions on the endpoint, the silent keeps on request", async () => {
     renderEndpoint(2);
     await screen.findByTestId("endpoint-title");
