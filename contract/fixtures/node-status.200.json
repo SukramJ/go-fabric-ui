@@ -7,6 +7,7 @@
   "response": {
     "status": 200,
     "body": {
+      "admin": true,
       "advertising": true,
       "commissioning_window_duration_seconds": 300,
       "commissioning_window_open": true,

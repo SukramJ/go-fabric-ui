@@ -1,0 +1,16 @@
+{
+  "route": "PUT /nodes/{node}/label",
+  "request": {
+    "method": "PUT",
+    "path": "/nodes/kitchen/label",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "label": "Kitchen and dining"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

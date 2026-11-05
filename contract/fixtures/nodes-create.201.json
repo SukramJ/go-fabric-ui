@@ -1,0 +1,24 @@
+{
+  "route": "POST /nodes",
+  "request": {
+    "method": "POST",
+    "path": "/nodes",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "label": "Living room"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "enabled": true,
+      "exposure": true,
+      "key": "living-room",
+      "kind": "bridge",
+      "label": "Living room",
+      "managed": true
+    }
+  }
+}

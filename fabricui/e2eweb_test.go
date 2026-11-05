@@ -22,9 +22,12 @@ const e2eWebAddr = "FABRIC_UI_E2E_ADDR"
 
 // TestServeE2EWeb is the server of the browser smoke tests (ui/e2e,
 // make e2e-web): the committed bundle and the API on the test doubles the
-// fixtures come from — two device nodes (the second with a selection
-// reason), the memory selection, the memory controller with the network
-// graph of the topology fixture and the operations ring — until the process is interrupted. It is not a test of its own.
+// fixtures come from — two device nodes (the second, a node of the memory
+// registry, with a selection reason; the registry creates and deletes
+// further ones, contract 0.6.0), the default node's configuration block,
+// the memory selection, the memory controller with the network graph of
+// the topology fixture and the operations ring — until the process is
+// interrupted. It is not a test of its own.
 func TestServeE2EWeb(t *testing.T) {
 	addr := os.Getenv(e2eWebAddr)
 	if addr == "" {
@@ -34,8 +37,16 @@ func TestServeE2EWeb(t *testing.T) {
 	ctrl := NewMemoryController()
 	topo := controllerTopology()
 	ctrl.Topology = &topo
+	// The second node is registry state without a selection, as the
+	// selector's and the second node's smokes expect it.
+	reg := newMemoryRegistry(0)
+	second := secondNode()
+	reg.nodes = []NodeEntry{{
+		Key: "second", Label: "Second bridge", Kind: "bridge", Source: portSource{fakeNode: second},
+		Config: &NodeConfigView{Listen: second.addr, Discriminator: 3541, VendorID: 0xFFF1, VendorName: "go-fabric", ProductID: 0x8000, ProductName: "Bridge", Store: "bridge-second.db"},
+	}}
 	_, mux := newTestHandler(t, testOptions{
-		node: sampleNode(), second: secondNode(), exposure: newMemoryProvider(),
+		node: sampleNode(), exposure: newMemoryProvider(), registry: reg, nodeConfig: defaultNodeConfig(),
 		controller: ctrl, operations: ops,
 		exposureReason: "This host builds its endpoints without a selection.",
 	})

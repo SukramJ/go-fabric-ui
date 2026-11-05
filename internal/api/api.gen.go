@@ -235,6 +235,8 @@ const (
 	ProblemCodeForbidden       ProblemCode = "forbidden"
 	ProblemCodeInternal        ProblemCode = "internal"
 	ProblemCodeNodeError       ProblemCode = "node_error"
+	ProblemCodeNodeIsDefault   ProblemCode = "node_is_default"
+	ProblemCodeNodeLimit       ProblemCode = "node_limit"
 	ProblemCodeNotFound        ProblemCode = "not_found"
 	ProblemCodeNotImplemented  ProblemCode = "not_implemented"
 	ProblemCodePayloadTooLarge ProblemCode = "payload_too_large"
@@ -253,6 +255,10 @@ func (e ProblemCode) Valid() bool {
 	case ProblemCodeInternal:
 		return true
 	case ProblemCodeNodeError:
+		return true
+	case ProblemCodeNodeIsDefault:
+		return true
+	case ProblemCodeNodeLimit:
 		return true
 	case ProblemCodeNotFound:
 		return true

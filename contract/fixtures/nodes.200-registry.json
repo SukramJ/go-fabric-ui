@@ -1,0 +1,29 @@
+{
+  "route": "GET /nodes",
+  "request": {
+    "method": "GET",
+    "path": "/nodes"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "nodes": [
+        {
+          "enabled": true,
+          "exposure": true,
+          "key": "default",
+          "label": "default",
+          "managed": false
+        },
+        {
+          "enabled": true,
+          "exposure": true,
+          "key": "kitchen",
+          "kind": "bridge",
+          "label": "Kitchen",
+          "managed": true
+        }
+      ]
+    }
+  }
+}
