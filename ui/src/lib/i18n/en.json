@@ -201,7 +201,7 @@
   "controller.overview.unsubscribe": "Stop the subscription",
   "controller.overview.vendor": "Vendor",
   "controller.ping.button": "Ping",
-  "controller.ping.method_per_address": "Reachable means: each address answered a read of the node's data model revision on its own. No ICMP echo is sent.",
+  "controller.ping.method_per_address": "Reachable means: at least one address answered. Each address was probed on its own with an empty read over the node's session; the session keeps the address it uses. No ICMP echo is sent.",
   "controller.ping.method_session": "Reachable means: the node answered a read of its data model revision through its session. No ICMP echo is sent, and the one read stands for every address.",
   "controller.ping.reachable": "reachable",
   "controller.ping.rtt": "{ms} ms",

@@ -201,7 +201,7 @@
   "controller.overview.unsubscribe": "Abonnement beenden",
   "controller.overview.vendor": "Hersteller",
   "controller.ping.button": "Ping",
-  "controller.ping.method_per_address": "Erreichbar heißt: jede Adresse hat für sich einen Lesezugriff auf die Datenmodell-Revision des Nodes beantwortet. Es wird kein ICMP-Echo gesendet.",
+  "controller.ping.method_per_address": "Erreichbar heißt: mindestens eine Adresse hat geantwortet. Jede Adresse wurde für sich mit einem leeren Lesezugriff über die Session des Nodes geprüft; die Session behält die Adresse, die sie nutzt. Es wird kein ICMP-Echo gesendet.",
   "controller.ping.method_session": "Erreichbar heißt: der Node hat über seine Session einen Lesezugriff auf seine Datenmodell-Revision beantwortet. Es wird kein ICMP-Echo gesendet, und der eine Lesezugriff steht für jede Adresse.",
   "controller.ping.reachable": "erreichbar",
   "controller.ping.rtt": "{ms} ms",
