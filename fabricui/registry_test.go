@@ -293,7 +293,7 @@ func TestRegistry_SkipsAnInvalidEntry(t *testing.T) {
 	if err := json.Unmarshal(do(t, mux, http.MethodGet, "/nodes", "").Body.Bytes(), &list); err != nil {
 		t.Fatal(err)
 	}
-	var keys []string
+	keys := make([]string, 0, len(list.Nodes))
 	for _, n := range list.Nodes {
 		keys = append(keys, n.Key)
 	}
