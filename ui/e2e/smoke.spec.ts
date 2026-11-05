@@ -9,7 +9,7 @@ type Smoke = { name: string; hash: string; shows: (page: Page) => ReturnType<Pag
 const L = "0000000000000011";
 
 const SMOKES: Smoke[] = [
-  { name: "node status", hash: "#/node/status", shows: (p) => p.getByTestId("node-status") },
+  { name: "node status", hash: "#/node/status", shows: (p) => p.getByTestId("node-config") },
   { name: "node pair", hash: "#/node/pair", shows: (p) => p.getByTestId("ecosystem-hints") },
   { name: "node fabrics", hash: "#/node/fabrics", shows: (p) => p.getByText("Home", { exact: true }).first() },
   { name: "node selection", hash: "#/node/selection", shows: (p) => p.getByText("Kitchen lamp").first() },
@@ -19,6 +19,7 @@ const SMOKES: Smoke[] = [
   { name: "node diagnostics", hash: "#/node/diagnostics", shows: (p) => p.getByTestId("occupancy") },
   { name: "node topology", hash: "#/node/topology", shows: (p) => p.getByText("Kitchen lamp").first() },
   { name: "second node status", hash: "#/node/second/status", shows: (p) => p.getByTestId("node-status").filter({ hasText: "[::]:5541" }) },
+  { name: "second node manage", hash: "#/node/second/status", shows: (p) => p.getByTestId("node-manage-hint") },
   { name: "second node selection", hash: "#/node/second/selection", shows: (p) => p.getByTestId("exposure-reason") },
   { name: "controller nodes", hash: "#/controller/nodes", shows: (p) => p.getByText("Kitchen").first() },
   { name: "controller network", hash: "#/controller/nodes?tab=network", shows: (p) => p.getByRole("button", { name: "Peer node Light, OK" }) },
@@ -53,4 +54,32 @@ test("the node selector lists both nodes and switches to the second", async ({ p
   await selector.selectOption("second");
   await expect(page).toHaveURL(/#\/node\/second\/status$/);
   await expect(page.getByTestId("node-status")).toContainText("[::]:5541");
+});
+
+// The node registry (contract 0.6.0): create a node from the selector, find
+// it listed and on its selection page, delete it with both confirmations
+// from its status page and land on the default node.
+test("a node is created from the selector and deleted from its status page", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+  await page.goto("/#/node/status");
+  const selector = page.getByLabel("Node", { exact: true });
+  await expect(selector).toBeVisible();
+  const before = await selector.locator("option").count();
+  await selector.selectOption({ label: "Create node…" });
+  const dialog = page.getByTestId("node-create-dialog");
+  await dialog.getByLabel("Name").fill("Alexa");
+  await dialog.getByRole("button", { name: "Create" }).click();
+  await expect(page).toHaveURL(/#\/node\/alexa\/selection$/);
+  await expect(page.getByLabel("Node", { exact: true }).locator("option")).toHaveCount(before + 1);
+  await expect(page.getByLabel("Node", { exact: true })).toHaveValue("alexa");
+
+  await page.goto("/#/node/alexa/status");
+  await expect(page.getByTestId("node-config-source")).toContainText("allocated");
+  await page.getByTestId("node-manage-delete").click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete node…" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete for good" }).click();
+  await expect(page).toHaveURL(/#\/node\/status$/);
+  await expect(page.getByLabel("Node", { exact: true }).locator("option")).toHaveCount(before);
+  expect(errors).toEqual([]);
 });

@@ -118,6 +118,14 @@ entfällt wieder.
   Die Mehr-Node-Tests (`internal/daemon/multinode_test.go`) laufen über die
   Registry.
 
+### C.4 Konfigurationsblock
+
+- Eine Form für jeden Node: `Status.config` (`source`, `source_note?`, `label?`, `listen`, `discriminator`, Vendor, Produkt, `store?`), vom Host über `Options.NodeConfig` bzw. `NodeEntry.Config` geliefert; nil lässt den Block weg.
+- Nur lesend auf der Statusseite; der Passcode erscheint nie, er bleibt auf der Pair-Seite hinter Admin.
+- `source` ist `configuration` (Konfiguration des Hosts, `source_note` nennt sie, z. B. „Add-on-Optionen“) oder `registry` (vom Host vergeben).
+- Bei einem Registry-Node ist nur das Label änderbar (Umbenennen, C.2); Port und Diskriminator zeigt der Block als vom Host vergeben.
+- Entscheidung des Owners vom 2026-11-05 (F.4).
+
 ## D. Wellen
 
 1. **U6a** go-fabric-ui: Contract 0.6.0, Port, Routen, Shell, Smoke,
@@ -151,3 +159,5 @@ entfällt wieder.
 2. Drei Wellen jetzt als Nebenläufe neben der go-fabric-Roadmap:
    U6a → Tag → U6b ∥ S-U6.
 3. Ökosystem-Profil nur als go-hamapping-Issue bis zum Alexa-/Google-Lauf.
+4. Jede Statusseite zeigt einen nur lesenden Konfigurationsblock, eine Form
+   für Default- und Registry-Nodes, nie den Passcode (C.4).

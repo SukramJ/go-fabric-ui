@@ -8,6 +8,7 @@ import type {
   FabricEvent,
   HealthSampleEvent,
   LogRecord,
+  NodesChangedEvent,
   SessionEvent,
   SurfaceChangedEvent,
   WindowEvent,
@@ -28,6 +29,7 @@ export const STREAM_EVENTS = [
   "attribute_changed",
   "health_sample",
   "diagnostic_event",
+  "nodes_changed",
 ] as const;
 
 export type StreamEventType = (typeof STREAM_EVENTS)[number];
@@ -41,7 +43,8 @@ export type StreamEvent =
   | { type: "session_opened" | "session_closed" | "subscriptions_changed"; data: SessionEvent }
   | { type: "attribute_changed"; data: AttributeChangedEvent }
   | { type: "health_sample"; data: HealthSampleEvent }
-  | { type: "diagnostic_event"; data: DiagnosticEvent };
+  | { type: "diagnostic_event"; data: DiagnosticEvent }
+  | { type: "nodes_changed"; data: NodesChangedEvent };
 
 /** The part of EventSource the helper uses, so a test can hand in a fake. */
 export interface EventSourceLike {

@@ -410,10 +410,15 @@ export interface paths {
          * @description `event:` is one of fabric_added, fabric_removed, window_opened,
          *     window_closed, endpoints_changed, exposure_changed, surface_changed,
          *     session_opened, session_closed, subscriptions_changed,
-         *     attribute_changed, health_sample, diagnostic_event; `data:` is the
-         *     JSON payload (`FabricEvent`, `WindowEvent`, `{}`, `ExposureEvent`,
-         *     `SurfaceChangedEvent`, `SessionEvent`, `AttributeChangedEvent`,
-         *     `HealthSampleEvent`, `DiagnosticEvent`).
+         *     attribute_changed, health_sample, diagnostic_event, nodes_changed;
+         *     `data:` is the JSON payload (`FabricEvent`, `WindowEvent`, `{}`,
+         *     `ExposureEvent`, `SurfaceChangedEvent`, `SessionEvent`,
+         *     `AttributeChangedEvent`, `HealthSampleEvent`, `DiagnosticEvent`,
+         *     `NodesChangedEvent`).
+         *     nodes_changed (0.6.0) follows `POST /nodes`, `PUT
+         *     /nodes/{node}/label` and `DELETE /nodes/{node}` on every node's
+         *     stream, with the keys of the nodes created, renamed or deleted: a
+         *     page reloads `GET /nodes`.
          *     attribute_changed (0.4.1) names the attributes that changed, never
          *     their values: a page refetches what it shows.
          *     health_sample (0.5.0) is every verdict of the node's health probe
@@ -448,10 +453,73 @@ export interface paths {
          *     default node, the one the `/node/*` routes serve. Each is reached under
          *     `/nodes/{node}/…` by its key as well, with the operations of `/node/*`.
          *     Empty when the host serves no node. A page shows a node selector when
-         *     the list holds more than one.
+         *     the list holds more than one. With a node registry (0.6.0) the
+         *     registry's nodes follow the default, read on every request, each
+         *     `managed`.
          */
         get: operations["listNodes"];
         put?: never;
+        /**
+         * Create a node in the host's node registry (0.6.0).
+         * @description The host allocates the key (a slug of the label), the port, the
+         *     discriminator, the passcode and the store, and starts the node; its
+         *     routes answer under `/nodes/{node}/…` at once. 409 `node_limit` when
+         *     the host serves no further node; 503 without a registry
+         *     (`Status.node_registry` absent). Every node's stream carries
+         *     `nodes_changed`.
+         */
+        post: operations["createNode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a node of the host's node registry (0.6.0).
+         * @description Final: the host stops the node and removes its fabrics (its
+         *     controllers lose the node), its store and its selection. 409
+         *     `node_is_default` for the default node, which is the host's
+         *     configuration; 404 for a key `GET /nodes` does not list; 503
+         *     without a registry. Every node's stream carries `nodes_changed`.
+         */
+        delete: operations["deleteNode"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/label": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Rename a node of the host's node registry (0.6.0).
+         * @description 409 `node_is_default` for the default node, which is the host's
+         *     configuration; 404 for a key `GET /nodes` does not list; 503
+         *     without a registry. Every node's stream carries `nodes_changed`.
+         */
+        put: operations["renameNode"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1736,7 +1804,7 @@ export interface components {
             detail?: string;
             instance?: string;
             /** @enum {string} */
-            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented";
+            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default";
         };
         Status: {
             enabled: boolean;
@@ -1768,6 +1836,11 @@ export interface components {
             exposure_reason?: string;
             /** @description The admin token of token mode; absent when the host decides admin rights. */
             csrf_token?: string;
+            /** @description Whether the host's admin check admits this request (0.6.0); present when the host decides admin rights, absent in token mode, where `csrf_token` says it. */
+            admin?: boolean;
+            /** @description Whether the host keeps a node registry (0.6.0): `POST /nodes` creates a node and a `managed` node can be renamed and deleted. Absent without one. */
+            node_registry?: boolean;
+            config?: components["schemas"]["NodeConfig"];
             /** @description The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing. */
             warnings?: components["schemas"]["Warning"][];
             /** @description The policies the node's served surface is composed under (go-fabric node.Node.Surface) and the counts that tell whether to look further; absent without a node. */
@@ -2065,6 +2138,48 @@ export interface components {
             kind?: string;
             /** @description Whether the node family is served for the node, as the node's `Status.enabled`. */
             enabled: boolean;
+            /** @description Whether the node belongs to the host's node registry (0.6.0): `PUT /nodes/{node}/label` and `DELETE /nodes/{node}` apply to it. The default node is the host's configuration and never managed. */
+            managed: boolean;
+            /** @description Whether the node serves a selection (0.6.0), as its `Status.exposure`. */
+            exposure: boolean;
+        };
+        /**
+         * @description The node's configuration as the host shows it, read-only (0.6.0);
+         *     absent when the host supplies none. One shape for every node. It
+         *     never carries the passcode, which stays with the admin route
+         *     `GET /node/pairing`. Of a `registry` node only the label is
+         *     editable (`PUT /nodes/{node}/label`); the host allocated the rest.
+         *     A `configuration` node is set in the host's configuration and
+         *     nothing of it is editable in the page.
+         */
+        NodeConfig: {
+            /**
+             * @description Where the values come from: the host's configuration, or its node registry.
+             * @enum {string}
+             */
+            source: "configuration" | "registry";
+            /** @description The host's wording of where a configured node's values come from ("add-on options", "the --bridge-* flags"); absent when it gives none. */
+            source_note?: string;
+            /** @description The node's configured name; absent when it has none. */
+            label?: string;
+            /** @description The address the node listens on, as configured ("[::]:5540"). */
+            listen: string;
+            discriminator: number;
+            vendor_id: number;
+            vendor_name?: string;
+            product_id: number;
+            product_name?: string;
+            /** @description Where the node keeps its state (a file name); absent when the host does not say. */
+            store?: string;
+        };
+        /** @description The body of `POST /nodes` and `PUT /nodes/{node}/label` (0.6.0); an unknown field is refused. */
+        NodeLabelRequest: {
+            /** @description The operator's name for the node, trimmed: 1 to 64 characters, no control character. */
+            label: string;
+        };
+        /** @description The payload of nodes_changed (0.6.0) — the keys of the nodes created, renamed or deleted. */
+        NodesChangedEvent: {
+            keys: string[];
         };
         NodeSummaryList: {
             /** @description The default node first. */
@@ -3433,6 +3548,92 @@ export interface operations {
                     "application/json": components["schemas"]["NodeSummaryList"];
                 };
             };
+        };
+    };
+    createNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NodeLabelRequest"];
+            };
+        };
+        responses: {
+            /** @description The node, as `GET /nodes` lists it. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeSummary"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    deleteNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    renameNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NodeLabelRequest"];
+            };
+        };
+        responses: {
+            /** @description Renamed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
         };
     };
     getNodeStatusForNode: {

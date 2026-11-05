@@ -7,7 +7,61 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.5.0] - unreleased
+## [0.6.0] - unreleased
+
+Several nodes per host, created in the page (wave U6a, issue #47, concept
+`docs/concept-u6-nodes.md`); contract 0.6.0, additive over 0.5.0. The
+first node stays the host's configuration; every further node is registry
+state the operator creates, renames and deletes. A host without
+`Options.Registry` serves 0.5.0's routes as before.
+
+### Added
+
+- The node registry port: `fabricui.NodeRegistry` (`List`, `Create(ctx,
+  NodeSpec{Label})`, `Rename`, `Delete`), `Options.Registry` (needs
+  `Options.Node`; `Handler` panics and `Mount` fails beside `Options.Nodes`), the
+  errors `ErrNodeLimit` and `ErrDefaultNode`, `MaxNodeLabel`.
+- `POST /nodes` (admin, 201 `NodeSummary`; 409 `node_limit`), `PUT
+  /nodes/{node}/label` (admin, 204) and `DELETE /nodes/{node}` (admin,
+  204; 409 `node_is_default`), each 503 without a registry; the problem
+  codes `node_limit` and `node_is_default`; the request body
+  `NodeLabelRequest` (1 to 64 characters).
+- `GET /nodes` lists the registry's nodes after the default, read on every
+  request; `NodeSummary.managed` and `NodeSummary.exposure`.
+- `Status.node_registry` (with a registry) and `Status.admin` (host mode:
+  whether the host's admin check admits the request).
+- The stream event `nodes_changed` (`NodesChangedEvent{keys}`) on every
+  node's stream after each registry write.
+- Per-node selection: `NodeEntry.Exposure`, `Reassemble` and `Events` serve
+  the exposure and maintenance routes and the stream under
+  `/nodes/{key}/…` (for `Options.Nodes` and the registry's entries alike);
+  the Options-level ones stay the default node's.
+- The configuration block: `Status.config` (`NodeConfig{source,
+  source_note?, label?, listen, discriminator, vendor_id, vendor_name?,
+  product_id, product_name?, store?}`), from `Options.NodeConfig` for the
+  default node and `NodeEntry.Config` for any other (`NodeConfigView`);
+  never the passcode. The status page shows it read-only and says where
+  the values come from.
+- Shell: "Create node…" in the node selector (with `node_registry` and
+  admin rights; the selector shows from one node then), a label dialog,
+  the new node's selection page with a hint to the Pair page; a keyed
+  route whose node is gone goes to the default node.
+- A managed node's status page: rename, delete after two confirmations
+  naming its label and fabric count, and the several-nodes ecosystem hint
+  (Alexa pairs reliably only on port 5540 and refuses bridges above about
+  80–100 devices; home-assistant-matter-hub's bridge configuration page).
+- The npm package: the context's `nodes` store (`list`, `loaded`, `find`,
+  `load`, `create`, `rename`, `remove`), the client's `createNode`,
+  `renameNode` and `deleteNode`, `NodeStoreDeps.onNodesChanged`, the
+  `NodeConfig` and `NodesChangedEvent` types.
+- The e2e server's registry double and the Playwright smoke: create a node
+  from the selector, find it listed, delete it from its status page.
+
+### Changed
+
+- `contract/previous/openapi.yaml` is the released 0.5.0 contract.
+
+## [0.5.0] - 2026-11-05
 
 The controller family's device details (brief U4b, concept
 `docs/concept-u4-device-details.md`, wave D.1); contract 0.4.0, additive
