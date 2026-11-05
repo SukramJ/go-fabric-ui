@@ -194,9 +194,12 @@ wave D.1); contract 0.5.0, additive over 0.4.1.
   (`per_address: false`). `MemoryController`'s light lists a second,
   silent address (`192.168.1.11:5540`); the node overview shows each
   address with its badge, round trip and reason.
-- go-fabric `v0.16.1-0.20261105055107-8feaa508792d` (main at `8feaa508`,
-  the follow-up wave: `Node.PingAddress`), a pseudo-version until
-  go-fabric's next tag; no migration.
+- go-fabric `v0.17.0` (milestones 8 and 9: the certification harness with
+  the Go controller, the test register over every matter.js root, the second
+  compositions of the reference daemon, determinism, and the module side of
+  these pages — `Node.ReadAttribute`/`ReadCluster`/`Events`/`Endpoints`,
+  `Node.PingAddress`, `logring`); replaces the pseudo-version of `8feaa508`;
+  no migration.
 
 ## [0.4.1] - 2026-11-03
 
