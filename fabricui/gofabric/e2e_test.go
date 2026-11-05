@@ -255,24 +255,26 @@ func TestEndToEnd_Controller(t *testing.T) {
 		}
 	}
 
-	// The ping: a Matter read of DataModelRevision through the session
-	// answers, and the one outcome stands for every known address.
+	// The ping: every address of the record probed on its own over the
+	// held session (client.Node.PingAddress) answers with its round trip.
 	var ping struct {
 		Method     string   `json:"method"`
 		PerAddress bool     `json:"per_address"`
 		Reachable  bool     `json:"reachable"`
 		RttMs      *float64 `json:"rtt_ms"`
 		Addresses  []struct {
-			IP        string `json:"ip"`
-			Reachable bool   `json:"reachable"`
+			IP        string   `json:"ip"`
+			Reachable bool     `json:"reachable"`
+			RttMs     *float64 `json:"rtt_ms"`
+			Error     string   `json:"error"`
 		} `json:"addresses"`
 	}
 	s.json(http.MethodPost, "/controller/nodes/"+id+"/ping", "", http.StatusOK, &ping)
-	if ping.Method != "matter-read" || ping.PerAddress || !ping.Reachable || ping.RttMs == nil || len(ping.Addresses) == 0 {
+	if ping.Method != "matter-read" || !ping.PerAddress || !ping.Reachable || ping.RttMs == nil || len(ping.Addresses) == 0 {
 		t.Fatalf("ping %+v", ping)
 	}
 	for _, a := range ping.Addresses {
-		if !a.Reachable {
+		if !a.Reachable || a.RttMs == nil || a.Error != "" {
 			t.Fatalf("ping address %+v", a)
 		}
 	}

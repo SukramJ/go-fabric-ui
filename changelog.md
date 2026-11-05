@@ -183,9 +183,20 @@ wave D.1); contract 0.5.0, additive over 0.4.1.
   left out, and the attribute table of both families shows a known status
   by name (`inventory.status.*`, en and de) beside its code. The
   cluster's `data_version` is a value's, never a failed attribute's 0.
-- go-fabric `v0.16.1-0.20261105004427-825916482e9e` (main at `82591648`,
-  the seam wave: `Node.Endpoints`, `AttributeValue.Status`), a
-  pseudo-version until go-fabric's next tag; no migration.
+- The ping is measured per address (go-fabric #398): the go-fabric
+  adapter probes every address of the node's record on its own with
+  `client.Node.PingAddress` — an empty read over the held session sent to
+  that address, at most four at once, nothing migrates — and answers
+  `per_address: true`; the result is reachable when one address answered,
+  with the fastest round trip. `PingAddress` (contract and port) adds an
+  optional `error` per address. A node without a session or without a
+  known address keeps the single read through the session
+  (`per_address: false`). `MemoryController`'s light lists a second,
+  silent address (`192.168.1.11:5540`); the node overview shows each
+  address with its badge, round trip and reason.
+- go-fabric `v0.16.1-0.20261105055107-8feaa508792d` (main at `8feaa508`,
+  the follow-up wave: `Node.PingAddress`), a pseudo-version until
+  go-fabric's next tag; no migration.
 
 ## [0.4.1] - 2026-11-03
 

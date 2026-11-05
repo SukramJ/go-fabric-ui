@@ -551,8 +551,10 @@ func (s *controllerServer) DecommissionNode(ctx context.Context, req api.Decommi
 	return api.DecommissionNode204Response{}, nil
 }
 
-// PingNode serves POST /controller/nodes/{id}/ping: the port's Matter
-// read, as go-fabric-server's ping_node answers it (controllerapi/cmd_node.go:167-204).
+// PingNode serves POST /controller/nodes/{id}/ping: the port's outcome,
+// per address where the port measured each (go-fabric's
+// client.Node.PingAddress), else one read as go-fabric-server's ping_node
+// answers it (controllerapi/cmd_node.go:167-204).
 func (s *controllerServer) PingNode(ctx context.Context, req api.PingNodeRequestObject) (api.PingNodeResponseObject, error) {
 	n, err := s.node(req.ID)
 	if err != nil {
@@ -575,7 +577,7 @@ func pingResult(r *PingResult) api.PingResult {
 		out.RttMs = ptr(rttMS(r.RTT))
 	}
 	for _, a := range r.Addresses {
-		pa := api.PingAddress{IP: a.Address, Reachable: a.Reachable}
+		pa := api.PingAddress{IP: a.Address, Reachable: a.Reachable, Error: optString(a.Error)}
 		if a.Reachable {
 			pa.RttMs = ptr(rttMS(a.RTT))
 		}

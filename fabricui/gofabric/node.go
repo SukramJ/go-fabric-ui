@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/netip"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/SukramJ/go-fabric/cluster/spec"
@@ -675,24 +676,102 @@ func (w *node) Interview(ctx context.Context) error {
 	return nil
 }
 
-// pingTimeout bounds the read of a ping, as go-fabric-server's ping_node
-// bounds each attempt (controllerapi/cmd_node.go:187).
+// pingTimeout bounds a ping, as go-fabric-server's ping_node bounds each
+// attempt (controllerapi/cmd_node.go:187): the session read of the
+// fallback, or the whole round of per-address probes.
 const pingTimeout = 10 * time.Second
 
-// Ping reads BasicInformation DataModelRevision (0x0028/0x0000) through the
-// node's session without data version filters and measures the round trip
-// — go-fabric-server's ping_node (controllerapi/cmd_node.go:167-204 at
-// e8bcd86), one attempt. The facade's read goes through the node's session
-// (client.Node.Read, go-fabric controller/client/interact.go:52 at
-// 894adbcd) and cannot be aimed at one address, so the one outcome stands
-// for every address the record lists (PerAddress false).
+// pingParallel bounds how many addresses of one node are probed at once.
+const pingParallel = 4
+
+// Ping probes every address of the node's record on its own with
+// client.Node.PingAddress (go-fabric controller/client/ping.go at
+// 8feaa508, issue #398): one empty read over the node's held session sent
+// to that address — matter.js ClientInteraction.probe with
+// addressOverride — measured on the node's clock; nothing migrates, and a
+// silent address is an outcome, not an error (PerAddress true). The
+// result is reachable when one address answered, with the fastest round
+// trip.
+//
+// A node without addresses or without a session to probe on
+// (client.ErrNoSession, ErrNotCommissioned, ErrClosed) keeps the single
+// outcome: a read of BasicInformation DataModelRevision (0x0028/0x0000)
+// through the session without data version filters — go-fabric-server's
+// ping_node (controllerapi/cmd_node.go:167-204 at e8bcd86), one attempt —
+// standing for every address (PerAddress false). The end of the request's
+// ctx is its error.
 func (w *node) Ping(ctx context.Context) (fabricui.PingResult, error) {
-	req := client.ReadRequest{IncludeKnownVersions: true}
-	req.Attributes = []client.AttributePath{client.AttributeAt(0, basicinformation.ClusterID, basicinformation.AttrDataModelRevision)}
+	rec := w.n.Record().Addresses
+	addrs := make([]netip.AddrPort, 0, len(rec))
+	for _, a := range rec {
+		addrs = append(addrs, netip.AddrPortFrom(a.IP, a.Port))
+	}
 	rctx, cancel := context.WithTimeout(ctx, pingTimeout)
 	defer cancel()
+	if res, ok := pingAddresses(rctx, addrs, w.n.PingAddress); ok {
+		if err := ctx.Err(); err != nil {
+			return fabricui.PingResult{}, err
+		}
+		return res, nil
+	}
+	return w.pingSession(rctx)
+}
+
+// pingAddresses probes each address with ping, at most pingParallel at
+// once, and keeps the record's order. It reports false when no address is
+// known or a probe failed for the node rather than for its address — no
+// session to probe on, a node not commissioned or closed — so the caller
+// falls back to the session read.
+func pingAddresses(ctx context.Context, addrs []netip.AddrPort, ping func(context.Context, netip.AddrPort) (time.Duration, error)) (fabricui.PingResult, bool) {
+	if len(addrs) == 0 {
+		return fabricui.PingResult{}, false
+	}
+	type outcome struct {
+		rtt time.Duration
+		err error
+	}
+	outs := make([]outcome, len(addrs))
+	sem := make(chan struct{}, pingParallel)
+	var wg sync.WaitGroup
+	for i, a := range addrs {
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			rtt, err := ping(ctx, a)
+			outs[i] = outcome{rtt, err}
+		})
+	}
+	wg.Wait()
+	res := fabricui.PingResult{PerAddress: true, Addresses: make([]fabricui.PingAddress, 0, len(addrs))}
+	for i, addr := range addrs {
+		o := outs[i]
+		if errors.Is(o.err, client.ErrNoSession) || errors.Is(o.err, client.ErrNotCommissioned) || errors.Is(o.err, client.ErrClosed) {
+			return fabricui.PingResult{}, false
+		}
+		pa := fabricui.PingAddress{Address: addr.String()}
+		if o.err != nil {
+			pa.Error = o.err.Error()
+		} else {
+			pa.Reachable, pa.RTT = true, o.rtt
+			if !res.Reachable || o.rtt < res.RTT {
+				res.Reachable, res.RTT = true, o.rtt
+			}
+		}
+		res.Addresses = append(res.Addresses, pa)
+	}
+	if !res.Reachable {
+		res.Error = fmt.Sprintf("none of the node's %d addresses answered", len(addrs))
+	}
+	return res, true
+}
+
+// pingSession is the single-outcome ping: one read through the node's
+// session stands for every address the record lists.
+func (w *node) pingSession(ctx context.Context) (fabricui.PingResult, error) {
+	req := client.ReadRequest{IncludeKnownVersions: true}
+	req.Attributes = []client.AttributePath{client.AttributeAt(0, basicinformation.ClusterID, basicinformation.AttrDataModelRevision)}
 	start := time.Now()
-	_, err := w.n.Read(rctx, req)
+	_, err := w.n.Read(ctx, req)
 	rtt := time.Since(start)
 	// An answer is reachable, a status in place of the value included, as
 	// ping_node counts it (cmd_node.go:190-193: err == nil).
@@ -703,7 +782,11 @@ func (w *node) Ping(ctx context.Context) (fabricui.PingResult, error) {
 		res.Reachable, res.RTT = true, rtt
 	}
 	for _, a := range w.Record().Addresses {
-		res.Addresses = append(res.Addresses, fabricui.PingAddress{Address: a, Reachable: res.Reachable, RTT: res.RTT})
+		pa := fabricui.PingAddress{Address: a, Reachable: res.Reachable, RTT: res.RTT}
+		if err != nil {
+			pa.Error = res.Error
+		}
+		res.Addresses = append(res.Addresses, pa)
 	}
 	return res, nil
 }

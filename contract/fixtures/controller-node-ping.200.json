@@ -15,10 +15,15 @@
           "ip": "[fd00::11]:5540",
           "reachable": true,
           "rtt_ms": 12.5
+        },
+        {
+          "error": "client: address unreachable: 192.168.1.11:5540",
+          "ip": "192.168.1.11:5540",
+          "reachable": false
         }
       ],
       "method": "matter-read",
-      "per_address": false,
+      "per_address": true,
       "reachable": true,
       "rtt_ms": 12.5
     }

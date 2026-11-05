@@ -384,8 +384,8 @@ func TestMemoryController_Flows(t *testing.T) {
 	}
 }
 
-// A ping of a node that does not answer is a result, not an error: every
-// address unreachable, the reason given, no round trip.
+// A ping of a node without a session is a result, not an error: the single
+// outcome, every address unreachable, the reason given, no round trip.
 func TestPingNode_UnreachableIsAResult(t *testing.T) {
 	_, mux, m := controllerHandler(t, nil)
 	n, _ := m.Node(0x11)
@@ -393,7 +393,7 @@ func TestPingNode_UnreachableIsAResult(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := do(t, mux, http.MethodPost, "/controller/nodes/0000000000000011/ping", "")
-	want := `{"addresses":[{"ip":"[fd00::11]:5540","reachable":false}],"error":"the node is disabled","method":"matter-read","per_address":false,"reachable":false}`
+	want := `{"addresses":[{"error":"the node is disabled","ip":"[fd00::11]:5540","reachable":false},{"error":"the node is disabled","ip":"192.168.1.11:5540","reachable":false}],"error":"the node is disabled","method":"matter-read","per_address":false,"reachable":false}`
 	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != want {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}

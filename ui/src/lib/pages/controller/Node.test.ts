@@ -31,10 +31,17 @@ describe("Controller Node", () => {
     await screen.findByTestId("node-overview");
     await fireEvent.click(screen.getByText("controller.ping.button"));
     const res = await screen.findByTestId("ping-result");
-    expect(res).toHaveTextContent("controller.ping.method_session");
+    expect(res).toHaveTextContent("controller.ping.method_per_address");
     expect(res).toHaveTextContent("controller.ping.reachable");
     expect(res).toHaveTextContent('controller.ping.rtt:{"ms":12.5}');
-    expect(screen.getAllByTestId("ping-address")[0]).toHaveTextContent("[fd00::11]:5540");
+    const rows = screen.getAllByTestId("ping-address");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("[fd00::11]:5540");
+    expect(rows[0]).toHaveTextContent('controller.ping.rtt:{"ms":12.5}');
+    expect(rows[0]).not.toHaveTextContent("controller.ping.unreachable");
+    expect(rows[1]).toHaveTextContent("192.168.1.11:5540");
+    expect(rows[1]).toHaveTextContent("controller.ping.unreachable");
+    expect(rows[1]).toHaveTextContent("client: address unreachable: 192.168.1.11:5540");
     expect(ui.sent.find((r) => r.method === "POST")?.headers["X-Fabric-UI-Token"]).toBe("test-token");
   });
 
