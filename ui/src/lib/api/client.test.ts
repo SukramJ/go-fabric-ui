@@ -7,6 +7,7 @@ import { fixture, fixtureFetch } from "../../test/support";
 type Call = (c: FabricClient, body: unknown) => Promise<unknown>;
 
 const items = (b: unknown) => (b as { items: Update[] }).items;
+const label = (b: unknown) => (b as { label: string }).label;
 
 // Each fixture with the client call that sends its request.
 const cases: [string, Call][] = [
@@ -56,6 +57,22 @@ const cases: [string, Call][] = [
   ["nodes.200", (c) => c.nodes()],
   ["nodes-status.200", (c) => c.forNode("second").status()],
   ["nodes-status.404", (c) => c.forNode("unknown").status()],
+  // The node registry and the configuration block (0.6.0).
+  ["nodes.200-registry", (c) => c.nodes()],
+  ["nodes-status.200-registry", (c) => c.forNode("kitchen").status()],
+  ["node-status.200-config", (c) => c.status()],
+  ["nodes-create.201", (c, b) => c.createNode(label(b))],
+  ["nodes-create.400", (c, b) => c.createNode(label(b))],
+  ["nodes-create.403", (c, b) => c.createNode(label(b))],
+  ["nodes-create.409", (c, b) => c.createNode(label(b))],
+  ["nodes-create.503", (c, b) => c.createNode(label(b))],
+  ["nodes-label.204", (c, b) => c.renameNode("kitchen", label(b))],
+  ["nodes-label.400", (c, b) => c.renameNode("kitchen", label(b))],
+  ["nodes-label.404", (c, b) => c.renameNode("attic", label(b))],
+  ["nodes-label.409", (c, b) => c.renameNode("default", label(b))],
+  ["nodes-delete.204", (c) => c.deleteNode("living-room")],
+  ["nodes-delete.404", (c) => c.deleteNode("attic")],
+  ["nodes-delete.409", (c) => c.deleteNode("default")],
   // Operation (0.5.0).
   ["operation-info.200", (c) => c.operationInfo()],
   ["operation-info.503", (c) => c.operationInfo()],

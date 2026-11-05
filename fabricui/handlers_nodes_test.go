@@ -144,7 +144,7 @@ func TestNodeEntries(t *testing.T) {
 	mux := http.NewServeMux()
 	h.register(mux)
 	rec := do(t, mux, http.MethodGet, "/nodes", "")
-	if want := `{"nodes":[{"key":"default","label":"default","enabled":true},{"key":"b","label":"B","kind":"device","enabled":false},{"key":"a","label":"a","enabled":false}]}`; strings.TrimSpace(rec.Body.String()) != want {
+	if want := `{"nodes":[{"key":"default","label":"default","enabled":true,"managed":false,"exposure":false},{"key":"b","label":"B","kind":"device","enabled":false,"managed":false,"exposure":false},{"key":"a","label":"a","enabled":false,"managed":false,"exposure":false}]}`; strings.TrimSpace(rec.Body.String()) != want {
 		t.Fatalf("got %s", rec.Body)
 	}
 	// Without Node the first of Nodes is the default.
@@ -166,13 +166,16 @@ func TestNodeEntries(t *testing.T) {
 // contract's x-admin, under /node, /nodes/{node} and /operation.
 func TestNodeAndOperationAdminMatchesTheContract(t *testing.T) {
 	want := contractAdminRoutes(t, func(path string) bool {
-		return strings.HasPrefix(path, "/node/") || strings.HasPrefix(path, "/nodes/") || strings.HasPrefix(path, "/operation/")
+		return strings.HasPrefix(path, "/node/") || path == "/nodes" || strings.HasPrefix(path, "/nodes/") || strings.HasPrefix(path, "/operation/")
 	})
 	var got []string
 	for _, rt := range nodeRoutes {
 		if rt.admin {
 			got = append(got, rt.method+" /node"+rt.path, rt.method+" /nodes/{node}"+rt.path)
 		}
+	}
+	for _, rt := range registryRoutes {
+		got = append(got, rt.method+" /nodes"+rt.path)
 	}
 	for r := range operationAdmin {
 		got = append(got, r)

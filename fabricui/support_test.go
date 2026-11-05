@@ -692,6 +692,10 @@ type testOptions struct {
 	// second, when set, is a second node under the key "second" with the
 	// label "Second bridge" and the kind "bridge".
 	second *fakeNode
+	// registry is Options.Registry and nodeConfig Options.NodeConfig
+	// (contract 0.6.0).
+	registry   NodeRegistry
+	nodeConfig *NodeConfigView
 }
 
 // newTestHandler builds a handler on the fake node and returns it with its
@@ -702,7 +706,13 @@ func newTestHandler(t *testing.T, o testOptions) (*handler, *http.ServeMux) {
 	if o.log != nil {
 		logger = slog.New(slog.NewTextHandler(o.log, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	}
+	// A registry needs Options.Node; the fake node replaces it below.
+	var placeholder NodeSource
+	if o.registry != nil {
+		placeholder = stubSource{}
+	}
 	h, err := newHandler(Options{
+		Node: placeholder, Registry: o.registry, NodeConfig: o.nodeConfig,
 		Exposure: o.exposure, Admin: o.admin, Reassemble: o.reassemble, Events: o.events,
 		Logger: logger, ConfiguredWindow: o.configured, AllowEmptyTopology: o.allowEmpty,
 		Warnings: o.warnings, Controller: o.controller, Operations: o.operations, ExposureReason: o.exposureReason,

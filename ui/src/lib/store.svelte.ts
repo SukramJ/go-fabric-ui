@@ -30,6 +30,8 @@ export interface NodeStoreDeps {
   toast: Toast;
   /** Subscribes to the event stream; the default opens an EventSource on the client's stream URL. */
   subscribe?: (onEvent: (ev: StreamEvent) => void) => () => void;
+  /** Called on the stream's nodes_changed (0.6.0) with the keys it names; the context reloads its node list. */
+  onNodesChanged?: (keys: string[]) => void;
 }
 
 /** The stream events that change the node's graph (GET /node/topology). */
@@ -325,6 +327,9 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         break;
       case "diagnostic_event":
         scheduleDiagnosticReload();
+        break;
+      case "nodes_changed":
+        deps.onNodesChanged?.(ev.data.keys);
         break;
     }
   }

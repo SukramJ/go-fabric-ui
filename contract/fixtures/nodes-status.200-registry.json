@@ -1,0 +1,51 @@
+{
+  "route": "GET /nodes/{node}/status",
+  "request": {
+    "method": "GET",
+    "path": "/nodes/kitchen/status"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "advertising": true,
+      "commissioning_window_open": false,
+      "config": {
+        "discriminator": 3541,
+        "label": "Kitchen",
+        "listen": "[::]:5541",
+        "product_id": 32768,
+        "product_name": "Bridge",
+        "source": "registry",
+        "store": "bridge-kitchen.db",
+        "vendor_id": 65521,
+        "vendor_name": "go-fabric"
+      },
+      "csrf_token": "test-token",
+      "enabled": true,
+      "enabled_count": 1,
+      "endpoint_count": 2,
+      "exposure": true,
+      "fabric_count": 1,
+      "listen_addr": "[::]:5541",
+      "listening": true,
+      "node_registry": true,
+      "surface": {
+        "assembled": true,
+        "changed_count": 1,
+        "extensions": [
+          "BD-chip-Thermostat-Events",
+          "BD-chip-Thermostat-Schedules"
+        ],
+        "level": "1.5.1",
+        "level_origin": "explicit",
+        "profiles": [
+          "apple-home",
+          "home-assistant"
+        ],
+        "warning_count": 1,
+        "withheld_count": 1
+      },
+      "window_kind": "none"
+    }
+  }
+}

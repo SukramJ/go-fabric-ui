@@ -8,6 +8,7 @@ import { subscribeLogStream } from "./api/stream";
 import { defaultT, type Translate } from "./i18n";
 import { createNodeStore, type NodeStore, type NodeStoreDeps, type Toast } from "./store.svelte";
 import { createControllerStore, type ControllerStore, type ControllerStoreDeps } from "./controller-store.svelte";
+import { createNodesStore, type NodesStore } from "./nodes-store.svelte";
 
 export type { Toast } from "./store.svelte";
 
@@ -98,6 +99,8 @@ export interface FabricUI {
   toast: Toast;
   confirm: Confirm;
   node: NodeStore;
+  /** The node list (GET /nodes) and the node registry's writes (0.6.0); shared by every node's context. */
+  nodes: NodesStore;
   controller: ControllerStore;
   routes: Routes;
   /** Subscribes to the log stream (GET /operation/log/stream); returns the close function. */
@@ -128,12 +131,14 @@ const consoleToast: Toast = {
 export function createFabricUI(opts: FabricUIOptions): FabricUI {
   const t = opts.t ?? defaultT;
   const toast = opts.toast ?? consoleToast;
+  const nodes = createNodesStore(opts.client);
   return {
     client: opts.client,
     t,
     toast,
     confirm: opts.confirm ?? (async (o) => window.confirm(o.body ? `${o.title}\n\n${o.body}` : o.title)),
-    node: createNodeStore(opts.client, { t, toast, subscribe: opts.subscribe }),
+    node: createNodeStore(opts.client, { t, toast, subscribe: opts.subscribe, onNodesChanged: () => void nodes.load() }),
+    nodes,
     controller: createControllerStore(opts.client, { t, toast, subscribe: opts.subscribeController }),
     routes: { ...defaultRoutes, ...opts.routes },
     subscribeLog: opts.subscribeLog ?? ((fn) => subscribeLogStream(opts.client.logStreamUrl(), fn)),

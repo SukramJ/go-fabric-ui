@@ -91,6 +91,62 @@ type NodeEntry struct {
 	// Source is the node; nil lists it as not enabled, and its routes
 	// answer as the family's routes without a node.
 	Source NodeSource
+	// Exposure, Reassemble and Events are the node's own selection, its
+	// rebuild and its host events, as [Options].Exposure, Reassemble and
+	// Events are the default node's (contract 0.6.0): the exposure and
+	// maintenance routes and the stream under /nodes/{key}/… use them, and
+	// GET /nodes reports exposure true with a selection. Nil answers as
+	// the Options-level field nil does: 503 on the exposure routes and
+	// exposure false. For the default node the Options-level fields win;
+	// an entry's own serve only when they are nil.
+	Exposure   ExposureProvider
+	Reassemble func(ctx context.Context) error
+	Events     EventSource
+	// Config is the node's configuration as the status page shows it,
+	// read-only (contract 0.6.0, Status.config); nil omits the block.
+	// A registry node's Source defaults to [NodeConfigSourceRegistry],
+	// a configured node's to [NodeConfigSourceConfiguration].
+	Config *NodeConfigView
+}
+
+// The sources of a node's configuration (NodeConfigView.Source).
+const (
+	// NodeConfigSourceConfiguration is a node the host configures (its
+	// flags, its add-on options): nothing of it is editable in the page.
+	NodeConfigSourceConfiguration = "configuration"
+	// NodeConfigSourceRegistry is a node of the host's registry: the host
+	// allocated its values, and only its label is editable.
+	NodeConfigSourceRegistry = "registry"
+)
+
+// NodeConfigView is what the host shows of a node's configuration on its
+// status page (contract 0.6.0): one shape for every node, read-only. It
+// carries no passcode — that stays on the pairing page behind admin
+// rights.
+type NodeConfigView struct {
+	// Source is [NodeConfigSourceConfiguration] or
+	// [NodeConfigSourceRegistry]; empty takes the node's own.
+	Source string
+	// SourceNote is the host's wording of where a configured node's
+	// values come from ("add-on options", "the --bridge-* flags"); empty
+	// says nothing.
+	SourceNote string
+	// Label is the node's configured name; empty omits it (a registry
+	// node's is its entry's label).
+	Label string
+	// Listen is the address the node listens on, as configured
+	// ("[::]:5540").
+	Listen        string
+	Discriminator uint16
+	VendorID      uint16
+	// VendorName and ProductName are the configured names; empty omits
+	// them.
+	VendorName  string
+	ProductID   uint16
+	ProductName string
+	// Store is where the node keeps its state (a file name, not a
+	// secret); empty omits it.
+	Store string
 }
 
 // Options configures the handlers.
@@ -104,9 +160,20 @@ type Options struct {
 	// Nodes are the device nodes beside Node, in the selector's order,
 	// each served under /nodes/{key}/… (contract 0.5.0). With Node nil
 	// the first of them is the default node and the /node/* routes serve
-	// it. Exposure, Reassemble and Events belong to the default node; the
-	// other nodes serve no selection. Keys are unique.
+	// it. Options.Exposure, Reassemble and Events belong to the default
+	// node; another node serves the selection its entry carries (0.6.0).
+	// Keys are unique. Nodes and Registry are exclusive.
 	Nodes []NodeEntry
+	// Registry is the host's node registry (contract 0.6.0): the nodes
+	// beside Node that the operator creates, renames and deletes in the
+	// page (POST /nodes, PUT /nodes/{key}/label, DELETE /nodes/{key}).
+	// Set, GET /nodes lists Node under [DefaultNodeKey] and then
+	// Registry.List on every request, and GET /node/status reports
+	// node_registry. It needs Node — the first node is the host's
+	// configuration, every further one registry state — and refuses
+	// Nodes beside it: one source for the list. Nil answers 503 on the
+	// three writing routes and lists Node and Nodes as in 0.5.0.
+	Registry NodeRegistry
 	// Operations is the daemon's log level, log ring and version, the
 	// Operation page's /operation/* routes; nil answers 503 there.
 	Operations Operations
@@ -117,6 +184,10 @@ type Options struct {
 	// Exposure is the host's selection; nil answers 503 on the exposure
 	// routes and hides the selection page.
 	Exposure ExposureProvider
+	// NodeConfig is the default node's configuration as its status page
+	// shows it, read-only (contract 0.6.0, Status.config); nil omits the
+	// block. Its Source defaults to [NodeConfigSourceConfiguration].
+	NodeConfig *NodeConfigView
 	// Controller is the controller the controller family reads and
 	// drives (gofabric.ControllerOf over a *controller.Controller); nil
 	// serves no controller family, and every /controller/* path answers

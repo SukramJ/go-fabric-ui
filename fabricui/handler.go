@@ -8,12 +8,14 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"regexp"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/SukramJ/go-fabric/node"
@@ -61,6 +63,19 @@ type handler struct {
 	nodes  []nodeEntry
 	served []nodeEntry
 	keyed  map[string]*handler
+	// registry is the host's node registry (Options.Registry), shared by
+	// every node's handler; nil without one. nodesHub carries
+	// nodes_changed to every node's stream; nil without a registry.
+	registry NodeRegistry
+	nodesHub *Events
+	// config is this node's configuration view (Status.config); nil
+	// omits it. A registry node's is replaced on every lookup, so a
+	// rename shows at once (managedHandler).
+	config atomic.Pointer[NodeConfigView]
+	// regMu guards regCache: the handler of each registry node by key,
+	// with the entry it was built on (the default node's handler only).
+	regMu    sync.Mutex
+	regCache map[string]managedNode
 
 	// mu guards ephemeral: the credentials of the window this handler
 	// opened, served by GET /node/pairing while that window is open.
@@ -73,6 +88,59 @@ type nodeEntry struct {
 	key, label, kind string
 	// port is nil for a node listed without a source.
 	port nodePort
+	// exposure, reassemble and events are the node's own (NodeEntry,
+	// contract 0.6.0).
+	exposure   ExposureProvider
+	reassemble func(context.Context) error
+	events     EventSource
+	// config is the node's configuration view (Status.config).
+	config *NodeConfigView
+	// managed is a node of the registry: the page may rename and delete
+	// it.
+	managed bool
+}
+
+// entryOf is e in the handler's terms.
+func entryOf(e *NodeEntry, managed bool) nodeEntry {
+	ne := nodeEntry{key: e.Key, label: e.Label, kind: e.Kind, exposure: e.Exposure, reassemble: e.Reassemble, events: e.Events, managed: managed}
+	if e.Config != nil {
+		c := *e.Config
+		if c.Source == "" {
+			c.Source = NodeConfigSourceConfiguration
+			if managed {
+				c.Source = NodeConfigSourceRegistry
+			}
+		}
+		if c.Label == "" && managed {
+			c.Label = e.Label
+		}
+		ne.config = &c
+	}
+	switch p := e.Source.(type) {
+	case nil:
+	case nodePort:
+		// A double of this package's tests that is a nodePort already;
+		// no type outside the package can implement the unexported
+		// methods.
+		ne.port = p
+	default:
+		ne.port = nodeAdapter{n: p}
+	}
+	return ne
+}
+
+// checkNodeKey refuses a key that does not match the contract's pattern,
+// is a page name of the node family or is in seen.
+func checkNodeKey(key string, seen map[string]bool) error {
+	switch {
+	case !nodeKeyPattern.MatchString(key):
+		return fmt.Errorf("fabricui: node key %q does not match %s", key, nodeKeyPattern)
+	case slices.Contains(reservedNodeKeys, key):
+		return fmt.Errorf("fabricui: node key %q is a page name of the node family", key)
+	case seen[key]:
+		return fmt.Errorf("fabricui: node key %q is listed twice", key)
+	}
+	return nil
 }
 
 // nodeKeyPattern is the contract's NodeKey pattern.
@@ -82,31 +150,41 @@ var nodeKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 // route #/node/<key>/<page> cannot tell a key from one of them.
 var reservedNodeKeys = []string{"status", "pair", "fabrics", "selection", "endpoints", "endpoint", "surface", "diagnostics", "topology"}
 
-// nodeEntries are o's nodes, the default first, validated.
+// nodeEntries are o's configured nodes, the default first, validated;
+// the registry's are listed per request (registryEntries).
 func nodeEntries(o *Options) ([]nodeEntry, error) {
+	if o.Registry != nil {
+		switch {
+		case len(o.Nodes) > 0:
+			return nil, errors.New("fabricui: Options.Registry and Options.Nodes are both set; the registry lists the nodes beside Options.Node")
+		case o.Node == nil:
+			return nil, errors.New("fabricui: Options.Registry needs Options.Node, the default node the host configures")
+		}
+	}
 	in := o.Nodes
 	if o.Node != nil {
 		in = append([]NodeEntry{{Key: DefaultNodeKey, Source: o.Node}}, in...)
 	}
 	out := make([]nodeEntry, 0, len(in))
 	seen := map[string]bool{}
-	for _, e := range in {
-		switch {
-		case !nodeKeyPattern.MatchString(e.Key):
-			return nil, fmt.Errorf("fabricui: node key %q does not match %s", e.Key, nodeKeyPattern)
-		case slices.Contains(reservedNodeKeys, e.Key):
-			return nil, fmt.Errorf("fabricui: node key %q is a page name of the node family", e.Key)
-		case seen[e.Key]:
-			return nil, fmt.Errorf("fabricui: node key %q is listed twice", e.Key)
+	for i := range in {
+		if err := checkNodeKey(in[i].Key, seen); err != nil {
+			return nil, err
 		}
-		seen[e.Key] = true
-		ne := nodeEntry{key: e.Key, label: e.Label, kind: e.Kind}
-		if e.Source != nil {
-			ne.port = nodeAdapter{n: e.Source}
-		}
-		out = append(out, ne)
+		seen[in[i].Key] = true
+		out = append(out, entryOf(&in[i], false))
 	}
 	return out, nil
+}
+
+// hubOf is the hub a node's handler publishes into and the host's source
+// beside it: the host's *Events itself, else a hub of the handler's own
+// and src.
+func hubOf(src EventSource) (hub *Events, extra EventSource) {
+	if ev, ok := src.(*Events); ok && ev != nil {
+		return ev, nil
+	}
+	return NewEvents(), src
 }
 
 func newHandler(o Options) (*handler, error) {
@@ -121,7 +199,30 @@ func newHandler(o Options) (*handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The default node out of Options.Nodes serves its entry's
+	// selection, rebuild and events where the Options-level ones are nil.
+	if o.Node == nil && len(nodes) > 0 {
+		d := nodes[0]
+		if o.Exposure == nil {
+			o.Exposure = d.exposure
+		}
+		if o.Reassemble == nil {
+			o.Reassemble = d.reassemble
+		}
+		if o.Events == nil {
+			o.Events = d.events
+		}
+		if o.NodeConfig == nil {
+			o.NodeConfig = d.config
+		}
+	}
+	if c := o.NodeConfig; c != nil && c.Source == "" {
+		cc := *c
+		cc.Source = NodeConfigSourceConfiguration
+		o.NodeConfig = &cc
+	}
 	h := &handler{
+		registry:       o.Registry,
 		ops:            o.Operations,
 		exposureReason: o.ExposureReason,
 		nodes:          nodes,
@@ -144,11 +245,11 @@ func newHandler(o Options) (*handler, error) {
 	if len(nodes) > 0 {
 		h.node = nodes[0].port
 	}
-	if ev, ok := o.Events.(*Events); ok && ev != nil {
-		h.hub = ev
-	} else {
-		h.hub = NewEvents()
-		h.extra = o.Events
+	h.hub, h.extra = hubOf(o.Events)
+	h.config.Store(o.NodeConfig)
+	if h.registry != nil {
+		h.nodesHub = NewEvents()
+		h.regCache = map[string]managedNode{}
 	}
 	if h.admin == nil {
 		b := make([]byte, 16)
@@ -195,6 +296,14 @@ var nodeRoutes = []nodeRoute{
 	{"GET", "/stream", false, (*handler).stream},
 }
 
+// registryRoutes are the node registry's routes under /nodes (contract
+// 0.6.0), every one an admin route.
+var registryRoutes = []nodeRoute{
+	{"POST", "", true, (*handler).createNode},
+	{"PUT", "/{node}/label", true, (*handler).renameNode},
+	{"DELETE", "/{node}", true, (*handler).deleteNode},
+}
+
 // operationAdmin are the /operation routes the contract marks x-admin.
 var operationAdmin = map[string]bool{"PUT /operation/log/level": true}
 
@@ -213,7 +322,7 @@ func (h *handler) register(mux *http.ServeMux) {
 		}
 		gate(rt.method+" "+h.prefix+"/node"+rt.path, func(w http.ResponseWriter, r *http.Request) { rt.serve(h, w, r) })
 		gate(rt.method+" "+h.prefix+"/nodes/{node}"+rt.path, func(w http.ResponseWriter, r *http.Request) {
-			n, ok := h.keyed[r.PathValue("node")]
+			n, ok := h.nodeHandler(r.PathValue("node"))
 			if !ok {
 				writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such node", "GET /nodes lists no node "+r.PathValue("node"))
 				return
@@ -222,6 +331,10 @@ func (h *handler) register(mux *http.ServeMux) {
 		})
 	}
 	read("GET "+h.prefix+"/nodes", h.listNodes)
+	for _, rt := range registryRoutes {
+		mux.HandleFunc(rt.method+" "+h.prefix+"/nodes"+rt.path, h.adminOnlyBecause(func(w http.ResponseWriter, r *http.Request) { rt.serve(h, w, r) },
+			"this route creates, renames or deletes a node"))
+	}
 	read("GET "+h.prefix+"/operation/info", h.operationInfo)
 	read("GET "+h.prefix+"/operation/log/level", h.logLevel)
 	mux.HandleFunc("PUT "+h.prefix+"/operation/log/level", h.adminOnlyBecause(h.setLogLevel, "this route changes the daemon's log level"))
@@ -237,10 +350,11 @@ func (h *handler) register(mux *http.ServeMux) {
 	})
 }
 
-// mountNodes builds the handler of each node: h itself for the default —
-// h.node, which a test may have set after newHandler — and a sibling for
-// every other, which shares h's admin check, token and options and has a
-// hub, a pairing state and no selection of its own.
+// mountNodes builds the handler of each configured node: h itself for the
+// default — h.node, which a test may have set after newHandler — and a
+// sibling for every other, which shares h's admin check, token and options
+// and has a hub, a pairing state and the selection of its entry. A
+// registry node's handler is built on its first request (managedHandler).
 func (h *handler) mountNodes() {
 	served := slices.Clone(h.nodes)
 	switch {
@@ -256,19 +370,23 @@ func (h *handler) mountNodes() {
 			h.keyed[e.key] = h
 			continue
 		}
-		h.keyed[e.key] = h.sibling(e.port)
+		h.keyed[e.key] = h.sibling(e)
 	}
 }
 
 // sibling is the handler of another node: h's admin check, token, host
-// warnings, logger and window options on node p.
-func (h *handler) sibling(p nodePort) *handler {
-	return &handler{
-		node:           p,
+// warnings, logger, window options and registry on the node of e, with
+// e's selection, rebuild and events.
+func (h *handler) sibling(e nodeEntry) *handler {
+	s := &handler{
+		node:           e.port,
+		exposure:       e.exposure,
+		reassemble:     e.reassemble,
+		registry:       h.registry,
+		nodesHub:       h.nodesHub,
 		admin:          h.admin,
 		token:          h.token,
 		warnings:       h.warnings,
-		hub:            NewEvents(),
 		ctrlHub:        h.ctrlHub,
 		prefix:         h.prefix,
 		log:            h.log,
@@ -279,30 +397,55 @@ func (h *handler) sibling(p nodePort) *handler {
 		ops:            h.ops,
 		exposureReason: h.exposureReason,
 	}
+	s.hub, s.extra = hubOf(e.events)
+	s.config.Store(e.config)
+	return s
 }
 
-// deviceNodeSummary is one entry of GET /nodes.
+// deviceNodeSummary is one entry of GET /nodes and the answer of POST
+// /nodes.
 type deviceNodeSummary struct {
 	Key     string `json:"key"`
 	Label   string `json:"label"`
 	Kind    string `json:"kind,omitempty"`
 	Enabled bool   `json:"enabled"`
+	// Managed is a node of the registry, which the page may rename and
+	// delete (0.6.0).
+	Managed bool `json:"managed"`
+	// Exposure is whether the node serves a selection (0.6.0), as its
+	// Status.exposure.
+	Exposure bool `json:"exposure"`
+}
+
+// summaryOf is e as GET /nodes lists it; the label is the key when the
+// host names none.
+func summaryOf(e nodeEntry) deviceNodeSummary {
+	label := e.label
+	if label == "" {
+		label = e.key
+	}
+	return deviceNodeSummary{Key: e.key, Label: label, Kind: e.kind, Enabled: e.port != nil, Managed: e.managed, Exposure: e.exposure != nil}
 }
 
 type deviceNodeList struct {
 	Nodes []deviceNodeSummary `json:"nodes"`
 }
 
-// listNodes serves GET /nodes: the nodes in the options' order, the
-// default first; empty when the host serves none.
+// listNodes serves GET /nodes: the configured nodes in the options' order,
+// the default first, then the registry's; empty when the host serves
+// none.
 func (h *handler) listNodes(w http.ResponseWriter, _ *http.Request) {
-	out := deviceNodeList{Nodes: make([]deviceNodeSummary, 0, len(h.served))}
-	for _, e := range h.served {
-		label := e.label
-		if label == "" {
-			label = e.key
+	reg := h.registryEntries()
+	out := deviceNodeList{Nodes: make([]deviceNodeSummary, 0, len(h.served)+len(reg))}
+	for i, e := range h.served {
+		if i == 0 {
+			// The default node serves Options.Exposure (h.exposure).
+			e.exposure = h.exposure
 		}
-		out.Nodes = append(out.Nodes, deviceNodeSummary{Key: e.key, Label: label, Kind: e.kind, Enabled: e.port != nil})
+		out.Nodes = append(out.Nodes, summaryOf(e))
+	}
+	for i := range reg {
+		out.Nodes = append(out.Nodes, summaryOf(entryOf(&reg[i], true)))
 	}
 	writeJSON(w, out)
 }
@@ -344,6 +487,9 @@ func (h *handler) publish(ev Event) { h.hub.Publish(ev) }
 // itself: the node reports it through the observer, once.
 func (h *handler) subscribe(fn func(Event)) (unsubscribe func()) {
 	unsubs := []func(){h.hub.Subscribe(fn)}
+	if h.nodesHub != nil {
+		unsubs = append(unsubs, h.nodesHub.Subscribe(fn))
+	}
 	if h.extra != nil {
 		unsubs = append(unsubs, h.extra.Subscribe(fn))
 	}

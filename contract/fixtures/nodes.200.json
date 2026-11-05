@@ -10,14 +10,18 @@
       "nodes": [
         {
           "enabled": true,
+          "exposure": true,
           "key": "default",
-          "label": "default"
+          "label": "default",
+          "managed": false
         },
         {
           "enabled": true,
+          "exposure": false,
           "key": "second",
           "kind": "bridge",
-          "label": "Second bridge"
+          "label": "Second bridge",
+          "managed": false
         }
       ]
     }

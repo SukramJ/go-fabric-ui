@@ -1,0 +1,24 @@
+{
+  "route": "POST /nodes",
+  "request": {
+    "method": "POST",
+    "path": "/nodes",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "label": "  "
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "code": "bad_request",
+      "detail": "label is empty",
+      "instance": "/api/v1/nodes",
+      "status": 400,
+      "title": "Invalid label",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-bad_request"
+    }
+  }
+}

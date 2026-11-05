@@ -40,7 +40,9 @@ Paths are relative to the mount prefix (`Options.Prefix`, default
 | `/node/stream` | GET | – | 200 (`text/event-stream`) | `Observe`, `OnHealthSample`, `OnDiagnosticEvent` (per stream), `Options.Events`, the handler's own events |
 
 `GET /node/status` also reports `exposure_reason` (0.5.0): why the host
-serves no selection (`Options.ExposureReason`), absent with a selection.
+serves no selection (`Options.ExposureReason`), absent with a selection;
+and from 0.6.0 `node_registry`, `admin` and `config` (see
+[Node registry](#node-registry-060)).
 
 ## The node selector (0.5.0)
 
@@ -58,10 +60,78 @@ operation ids of the second set carry the suffix `ForNode`. A key matches
 unambiguous. The selection (`Options.Exposure`), `Options.Reassemble` and
 `Options.Events` belong to the default node; another node answers its
 exposure routes 503 and reports `exposure: false` with the host's
-`exposure_reason`. One admin token covers every node. A node listed
+`exposure_reason` — unless its `NodeEntry` carries a selection of its own
+(0.6.0). One admin token covers every node. A node listed
 without a source (`NodeEntry.Source` nil) is `enabled: false`, and its
 routes answer as the family's without a node. The standalone shell shows a
 node selector in its header when the list holds more than one node.
+
+## Node registry (0.6.0)
+
+| Route | Method | Admin | Answers | Reads |
+| --- | --- | --- | --- | --- |
+| `/nodes` | GET | – | 200 | `Options.Node` (key `default`), then `Options.Registry.List()` on every request: `{nodes: [{key, label, kind?, enabled, managed, exposure}]}` |
+| `/nodes` | POST | yes | 201 `NodeSummary`, 400, 403, 409 `node_limit`, 500, 503 | `NodeRegistry.Create(ctx, NodeSpec{Label})` with `{label}` |
+| `/nodes/{node}/label` | PUT | yes | 204, 400, 403, 404, 409 `node_is_default`, 500, 503 | `NodeRegistry.Rename(ctx, key, label)` with `{label}` |
+| `/nodes/{node}` | DELETE | yes | 204, 403, 404, 409 `node_is_default`, 500, 503 | `NodeRegistry.Delete(ctx, key)` |
+
+The first node is the host's configuration (`Options.Node`, the key
+`default`); every further node is registry state in the host's store,
+created, renamed and deleted through the page. `Options.Registry` needs
+`Options.Node` and excludes `Options.Nodes` — `Handler` panics and
+`Mount` fails otherwise. With it `GET /nodes` lists the default and then
+the registry's nodes, each `managed: true`; an entry whose key is invalid,
+a page name or already listed is logged and left out. A registry node's
+routes answer under `/nodes/{node}/…` from the moment `List` names it, and
+its handler keeps its state (the window it opened, its stream's
+subscribers) while the entry's `Source`, `Exposure` and `Events` stay the
+same values. Without a registry the three writing routes answer 503 and
+everything else is 0.5.0.
+
+- **Label** (`NodeLabelRequest`): trimmed, 1 to 64 characters, no control
+  character; an unknown field is 400. The host allocates the key (a slug
+  of the label, unique, of the key pattern above), the port, the
+  discriminator, the passcode and the store, and starts the node in
+  `Create`.
+- **Errors**: a host error wrapping `fabricui.ErrNodeLimit` is 409
+  `node_limit` with its text, one wrapping `fabricui.ErrDefaultNode` 409
+  `node_is_default`, any other 500 without its text. The handler answers
+  409 `node_is_default` itself for a configured node (the default), and 404
+  for a key the registry does not list. A key `Create` returns that the
+  pattern refuses is 500.
+- **Delete is final**: the host stops the node and removes its fabrics —
+  every controller that paired it loses it —, its store and its
+  selection. The shell asks twice, naming the label and the fabric count.
+- **`nodes_changed`** follows each of the three writes on every node's
+  stream, `{keys: []string}`: a page reloads `GET /nodes`.
+- **Per-node selection**: `NodeEntry.Exposure`, `Reassemble` and `Events`
+  (a registry's entries and `Options.Nodes` alike) are that node's
+  selection, rebuild and host events under `/nodes/{node}/…`;
+  `NodeSummary.exposure` and the node's `Status.exposure` report it. The
+  Options-level ones stay the default node's.
+- **Status**: `node_registry: true` with a registry (absent without), so
+  the shell offers "Create node…"; `admin` (host mode only) whether the
+  host's admin check admits this request — in token mode `csrf_token`
+  says it.
+
+### The configuration block
+
+`GET /node/status` and `GET /nodes/{node}/status` carry `config` when the
+host describes the node (`Options.NodeConfig` for the default,
+`NodeEntry.Config` for any other; nil omits it, so a 0.5.0 host is
+unchanged). One shape for every node, read-only:
+
+| Field | Meaning |
+| --- | --- |
+| `source` | `configuration` (the host's configuration; nothing editable in the page) or `registry` (allocated by the host; only the label is editable, `PUT /nodes/{node}/label`). Empty in the view takes the node's own. |
+| `source_note` | The host's wording of where a configured node's values come from ("add-on options", "the --bridge-* flags"); optional. |
+| `label` | The configured name; a registry node's is its entry's label, so a rename shows at once. Optional. |
+| `listen` | The address the node listens on, as configured. |
+| `discriminator`, `vendor_id`, `product_id` | Numbers; `vendor_name`, `product_name` optional. |
+| `store` | Where the node keeps its state (a file name); optional. |
+
+It never carries the passcode — that stays with the admin route `GET
+/node/pairing`.
 
 ## Operation (0.5.0)
 
@@ -118,7 +188,8 @@ Details the fixtures pin:
   (0.4.1), `health_sample` or `diagnostic_event` (0.5.0); `data:` is JSON
   (`FabricEvent`, `WindowEvent`, `{}`, `ExposureEvent`,
   `SurfaceChangedEvent`, `SessionEvent`, `AttributeChangedEvent`,
-  `HealthSampleEvent`, `DiagnosticEvent`). A comment line arrives every 15 s. The fabric, window and surface events come from
+  `HealthSampleEvent`, `DiagnosticEvent`), and `nodes_changed` (0.6.0,
+  `NodesChangedEvent`, see [Node registry](#node-registry-060)). A comment line arrives every 15 s. The fabric, window and surface events come from
   the node (`Node.Observe`, registered per stream), once per transition,
   whoever caused it. `surface_changed` is go-fabric's
   `Observers.OnSurfaceChanged`: one event per endpoint whose served surface
@@ -282,6 +353,14 @@ The request body exceeds 1 MiB.
 ### problem-node_error
 The interaction with a controller's node failed (502); `detail` is the
 node's answer.
+
+### problem-node_limit
+`POST /nodes`: the host serves no further node (409, 0.6.0); `detail` is
+the host's text.
+
+### problem-node_is_default
+`PUT /nodes/{node}/label` or `DELETE /nodes/{node}` on a node that is the
+host's configuration rather than registry state (409, 0.6.0).
 
 ### problem-not_implemented
 The host's controller does not serve the route (501): today

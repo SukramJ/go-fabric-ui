@@ -25,7 +25,9 @@ an unknown path under the API prefix answers a 404 problem.
 | Field | Purpose |
 | --- | --- |
 | `Node` | The default node (`*node.Node` satisfies `NodeSource`), served under `/node/*` and listed first by `GET /nodes` under the key `default`; nil serves the family as disabled unless `Nodes` names one. |
-| `Nodes` | Further device nodes (0.5.0), `[]NodeEntry{Key, Label, Kind, Source}` in the selector's order, each under `/nodes/{key}/*`; with `Node` nil the first is the default. See [Several nodes](#several-nodes). |
+| `Nodes` | Further device nodes (0.5.0), `[]NodeEntry{Key, Label, Kind, Source, Exposure, Reassemble, Events, Config}` in the selector's order, each under `/nodes/{key}/*`; with `Node` nil the first is the default. See [Several nodes](#several-nodes). |
+| `Registry` | The host's node registry (0.6.0): further nodes the operator creates, renames and deletes in the page; needs `Node`, excludes `Nodes`. See [Nodes created in the page](#nodes-created-in-the-page). |
+| `NodeConfig` | The default node's configuration as its status page shows it, read-only (0.6.0); nil omits the block. Never a passcode. |
 | `Operations` | The daemon's log level, log ring and version (0.5.0) for the Operation page; nil answers 503 there and hides the page. See [Operation](#operation). |
 | `ExposureReason` | Why the host serves no selection (0.5.0), in the host's language; the selection page shows it instead of hiding. |
 | `Exposure` | The host's `ExposureProvider` ([provider.md](provider.md)); nil hides the selection page. A list-valued (`Multi`) column reads `Item.Lists`, one entry per value; the comma-separated `Item.Fields` form is deprecated. |
@@ -109,9 +111,10 @@ fabricui.Handler(fabricui.Options{
 `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$` and is no page name of the node family
 (`status`, `pair`, …); `Handler` panics and `Mount` fails on a bad or
 repeated key. `Options.Node` is the shorthand for one node under the key
-`default`; with both, `Node` comes first. The selection, `Reassemble` and
-`Events` belong to the default node; every other node reports no selection
-and `ExposureReason`. The shell shows a node selector in its header once
+`default`; with both, `Node` comes first. `Options.Exposure`, `Reassemble` and
+`Events` belong to the default node; another node serves the selection,
+rebuild and events of its entry (0.6.0), or reports no selection and
+`ExposureReason` without them. The shell shows a node selector in its header once
 there are two nodes, and routes a node's pages under `#/node/<key>/…`; a
 host with its own app builds a node's client with `client.forNode(key)`.
 

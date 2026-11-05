@@ -1,0 +1,13 @@
+{
+  "route": "DELETE /nodes/{node}",
+  "request": {
+    "method": "DELETE",
+    "path": "/nodes/living-room",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

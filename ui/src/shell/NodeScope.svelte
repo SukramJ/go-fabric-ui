@@ -3,7 +3,8 @@
      /node/* routes); with one, the same context on a client of
      /nodes/<key>/…, a store of its own with its stream, and the routes
      under #/node/<key>/…. The shell keys it by the node, so a switch
-     builds a fresh store and closes the old stream. -->
+     builds a fresh store and closes the old stream. The node list
+     (ui.nodes, 0.6.0) stays the parent's. -->
 <script lang="ts">
   import { onDestroy, onMount, type Snippet } from "svelte";
   import { provideFabricUI, routesForNode, useFabricUI, type FabricUI } from "../lib/context";
@@ -21,7 +22,7 @@
     scoped = provideFabricUI({
       ...parent,
       client,
-      node: createNodeStore(client, { t: parent.t, toast: parent.toast }),
+      node: createNodeStore(client, { t: parent.t, toast: parent.toast, onNodesChanged: () => void parent.nodes.load() }),
       routes: routesForNode(parent.routes, key),
     });
   }

@@ -47,12 +47,37 @@ type statusResponse struct {
 	// (Options.ExposureReason); absent with a selection.
 	ExposureReason string `json:"exposure_reason,omitempty"`
 	CSRFToken      string `json:"csrf_token,omitempty"`
+	// Admin is whether the host's admin check admits this request (host
+	// mode, 0.6.0); absent in token mode, where csrf_token says it.
+	Admin *bool `json:"admin,omitempty"`
+	// NodeRegistry is whether the host keeps a node registry
+	// (Options.Registry, 0.6.0): the page offers to create a node. Absent
+	// without one.
+	NodeRegistry bool `json:"node_registry,omitempty"`
+	// Config is the node's configuration, read-only (0.6.0); absent when
+	// the host supplies none. Never the passcode.
+	Config *nodeConfig `json:"config,omitempty"`
 	// Warnings is nil, and omitted, without Options.Warnings; with the
 	// hook it is a list, empty when the host finds nothing.
 	Warnings []Warning `json:"warnings,omitzero"`
 	// Surface summarises the policies the node's served surface is
 	// composed under (Node.Surface); absent without a node.
 	Surface *surfaceSummary `json:"surface,omitempty"`
+}
+
+// nodeConfig is Status.config (contract 0.6.0): a [NodeConfigView] on
+// the wire.
+type nodeConfig struct {
+	Source        string `json:"source"`
+	SourceNote    string `json:"source_note,omitempty"`
+	Label         string `json:"label,omitempty"`
+	Listen        string `json:"listen"`
+	Discriminator uint16 `json:"discriminator"`
+	VendorID      uint16 `json:"vendor_id"`
+	VendorName    string `json:"vendor_name,omitempty"`
+	ProductID     uint16 `json:"product_id"`
+	ProductName   string `json:"product_name,omitempty"`
+	Store         string `json:"store,omitempty"`
 }
 
 // surfaceSummary is the head of the node's surface.Report and the counts
@@ -97,7 +122,18 @@ func summariseSurface(r *surface.Report) *surfaceSummary {
 // 200 and enabled false, not 503: the status is what tells a page the
 // family is off (loom matter_exposures.go:363-372).
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
-	res := statusResponse{Exposure: h.exposure != nil, CSRFToken: h.token}
+	res := statusResponse{Exposure: h.exposure != nil, CSRFToken: h.token, NodeRegistry: h.registry != nil}
+	if h.admin != nil {
+		admin := h.admin(r)
+		res.Admin = &admin
+	}
+	if c := h.config.Load(); c != nil {
+		res.Config = &nodeConfig{
+			Source: c.Source, SourceNote: c.SourceNote, Label: c.Label, Listen: c.Listen,
+			Discriminator: c.Discriminator, VendorID: c.VendorID, VendorName: c.VendorName,
+			ProductID: c.ProductID, ProductName: c.ProductName, Store: c.Store,
+		}
+	}
 	if h.exposure == nil {
 		res.ExposureReason = h.exposureReason
 	}

@@ -74,6 +74,15 @@ node family's routes under `#/node/<key>/…`. A host gives each node's
 pages a context of their own: `createFabricUI` (or the shell's
 `NodeScope`) with that client and a `createNodeStore` on it.
 
+The node registry (v0.6.0): the context's `nodes` store holds the list
+(`list`, `loaded`, `find(key)`, `load()`) and the registry's writes
+(`create(label)`, `rename(key, label)`, `remove(key)`, each reloading the
+list; the client's `createNode`, `renameNode`, `deleteNode`). A node
+context's stream reloads it on `nodes_changed` (pass `onNodesChanged` to a
+`createNodeStore` of your own). `NodeStatus` shows the node's
+configuration block (`Status.config`) and, for a managed node, the rename
+and delete card with the ecosystem hint for several nodes.
+
 ### Translator
 
 `t(key, vars)` is the host's. `createTranslator(locale, extra)` builds one

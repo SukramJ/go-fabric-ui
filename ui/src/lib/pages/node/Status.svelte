@@ -6,7 +6,10 @@
      window counts down from the deadline the status reports. Below the
      counts, the policies the node's surface is composed under: its level
      and where it comes from, the controller profiles, the extensions, and
-     the counts that are not zero. -->
+     the counts that are not zero. A node of the host's registry gets its
+     own card below: rename, delete and the ecosystem hint for several
+     nodes (NodeManage, contract 0.6.0); every node the host describes
+     shows its configuration, read-only, above it (NodeConfig). -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -16,6 +19,8 @@
   import ErrorState from "../../kit/ErrorState.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
   import HostWarnings from "./HostWarnings.svelte";
+  import NodeConfig from "./NodeConfig.svelte";
+  import NodeManage from "./NodeManage.svelte";
   import { levelOrigin } from "./surface";
 
   const { t, node } = useFabricUI();
@@ -103,4 +108,10 @@
       <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]">{t("node.status.listen_addr", { addr: s.listen_addr })}</p>
     {/if}
   </Card>
+{/if}
+{#if s?.config}
+  <NodeConfig config={s.config} />
+{/if}
+{#if s}
+  <NodeManage />
 {/if}

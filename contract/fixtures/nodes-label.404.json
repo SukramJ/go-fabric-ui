@@ -1,0 +1,24 @@
+{
+  "route": "PUT /nodes/{node}/label",
+  "request": {
+    "method": "PUT",
+    "path": "/nodes/attic/label",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "label": "Attic"
+    }
+  },
+  "response": {
+    "status": 404,
+    "body": {
+      "code": "not_found",
+      "detail": "GET /nodes lists no node attic",
+      "instance": "/api/v1/nodes/attic/label",
+      "status": 404,
+      "title": "No such node",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-not_found"
+    }
+  }
+}

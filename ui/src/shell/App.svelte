@@ -6,12 +6,18 @@
      the confirm dialog, the theme bridge. Contract 0.5.0 adds the node
      selector (GET /nodes; shown when the host lists more than one node,
      #/node/<key>/… for any but the default) and the Operation page
-     (#/operation; its tab shows when GET /operation/info answers). The API is "./api/v1" relative
+     (#/operation; its tab shows when GET /operation/info answers).
+     Contract 0.6.0 adds the node registry: with Status.node_registry and
+     admin rights the selector shows (one node is enough) and ends in
+     "Create node…" — a label dialog, POST /nodes, then the new node's
+     selection page; the list reloads on the stream's nodes_changed, and a
+     keyed route whose node the list no longer holds goes to the default
+     node. The API is "./api/v1" relative
      to the page, so the shell works under any base path (an Ingress among
      them). -->
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { ApiError, createClient, type NodeSummary } from "../lib/api/client";
+  import { ApiError, createClient } from "../lib/api/client";
   import { createFabricUI, provideFabricUI, routesForNode } from "../lib/context";
   import { createTranslator, detectLocale } from "../lib/i18n";
   import { applySkin, isEmbedded, startHaBridge } from "../lib/theme/ha-bridge";
@@ -37,6 +43,7 @@
   import ControllerNode from "../lib/pages/controller/Node.svelte";
   import ControllerSettings from "../lib/pages/controller/Settings.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
+  import NodeCreateDialog from "./NodeCreateDialog.svelte";
   import Toaster from "./Toaster.svelte";
   import { createConfirm } from "./confirm.svelte";
   import { createToasts } from "./toast.svelte";
@@ -57,7 +64,7 @@
   let nodeServed = $state<boolean | null>(null);
   // The nodes GET /nodes lists, the default first; empty until loaded or
   // from a server before 0.5.0.
-  let nodeList = $state<NodeSummary[]>([]);
+  const nodeList = $derived(ui.nodes.list);
   // Whether GET /operation/info answered (not 404 or 503).
   let operationServed = $state(false);
   let route = $state<Route>(routeOf(location.hash));
@@ -94,10 +101,42 @@
   const nodeKey = $derived(
     route.family === "node" && route.nodeKey && route.nodeKey !== defaultKey && nodeList.some((n) => n.key === route.nodeKey) ? route.nodeKey : undefined,
   );
-  const nodeOptions = $derived(nodeList.map((n) => ({ value: n.key, label: n.enabled ? n.label : t("shell.node_disabled", { label: n.label }) })));
+  // The node registry (0.6.0): creating a node needs the registry and
+  // admin rights — the token of token mode, or the host's admin verdict.
+  const isAdmin = $derived(!!node.status?.csrf_token || node.status?.admin === true);
+  const canCreate = $derived(node.status?.node_registry === true && isAdmin);
+  // CREATE is the selector's last entry; no key matches it (a key starts
+  // with a letter or digit).
+  const CREATE = "+create";
+  let creating = $state(false);
+  // Moves to rebuild the selector after "Create node…", so it shows the
+  // current node again.
+  let selectorEpoch = $state(0);
+  const nodeOptions = $derived([
+    ...nodeList.map((n) => ({ value: n.key, label: n.enabled ? n.label : t("shell.node_disabled", { label: n.label }) })),
+    ...(canCreate ? [{ value: CREATE, label: t("shell.node_create") }] : []),
+  ]);
   function selectNode(key: string) {
+    if (key === CREATE) {
+      creating = true;
+      selectorEpoch++;
+      return;
+    }
     location.hash = key === defaultKey ? ui.routes.status : routesForNode(ui.routes, key).status;
   }
+  async function createNode(label: string) {
+    const created = await ui.nodes.create(label);
+    creating = false;
+    location.hash = routesForNode(ui.routes, created.key).selection;
+    ui.toast.info(t("shell.node_created", { label: created.label }));
+  }
+  // A keyed route whose node the loaded list does not hold — one deleted
+  // here or elsewhere — goes to the default node's status.
+  $effect(() => {
+    if (route.family === "node" && route.nodeKey && ui.nodes.loaded && route.nodeKey !== defaultKey && !nodeList.some((n) => n.key === route.nodeKey)) {
+      location.hash = ui.routes.status;
+    }
+  });
   const controllerTabs = $derived([
     { key: "nodes", label: t("controller.tab.nodes"), href: ui.routes.controllerNodes },
     { key: "commission", label: t("controller.tab.commission"), href: ui.routes.controllerCommission },
@@ -114,11 +153,7 @@
       nodeServed = !(err instanceof ApiError && err.status === 404);
     }
     if (nodeServed) void node.loadStatus();
-    try {
-      nodeList = (await ui.client.nodes()).nodes;
-    } catch {
-      nodeList = [];
-    }
+    await ui.nodes.load();
   }
 
   async function probeOperation() {
@@ -172,14 +207,16 @@
     subtitle={family === "controller" ? t("controller.subtitle") : family === "operation" ? t("operation.subtitle") : t("node.subtitle")}
   >
     {#snippet actions()}
-      {#if family === "node" && nodeList.length > 1}
-        <Select
-          class="w-auto"
-          ariaLabel={t("shell.node")}
-          value={nodeKey ?? defaultKey}
-          onValueChange={selectNode}
-          options={nodeOptions}
-        />
+      {#if family === "node" && (nodeList.length > 1 || (canCreate && nodeList.length > 0))}
+        {#key selectorEpoch}
+          <Select
+            class="w-auto"
+            ariaLabel={t("shell.node")}
+            value={nodeKey ?? defaultKey}
+            onValueChange={selectNode}
+            options={nodeOptions}
+          />
+        {/key}
       {/if}
       <Select
         class="w-auto"
@@ -227,4 +264,7 @@
 </PageShell>
 
 <Toaster entries={toasts.entries} dismiss={toasts.dismiss} closeLabel={t("common.close")} />
+{#if creating}
+  <NodeCreateDialog onCreate={createNode} onClose={() => (creating = false)} />
+{/if}
 <ConfirmDialog current={confirm.current} answer={confirm.answer} cancelLabel={t("common.cancel")} confirmLabel={t("common.confirm")} />

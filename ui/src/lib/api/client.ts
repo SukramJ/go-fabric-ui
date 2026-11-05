@@ -122,6 +122,9 @@ export type OperationInfo = S["OperationInfo"];
 export type PingResult = S["PingResult"];
 export type PingAddress = S["PingAddress"];
 export type HealthSampleEvent = S["HealthSampleEvent"];
+// The node registry (contract 0.6.0).
+export type NodesChangedEvent = S["NodesChangedEvent"];
+export type NodeConfig = S["NodeConfig"];
 /** What GET /operation/log selects: the lowest sequence number (inclusive) and how many of the newest. */
 export type LogWindow = { since?: number; limit?: number };
 /** What GET /controller/discovery selects by. */
@@ -188,6 +191,12 @@ export interface FabricClient {
   readonly nodeKey: string | undefined;
   /** The device nodes the host serves, the default first (0.5.0). */
   nodes(): Promise<NodeSummaryList>;
+  /** Creates a node in the host's node registry (admin; 0.6.0): 409 node_limit when the host serves no further node. */
+  createNode(label: string): Promise<NodeSummary>;
+  /** Renames a managed node (admin; 0.6.0): 409 node_is_default for the default node. */
+  renameNode(key: string, label: string): Promise<void>;
+  /** Deletes a managed node with its fabrics, store and selection (admin; 0.6.0): 409 node_is_default for the default node. */
+  deleteNode(key: string): Promise<void>;
 
   // Operation (0.5.0): 503 when the host attached no operations port.
   operationInfo(): Promise<OperationInfo>;
@@ -329,6 +338,9 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
         call("POST", np + "/maintenance/factory-reset", { admin: true, body: { confirm: FACTORY_RESET_CONFIRMATION } }),
       streamUrl: () => base + np + "/stream",
       nodes: () => call("GET", "/nodes"),
+      createNode: (label) => call("POST", "/nodes", { admin: true, body: { label } }),
+      renameNode: (key, label) => call("PUT", `/nodes/${encodeURIComponent(key)}/label`, { admin: true, body: { label } }),
+      deleteNode: (key) => call("DELETE", `/nodes/${encodeURIComponent(key)}`, { admin: true }),
       operationInfo: () => call("GET", "/operation/info"),
       logLevel: () => call("GET", "/operation/log/level"),
       setLogLevel: (level) => call("PUT", "/operation/log/level", { admin: true, body: { level } }),
