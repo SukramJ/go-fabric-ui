@@ -451,7 +451,7 @@ func memoryLight() memorySpec {
 			DiscoveredAt: memoryTime.Add(-time.Hour), CommissionedAt: memoryTime.Add(-time.Hour),
 		},
 		silent: map[string]bool{"192.168.1.11:5540": true},
-		props: NodeProperties{SupportsWiFi: true, MainsPowered: true, SpecificationVersion: 0x01060100, DeviceTypes: []uint32{0x0016, 0x0100}},
+		props:  NodeProperties{SupportsWiFi: true, MainsPowered: true, SpecificationVersion: 0x01060100, DeviceTypes: []uint32{0x0016, 0x0100}},
 		endpoints: []NodeEndpoint{
 			{Number: 0, DeviceTypes: []NodeDeviceType{{ID: 0x0016, Name: "RootNode", Revision: 4}}, Clusters: []NodeCluster{
 				{ID: 0x001D, Name: "Descriptor", Revision: 3},
