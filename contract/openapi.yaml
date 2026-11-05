@@ -1069,12 +1069,19 @@ paths:
       x-admin: true
       summary: Whether the node answers a Matter read, and how fast (0.5.0).
       description: |
-        Not an ICMP echo: the controller reads the node's BasicInformation
-        DataModelRevision (0x0028/0x0000) through its session, as
-        go-fabric-server's `ping_node` does, and measures the round trip.
-        `per_address` says whether each address was tried on its own; when
-        false, the one read stands for every address the node advertises.
-        A failed read is `reachable: false`, not an error. 404 for an
+        Not an ICMP echo. Where the node holds a session, the controller
+        probes every address it knows for the node on its own — an empty
+        read over that session sent to the address (go-fabric's
+        `Node.PingAddress`, matter.js's probe with an address override;
+        nothing migrates) — and answers `per_address: true` with one entry
+        per address: `reachable`, `rtt_ms` and `error` each. The top-level
+        `reachable` is then whether one address answered, `rtt_ms` the
+        fastest round trip. A node without a session or without a known
+        address keeps the single outcome: the controller reads its
+        BasicInformation DataModelRevision (0x0028/0x0000) through the
+        session, as go-fabric-server's `ping_node` does, and the one read
+        stands for every address (`per_address: false`). A silent address
+        or a failed read is `reachable: false`, not an error. 404 for an
         unknown node.
       responses:
         "200":
@@ -2053,11 +2060,11 @@ components:
       type: object
       required: [method, per_address, reachable, addresses]
       properties:
-        method: { type: string, enum: [matter-read], description: "What was measured: a Matter read of BasicInformation DataModelRevision, not an ICMP echo." }
-        per_address: { type: boolean, description: "Whether each address was read on its own; false when one read through the node's session stands for every address." }
-        reachable: { type: boolean, description: "Whether the read answered." }
-        rtt_ms: { type: number, minimum: 0, description: "The read's round trip in milliseconds; absent when it failed." }
-        error: { type: string, description: "Why the read failed; absent when it answered." }
+        method: { type: string, enum: [matter-read], description: "What was measured: a Matter read — an empty read per address, or BasicInformation DataModelRevision through the session — not an ICMP echo." }
+        per_address: { type: boolean, description: "Whether each address was probed on its own; false when one read through the node's session stands for every address." }
+        reachable: { type: boolean, description: "Whether the read answered; with per_address, whether one address answered." }
+        rtt_ms: { type: number, minimum: 0, description: "The read's round trip in milliseconds, with per_address the fastest address's; absent when it failed." }
+        error: { type: string, description: "Why the read failed, with per_address why no address answered; absent when it answered." }
         addresses:
           type: array
           description: "The addresses the controller knows for the node, each with the outcome that applies to it."
@@ -2068,7 +2075,8 @@ components:
       properties:
         ip: { type: string, description: "The address with its port, as `ControllerNodeDetail.record.addresses` lists it." }
         reachable: { type: boolean }
-        rtt_ms: { type: number, minimum: 0 }
+        rtt_ms: { type: number, minimum: 0, description: "This address's round trip in milliseconds; absent when it did not answer." }
+        error: { type: string, description: "Why this address did not answer; absent when it answered (0.5.0)." }
     DiagnosticEventList:
       type: object
       required: [events]

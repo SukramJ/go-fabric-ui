@@ -399,6 +399,8 @@ type memorySpec struct {
 	inventory   map[memoryClusterKey]memoryCluster
 	// events are what Events serves, oldest first.
 	events []EventRecord
+	// silent are the record's addresses a ping finds not answering.
+	silent map[string]bool
 }
 
 // memoryClusterKey is one cluster of one endpoint.
@@ -445,9 +447,10 @@ func memoryLight() memorySpec {
 	return memorySpec{
 		basic: NodeBasic{VendorID: 0xFFF1, VendorName: "Test Vendor", ProductID: 0x8001, ProductName: "Light", NodeLabel: "Kitchen", SerialNumber: "L-0001", SoftwareVersion: "1.0.0"},
 		record: NodeRecord{
-			FabricIndexOnPeer: 1, Addresses: []string{"[fd00::11]:5540"}, Hostname: "light-1.local.",
+			FabricIndexOnPeer: 1, Addresses: []string{"[fd00::11]:5540", "192.168.1.11:5540"}, Hostname: "light-1.local.",
 			DiscoveredAt: memoryTime.Add(-time.Hour), CommissionedAt: memoryTime.Add(-time.Hour),
 		},
+		silent: map[string]bool{"192.168.1.11:5540": true},
 		props: NodeProperties{SupportsWiFi: true, MainsPowered: true, SpecificationVersion: 0x01060100, DeviceTypes: []uint32{0x0016, 0x0100}},
 		endpoints: []NodeEndpoint{
 			{Number: 0, DeviceTypes: []NodeDeviceType{{ID: 0x0016, Name: "RootNode", Revision: 4}}, Clusters: []NodeCluster{
@@ -857,17 +860,36 @@ func (n *memoryNode) Interview(context.Context) error {
 // memoryPingRTT is the round trip a memory node's ping reports.
 const memoryPingRTT = 12500 * time.Microsecond
 
-// Ping answers the fixture's result: one read stands for every address,
-// reachable unless the node is disabled.
+// Ping probes each record address on its own, as the go-fabric adapter
+// does with client.Node.PingAddress: an address in the spec's silent set
+// does not answer, every other answers in memoryPingRTT. A disabled node
+// holds no session to probe on and keeps the single outcome — one read
+// stands for every address, and it fails.
 func (n *memoryNode) Ping(context.Context) (PingResult, error) {
-	res := PingResult{Reachable: !n.Disabled(), Addresses: []PingAddress{}}
-	if res.Reachable {
-		res.RTT = memoryPingRTT
-	} else {
-		res.Error = "the node is disabled"
+	addrs := n.Record().Addresses
+	if n.Disabled() || len(addrs) == 0 {
+		res := PingResult{Reachable: !n.Disabled(), Addresses: []PingAddress{}}
+		if res.Reachable {
+			res.RTT = memoryPingRTT
+		} else {
+			res.Error = "the node is disabled"
+		}
+		for _, a := range addrs {
+			res.Addresses = append(res.Addresses, PingAddress{Address: a, Reachable: res.Reachable, RTT: res.RTT, Error: res.Error})
+		}
+		return res, nil
 	}
-	for _, a := range n.Record().Addresses {
-		res.Addresses = append(res.Addresses, PingAddress{Address: a, Reachable: res.Reachable, RTT: res.RTT})
+	res := PingResult{PerAddress: true, Addresses: []PingAddress{}}
+	for _, a := range addrs {
+		if n.spec.silent[a] {
+			res.Addresses = append(res.Addresses, PingAddress{Address: a, Error: "client: address unreachable: " + a})
+			continue
+		}
+		res.Reachable, res.RTT = true, memoryPingRTT
+		res.Addresses = append(res.Addresses, PingAddress{Address: a, Reachable: true, RTT: memoryPingRTT})
+	}
+	if !res.Reachable {
+		res.Error = fmt.Sprintf("none of the node's %d addresses answered", len(addrs))
 	}
 	return res, nil
 }

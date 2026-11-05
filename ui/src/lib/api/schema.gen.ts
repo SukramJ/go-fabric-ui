@@ -1219,12 +1219,19 @@ export interface paths {
         put?: never;
         /**
          * Whether the node answers a Matter read, and how fast (0.5.0).
-         * @description Not an ICMP echo: the controller reads the node's BasicInformation
-         *     DataModelRevision (0x0028/0x0000) through its session, as
-         *     go-fabric-server's `ping_node` does, and measures the round trip.
-         *     `per_address` says whether each address was tried on its own; when
-         *     false, the one read stands for every address the node advertises.
-         *     A failed read is `reachable: false`, not an error. 404 for an
+         * @description Not an ICMP echo. Where the node holds a session, the controller
+         *     probes every address it knows for the node on its own — an empty
+         *     read over that session sent to the address (go-fabric's
+         *     `Node.PingAddress`, matter.js's probe with an address override;
+         *     nothing migrates) — and answers `per_address: true` with one entry
+         *     per address: `reachable`, `rtt_ms` and `error` each. The top-level
+         *     `reachable` is then whether one address answered, `rtt_ms` the
+         *     fastest round trip. A node without a session or without a known
+         *     address keeps the single outcome: the controller reads its
+         *     BasicInformation DataModelRevision (0x0028/0x0000) through the
+         *     session, as go-fabric-server's `ping_node` does, and the one read
+         *     stands for every address (`per_address: false`). A silent address
+         *     or a failed read is `reachable: false`, not an error. 404 for an
          *     unknown node.
          */
         post: operations["pingNode"];
@@ -2104,17 +2111,17 @@ export interface components {
         };
         PingResult: {
             /**
-             * @description What was measured: a Matter read of BasicInformation DataModelRevision, not an ICMP echo.
+             * @description What was measured: a Matter read — an empty read per address, or BasicInformation DataModelRevision through the session — not an ICMP echo.
              * @enum {string}
              */
             method: "matter-read";
-            /** @description Whether each address was read on its own; false when one read through the node's session stands for every address. */
+            /** @description Whether each address was probed on its own; false when one read through the node's session stands for every address. */
             per_address: boolean;
-            /** @description Whether the read answered. */
+            /** @description Whether the read answered; with per_address, whether one address answered. */
             reachable: boolean;
-            /** @description The read's round trip in milliseconds; absent when it failed. */
+            /** @description The read's round trip in milliseconds, with per_address the fastest address's; absent when it failed. */
             rtt_ms?: number;
-            /** @description Why the read failed; absent when it answered. */
+            /** @description Why the read failed, with per_address why no address answered; absent when it answered. */
             error?: string;
             /** @description The addresses the controller knows for the node, each with the outcome that applies to it. */
             addresses: components["schemas"]["PingAddress"][];
@@ -2123,7 +2130,10 @@ export interface components {
             /** @description The address with its port, as `ControllerNodeDetail.record.addresses` lists it. */
             ip: string;
             reachable: boolean;
+            /** @description This address's round trip in milliseconds; absent when it did not answer. */
             rtt_ms?: number;
+            /** @description Why this address did not answer; absent when it answered (0.5.0). */
+            error?: string;
         };
         DiagnosticEventList: {
             events: components["schemas"]["DiagnosticEvent"][];

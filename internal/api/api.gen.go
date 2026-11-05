@@ -1143,10 +1143,15 @@ type PendingUpdateStatus string
 
 // PingAddress defines model for PingAddress.
 type PingAddress struct {
+	// Error Why this address did not answer; absent when it answered (0.5.0).
+	Error *string `json:"error,omitempty"`
+
 	// IP The address with its port, as `ControllerNodeDetail.record.addresses` lists it.
-	IP        string   `json:"ip"`
-	Reachable bool     `json:"reachable"`
-	RttMs     *float32 `json:"rtt_ms,omitempty"`
+	IP        string `json:"ip"`
+	Reachable bool   `json:"reachable"`
+
+	// RttMs This address's round trip in milliseconds; absent when it did not answer.
+	RttMs *float32 `json:"rtt_ms,omitempty"`
 }
 
 // PingResult defines model for PingResult.
@@ -1154,23 +1159,23 @@ type PingResult struct {
 	// Addresses The addresses the controller knows for the node, each with the outcome that applies to it.
 	Addresses []PingAddress `json:"addresses"`
 
-	// Error Why the read failed; absent when it answered.
+	// Error Why the read failed, with per_address why no address answered; absent when it answered.
 	Error *string `json:"error,omitempty"`
 
-	// Method What was measured: a Matter read of BasicInformation DataModelRevision, not an ICMP echo.
+	// Method What was measured: a Matter read — an empty read per address, or BasicInformation DataModelRevision through the session — not an ICMP echo.
 	Method PingResultMethod `json:"method"`
 
-	// PerAddress Whether each address was read on its own; false when one read through the node's session stands for every address.
+	// PerAddress Whether each address was probed on its own; false when one read through the node's session stands for every address.
 	PerAddress bool `json:"per_address"`
 
-	// Reachable Whether the read answered.
+	// Reachable Whether the read answered; with per_address, whether one address answered.
 	Reachable bool `json:"reachable"`
 
-	// RttMs The read's round trip in milliseconds; absent when it failed.
+	// RttMs The read's round trip in milliseconds, with per_address the fastest address's; absent when it failed.
 	RttMs *float32 `json:"rtt_ms,omitempty"`
 }
 
-// PingResultMethod What was measured: a Matter read of BasicInformation DataModelRevision, not an ICMP echo.
+// PingResultMethod What was measured: a Matter read — an empty read per address, or BasicInformation DataModelRevision through the session — not an ICMP echo.
 type PingResultMethod string
 
 // Problem defines model for Problem.

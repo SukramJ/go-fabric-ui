@@ -163,9 +163,12 @@ type ControllerNode interface {
 	RevokeCommissioningWindow(ctx context.Context) error
 	// Interview reads the whole node again.
 	Interview(ctx context.Context) error
-	// Ping reads the node's BasicInformation DataModelRevision and
-	// measures the round trip; a failed read is a result with Reachable
-	// false, not an error.
+	// Ping measures whether the node answers a Matter read, and how fast:
+	// each address of its record on its own where the node holds a
+	// session (PerAddress true), otherwise one read of BasicInformation
+	// DataModelRevision through the session for every address. A silent
+	// address or a failed read is a result with Reachable false, not an
+	// error.
 	Ping(ctx context.Context) (PingResult, error)
 	Enable(ctx context.Context) error
 	Disable(ctx context.Context) error
@@ -478,13 +481,17 @@ type InvokeResult struct {
 // PingResult is the outcome of [ControllerNode.Ping]: a Matter read, not
 // an ICMP echo.
 type PingResult struct {
-	// PerAddress says whether each address was read on its own; false
+	// PerAddress says whether each address was probed on its own; false
 	// when one read through the node's session stands for every address.
 	PerAddress bool
-	Reachable  bool
-	// RTT is the read's round trip; zero when it failed.
+	// Reachable is whether the read answered — with PerAddress, whether
+	// one address answered.
+	Reachable bool
+	// RTT is the read's round trip, with PerAddress the fastest address's;
+	// zero when it failed.
 	RTT time.Duration
-	// Error is why the read failed; empty when it answered.
+	// Error is why the read failed, with PerAddress why no address
+	// answered; empty when it answered.
 	Error string
 	// Addresses are the node's known addresses, each with its outcome.
 	Addresses []PingAddress
@@ -497,6 +504,8 @@ type PingAddress struct {
 	Address   string
 	Reachable bool
 	RTT       time.Duration
+	// Error is why this address did not answer; empty when it answered.
+	Error string
 }
 
 // WindowInfo is an open commissioning window on a node. Passcode is a
