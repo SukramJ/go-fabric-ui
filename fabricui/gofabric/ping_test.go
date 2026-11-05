@@ -73,7 +73,7 @@ func TestPingAddresses_FallsBackForTheNode(t *testing.T) {
 
 // At most pingParallel probes run at once.
 func TestPingAddresses_Bounded(t *testing.T) {
-	var addrs []netip.AddrPort
+	addrs := make([]netip.AddrPort, 0, 3*pingParallel)
 	for i := range 3 * pingParallel {
 		addrs = append(addrs, netip.AddrPortFrom(netip.AddrFrom4([4]byte{10, 0, 0, byte(i + 1)}), 5540))
 	}

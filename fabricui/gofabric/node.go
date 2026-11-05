@@ -701,8 +701,9 @@ const pingParallel = 4
 // standing for every address (PerAddress false). The end of the request's
 // ctx is its error.
 func (w *node) Ping(ctx context.Context) (fabricui.PingResult, error) {
-	var addrs []netip.AddrPort
-	for _, a := range w.n.Record().Addresses {
+	rec := w.n.Record().Addresses
+	addrs := make([]netip.AddrPort, 0, len(rec))
+	for _, a := range rec {
 		addrs = append(addrs, netip.AddrPortFrom(a.IP, a.Port))
 	}
 	rctx, cancel := context.WithTimeout(ctx, pingTimeout)
@@ -742,11 +743,12 @@ func pingAddresses(ctx context.Context, addrs []netip.AddrPort, ping func(contex
 	}
 	wg.Wait()
 	res := fabricui.PingResult{PerAddress: true, Addresses: make([]fabricui.PingAddress, 0, len(addrs))}
-	for i, o := range outs {
+	for i, addr := range addrs {
+		o := outs[i]
 		if errors.Is(o.err, client.ErrNoSession) || errors.Is(o.err, client.ErrNotCommissioned) || errors.Is(o.err, client.ErrClosed) {
 			return fabricui.PingResult{}, false
 		}
-		pa := fabricui.PingAddress{Address: addrs[i].String()}
+		pa := fabricui.PingAddress{Address: addr.String()}
 		if o.err != nil {
 			pa.Error = o.err.Error()
 		} else {
