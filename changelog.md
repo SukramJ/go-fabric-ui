@@ -165,10 +165,27 @@ wave D.1); contract 0.5.0, additive over 0.4.1.
 - The endpoints of `GET /controller/nodes/{id}` list every device type of
   the Descriptor's DeviceTypeList, each with its revision, not only the
   endpoint's own.
-- go-fabric `v0.16.1-0.20261104133901-894adbcd4cd3` (main at `894adbcd`,
-  the M9 module wave), a pseudo-version until go-fabric's next tag. One
-  migration: `Registry.ForDevice` takes the new node's local id, and the
-  pairing adapter passes `""` so the registry allocates one, as before.
+- **Breaking** for a host with its own `NodeSource`: the interface gains
+  `Endpoints() []node.EndpointInfo` (issue #43). `*node.Node` satisfies
+  it; a wrapper forwards it to its node.
+- The node family's endpoint detail takes its parent, direct children,
+  device types, name and scope from the endpoint's `node.EndpointInfo`
+  (`Node.Endpoints`) — the root and the Aggregator from the same source as
+  a bridged endpoint — instead of reading every part's PartsList;
+  Reachable stays from the topology. Which endpoints carry
+  `parent_endpoint_id` is unchanged: none for the root and the
+  Aggregator. `GET /node/endpoints` adds `structural` (`StructuralEndpoint`,
+  contract 0.5.0): the root and the Aggregator from that tree, which the
+  Endpoints page links instead of inferring the Aggregator from the
+  bridged endpoints' parents.
+- A status column by name: an attribute `Node.ReadCluster` answers with a
+  failure is listed with its IM `status` and no `value` instead of being
+  left out, and the attribute table of both families shows a known status
+  by name (`inventory.status.*`, en and de) beside its code. The
+  cluster's `data_version` is a value's, never a failed attribute's 0.
+- go-fabric `v0.16.1-0.20261105004427-825916482e9e` (main at `82591648`,
+  the seam wave: `Node.Endpoints`, `AttributeValue.Status`), a
+  pseudo-version until go-fabric's next tag; no migration.
 
 ## [0.4.1] - 2026-11-03
 
