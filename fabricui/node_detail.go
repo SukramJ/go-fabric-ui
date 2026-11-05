@@ -80,7 +80,7 @@ func readEndpointDetail(ctx context.Context, n NodeSource, ep uint16) (EndpointD
 	if d.Name == "" && len(d.DeviceTypes) > 0 {
 		d.Name = d.DeviceTypes[0].Name
 	}
-	if dev, _ := findDevice(n.Topology(), ep); dev != nil {
+	if dev := findDevice(n.Topology(), ep); dev != nil {
 		d.Reachable = dev.Reachable
 	}
 	var servers []uint32
@@ -142,25 +142,22 @@ func deviceTypesOf(dts []node.DeviceTypeInfo) []NodeDeviceType {
 	return out
 }
 
-// findDevice is the bridged device or part at endpoint ep with its parent
-// (the Aggregator for a top-level device); nil when the topology does not
-// list ep.
-func findDevice(topo node.BridgeTopology, ep uint16) (dev *node.BridgedDevice, parent *uint16) {
-	var walk func(p uint16, devs []node.BridgedDevice) bool
-	walk = func(p uint16, devs []node.BridgedDevice) bool {
+// findDevice is the bridged device or part at endpoint ep; nil when the
+// topology does not list ep.
+func findDevice(topo node.BridgeTopology, ep uint16) *node.BridgedDevice {
+	var walk func(devs []node.BridgedDevice) *node.BridgedDevice
+	walk = func(devs []node.BridgedDevice) *node.BridgedDevice {
 		for i := range devs {
 			if devs[i].Endpoint == ep {
-				dev, parent = &devs[i], &p
-				return true
+				return &devs[i]
 			}
-			if walk(devs[i].Endpoint, devs[i].Parts) {
-				return true
+			if d := walk(devs[i].Parts); d != nil {
+				return d
 			}
 		}
-		return false
+		return nil
 	}
-	walk(topo.Aggregator, topo.Devices)
-	return dev, parent
+	return walk(topo.Devices)
 }
 
 // servedCluster is a cluster's inventory from the values the node serves:

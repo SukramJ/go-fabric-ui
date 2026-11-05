@@ -169,8 +169,8 @@ type treeSource struct {
 
 func newTreeSource() *treeSource {
 	s := &treeSource{infos: sampleInfos(), served: map[uint16]bool{}}
-	for _, e := range s.infos {
-		s.served[e.Endpoint] = true
+	for i := range s.infos {
+		s.served[s.infos[i].Endpoint] = true
 	}
 	return s
 }
@@ -265,7 +265,7 @@ func TestServedCluster_FailedAttributes(t *testing.T) {
 	if c.DataVersion == nil || *c.DataVersion != 7 || c.Revision != 6 || c.FeatureMap != 1 {
 		t.Fatalf("cluster %+v", c)
 	}
-	var ids []uint32
+	ids := make([]uint32, 0, len(c.Attributes))
 	for _, a := range c.Attributes {
 		ids = append(ids, a.ID)
 	}

@@ -416,7 +416,7 @@ func surfaceKeyOf(topo node.BridgeTopology, ep uint16) (key string, ok bool) {
 	case topo.Aggregator:
 		return node.AggregatorSurfaceKey, true
 	}
-	if dev, _ := findDevice(topo, ep); dev != nil && dev.Key != nil {
+	if dev := findDevice(topo, ep); dev != nil && dev.Key != nil {
 		return dev.Key.String(), true
 	}
 	return "", false
