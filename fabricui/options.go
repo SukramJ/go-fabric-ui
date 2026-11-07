@@ -70,6 +70,23 @@ type NodeSource interface {
 	// not block.
 	OnHealthSample(fn func(node.HealthSample)) (unsubscribe func())
 	OnDiagnosticEvent(fn func(node.DiagnosticEvent)) (unsubscribe func())
+	// AttestationError is why the node's attestation files did not load
+	// under Attestation.BlockCommissioningOnError — the node runs on the
+	// test chain and refuses every commissioning — nil when they loaded
+	// (go-fabric node/attestation.go:55-58 at v0.18.0); the status page
+	// shows it (contract 0.7.0, Status.attestation_error).
+	AttestationError() error
+	// BootReason is the GeneralDiagnostics BootReason the node was built
+	// with (node/node.go:1138-1141); Status.boot_reason.
+	BootReason() uint8
+	// SessionParameters are the session parameters the node reports to
+	// every PASE and CASE peer (node/sessions.go:110-118); GET
+	// /node/sessions serves them as parameters.
+	SessionParameters() node.SessionParameters
+	// TriggerReannounce announces the node's DNS-SD records now, a no-op
+	// on an advertiser that cannot (node/reannounce.go:12-26); POST
+	// /node/mdns/reannounce.
+	TriggerReannounce(ctx context.Context)
 }
 
 // DefaultNodeKey is the key GET /nodes lists [Options].Node under.
@@ -102,6 +119,11 @@ type NodeEntry struct {
 	Exposure   ExposureProvider
 	Reassemble func(ctx context.Context) error
 	Events     EventSource
+	// Erase erases the node and ends it, as [Options].Erase does the
+	// default node's (contract 0.7.0): POST /nodes/{key}/maintenance/erase.
+	// Nil answers 501 there and reports Status.erase false. For the
+	// default node the Options-level field wins.
+	Erase func(ctx context.Context) error
 	// Config is the node's configuration as the status page shows it,
 	// read-only (contract 0.6.0, Status.config); nil omits the block.
 	// A registry node's Source defaults to [NodeConfigSourceRegistry],
@@ -206,6 +228,20 @@ type Options struct {
 	// change. Nil answers 503 on the maintenance route and skips the
 	// rebuild after an exposure change.
 	Reassemble func(ctx context.Context) error
+	// Erase erases the default node — its fabrics, its store and its
+	// endpoint records — and ends it: POST /node/maintenance/erase
+	// (contract 0.7.0). go-fabric's Node.FactoryReset does the erase and
+	// stops the node, which is single-use (node/factory_reset.go:20-45 at
+	// v0.18.0), so the host's Erase also brings a node back — a new node
+	// on the erased store, started, as fabrictest.Device.FactoryReset
+	// does (fabrictest/device.go:396-416) — or exits for its supervisor to
+	// restart it. The handler keeps reading the NodeSource it was given:
+	// a host that builds a new node hands over a source that follows it
+	// (a NodeSource that delegates to the current node). Nil answers 501
+	// not_implemented and reports Status.erase false, so the page offers
+	// no erase. POST /node/maintenance/factory-reset is a different
+	// action: it removes every fabric and leaves the node running.
+	Erase func(ctx context.Context) error
 	// Events is a source of events beside the handler's own and the
 	// node's: what the host publishes (an exposure change it made outside
 	// the page). The node's fabric and window transitions reach the

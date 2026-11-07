@@ -5,7 +5,17 @@
 // singleton, the five-part exposure key replaced by the provider's opaque
 // item key, the WebSocket topics by the stream's event types, the
 // host-readiness gate dropped.
-import { ApiError, type FabricClient, type FabricList, type ExposureSchema, type Item, type Status, type Update, type Window } from "./api/client";
+import {
+  ApiError,
+  type EventRecord,
+  type FabricClient,
+  type FabricList,
+  type ExposureSchema,
+  type Item,
+  type Status,
+  type Update,
+  type Window,
+} from "./api/client";
 import { subscribeStream, type StreamEvent } from "./api/stream";
 import { secondsUntil } from "./countdown";
 import type { Translate } from "./i18n";
@@ -42,6 +52,7 @@ const GRAPH_EVENTS = new Set<StreamEvent["type"]>([
   "endpoints_changed",
   "fabric_added",
   "fabric_removed",
+  "fabric_updated",
 ]);
 
 /** How long a burst of attribute_changed is coalesced before an endpoint's epoch moves. */
@@ -80,6 +91,9 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   // diagnosticEpoch moves once per burst of diagnostic_event: the
   // diagnostics page refetches its trace when it moves (0.5.0).
   let diagnosticEpoch = $state(0);
+  // clusterEvent is the last cluster_event (0.7.0): the endpoint page of
+  // its endpoint adds it to the events it shows.
+  let clusterEvent = $state<EventRecord | null>(null);
 
   let unsub: (() => void) | null = null;
   let countdown: ReturnType<typeof setInterval> | null = null;
@@ -293,6 +307,17 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         void loadFabrics();
         void loadStatus();
         break;
+      case "fabric_updated":
+        void loadFabrics();
+        break;
+      case "commissioning_complete":
+        deps.toast.success(deps.t("node.commissioning.complete", { index: ev.data.fabric_index }));
+        void loadFabrics();
+        void loadStatus();
+        break;
+      case "cluster_event":
+        clusterEvent = ev.data;
+        break;
       case "window_opened":
         void loadStatus();
         break;
@@ -367,6 +392,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     get graphEpoch() { return graphEpoch; },
     /** Moves once per burst of diagnostic_event; the diagnostics page refetches when it does. */
     get diagnosticEpoch() { return diagnosticEpoch; },
+    /** The last cluster_event (0.7.0); the endpoint page of its endpoint adds it to its list. */
+    get clusterEvent() { return clusterEvent; },
     /** Moves once per burst of attribute_changed for the endpoint; its page refetches when it does. */
     attributeEpoch(endpoint: number) { return attributeEpochs[endpoint] ?? 0; },
     loadStatus,

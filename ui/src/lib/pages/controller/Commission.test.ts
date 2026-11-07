@@ -89,4 +89,32 @@ describe("Controller Commission", () => {
     vi.unstubAllGlobals();
     Reflect.deleteProperty(navigator, "mediaDevices");
   });
+
+  it("sends the terms acknowledgement when both values are set, and refuses one out of range (0.7.0)", async () => {
+    const ui = testUI({ fixtures: ["controller-commission.200", "controller-nodes.200"] });
+    render(Harness, { ui, page: Commission });
+    await fireEvent.input(screen.getByLabelText("controller.commission.code"), { target: { value: "34970112332" } });
+    await fireEvent.input(screen.getByTestId("commission-terms-version"), { target: { value: "70000" } });
+    await fireEvent.input(screen.getByTestId("commission-terms-acknowledgements"), { target: { value: "1" } });
+    await fireEvent.click(screen.getByText("controller.commission.start"));
+    expect(ui.toastSpy.error).toHaveBeenCalledWith("controller.commission.terms_invalid");
+    expect(ui.sent.some((s) => s.method === "POST")).toBe(false);
+    await fireEvent.input(screen.getByTestId("commission-terms-version"), { target: { value: "1" } });
+    await fireEvent.click(screen.getByText("controller.commission.start"));
+    await waitFor(() => expect(ui.sent.some((s) => s.method === "POST")).toBe(true));
+    expect(ui.sent.find((s) => s.method === "POST")?.body).toEqual({ code: "34970112332", terms_and_conditions: { version: 1, acknowledgements: 1 } });
+  });
+
+  it("lists the steps the stream reports under the progress (0.7.0)", async () => {
+    const ui = testUI();
+    render(Harness, { ui, page: Commission });
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started" } });
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started", step: { number: 2, sub: 1, name: "Discovery", phase: "started" } } });
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started", step: { number: 2, sub: 1, name: "Discovery", phase: "succeeded" } } });
+    const steps = await screen.findByTestId("commission-steps");
+    expect(steps).toHaveTextContent("2.1");
+    expect(steps).toHaveTextContent("Discovery");
+    expect(steps).toHaveTextContent("controller.commission.step.succeeded");
+    expect(ui.controller.progress.phase).toBe("started");
+  });
 });

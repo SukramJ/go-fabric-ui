@@ -8,6 +8,7 @@ import {
   type ControllerStatus,
   type Credential,
   type FabricClient,
+  type PairingStep,
   type UpdateQueue,
 } from "./api/client";
 import { subscribeControllerStream, type ControllerStreamEvent } from "./api/stream";
@@ -22,6 +23,8 @@ export interface CommissionProgress {
   detail: string | null;
   /** The node a succeeded commissioning added. */
   nodeIdHex: string | null;
+  /** The steps the controller reported, in order, each as it started and ended (0.7.0). */
+  steps: PairingStep[];
 }
 
 export interface ControllerStoreDeps {
@@ -31,7 +34,7 @@ export interface ControllerStoreDeps {
   subscribe?: (onEvent: (ev: ControllerStreamEvent) => void) => () => void;
 }
 
-const IDLE: CommissionProgress = { phase: "idle", detail: null, nodeIdHex: null };
+const IDLE: CommissionProgress = { phase: "idle", detail: null, nodeIdHex: null, steps: [] };
 
 /** How long the store waits before reloading after an event, so a burst reloads once. */
 const RELOAD_DELAY = 250;
@@ -128,12 +131,25 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   function applyEvent(ev: ControllerStreamEvent) {
     switch (ev.type) {
       case "commissioning_progress": {
+        const step = ev.data.step;
+        if (step) {
+          // A step is reported under the phase started (0.7.0): it joins
+          // the list, the commissioning's own phase stays.
+          progress = { ...progress, phase: progress.phase === "idle" ? "started" : progress.phase, steps: [...progress.steps, step] };
+          break;
+        }
         const phase = (ev.data.phase ?? "started") as CommissionPhase;
-        progress = { phase, detail: ev.data.detail ?? null, nodeIdHex: ev.data.node_id_hex ?? null };
+        // The commissioning's own started begins a new list of steps.
+        const steps = phase === "started" ? [] : progress.steps;
+        progress = { phase, detail: ev.data.detail ?? null, nodeIdHex: ev.data.node_id_hex ?? null, steps };
         if (phase === "succeeded") scheduleReload();
         break;
       }
       case "update":
+        // The source's update events carry their kind (0.7.0): a finished
+        // or failed update is worth a toast; every kind reloads the queue.
+        if (ev.data.update_kind === "done") deps.toast.success(deps.t("controller.updates.event_done", { version: ev.data.update_version ?? "" }));
+        if (ev.data.update_kind === "failed") deps.toast.error(deps.t("controller.updates.event_failed", { error: ev.data.update_error ?? "" }));
         void loadUpdates();
         break;
       case "topology_changed":

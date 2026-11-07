@@ -16,7 +16,7 @@ Paths are relative to the mount prefix (`Options.Prefix`, default
 
 | Route | Method | Admin | Answers | Reads in go-fabric |
 | --- | --- | --- | --- | --- |
-| `/node/status` | GET | – | 200 | `Health`, `LocalAddr`, `Topology`, `MDNSEnabled`, `Window` (open, duration, `window_kind`, `window_deadline`), `FabricInfos`; the provider's `List` for `enabled_count`; `Options.Warnings` for `warnings`; `Surface` for `surface` |
+| `/node/status` | GET | – | 200 | `Health`, `LocalAddr`, `Topology`, `MDNSEnabled`, `Window` (open, duration, `window_kind`, `window_deadline`), `FabricInfos`; the provider's `List` for `enabled_count`; `Options.Warnings` for `warnings`; `Surface` for `surface`; `AttestationError` for `attestation_error`, `BootReason` for `boot_reason`, `Options.Erase`/`NodeEntry.Erase` for `erase` (0.7.0) |
 | `/node/fabrics` | GET | – | 200, 500, 503 | `FabricInfos`, `eligibility.VendorName` |
 | `/node/fabrics/{index}` | DELETE | yes | 204, 400, 403, 500, 503 | `RemoveFabric` |
 | `/node/pairing` | GET | yes | 200, 403, 503 | `SetupPayload`, or the credentials of the window this handler opened while `Window` still reports it |
@@ -26,9 +26,10 @@ Paths are relative to the mount prefix (`Options.Prefix`, default
 | `/node/endpoints/{ep}` | GET | – | 200, 400, 404, 500, 503 | `ReadCluster` (the Descriptor, then every cluster of its ServerList), `ReadAttribute` (the parts' PartsList), `Topology`, `Surface`, `schema` names — served from 0.4.1 |
 | `/node/endpoints/{ep}/events` | GET | – | 200, 400, 503 | `Events` with the endpoint's filter, `since` and `limit` — served from 0.4.1 |
 | `/node/surface` | GET | – | 200, 500, 503 | `Surface` — the `surface.Report` in go-fabric's own JSON encoding (`MarshalJSON`) |
-| `/node/sessions` | GET | – | 200, 503 | `SessionDiagnostics` (sessions with subscription counts and idle ages on the node's clock, occupancy) |
+| `/node/sessions` | GET | – | 200, 503 | `SessionDiagnostics` (sessions with subscription counts and idle ages on the node's clock, occupancy); `SessionParameters` for `parameters` (0.7.0: the intervals, revisions, `specification_version_hex` as 8 hex digits, paths per invoke, transports, `tcp` and `max_tcp_message_size` with TCP) |
 | `/node/topology` | GET | – | 200, 500, 503 | `Topology`, `FabricInfos`, `SessionDiagnostics`, `Health`, `LocalAddr` → `TopologyGraph` (v0.4.0); 503 also before the node assembled (`Topology().Aggregator` 0) |
 | `/node/mdns` | GET | – | 200, 503 | `MDNSEnabled`, `MDNSServices`, `DiagnoseMDNS` |
+| `/node/mdns/reannounce` | POST | yes | 204, 403, 503 | `TriggerReannounce` (0.7.0; a no-op on an advertiser that cannot) |
 | `/node/compatibility` | GET | – | 200, 503 | `FabricInfos`, `Topology`, `eligibility.Compat` |
 | `/node/events` | GET | – | 200, 503 | `DiagnosticEvents` (newest first) |
 | `/node/exposure/schema` | GET | – | 200, 500, 503 | provider `Schema` |
@@ -37,12 +38,28 @@ Paths are relative to the mount prefix (`Options.Prefix`, default
 | `/node/exposure/preview` | POST | yes | 200, 400, 403, 500, 503 | provider `Preview` |
 | `/node/maintenance/reassemble` | POST | yes | 204, 403, 500, 503 | `Options.Reassemble` |
 | `/node/maintenance/factory-reset` | POST | yes | 204, 400, 403, 500, 503 | `FabricInfos`, `RemoveFabric` for each |
+| `/node/maintenance/erase` | POST | yes | 204, 400, 403, 500, 501, 503 | `Options.Erase` (0.7.0), the host's `Node.FactoryReset` and its way back to a node; body `{"confirm":"erase-node"}`; 501 `not_implemented` without one |
 | `/node/stream` | GET | – | 200 (`text/event-stream`) | `Observe`, `OnHealthSample`, `OnDiagnosticEvent` (per stream), `Options.Events`, the handler's own events |
 
 `GET /node/status` also reports `exposure_reason` (0.5.0): why the host
 serves no selection (`Options.ExposureReason`), absent with a selection;
 and from 0.6.0 `node_registry`, `admin` and `config` (see
 [Node registry](#node-registry-060)).
+
+From 0.7.0 the status reports `attestation_error` — the text of
+`Node.AttestationError`, present when the node's attestation files did
+not load under `BlockCommissioningOnError` and it refuses every
+commissioning — and `boot_reason`, the GeneralDiagnostics BootReasonEnum
+value (0–6) the node was built with; both absent without a node. `erase`
+is present and true when the host wires an erase for the node. Two
+maintenance routes differ: `POST /node/maintenance/factory-reset` removes
+every fabric and the node keeps running; `POST /node/maintenance/erase`
+runs the host's `Erase` — go-fabric's `Node.FactoryReset` erases the
+store and the endpoint records and ends the node, and the host builds a
+new one on the erased store or restarts. After its 204 the handler keeps
+reading the `NodeSource` it was given, so a host that builds a new node
+hands over a source that follows it; the page polls `GET /node/status`
+until it answers again.
 
 ## The node selector (0.5.0)
 
@@ -182,16 +199,29 @@ Details the fixtures pin:
   (`Node.SetupPayload`) or that of the window this handler opened on fresh
   credentials. No event and no log line carries it; the tests assert both.
 - **Stream**: `event:` is `fabric_added`, `fabric_removed`,
+  `fabric_updated` (0.7.0), `commissioning_complete` (0.7.0),
   `window_opened`, `window_closed`, `endpoints_changed`,
   `exposure_changed`, `surface_changed`, `session_opened`,
   `session_closed`, `subscriptions_changed`, `attribute_changed`
-  (0.4.1), `health_sample` or `diagnostic_event` (0.5.0); `data:` is JSON
+  (0.4.1), `cluster_event` (0.7.0), `health_sample` or `diagnostic_event`
+  (0.5.0); `data:` is JSON
   (`FabricEvent`, `WindowEvent`, `{}`, `ExposureEvent`,
   `SurfaceChangedEvent`, `SessionEvent`, `AttributeChangedEvent`,
-  `HealthSampleEvent`, `DiagnosticEvent`), and `nodes_changed` (0.6.0,
-  `NodesChangedEvent`, see [Node registry](#node-registry-060)). A comment line arrives every 15 s. The fabric, window and surface events come from
+  `EventRecord`, `HealthSampleEvent`, `DiagnosticEvent`), and
+  `nodes_changed` (0.6.0, `NodesChangedEvent`, see
+  [Node registry](#node-registry-060)). A comment line arrives every 15 s.
+  The fabric, window and surface events come from
   the node (`Node.Observe`, registered per stream), once per transition,
-  whoever caused it. `surface_changed` is go-fabric's
+  whoever caused it. A commissioning is `fabric_added` — the AddNOC that
+  installs the fabric — then `commissioning_complete`, go-fabric's
+  `Observers.OnCommissioningComplete` after a successful
+  CommissioningComplete, with `fabric_index` alone. `fabric_updated` is
+  `Observers.OnFabricUpdated` (an UpdateNOC, UpdateFabricLabel or
+  SetVIDVerificationStatement), its payload as `fabric_added`'s.
+  `cluster_event` is `Observers.OnEvent`: every event a cluster server
+  emitted and the node's event log recorded, in the shape
+  `GET /node/endpoints/{ep}/events` lists it, delivered on the emitter's
+  goroutine. `surface_changed` is go-fabric's
   `Observers.OnSurfaceChanged`: one event per endpoint whose served surface
   an assembly changed, after the node recorded the change in
   `Surface().Changed` and on the assembly's goroutine; `endpoints` names
@@ -363,8 +393,9 @@ the host's text.
 host's configuration rather than registry state (409, 0.6.0).
 
 ### problem-not_implemented
-The host's controller does not serve the route (501): today
-`GET /controller/topology` from a host without a topology service. Its
+The host does not serve the route (501): `GET /controller/topology`
+from a host without a topology service, and `POST
+/node/maintenance/erase` from a host that wires no `Erase` (0.7.0). Its
 detail is a fixed sentence, never an error's text.
 
 ## Versioning
@@ -384,6 +415,13 @@ writes and the contract does not name fails there. An operation marked
 `x-status: planned` promises no answer: when it is served its placeholder responses may go, its path and
 method may not. The release commit that tags a version copies the
 contract to `contract/previous/`.
+
+Contract 0.7.0 (wave U7) is additive over 0.6.0, which
+`contract/previous/` holds as release 0.6.1 shipped it: two admin routes
+per node (`mdns/reannounce`, `maintenance/erase`), three status fields,
+the sessions' `parameters`, three node stream events,
+`CommissionRequest.terms_and_conditions` and the controller events'
+`step` and `update_*` fields. No problem code is new.
 
 ## Controller routes (v0.2.0)
 
@@ -480,6 +518,12 @@ Details the fixtures pin:
 - **Commissioning**: `{code}` or `{discovered, passcode}`, not both; a
   code that does not parse is 400, no device answering is 404, a node
   that fails (PASE, attestation) is 502 with the node's error as detail.
+  `terms_and_conditions` `{version, acknowledgements}` (0.7.0, each
+  0–65535, else 400) is the Terms and Conditions acknowledgement the
+  commissioning sends with SetTCAcknowledgements, chip-tool's
+  `--tc-acknowledgements-version` and `--tc-acknowledgements`; a device
+  that requires terms refuses CommissioningComplete without it, a 502
+  whose detail names the GeneralCommissioning error.
 - **Credentials**: `GET` answers kind, id and name (SSID or Thread network
   name), never a passphrase or a dataset.
 
@@ -495,7 +539,20 @@ Details the fixtures pin:
   (`node_id_hex`, and `connection`, `active`, `phase`/`detail` by type).
   A commissioning's progress carries the failure's kind
   (`invalid_argument`, `no_device`, `timeout`, `node_failed`), not its
-  text. `topology_changed` (`{}`) tells a page to reload
+  text. From 0.7.0 every step the controller reports
+  (`PairOptions.Progress`, go-fabric `controller.PairingStep`: matter.js's
+  step names plus Discovery 2.1, PASE 2.2 and Subscribe 21.1) is a
+  `commissioning_progress` with `phase` `started` and `step`
+  `{number, sub, name, phase}`, the step's phase `started`, `succeeded`,
+  `failed` or `skipped` and no error text; a client that reads `phase`
+  alone sees `started`. `update` comes from the source, not the handler
+  (0.7.0): the go-fabric adapter observes the controller's update manager
+  (`softwareupdate.Manager.Observe`) and emits each event with
+  `update_kind` (`available`, `consent_changed`, `check_finished`,
+  `applying`, `done`, `failed`, `queued`, `transfer_started`),
+  `update_version` for the kinds that carry a target and `update_error`
+  for `check_finished` and `failed`; a controller without an update
+  manager emits none. `topology_changed` (`{}`) tells a page to reload
   `/controller/topology`. A comment line arrives every 15 s.
 - **`node_error`** (502): the interaction with the node failed. Unlike
   the other 5xx problems it carries a detail — the node's answer, which

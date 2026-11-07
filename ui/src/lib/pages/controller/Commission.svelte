@@ -3,7 +3,11 @@
      Wi-Fi or Thread device on its network; the progress from the stream
      and the result. A camera scan fills the code (QrScan, contract 0.5.0;
      the decoder is a chunk loaded on demand). The code and the passcode go
-     to the admin route only and are cleared after the call. -->
+     to the admin route only and are cleared after the call. The steps the
+     controller reports come under the progress as they start and end, and
+     a collapsed block sends a Terms and Conditions acknowledgement — the
+     two values chip-tool's --tc-acknowledgements-version and
+     --tc-acknowledgements send (contract 0.7.0). -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -25,6 +29,9 @@
   let code = $state("");
   let network = $state("");
   let networkOnly = $state(false);
+  // The Terms and Conditions acknowledgement, sent when both are set.
+  let tcVersion = $state("");
+  let tcAcknowledgements = $state("");
   let running = $state(false);
   let result = $state<ControllerNodeDetail | null>(null);
   let failure = $state<string | null>(null);
@@ -50,8 +57,23 @@
     if (kind === "wifi") req.wifi_id = id;
     if (kind === "thread") req.thread_id = id;
     if (networkOnly) req.network_only = true;
+    const tc = terms();
+    if (tc) req.terms_and_conditions = tc;
     return req;
   }
+
+  // The acknowledgement when both fields hold a 16-bit integer; undefined
+  // otherwise, and then nothing is sent.
+  function terms(): { version: number; acknowledgements: number } | undefined {
+    const v = tcVersion.trim();
+    const a = tcAcknowledgements.trim();
+    if (v === "" || a === "") return undefined;
+    const version = Number(v);
+    const acknowledgements = Number(a);
+    const ok = (n: number) => Number.isInteger(n) && n >= 0 && n <= 0xffff;
+    return ok(version) && ok(acknowledgements) ? { version, acknowledgements } : undefined;
+  }
+  const termsInvalid = $derived((tcVersion.trim() !== "" || tcAcknowledgements.trim() !== "") && !terms());
 
   async function commission(req: CommissionRequest) {
     running = true;
@@ -71,6 +93,10 @@
   async function byCode() {
     const c = code.trim();
     if (!c) return;
+    if (termsInvalid) {
+      toast.error(t("controller.commission.terms_invalid"));
+      return;
+    }
     await commission({ code: c });
     code = "";
   }
@@ -93,6 +119,10 @@
       toast.error(t("controller.commission.passcode_invalid"));
       return;
     }
+    if (termsInvalid) {
+      toast.error(t("controller.commission.terms_invalid"));
+      return;
+    }
     await commission({ discovered: { instance_name: d.instance_name, long_discriminator: d.long_discriminator }, passcode: pin });
     passcodes = { ...passcodes, [d.instance_name]: "" };
     devices = devices.filter((x) => x.instance_name !== d.instance_name);
@@ -107,6 +137,9 @@
   ]);
 
   const phase = $derived(controller.progress.phase);
+  const steps = $derived(controller.progress.steps);
+  const stepVariant = (p: string): "success" | "danger" | "muted" | "default" =>
+    p === "succeeded" ? "success" : p === "failed" ? "danger" : p === "skipped" ? "muted" : "default";
 </script>
 
 <div class="space-y-6">
@@ -125,6 +158,23 @@
         {t("controller.commission.network_only")}
       </label>
     </div>
+    <details class="mt-3 text-sm" data-testid="commission-terms">
+      <summary class="cursor-pointer text-[var(--ha-secondary-text-color)]">{t("controller.commission.terms")}</summary>
+      <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("controller.commission.terms_hint")}</p>
+      <div class="mt-2 flex flex-wrap items-center gap-3">
+        <label class="text-xs text-[var(--ha-secondary-text-color)]">
+          {t("controller.commission.terms_version")}
+          <Input class="mt-1 w-28 font-mono" inputmode="numeric" autocomplete="off" bind:value={tcVersion} data-testid="commission-terms-version" />
+        </label>
+        <label class="text-xs text-[var(--ha-secondary-text-color)]">
+          {t("controller.commission.terms_acknowledgements")}
+          <Input class="mt-1 w-28 font-mono" inputmode="numeric" autocomplete="off" bind:value={tcAcknowledgements} data-testid="commission-terms-acknowledgements" />
+        </label>
+      </div>
+      {#if termsInvalid}
+        <p class="mt-1 text-xs text-[var(--ha-error-color)]">{t("controller.commission.terms_invalid")}</p>
+      {/if}
+    </details>
   </Card>
 
   {#if running || phase !== "idle" || result || failure}
@@ -140,6 +190,17 @@
         <p class="text-sm text-[var(--ha-error-color)]"><Badge variant="danger">{t("controller.commission.failed")}</Badge> {failure}</p>
       {:else if phase === "failed"}
         <p class="text-sm text-[var(--ha-error-color)]">{t("controller.commission.failed")}</p>
+      {/if}
+      {#if steps.length > 0}
+        <ol class="mt-3 space-y-1 text-xs" data-testid="commission-steps">
+          {#each steps as step, i (i)}
+            <li class="flex flex-wrap items-center gap-2">
+              <span class="font-mono text-[var(--ha-secondary-text-color)]">{step.number}.{step.sub}</span>
+              <span class="text-[var(--ha-primary-text-color)]">{step.name}</span>
+              <Badge variant={stepVariant(step.phase)}>{t(`controller.commission.step.${step.phase}`)}</Badge>
+            </li>
+          {/each}
+        </ol>
       {/if}
     </Card>
   {/if}

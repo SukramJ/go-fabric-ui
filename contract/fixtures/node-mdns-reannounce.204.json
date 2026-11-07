@@ -1,0 +1,13 @@
+{
+  "route": "POST /node/mdns/reannounce",
+  "request": {
+    "method": "POST",
+    "path": "/node/mdns/reannounce",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

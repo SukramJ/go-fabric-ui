@@ -1240,6 +1240,9 @@ func pairOptionsOf(b *api.CommissionRequest) PairOptions {
 		o.ThreadID = *b.ThreadID
 	}
 	o.NetworkOnly = b.NetworkOnly != nil && *b.NetworkOnly
+	if tc := b.TermsAndConditions; tc != nil {
+		o.TermsAndConditions = &TermsAcknowledgement{Version: uint16(tc.Version), Acknowledgements: uint16(tc.Acknowledgements)} //nolint:gosec // checked by CommissionNode
+	}
 	return o
 }
 
@@ -1261,6 +1264,9 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 		return nil, badRequest("discovered needs passcode")
 	case b.Passcode != nil && (*b.Passcode < 1 || *b.Passcode > 99999998):
 		return nil, badRequest("passcode: not 1 to 99999998")
+	case b.TermsAndConditions != nil && (b.TermsAndConditions.Version < 0 || b.TermsAndConditions.Version > 0xFFFF ||
+		b.TermsAndConditions.Acknowledgements < 0 || b.TermsAndConditions.Acknowledgements > 0xFFFF):
+		return nil, badRequest("terms_and_conditions: version and acknowledgements are 0 to 65535")
 	}
 	if b.TimeoutSeconds != nil {
 		if *b.TimeoutSeconds < 1 || *b.TimeoutSeconds > 600 {
@@ -1271,6 +1277,11 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 		defer cancel()
 	}
 	opts := pairOptionsOf(b)
+	// Each step the source reports is a started commissioning_progress
+	// with the step: a client that reads the phase alone sees "started".
+	opts.Progress = func(st PairingStep) {
+		s.h.ctrlHub.Publish(Event{Type: EventCommissioningProgress, Data: controllerEventData{Phase: ptr("started"), Step: pairingStepOf(st)}})
+	}
 	s.h.ctrlHub.Publish(Event{Type: EventCommissioningProgress, Data: controllerEventData{Phase: ptr("started")}})
 	var n ControllerNode
 	var err error
@@ -1504,10 +1515,10 @@ func (s *controllerServer) ConsentUpdate(ctx context.Context, req api.ConsentUpd
 	if _, ok := s.src.Node(id); !ok {
 		return nil, fmt.Errorf("%w: %s", ErrNodeNotFound, hex16(id))
 	}
+	// The update event is the source's (ControllerEvent.UpdateKind).
 	if err := u.Consent(ctx, id, uint16(b.VendorID), uint16(b.ProductID), uint32(b.TargetSoftwareVersion)); err != nil { //nolint:gosec // bounded above
 		return nil, err
 	}
-	s.h.ctrlHub.Publish(Event{Type: EventUpdate, Data: controllerEventData{NodeIDHex: ptr(hex16(id))}})
 	return api.ConsentUpdate204Response{}, nil
 }
 
@@ -1527,7 +1538,7 @@ func (s *controllerServer) CheckUpdates(ctx context.Context, _ api.CheckUpdatesR
 			SoftwareVersion: int(a.SoftwareVersion), SoftwareVersionString: a.SoftwareVersionString,
 		})
 	}
-	s.h.ctrlHub.Publish(Event{Type: EventUpdate, Data: controllerEventData{}})
+	// The update event is the source's (ControllerEvent.UpdateKind).
 	return out, nil
 }
 
@@ -1607,7 +1618,7 @@ func (s *controllerServer) ControllerStream(ctx context.Context, _ api.Controlle
 }
 
 // subscribeController registers fn for the controller's events and the
-// handler's own (commissioning progress, update) and returns the function
+// handler's own (commissioning progress) and returns the function
 // that unregisters both.
 func (h *handler) subscribeController(fn func(Event)) (unsubscribe func()) {
 	unsubs := []func(){h.ctrlHub.Subscribe(fn)}
@@ -1631,6 +1642,23 @@ type controllerEventData struct {
 	Active     *bool                `json:"active,omitempty"`
 	Phase      *string              `json:"phase,omitempty"`
 	Detail     *string              `json:"detail,omitempty"`
+	// Step, UpdateKind, UpdateVersion and UpdateError are contract 0.7.0's.
+	Step          *pairingStep `json:"step,omitempty"`
+	UpdateKind    *string      `json:"update_kind,omitempty"`
+	UpdateVersion *uint32      `json:"update_version,omitempty"`
+	UpdateError   *string      `json:"update_error,omitempty"`
+}
+
+// pairingStep is the contract's PairingStep.
+type pairingStep struct {
+	Number uint8  `json:"number"`
+	Sub    uint8  `json:"sub"`
+	Name   string `json:"name"`
+	Phase  string `json:"phase"`
+}
+
+func pairingStepOf(s PairingStep) *pairingStep {
+	return &pairingStep{Number: s.Number, Sub: s.Sub, Name: s.Name, Phase: s.Phase}
 }
 
 // controllerEvent is a port event as the stream carries it.
@@ -1649,6 +1677,13 @@ func controllerEvent(e ControllerEvent) Event {
 			d.Phase = ptr(e.Phase)
 		}
 		d.Detail = optString(e.Detail)
+		if e.Step != nil {
+			d.Step = pairingStepOf(*e.Step)
+		}
+	case EventUpdate:
+		d.UpdateKind = optString(e.UpdateKind)
+		d.UpdateVersion = e.UpdateVersion
+		d.UpdateError = optString(e.UpdateErr)
 	}
 	return Event{Type: e.Type, Data: d}
 }

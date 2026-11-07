@@ -153,6 +153,25 @@ describe("node store", () => {
     store.close();
     expect(close).toHaveBeenCalledOnce();
   });
+
+  it("reloads fabrics on fabric_updated; on commissioning_complete toasts and reloads status and fabrics (0.7.0)", async () => {
+    const ui = testUI({ fixtures: ["node-fabrics.200", "node-status.200"] });
+    ui.node.applyEvent({ type: "fabric_updated", data: { fabric_index: 1, label: "Home" } });
+    await vi.runOnlyPendingTimersAsync();
+    expect(paths(ui)).toEqual(["GET /node/fabrics"]);
+    ui.node.applyEvent({ type: "commissioning_complete", data: { fabric_index: 3 } });
+    await vi.runOnlyPendingTimersAsync();
+    expect(ui.toastSpy.success).toHaveBeenCalledWith('node.commissioning.complete:{"index":3}');
+    expect(paths(ui)).toEqual(expect.arrayContaining(["GET /node/status"]));
+  });
+
+  it("keeps the last cluster_event for the endpoint page (0.7.0)", () => {
+    const ui = testUI();
+    const ev = { number: 4, priority: "info" as const, endpoint: 2, cluster_hex: "0x0039", event_hex: "0x0003" };
+    ui.node.applyEvent({ type: "cluster_event", data: ev });
+    expect(ui.node.clusterEvent).toEqual(ev);
+    expect(ui.sent).toEqual([]);
+  });
 });
 
 describe("controller store", () => {
@@ -169,5 +188,28 @@ describe("controller store", () => {
     await vi.advanceTimersByTimeAsync(400);
     expect(ui.controller.graphEpoch).toBe(1);
     expect(ui.sent).toEqual([]);
+  });
+
+  it("reports an update's end with a toast and reloads the queue on every kind (0.7.0)", async () => {
+    const ui = testUI({ fixtures: ["controller-updates.200"] });
+    ui.controller.applyEvent({ type: "update", data: { node_id_hex: "0000000000000011", update_kind: "queued", update_version: 2 } });
+    expect(ui.toastSpy.success).not.toHaveBeenCalled();
+    ui.controller.applyEvent({ type: "update", data: { node_id_hex: "0000000000000011", update_kind: "done", update_version: 2 } });
+    ui.controller.applyEvent({ type: "update", data: { node_id_hex: "0000000000000011", update_kind: "failed", update_error: "cancelled" } });
+    expect(ui.toastSpy.success).toHaveBeenCalledWith('controller.updates.event_done:{"version":2}');
+    expect(ui.toastSpy.error).toHaveBeenCalledWith('controller.updates.event_failed:{"error":"cancelled"}');
+    await vi.runOnlyPendingTimersAsync();
+    expect(ui.sent.filter((s) => s.path === "/api/v1/controller/updates")).toHaveLength(3);
+  });
+
+  it("starts a new step list with each commissioning", () => {
+    const ui = testUI();
+    const step = { number: 2, sub: 2, name: "PASE", phase: "started" as const };
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started" } });
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started", step } });
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "succeeded", node_id_hex: "13" } });
+    expect(ui.controller.progress).toMatchObject({ phase: "succeeded", steps: [step] });
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started" } });
+    expect(ui.controller.progress.steps).toEqual([]);
   });
 });

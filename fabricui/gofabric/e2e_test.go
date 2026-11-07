@@ -4,6 +4,7 @@
 package gofabric_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -22,6 +23,7 @@ import (
 	"github.com/SukramJ/go-fabric/device"
 	"github.com/SukramJ/go-fabric/fabrictest"
 	"github.com/SukramJ/go-fabric/node"
+	"github.com/SukramJ/go-fabric/surface"
 
 	"github.com/SukramJ/go-fabric-ui/fabricui"
 	"github.com/SukramJ/go-fabric-ui/fabricui/gofabric"
@@ -38,20 +40,37 @@ type ctrlSite struct {
 	plug   *device.OnOffPlugInUnit
 	ctrl   *controller.Controller
 	srv    *httptest.Server
+	src    fabricui.ControllerSource
 	token  string
 	events chan string
 }
 
+// ctrlSiteOptions vary a ctrlSite: the device's node configuration
+// (fabrictest.Topology.Configure) and the controller's OTA provider
+// (fabrictest.ControllerOptions.OTA), which gives it an update manager.
+type ctrlSiteOptions struct {
+	configure func(*node.Config)
+	// surface are the policies the plug is composed under: the node's,
+	// when configure sets them (device.Options.Surface).
+	surface surface.Policies
+	ota     *controller.OTAConfig
+}
+
 func newCtrlSite(t *testing.T) *ctrlSite {
 	t.Helper()
+	return newCtrlSiteWith(t, ctrlSiteOptions{})
+}
+
+func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
+	t.Helper()
 	site := fabrictest.NewSite(t, fabrictest.Options{})
-	plug, err := device.NewOnOffPlugInUnit(device.Options{StableKey: device.StringKey("plug:1"), Name: "Plug"})
+	plug, err := device.NewOnOffPlugInUnit(device.Options{StableKey: device.StringKey("plug:1"), Name: "Plug", Surface: o.surface})
 	if err != nil {
 		t.Fatal(err)
 	}
-	dev := site.AddDevice(fabrictest.Topology{Bridged: []node.Endpoint{plug}})
+	dev := site.AddDevice(fabrictest.Topology{Bridged: []node.Endpoint{plug}, Configure: o.configure})
 	hooks := gofabric.NewHooks()
-	cfg := site.ControllerConfig(fabrictest.ControllerOptions{Label: "e2e"})
+	cfg := site.ControllerConfig(fabrictest.ControllerOptions{Label: "e2e", OTA: o.ota})
 	cfg.HooksFor = hooks.Wrap(cfg.HooksFor)
 	// The network graph is the host's service: its changes are installed
 	// before controller.New, the service built after it and closed first.
@@ -81,7 +100,7 @@ func newCtrlSite(t *testing.T) *ctrlSite {
 		// The site's device carries the module's test attestation.
 		Pair: controller.PairOptions{OnAttestationFailure: attestation.Accept()},
 	})
-	s := &ctrlSite{t: t, site: site, dev: dev, plug: plug, ctrl: ctrl, events: make(chan string, 256)}
+	s := &ctrlSite{t: t, site: site, dev: dev, plug: plug, ctrl: ctrl, src: src, events: make(chan string, 256)}
 	// The node family beside the controller family: the device's node
 	// is the node the controller commissions.
 	s.srv = httptest.NewServer(fabricui.Handler(fabricui.Options{Controller: src, Node: dev.Node()}))
@@ -706,4 +725,142 @@ func (s *ctrlSite) rawEvents(path string) []eventRecord {
 		return nil
 	}
 	return l.Events
+}
+
+// termsRow is the register row of GeneralCommissioning's TC feature, the
+// extension a node serves its terms behind (go-fabric node/config.go:
+// 402-411 at v0.18.0, cluster/core/ahead.go:47).
+const termsRow = "BD-chip-GeneralCommissioning-TermsAndConditions"
+
+// termsPolicies serve the terms row; requireTerms makes the device
+// require terms version 1, bit 1, under them.
+var termsPolicies = surface.Policies{Extensions: surface.NewExtensions(termsRow)}
+
+func requireTerms(cfg *node.Config) {
+	cfg.Commissioning.TermsAndConditions = &node.TermsAndConditions{Version: 1, Acknowledgements: 1}
+	cfg.Surface = termsPolicies
+}
+
+// controllerStream reads the controller stream's data lines of one event
+// type until the test ends.
+func (s *ctrlSite) controllerStream(typ string) <-chan string {
+	s.t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	s.t.Cleanup(cancel)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, s.srv.URL+fabricui.DefaultPrefix+"/controller/stream", http.NoBody)
+	resp, err := s.srv.Client().Do(req) //nolint:bodyclose // closed by the reader
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	out := make(chan string, 256)
+	connected := make(chan struct{})
+	go func() {
+		defer resp.Body.Close()
+		sc := bufio.NewScanner(resp.Body)
+		event := ""
+		for sc.Scan() {
+			line := sc.Text()
+			if line == ": connected" {
+				close(connected)
+			}
+			if e, ok := strings.CutPrefix(line, "event: "); ok {
+				event = e
+			}
+			if d, ok := strings.CutPrefix(line, "data: "); ok && event == typ {
+				select {
+				case out <- d:
+				default:
+				}
+			}
+		}
+	}()
+	<-connected
+	return out
+}
+
+// A device that requires Terms and Conditions refuses a commissioning
+// without the acknowledgement at CommissioningComplete — 502 node_error
+// naming GeneralCommissioning's TcAcknowledgementsNotReceived — and is
+// commissioned with terms_and_conditions, which the flow's step 8.3 sends
+// (go-fabric controller/commissioner/flow.go:710-742 at v0.18.0); the
+// steps reach the controller stream as commissioning_progress.
+func TestEndToEnd_TermsAndConditions(t *testing.T) {
+	refused := newCtrlSiteWith(t, ctrlSiteOptions{configure: requireTerms, surface: termsPolicies})
+	sp, err := refused.dev.Node().SetupPayload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, out := refused.call(http.MethodPost, "/controller/commission", fmt.Sprintf(`{"code":%q}`, sp.Manual))
+	if status != http.StatusBadGateway || !strings.Contains(string(out), `"code":"node_error"`) || !strings.Contains(string(out), "TcAcknowledgementsNotReceived") {
+		t.Fatalf("without terms: %d %s", status, out)
+	}
+
+	s := newCtrlSiteWith(t, ctrlSiteOptions{configure: requireTerms, surface: termsPolicies})
+	progress := s.controllerStream(fabricui.EventCommissioningProgress)
+	sp, err = s.dev.Node().SetupPayload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var added nodeDetail
+	s.json(http.MethodPost, "/controller/commission",
+		fmt.Sprintf(`{"code":%q,"terms_and_conditions":{"version":1,"acknowledgements":1}}`, sp.Manual), http.StatusOK, &added)
+	want := map[string]bool{
+		`"name":"Discovery","phase":"succeeded"`:                                        false,
+		`"name":"PASE","phase":"succeeded"`:                                             false,
+		`"name":"GeneralCommissioning.ConfigureTCAcknowledgements","phase":"succeeded"`: false,
+		`"name":"Subscribe","phase":"succeeded"`:                                        false,
+	}
+	deadline := time.After(10 * time.Second)
+	for missing := len(want); missing > 0; {
+		select {
+		case d := <-progress:
+			for k, seen := range want {
+				if !seen && strings.Contains(d, k) {
+					if !strings.HasPrefix(d, `{"phase":"started","step":`) {
+						t.Fatalf("a step's event %s", d)
+					}
+					want[k] = true
+					missing--
+				}
+			}
+		case <-deadline:
+			t.Fatalf("steps not seen: %v", want)
+		}
+	}
+}
+
+// With an update manager (controller.Config.OTA) the source observes it:
+// a check reaches the controller stream as update with the kind
+// check_finished (softwareupdate.Manager.Observe), and the handler
+// publishes no update of its own.
+func TestEndToEnd_UpdateEventsFromTheManager(t *testing.T) {
+	s := newCtrlSiteWith(t, ctrlSiteOptions{ota: &controller.OTAConfig{}})
+	if s.ctrl.SoftwareUpdates() == nil {
+		t.Fatal("the controller has no update manager")
+	}
+	updates := s.controllerStream(fabricui.EventUpdate)
+	sp, err := s.dev.Node().SetupPayload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.json(http.MethodPost, "/controller/commission", fmt.Sprintf(`{"code":%q}`, sp.Manual), http.StatusOK, nil)
+	s.json(http.MethodPost, "/controller/updates/check", "", http.StatusOK, nil)
+	deadline := time.After(10 * time.Second)
+	var got []string
+	for {
+		select {
+		case d := <-updates:
+			got = append(got, d)
+			if strings.Contains(d, `"update_kind":"check_finished"`) {
+				for _, e := range got {
+					if !strings.Contains(e, `"update_kind":`) {
+						t.Fatalf("an update event without a kind: %v", got)
+					}
+				}
+				return
+			}
+		case <-deadline:
+			t.Fatalf("no check_finished; update events %v", got)
+		}
+	}
 }

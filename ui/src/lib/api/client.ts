@@ -125,6 +125,10 @@ export type HealthSampleEvent = S["HealthSampleEvent"];
 // The node registry (contract 0.6.0).
 export type NodesChangedEvent = S["NodesChangedEvent"];
 export type NodeConfig = S["NodeConfig"];
+// Completeness against go-fabric v0.18.0 (contract 0.7.0).
+export type SessionParameters = S["SessionParameters"];
+export type TermsAcknowledgement = S["TermsAcknowledgement"];
+export type PairingStep = S["PairingStep"];
 /** What GET /operation/log selects: the lowest sequence number (inclusive) and how many of the newest. */
 export type LogWindow = { since?: number; limit?: number };
 /** What GET /controller/discovery selects by. */
@@ -135,6 +139,9 @@ export const TOKEN_HEADER = "X-Fabric-UI-Token";
 
 /** The confirmation POST /node/maintenance/factory-reset requires. */
 export const FACTORY_RESET_CONFIRMATION = "remove-all-fabrics";
+
+/** The confirmation POST /node/maintenance/erase requires (0.7.0). */
+export const ERASE_CONFIRMATION = "erase-node";
 
 /** A failed call: the status and, when the server sent one, its problem. */
 export class ApiError extends Error {
@@ -170,6 +177,8 @@ export interface FabricClient {
   /** The node as a graph: its bridge, its fabrics and the sessions on them. */
   topology(): Promise<TopologyGraph>;
   mdns(): Promise<Mdns>;
+  /** Asks the node to announce its DNS-SD records now (admin; 0.7.0). */
+  reannounce(): Promise<void>;
   compatibility(): Promise<Compatibility>;
   events(): Promise<DiagnosticEventList>;
   exposureSchema(): Promise<ExposureSchema>;
@@ -179,6 +188,8 @@ export interface FabricClient {
   previewExposure(items: Update[]): Promise<ItemList>;
   reassemble(): Promise<void>;
   factoryReset(): Promise<void>;
+  /** Erases the node — its fabrics, store and endpoint records — and ends it (admin; 0.7.0): 501 when the host wires no erase. */
+  erase(): Promise<void>;
   /** The URL of the event stream. */
   streamUrl(): string;
   /**
@@ -324,6 +335,7 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       sessions: () => call("GET", np + "/sessions"),
       topology: () => call("GET", np + "/topology"),
       mdns: () => call("GET", np + "/mdns"),
+      reannounce: () => call("POST", np + "/mdns/reannounce", { admin: true }),
       compatibility: () => call("GET", np + "/compatibility"),
       events: () => call("GET", np + "/events"),
       exposureSchema: () => call("GET", np + "/exposure/schema"),
@@ -336,6 +348,7 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       reassemble: () => call("POST", np + "/maintenance/reassemble", { admin: true }),
       factoryReset: () =>
         call("POST", np + "/maintenance/factory-reset", { admin: true, body: { confirm: FACTORY_RESET_CONFIRMATION } }),
+      erase: () => call("POST", np + "/maintenance/erase", { admin: true, body: { confirm: ERASE_CONFIRMATION } }),
       streamUrl: () => base + np + "/stream",
       nodes: () => call("GET", "/nodes"),
       createNode: (label) => call("POST", "/nodes", { admin: true, body: { label } }),

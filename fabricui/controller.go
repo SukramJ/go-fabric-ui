@@ -568,6 +568,35 @@ type PairOptions struct {
 	WiFiID, ThreadID string
 	// NetworkOnly never commissions over Bluetooth LE.
 	NetworkOnly bool
+	// TermsAndConditions is the Terms and Conditions acknowledgement the
+	// commissioning sends with GeneralCommissioning's
+	// SetTCAcknowledgements (contract 0.7.0; go-fabric
+	// commissioner.Options.TermsAndConditions, controller/commissioner/
+	// commissioner.go:154-163 at v0.18.0); nil sends none.
+	TermsAndConditions *TermsAcknowledgement
+	// Progress, when set, is called on the commissioning's goroutine as
+	// each step starts and ends (go-fabric controller.PairOptions.Progress,
+	// controller/controller.go:611-618); it must not block. The handler
+	// sets it to report commissioning_progress with the step.
+	Progress func(PairingStep)
+}
+
+// TermsAcknowledgement is the version of the terms a user accepted and
+// the bitmap of the accepted terms (contract 0.7.0, TermsAcknowledgement).
+type TermsAcknowledgement struct {
+	Version, Acknowledgements uint16
+}
+
+// PairingStep is one step of a commissioning as it starts and ends
+// (contract 0.7.0, PairingStep): matter.js's step number, sub-step and
+// name verbatim, plus go-fabric's Discovery 2.1, PASE 2.2 and Subscribe
+// 21.1 (go-fabric controller.PairingStep = commissioner.Step,
+// controller/commissioner/progress.go:67-73 at v0.18.0), and its phase:
+// "started", "succeeded", "failed" or "skipped". It carries no error
+// text, so nothing a code echoes travels in an event.
+type PairingStep struct {
+	Number, Sub uint8
+	Name, Phase string
 }
 
 // DiscoverFilter selects commissionable devices: Kind "any" (or empty),
@@ -687,6 +716,19 @@ type ControllerEvent struct {
 	// Phase ("started", "succeeded", "failed") and Detail are a
 	// commissioning_progress event's.
 	Phase, Detail string
+	// Step is a commissioning_progress event's step while Phase is
+	// "started" (contract 0.7.0); nil for the commissioning's own phases.
+	Step *PairingStep
+	// UpdateKind is an update event's kind — available, consent_changed,
+	// check_finished, applying, done, failed, queued, transfer_started
+	// (go-fabric softwareupdate.UpdateEventKind, controller/softwareupdate/
+	// observe.go:29-59 at v0.18.0); UpdateVersion its target version for
+	// the kinds that carry one, UpdateErr the text of its error (contract
+	// 0.7.0). A ControllerSource emits the update events itself: the
+	// handler publishes none.
+	UpdateKind    string
+	UpdateVersion *uint32
+	UpdateErr     string
 }
 
 // The errors a ControllerSource reports and the routes map to problems.

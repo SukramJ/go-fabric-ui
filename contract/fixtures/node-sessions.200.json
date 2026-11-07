@@ -13,6 +13,17 @@
         "live": 2,
         "reserved": 1
       },
+      "parameters": {
+        "active_interval_ms": 300,
+        "active_threshold_ms": 4000,
+        "data_model_revision": 19,
+        "idle_interval_ms": 500,
+        "interaction_model_revision": 13,
+        "max_paths_per_invoke": 1,
+        "specification_version_hex": "01050000",
+        "supported_transports": 0,
+        "tcp": false
+      },
       "sessions": [
         {
           "fabric_index": 1,

@@ -706,6 +706,9 @@ type CommissionRequest struct {
 	NetworkOnly *bool `json:"network_only,omitempty"`
 	Passcode    *int  `json:"passcode,omitempty"`
 
+	// TermsAndConditions The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms refuses CommissioningComplete without one; absent sends none.
+	TermsAndConditions *TermsAcknowledgement `json:"terms_and_conditions,omitempty"`
+
 	// ThreadID The stored Thread dataset to put the device on.
 	ThreadID *string `json:"thread_id,omitempty"`
 
@@ -1240,6 +1243,15 @@ type SurfaceDecisionOrigin string
 
 // SurfaceDecisionVerdict defines model for SurfaceDecision.Verdict.
 type SurfaceDecisionVerdict string
+
+// TermsAcknowledgement The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms refuses CommissioningComplete without one; absent sends none.
+type TermsAcknowledgement struct {
+	// Acknowledgements The bitmap of the terms the user accepted.
+	Acknowledgements int `json:"acknowledgements"`
+
+	// Version The version of the terms the user accepted.
+	Version int `json:"version"`
+}
 
 // TopologyDetail defines model for TopologyDetail.
 type TopologyDetail struct {

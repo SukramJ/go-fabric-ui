@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -396,5 +397,92 @@ func TestPingNode_UnreachableIsAResult(t *testing.T) {
 	want := `{"addresses":[{"error":"the node is disabled","ip":"[fd00::11]:5540","reachable":false},{"error":"the node is disabled","ip":"192.168.1.11:5540","reachable":false}],"error":"the node is disabled","method":"matter-read","per_address":false,"reachable":false}`
 	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != want {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+}
+
+// A commission's terms_and_conditions reach the source's PairOptions; each
+// step the source reports is a commissioning_progress with phase started
+// and the step (contract 0.7.0), between the handler's own started and
+// succeeded.
+func TestCommission_TermsAndSteps(t *testing.T) {
+	h, mux, m := controllerHandler(t, nil)
+	rec := &recorder{}
+	defer h.subscribeController(rec.add)()
+	if r := do(t, mux, http.MethodPost, "/controller/commission", `{"code":"34970112332","terms_and_conditions":{"version":1,"acknowledgements":3}}`); r.Code != http.StatusOK {
+		t.Fatalf("commission %d %s", r.Code, r.Body)
+	}
+	m.mu.Lock()
+	tc := m.lastPair.TermsAndConditions
+	m.mu.Unlock()
+	if tc == nil || *tc != (TermsAcknowledgement{Version: 1, Acknowledgements: 3}) {
+		t.Fatalf("terms %+v", tc)
+	}
+	var progress []string
+	for _, ev := range rec.events {
+		if ev.Type != EventCommissioningProgress {
+			continue
+		}
+		d := ev.Data.(controllerEventData)
+		s := *d.Phase
+		if d.Step != nil {
+			if *d.Phase != "started" {
+				t.Fatalf("a step's event phase %q, want started", *d.Phase)
+			}
+			s = fmt.Sprintf("%s %d.%d %s", d.Step.Name, d.Step.Number, d.Step.Sub, d.Step.Phase)
+		}
+		progress = append(progress, s)
+	}
+	want := []string{
+		"started", "Discovery 2.1 started", "Discovery 2.1 succeeded", "PASE 2.2 started", "PASE 2.2 succeeded",
+		"Subscribe 21.1 started", "Subscribe 21.1 succeeded", "succeeded",
+	}
+	if !slices.Equal(progress, want) {
+		t.Fatalf("progress %v, want %v", progress, want)
+	}
+	if b := string(mustJSON(rec.events[1].Data)); b != `{"phase":"started","step":{"number":2,"sub":1,"name":"Discovery","phase":"started"}}` {
+		t.Fatalf("a step on the wire %s", b)
+	}
+	for _, body := range []string{
+		`{"code":"34970112332","terms_and_conditions":{"version":65536,"acknowledgements":1}}`,
+		`{"code":"34970112332","terms_and_conditions":{"version":1,"acknowledgements":-1}}`,
+	} {
+		if r := do(t, mux, http.MethodPost, "/controller/commission", body); r.Code != http.StatusBadRequest {
+			t.Fatalf("%s: %d, want 400", body, r.Code)
+		}
+	}
+}
+
+// The update events are the source's, with their kind (contract 0.7.0):
+// the handler publishes none of its own after a check or a consent.
+func TestUpdates_EventsComeFromTheSource(t *testing.T) {
+	h, mux, _ := controllerHandler(t, nil)
+	own := &recorder{}
+	defer h.ctrlHub.Subscribe(own.add)()
+	rec := &recorder{}
+	defer h.subscribeController(rec.add)()
+	if r := do(t, mux, http.MethodPost, "/controller/updates/check", ""); r.Code != http.StatusOK {
+		t.Fatalf("check %d %s", r.Code, r.Body)
+	}
+	if r := do(t, mux, http.MethodPost, "/controller/updates/consent", `{"node_id_hex":"0000000000000011","vendor_id":65521,"product_id":32769,"target_software_version":2}`); r.Code != http.StatusNoContent {
+		t.Fatalf("consent %d %s", r.Code, r.Body)
+	}
+	if len(own.events) != 0 {
+		t.Fatalf("the handler published %v itself", own.types())
+	}
+	got := make([]string, 0, len(rec.events))
+	for _, ev := range rec.events {
+		got = append(got, string(mustJSON(ev.Data)))
+	}
+	want := []string{
+		`{"update_kind":"check_finished"}`,
+		`{"node_id_hex":"0000000000000011","update_kind":"consent_changed","update_version":2}`,
+	}
+	if !slices.Equal(rec.types(), []string{EventUpdate, EventUpdate}) || !slices.Equal(got, want) {
+		t.Fatalf("events %v %v, want %v", rec.types(), got, want)
+	}
+	// An error's text travels as update_error.
+	e := controllerEvent(ControllerEvent{Type: EventUpdate, Node: 0x11, UpdateKind: "failed", UpdateErr: "softwareupdate: the update was cancelled"})
+	if b := string(mustJSON(e.Data)); b != `{"node_id_hex":"0000000000000011","update_kind":"failed","update_error":"softwareupdate: the update was cancelled"}` {
+		t.Fatalf("failed on the wire %s", b)
 	}
 }

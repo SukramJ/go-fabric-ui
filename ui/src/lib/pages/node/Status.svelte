@@ -9,7 +9,11 @@
      the counts that are not zero. A node of the host's registry gets its
      own card below: rename, delete and the ecosystem hint for several
      nodes (NodeManage, contract 0.6.0); every node the host describes
-     shows its configuration, read-only, above it (NodeConfig). -->
+     shows its configuration, read-only, above it (NodeConfig). A node
+     whose attestation files did not load says so first (go-fabric
+     Node.AttestationError: it refuses every commissioning), and the boot
+     reason the node was built with is named under the counts (contract
+     0.7.0; the labels are the GeneralDiagnostics BootReasonEnum's). -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -55,6 +59,15 @@
 {:else if s}
   <HostWarnings warnings={s.warnings ?? []} />
   <Card class="p-4" data-testid="node-status">
+    {#if s.attestation_error}
+      <div class="mb-3 flex flex-wrap items-start gap-2" data-testid="node-attestation">
+        <Badge variant="danger">{t("node.status.attestation")}</Badge>
+        <span class="min-w-[16rem] flex-1 text-sm text-[var(--ha-primary-text-color)]">
+          {t("node.status.attestation_hint")}
+          <span class="mt-1 block font-mono text-xs text-[var(--ha-secondary-text-color)]">{s.attestation_error}</span>
+        </span>
+      </div>
+    {/if}
     <div class="flex flex-wrap items-center gap-4">
       <span class="font-medium text-[var(--ha-primary-text-color)]">{t("node.status.enabled")}</span>
       <Badge variant={s.listening ? "success" : "muted"}>
@@ -106,6 +119,11 @@
     {/if}
     {#if s.listen_addr}
       <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]">{t("node.status.listen_addr", { addr: s.listen_addr })}</p>
+    {/if}
+    {#if s.boot_reason !== undefined}
+      <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]" data-testid="node-boot-reason">
+        {t("node.status.boot_reason", { reason: t(`node.status.boot_reason.${s.boot_reason}`) })}
+      </p>
     {/if}
   </Card>
 {/if}

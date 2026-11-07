@@ -10,12 +10,26 @@ import (
 	"github.com/SukramJ/go-fabric/eligibility"
 	"github.com/SukramJ/go-fabric/node"
 	"github.com/SukramJ/go-fabric/surface"
+
+	"github.com/SukramJ/go-fabric-ui/internal/api"
 )
 
 // Event types the stream carries.
 const (
-	EventFabricAdded      = "fabric_added"
-	EventFabricRemoved    = "fabric_removed"
+	EventFabricAdded   = "fabric_added"
+	EventFabricRemoved = "fabric_removed"
+	// EventFabricUpdated carries a [FabricEvent] as fabric_added does:
+	// go-fabric's node.Observers.OnFabricUpdated, an UpdateNOC,
+	// UpdateFabricLabel or SetVIDVerificationStatement (contract 0.7.0).
+	EventFabricUpdated = "fabric_updated"
+	// EventCommissioningComplete carries a [FabricEvent] with the fabric
+	// index alone: node.Observers.OnCommissioningComplete, a successful
+	// CommissioningComplete (contract 0.7.0).
+	EventCommissioningComplete = "commissioning_complete"
+	// EventClusterEvent carries an event record in the shape of GET
+	// /node/endpoints/{ep}/events: node.Observers.OnEvent, every event a
+	// cluster server emitted and the event log recorded (contract 0.7.0).
+	EventClusterEvent     = "cluster_event"
 	EventWindowOpened     = "window_opened"
 	EventWindowClosed     = "window_closed"
 	EventEndpointsChanged = "endpoints_changed"
@@ -218,16 +232,21 @@ func (e *Events) Publish(ev Event) {
 }
 
 // NodeObservers turns the node's fabric, window, surface and session
-// transitions and its attribute changes into the node page family's events
-// for push: fabric_added, fabric_removed, window_opened, window_closed,
-// surface_changed, session_opened, session_closed, subscriptions_changed
-// and attribute_changed, with the payloads the stream carries. go-fabric reports CASE sessions only
-// (node/observers.go OnSessionOpened), so a commissioning's PASE session
-// raises none of the three.
-// open is the window state the subscriber last saw, so a repeated snapshot
-// of the same state (an administrator's AdminFabricIndex cleared) is not a
-// transition. A commissioning is fabric_added: the AddNOC that installs the
-// fabric is its last step a page can name. A surface change is
+// transitions, its attribute changes and its cluster events into the node
+// page family's events for push: fabric_added, fabric_removed,
+// fabric_updated, commissioning_complete, window_opened, window_closed,
+// surface_changed, session_opened, session_closed, subscriptions_changed,
+// attribute_changed and cluster_event, with the payloads the stream
+// carries. go-fabric reports CASE sessions only (node/observers.go
+// OnSessionOpened), so a commissioning's PASE session raises none of the
+// three. open is the window state the subscriber last saw, so a repeated
+// snapshot of the same state (an administrator's AdminFabricIndex cleared)
+// is not a transition. A commissioning is fabric_added, then
+// commissioning_complete: fabric_added is the AddNOC that installs the
+// fabric, commissioning_complete the CommissioningComplete that ends the
+// commissioning (go-fabric node/observers.go:63-71 at v0.18.0).
+// cluster_event runs on the goroutine of the cluster server that emitted
+// the event (observers.go:121-122, :291-292); push must not block. A surface change is
 // surface_changed, whichever assembly made it — a route's reassembly or
 // one the host runs on its own (go-fabric node/observers.go:75-84).
 //
@@ -249,6 +268,15 @@ func NodeObservers(push func(Event), open bool) node.Observers {
 		},
 		OnFabricRemoved: func(f node.FabricInfo) {
 			push(Event{Type: EventFabricRemoved, Data: FabricEvent{FabricIndex: f.FabricIndex}})
+		},
+		OnFabricUpdated: func(f node.FabricInfo) {
+			push(Event{Type: EventFabricUpdated, Data: fabricEvent(f)})
+		},
+		OnCommissioningComplete: func(fabricIndex uint8) {
+			push(Event{Type: EventCommissioningComplete, Data: FabricEvent{FabricIndex: fabricIndex}})
+		},
+		OnEvent: func(e node.Event) {
+			push(Event{Type: EventClusterEvent, Data: clusterEventOf(&e)})
 		},
 		OnWindowTransition: func(w node.WindowSnapshot) {
 			mu.Lock()
@@ -279,6 +307,13 @@ func NodeObservers(push func(Event), open bool) node.Observers {
 			push(Event{Type: EventAttributeChanged, Data: attributeChangedEvent(c)})
 		},
 	}
+}
+
+// clusterEventOf is cluster_event's payload: the event as GET
+// /node/endpoints/{ep}/events lists it (eventRecordOf, the contract's
+// EventRecord).
+func clusterEventOf(e *node.Event) api.EventRecord {
+	return eventRecords([]EventRecord{eventRecordOf(e)}).Events[0]
 }
 
 // attributeChangedEvent is attribute_changed's payload for one change.

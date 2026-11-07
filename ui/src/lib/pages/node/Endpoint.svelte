@@ -5,7 +5,8 @@
      the events the node's event log holds for it. The page refetches the
      endpoint on its attribute_changed (ids only, no values on the stream)
      and on endpoints_changed or surface_changed; the events after the last
-     one it shows come with each refetch. -->
+     one it shows come with each refetch, and the stream's cluster_event of
+     this endpoint joins the list at once (contract 0.7.0). -->
 <script lang="ts">
   import { untrack } from "svelte";
   import { useFabricUI } from "../../context";
@@ -89,6 +90,18 @@
         void loadEvents(false);
       });
     }
+  });
+
+  // A cluster_event of this endpoint joins the list unless a refetch
+  // brought it already; one of another endpoint is not this page's.
+  const startEvent = untrack(() => node.clusterEvent);
+  $effect(() => {
+    const e = node.clusterEvent;
+    if (!e || e === startEvent || e.endpoint !== endpoint) return;
+    untrack(() => {
+      if (events.some((x) => x.number === e.number)) return;
+      events = [...events, e].slice(-MAX_EVENTS);
+    });
   });
 
   const isBridged = (d: EndpointDetail) => d.clusters.some((c) => c.id === BRIDGED_BASIC_INFORMATION);

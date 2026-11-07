@@ -278,6 +278,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/node/mdns/reannounce": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Announce the node's DNS-SD records now.
+         * @description Publishes every advertised service once per interface, with the
+         *     goodbyes of the addresses that left (go-fabric
+         *     `Node.TriggerReannounce`, 0.7.0) — for an operator who changed the
+         *     network and does not want to wait for the advertiser's schedule. A
+         *     no-op on an advertiser that cannot reannounce; 204 either way.
+         */
+        post: operations["reannounce"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/node/compatibility": {
         parameters: {
             query?: never;
@@ -398,6 +422,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/node/maintenance/erase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Erase the node — its store and endpoint records — and end it. The body must name the action.
+         * @description The host's erase (0.7.0, `Options.Erase`): go-fabric
+         *     `Node.FactoryReset` removes every fabric, stops the node and erases
+         *     what it persisted; the node is single-use, so the host builds a new
+         *     one on the erased store or restarts. `Status.erase` says whether the
+         *     host wires it. Unlike `POST /node/maintenance/factory-reset`, which
+         *     removes the fabrics and keeps the node running, this ends the node:
+         *     until the host brings one back, the node routes may answer with the
+         *     old node's state or fail. 501 `not_implemented` when the host wires
+         *     no erase.
+         */
+        post: operations["erase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/node/stream": {
         parameters: {
             query?: never;
@@ -407,14 +459,25 @@ export interface paths {
         };
         /**
          * Server-sent events.
-         * @description `event:` is one of fabric_added, fabric_removed, window_opened,
-         *     window_closed, endpoints_changed, exposure_changed, surface_changed,
+         * @description `event:` is one of fabric_added, fabric_removed, fabric_updated,
+         *     commissioning_complete, window_opened, window_closed,
+         *     endpoints_changed, exposure_changed, surface_changed,
          *     session_opened, session_closed, subscriptions_changed,
-         *     attribute_changed, health_sample, diagnostic_event, nodes_changed;
-         *     `data:` is the JSON payload (`FabricEvent`, `WindowEvent`, `{}`,
-         *     `ExposureEvent`, `SurfaceChangedEvent`, `SessionEvent`,
-         *     `AttributeChangedEvent`, `HealthSampleEvent`, `DiagnosticEvent`,
-         *     `NodesChangedEvent`).
+         *     attribute_changed, cluster_event, health_sample, diagnostic_event,
+         *     nodes_changed; `data:` is the JSON payload (`FabricEvent`,
+         *     `WindowEvent`, `{}`, `ExposureEvent`, `SurfaceChangedEvent`,
+         *     `SessionEvent`, `AttributeChangedEvent`, `EventRecord`,
+         *     `HealthSampleEvent`, `DiagnosticEvent`, `NodesChangedEvent`).
+         *     fabric_added (an AddNOC installed the fabric), fabric_updated (an
+         *     UpdateNOC, UpdateFabricLabel or SetVIDVerificationStatement changed
+         *     it; `FabricEvent` as fabric_added) and commissioning_complete (a
+         *     CommissioningComplete succeeded; `FabricEvent` with `fabric_index`
+         *     alone) are go-fabric's node.Observers OnFabricAdded,
+         *     OnFabricUpdated and OnCommissioningComplete (0.7.0): a
+         *     commissioning reports fabric_added, then commissioning_complete.
+         *     cluster_event (0.7.0) is every event a cluster server emitted and
+         *     the node's event log recorded (node.Observers.OnEvent), in the
+         *     shape of `GET /node/endpoints/{ep}/events`.
          *     nodes_changed (0.6.0) follows `POST /nodes`, `PUT
          *     /nodes/{node}/label` and `DELETE /nodes/{node}` on every node's
          *     stream, with the keys of the nodes created, renamed or deleted: a
@@ -830,6 +893,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/nodes/{node}/mdns/reannounce": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Announce the node's DNS-SD records now.
+         * @description As `POST /node/mdns/reannounce` (`reannounce`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.7.0).
+         */
+        post: operations["reannounceForNode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/nodes/{node}/compatibility": {
         parameters: {
             query?: never;
@@ -989,6 +1075,29 @@ export interface paths {
          * @description As `POST /node/maintenance/factory-reset` (`factoryReset`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0).
          */
         post: operations["factoryResetForNode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/nodes/{node}/maintenance/erase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Erase the node — its store and endpoint records — and end it. The body must name the action.
+         * @description As `POST /node/maintenance/erase` (`erase`), for the node `{node}` with its entry's `NodeEntry.Erase`; 404 for a key `GET /nodes` does not list (0.7.0).
+         */
+        post: operations["eraseForNode"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1841,6 +1950,12 @@ export interface components {
             /** @description Whether the host keeps a node registry (0.6.0): `POST /nodes` creates a node and a `managed` node can be renamed and deleted. Absent without one. */
             node_registry?: boolean;
             config?: components["schemas"]["NodeConfig"];
+            /** @description Why the node's attestation files did not load (0.7.0, go-fabric `Node.AttestationError`): the node runs on the test chain and refuses every commissioning until the files are fixed and a new node is built. Absent when the files loaded, named nothing, or without a node. */
+            attestation_error?: string;
+            /** @description The GeneralDiagnostics BootReason the node was built with (0.7.0, go-fabric `Node.BootReason`; BootReasonEnum: 0 Unspecified, 1 PowerOnReboot, 2 BrownOutReset, 3 SoftwareWatchdogReset, 4 HardwareWatchdogReset, 5 SoftwareUpdateCompleted, 6 SoftwareReset). Absent without a node. */
+            boot_reason?: number;
+            /** @description Whether the host wires an erase of this node (0.7.0, `Options.Erase` or `NodeEntry.Erase`): `POST /node/maintenance/erase` is served. Absent without one. */
+            erase?: boolean;
             /** @description The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing. */
             warnings?: components["schemas"]["Warning"][];
             /** @description The policies the node's served surface is composed under (go-fabric node.Node.Surface) and the counts that tell whether to look further; absent without a node. */
@@ -1983,6 +2098,27 @@ export interface components {
         SessionList: {
             sessions: components["schemas"]["Session"][];
             occupancy: components["schemas"]["Occupancy"];
+            parameters?: components["schemas"]["SessionParameters"];
+        };
+        /** @description The session parameters the node reports to every PASE and CASE peer (0.7.0, go-fabric `Node.SessionParameters`, the SessionParameters structure of PBKDFParamResponse and Sigma2). A zero value is not stated: the peer falls back to the specification's default. */
+        SessionParameters: {
+            /** @description SESSION_IDLE_INTERVAL. */
+            idle_interval_ms: number;
+            /** @description SESSION_ACTIVE_INTERVAL. */
+            active_interval_ms: number;
+            /** @description SESSION_ACTIVE_THRESHOLD. */
+            active_threshold_ms: number;
+            data_model_revision: number;
+            interaction_model_revision: number;
+            /** @description SPECIFICATION_VERSION as 8 uppercase hex digits, e.g. "01050000". */
+            specification_version_hex: string;
+            max_paths_per_invoke: number;
+            /** @description The SUPPORTED_TRANSPORTS bitmap */
+            supported_transports: number;
+            /** @description The bitmap names TCP in either role. */
+            tcp: boolean;
+            /** @description MAX_TCP_MESSAGE_SIZE in bytes; present with tcp. */
+            max_tcp_message_size?: number;
         };
         /** @description A family's topology as nodes and edges; the renderer needs no knowledge per kind. */
         TopologyGraph: {
@@ -2319,6 +2455,10 @@ export interface components {
         FactoryResetRequest: {
             /** @constant */
             confirm: "remove-all-fabrics";
+        };
+        EraseRequest: {
+            /** @constant */
+            confirm: "erase-node";
         };
         FabricEvent: {
             fabric_index: number;
@@ -2887,6 +3027,14 @@ export interface components {
             network_only?: boolean;
             /** @description The whole commissioning's bound; absent is the controller's default. */
             timeout_seconds?: number;
+            terms_and_conditions?: components["schemas"]["TermsAcknowledgement"];
+        };
+        /** @description The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms refuses CommissioningComplete without one; absent sends none. */
+        TermsAcknowledgement: {
+            /** @description The version of the terms the user accepted. */
+            version: number;
+            /** @description The bitmap of the terms the user accepted. */
+            acknowledgements: number;
         };
         Discovered: {
             instance_name: string;
@@ -2978,6 +3126,24 @@ export interface components {
             phase?: "started" | "succeeded" | "failed";
             /** @description commissioning_progress failed: what went wrong (no secret). */
             detail?: string;
+            step?: components["schemas"]["PairingStep"];
+            /**
+             * @description update (0.7.0): what the controller's update manager reported (go-fabric softwareupdate.UpdateEventKind).
+             * @enum {string}
+             */
+            update_kind?: "available" | "consent_changed" | "check_finished" | "applying" | "done" | "failed" | "queued" | "transfer_started";
+            /** @description update: the target software version, for the kinds that carry one. */
+            update_version?: number;
+            /** @description update: the error of check_finished and failed (no secret). */
+            update_error?: string;
+        };
+        /** @description commissioning_progress (0.7.0): one step of the commissioning as it starts and ends, while the event's phase stays started. Names are matter.js's commissioning steps verbatim, plus go-fabric's Discovery 2.1, PASE 2.2 and Subscribe 21.1 (go-fabric controller.PairingStep). */
+        PairingStep: {
+            number: number;
+            sub: number;
+            name: string;
+            /** @enum {string} */
+            phase: "started" | "succeeded" | "failed" | "skipped";
         };
     };
     responses: {
@@ -3314,6 +3480,26 @@ export interface operations {
             503: components["responses"]["Problem"];
         };
     };
+    reannounce: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Announced. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
     getCompatibility: {
         parameters: {
             query?: never;
@@ -3507,6 +3693,33 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    erase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EraseRequest"];
+            };
+        };
+        responses: {
+            /** @description Erased; the host brings the node back or restarts. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -3985,6 +4198,30 @@ export interface operations {
             503: components["responses"]["Problem"];
         };
     };
+    reannounceForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Announced. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
     getCompatibilityForNode: {
         parameters: {
             query?: never;
@@ -4210,6 +4447,37 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
+            503: components["responses"]["Problem"];
+        };
+    };
+    eraseForNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
+                node: components["parameters"]["NodeKey"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EraseRequest"];
+            };
+        };
+        responses: {
+            /** @description Erased; the host brings the node back or restarts. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };

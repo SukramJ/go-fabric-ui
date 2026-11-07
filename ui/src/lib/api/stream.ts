@@ -4,6 +4,7 @@ import type {
   AttributeChangedEvent,
   ControllerEvent,
   DiagnosticEvent,
+  EventRecord,
   ExposureEvent,
   FabricEvent,
   HealthSampleEvent,
@@ -18,6 +19,8 @@ import type {
 export const STREAM_EVENTS = [
   "fabric_added",
   "fabric_removed",
+  "fabric_updated",
+  "commissioning_complete",
   "window_opened",
   "window_closed",
   "endpoints_changed",
@@ -27,6 +30,7 @@ export const STREAM_EVENTS = [
   "session_closed",
   "subscriptions_changed",
   "attribute_changed",
+  "cluster_event",
   "health_sample",
   "diagnostic_event",
   "nodes_changed",
@@ -35,13 +39,14 @@ export const STREAM_EVENTS = [
 export type StreamEventType = (typeof STREAM_EVENTS)[number];
 
 export type StreamEvent =
-  | { type: "fabric_added" | "fabric_removed"; data: FabricEvent }
+  | { type: "fabric_added" | "fabric_removed" | "fabric_updated" | "commissioning_complete"; data: FabricEvent }
   | { type: "window_opened" | "window_closed"; data: WindowEvent }
   | { type: "endpoints_changed"; data: Record<string, never> }
   | { type: "exposure_changed"; data: ExposureEvent }
   | { type: "surface_changed"; data: SurfaceChangedEvent }
   | { type: "session_opened" | "session_closed" | "subscriptions_changed"; data: SessionEvent }
   | { type: "attribute_changed"; data: AttributeChangedEvent }
+  | { type: "cluster_event"; data: EventRecord }
   | { type: "health_sample"; data: HealthSampleEvent }
   | { type: "diagnostic_event"; data: DiagnosticEvent }
   | { type: "nodes_changed"; data: NodesChangedEvent };

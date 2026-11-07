@@ -2,9 +2,13 @@
      (reassemble, remove all pairings). Ported from openccu-loom
      assets/ui/src/routes/matter/MatterFabrics.svelte:1-209 at b40b289a:
      the vendor name from the server, the node id from its exact hex twin,
-     the confirmations before every destructive action. -->
+     the confirmations before every destructive action. A host that wires
+     an erase (Status.erase, contract 0.7.0) offers it beside the reset:
+     two confirmations naming the node and its fabric count, then a notice
+     while the status is polled until the node answers again — the erase
+     ends the node and the host brings a new one or restarts. -->
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
   import type { Fabric } from "../../api/client";
@@ -16,7 +20,10 @@
   import ErrorState from "../../kit/ErrorState.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
 
-  const { t, toast, confirm, client, node, routes } = useFabricUI();
+  const { t, toast, confirm, client, node, nodes, routes } = useFabricUI();
+
+  // How often the status is asked while an erased node comes back.
+  const ERASE_POLL_MS = 2000;
 
   onMount(() => {
     void node.loadFabrics();
@@ -70,6 +77,62 @@
       toast.success(t("node.maint.reset_done"));
       await node.loadFabrics();
       await node.loadStatus();
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      busy = false;
+    }
+  }
+
+  // erased is set from the erase's 204 until the status answers again.
+  let erased = $state(false);
+  let poll: ReturnType<typeof setTimeout> | null = null;
+  onDestroy(() => {
+    if (poll) clearTimeout(poll);
+  });
+
+  function nodeLabel(): string {
+    return nodes.find(client.nodeKey)?.label ?? node.status?.config?.label ?? client.nodeKey ?? t("node.maint.erase_this_node");
+  }
+
+  function waitForNode() {
+    poll = setTimeout(async () => {
+      poll = null;
+      try {
+        await client.status();
+      } catch {
+        waitForNode();
+        return;
+      }
+      erased = false;
+      await node.loadStatus();
+      await node.loadFabrics();
+    }, ERASE_POLL_MS);
+  }
+
+  async function erase() {
+    const name = nodeLabel();
+    const count = node.status?.fabric_count ?? 0;
+    const first = await confirm({
+      title: t("node.maint.erase_confirm", { label: name }),
+      body: t("node.maint.erase_confirm_body", { label: name, count }),
+      destructive: true,
+      confirmLabel: t("node.maint.erase"),
+    });
+    if (!first) return;
+    const second = await confirm({
+      title: t("node.maint.erase_again", { label: name }),
+      body: t("node.maint.erase_again_body", { count }),
+      destructive: true,
+      confirmLabel: t("node.maint.erase_confirm_label"),
+    });
+    if (!second) return;
+    busy = true;
+    try {
+      await client.erase();
+      toast.success(t("node.maint.erase_done", { label: name }));
+      erased = true;
+      waitForNode();
     } catch (err) {
       toast.error(errorText(err));
     } finally {
@@ -157,6 +220,15 @@
       <Button variant="outline-destructive" onclick={() => void factoryReset()} disabled={busy}>{t("node.maint.reset")}</Button>
       <span class="text-xs text-[var(--ha-secondary-text-color)]">{t("node.maint.reset_hint")}</span>
     </div>
+    {#if node.status?.erase}
+      <div class="mt-3 flex flex-wrap items-center gap-3">
+        <Button variant="outline-destructive" onclick={() => void erase()} disabled={busy || erased} data-testid="node-erase">{t("node.maint.erase")}</Button>
+        <span class="text-xs text-[var(--ha-secondary-text-color)]">{t("node.maint.erase_hint")}</span>
+      </div>
+    {/if}
+    {#if erased}
+      <p class="mt-3 text-sm text-[var(--ha-warning-color)]" data-testid="node-erased" role="status">{t("node.maint.erase_waiting")}</p>
+    {/if}
   </Card>
 
   <div class="rounded-[var(--ha-radius-card)] border border-[var(--ha-divider-color)] bg-[var(--ha-secondary-background-color)] p-4">

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.5.0
+  version: 0.6.0
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
@@ -394,10 +394,15 @@ paths:
         `event:` is one of fabric_added, fabric_removed, window_opened,
         window_closed, endpoints_changed, exposure_changed, surface_changed,
         session_opened, session_closed, subscriptions_changed,
-        attribute_changed, health_sample, diagnostic_event; `data:` is the
-        JSON payload (`FabricEvent`, `WindowEvent`, `{}`, `ExposureEvent`,
-        `SurfaceChangedEvent`, `SessionEvent`, `AttributeChangedEvent`,
-        `HealthSampleEvent`, `DiagnosticEvent`).
+        attribute_changed, health_sample, diagnostic_event, nodes_changed;
+        `data:` is the JSON payload (`FabricEvent`, `WindowEvent`, `{}`,
+        `ExposureEvent`, `SurfaceChangedEvent`, `SessionEvent`,
+        `AttributeChangedEvent`, `HealthSampleEvent`, `DiagnosticEvent`,
+        `NodesChangedEvent`).
+        nodes_changed (0.6.0) follows `POST /nodes`, `PUT
+        /nodes/{node}/label` and `DELETE /nodes/{node}` on every node's
+        stream, with the keys of the nodes created, renamed or deleted: a
+        page reloads `GET /nodes`.
         attribute_changed (0.4.1) names the attributes that changed, never
         their values: a page refetches what it shows.
         health_sample (0.5.0) is every verdict of the node's health probe
@@ -425,13 +430,89 @@ paths:
         default node, the one the `/node/*` routes serve. Each is reached under
         `/nodes/{node}/…` by its key as well, with the operations of `/node/*`.
         Empty when the host serves no node. A page shows a node selector when
-        the list holds more than one.
+        the list holds more than one. With a node registry (0.6.0) the
+        registry's nodes follow the default, read on every request, each
+        `managed`.
       responses:
         "200":
           description: The nodes.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/NodeSummaryList" }
+    post:
+      tags: [node]
+      operationId: createNode
+      summary: Create a node in the host's node registry (0.6.0).
+      description: |
+        The host allocates the key (a slug of the label), the port, the
+        discriminator, the passcode and the store, and starts the node; its
+        routes answer under `/nodes/{node}/…` at once. 409 `node_limit` when
+        the host serves no further node; 503 without a registry
+        (`Status.node_registry` absent). Every node's stream carries
+        `nodes_changed`.
+      x-admin: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NodeLabelRequest" }
+      responses:
+        "201":
+          description: The node, as `GET /nodes` lists it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NodeSummary" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    delete:
+      tags: [node]
+      operationId: deleteNode
+      summary: Delete a node of the host's node registry (0.6.0).
+      description: |
+        Final: the host stops the node and removes its fabrics (its
+        controllers lose the node), its store and its selection. 409
+        `node_is_default` for the default node, which is the host's
+        configuration; 404 for a key `GET /nodes` does not list; 503
+        without a registry. Every node's stream carries `nodes_changed`.
+      x-admin: true
+      responses:
+        "204": { description: Deleted. }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /nodes/{node}/label:
+    parameters:
+      - $ref: "#/components/parameters/NodeKey"
+    put:
+      tags: [node]
+      operationId: renameNode
+      summary: Rename a node of the host's node registry (0.6.0).
+      description: |
+        409 `node_is_default` for the default node, which is the host's
+        configuration; 404 for a key `GET /nodes` does not list; 503
+        without a registry. Every node's stream carries `nodes_changed`.
+      x-admin: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NodeLabelRequest" }
+      responses:
+        "204": { description: Renamed. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/status:
     parameters:
       - $ref: "#/components/parameters/NodeKey"
@@ -1686,7 +1767,7 @@ components:
         instance: { type: string }
         code:
           type: string
-          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large, node_error, not_implemented]
+          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large, node_error, not_implemented, node_limit, node_is_default]
     Status:
       type: object
       required: [enabled, listening, endpoint_count, fabric_count, advertising, commissioning_window_open, exposure]
@@ -1710,6 +1791,9 @@ components:
         exposure: { type: boolean, description: Whether the host serves a selection. }
         exposure_reason: { type: string, description: "Why the host serves no selection, in the host's language; absent when it serves one or gives no reason (0.5.0)." }
         csrf_token: { type: string, description: The admin token of token mode; absent when the host decides admin rights. }
+        admin: { type: boolean, description: "Whether the host's admin check admits this request (0.6.0); present when the host decides admin rights, absent in token mode, where `csrf_token` says it." }
+        node_registry: { type: boolean, description: "Whether the host keeps a node registry (0.6.0): `POST /nodes` creates a node and a `managed` node can be renamed and deleted. Absent without one." }
+        config: { $ref: "#/components/schemas/NodeConfig" }
         warnings:
           type: array
           description: The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing.
@@ -2007,12 +2091,48 @@ components:
         sampled_at: { type: string, format: date-time, description: "When the handler received the verdict, on the node's clock." }
     NodeSummary:
       type: object
-      required: [key, label, enabled]
+      required: [key, label, enabled, managed, exposure]
       properties:
         key: { type: string, description: "The node's stable key, the `{node}` of `/nodes/{node}/…`." }
         label: { type: string, description: "The host's name for the node; the key when the host names none." }
         kind: { type: string, description: "What the host says the node is (\"bridge\", \"device\"); absent when it says nothing." }
         enabled: { type: boolean, description: "Whether the node family is served for the node, as the node's `Status.enabled`." }
+        managed: { type: boolean, description: "Whether the node belongs to the host's node registry (0.6.0): `PUT /nodes/{node}/label` and `DELETE /nodes/{node}` apply to it. The default node is the host's configuration and never managed." }
+        exposure: { type: boolean, description: "Whether the node serves a selection (0.6.0), as its `Status.exposure`." }
+    NodeConfig:
+      type: object
+      description: |
+        The node's configuration as the host shows it, read-only (0.6.0);
+        absent when the host supplies none. One shape for every node. It
+        never carries the passcode, which stays with the admin route
+        `GET /node/pairing`. Of a `registry` node only the label is
+        editable (`PUT /nodes/{node}/label`); the host allocated the rest.
+        A `configuration` node is set in the host's configuration and
+        nothing of it is editable in the page.
+      required: [source, listen, discriminator, vendor_id, product_id]
+      properties:
+        source: { type: string, enum: [configuration, registry], description: "Where the values come from: the host's configuration, or its node registry." }
+        source_note: { type: string, description: "The host's wording of where a configured node's values come from (\"add-on options\", \"the --bridge-* flags\"); absent when it gives none." }
+        label: { type: string, description: The node's configured name; absent when it has none. }
+        listen: { type: string, description: "The address the node listens on, as configured (\"[::]:5540\")." }
+        discriminator: { type: integer, minimum: 0, maximum: 4095 }
+        vendor_id: { type: integer, minimum: 0, maximum: 65535 }
+        vendor_name: { type: string }
+        product_id: { type: integer, minimum: 0, maximum: 65535 }
+        product_name: { type: string }
+        store: { type: string, description: Where the node keeps its state (a file name); absent when the host does not say. }
+    NodeLabelRequest:
+      type: object
+      description: The body of `POST /nodes` and `PUT /nodes/{node}/label` (0.6.0); an unknown field is refused.
+      required: [label]
+      properties:
+        label: { type: string, minLength: 1, maxLength: 64, description: "The operator's name for the node, trimmed: 1 to 64 characters, no control character." }
+    NodesChangedEvent:
+      type: object
+      description: The payload of nodes_changed (0.6.0) — the keys of the nodes created, renamed or deleted.
+      required: [keys]
+      properties:
+        keys: { type: array, items: { type: string } }
     NodeSummaryList:
       type: object
       required: [nodes]

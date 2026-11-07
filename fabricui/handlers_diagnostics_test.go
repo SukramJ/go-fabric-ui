@@ -8,8 +8,10 @@
 package fabricui
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -100,4 +102,46 @@ func TestUnknownAPIRoute_Returns404Problem(t *testing.T) {
 	if strings.Contains(do(t, mux, http.MethodGet, "/node/nope", "").Body.String(), "<html") {
 		t.Fatal("an API 404 served the index")
 	}
+}
+
+// The sessions carry the session parameters the node reports
+// (Node.SessionParameters, contract 0.7.0): the specification version as
+// 8 hex digits, the TCP size only with TCP.
+func TestSessions_ReportTheSessionParameters(t *testing.T) {
+	n := sampleNode()
+	n.params.SupportedTransports = 0x04 // TCP server
+	n.params.MaxTCPMessageSize = 64000
+	_, mux := newTestHandler(t, testOptions{node: n})
+	var got sessionList
+	if err := json.Unmarshal(do(t, mux, http.MethodGet, "/node/sessions", "").Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	p := got.Parameters
+	if p == nil || p.SpecificationVersionHex != "01050000" || !p.TCP || p.MaxTCPMessageSize == nil || *p.MaxTCPMessageSize != 64000 {
+		t.Fatalf("parameters %+v", p)
+	}
+	_, mux = newTestHandler(t, testOptions{})
+	if strings.Contains(do(t, mux, http.MethodGet, "/node/sessions", "").Body.String(), "max_tcp_message_size") {
+		t.Fatal("max_tcp_message_size without TCP")
+	}
+}
+
+// POST /node/mdns/reannounce asks the node to announce now (contract
+// 0.7.0): an admin route, 503 without a node, 404 for an unknown key.
+func TestReannounce(t *testing.T) {
+	n := sampleNode()
+	_, mux := newTestHandler(t, testOptions{node: n})
+	runFixture(t, mux, "node-mdns-reannounce.204")
+	if n.reannounceCount() != 1 {
+		t.Fatalf("reannounced %d times, want 1", n.reannounceCount())
+	}
+	runFixture(t, mux, "nodes-mdns-reannounce.404")
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, DefaultPrefix+"/node/mdns/reannounce", http.NoBody)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden || n.reannounceCount() != 1 {
+		t.Fatalf("without the token: %d, reannounced %d times", rec.Code, n.reannounceCount())
+	}
+	_, mux = newTestHandler(t, testOptions{noNode: true})
+	runFixture(t, mux, "node-mdns-reannounce.503")
 }
