@@ -7,6 +7,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- go-fabric `v0.18.0` (milestone 10 phases 36–39 and the matter.js pin lift
+  862ad75f → db021da0). What these pages read moves with it: the node's UTC
+  is an offset over its clock (`cluster/core`, `node`; SetUTCTime sets it,
+  the host clock never); the projected OccupancySensing's default selection
+  is PassiveInfrared with OccupancyEvent, FeatureMap `0x202`
+  (`cluster/measurement`); the OTA provider is the controller itself —
+  `softwareupdate.Config.ProviderNodeID` is RootNodeID, endpoint
+  `controller.OTAProviderEndpoint` — and `controller.OwnNode` and
+  `node/controllernode` are removed; the OTA requestor's
+  `node.OTAConfig.TransferProtocols` (HTTPS, opt-in);
+  `schema.SchemaSnapshotSHA256` moves with the pin lift. No migration: no
+  removed symbol is used here.
+
 ## [0.6.0] - unreleased
 
 Several nodes per host, created in the page (wave U6a, issue #47, concept
