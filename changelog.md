@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-07
+
 ### Changed
 
 - go-fabric `v0.18.0` (milestone 10 phases 36–39 and the matter.js pin lift
@@ -22,7 +24,7 @@ All notable changes to this project are documented here. The format follows
   `schema.SchemaSnapshotSHA256` moves with the pin lift. No migration: no
   removed symbol is used here.
 
-## [0.6.0] - unreleased
+## [0.6.0] - 2026-11-05
 
 Several nodes per host, created in the page (wave U6a, issue #47, concept
 `docs/concept-u6-nodes.md`); contract 0.6.0, additive over 0.5.0. The
