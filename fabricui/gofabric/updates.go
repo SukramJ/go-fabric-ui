@@ -55,6 +55,36 @@ func (u *updates) Check(ctx context.Context) ([]fabricui.AvailableUpdate, error)
 	return out, nil
 }
 
+// watchUpdates subscribes the source to the update manager's events
+// (softwareupdate.Manager.Observe, controller/softwareupdate/
+// observe.go:130-139 at v0.18.0: in order, one at a time, on the
+// manager's goroutine and off its locks): each is an update event on the
+// controller stream with its kind, the node, the target version for the
+// kinds that carry one and the error's text. Nothing of a consent, an
+// image or a credential beyond the version reaches the event.
+func (s *source) watchUpdates(m *softwareupdate.Manager) {
+	unobserve := m.Observe(func(e softwareupdate.UpdateEvent) { s.publish(updateEvent(&e)) })
+	s.topoMu.Lock()
+	s.unobserve = unobserve
+	s.topoMu.Unlock()
+}
+
+// updateEvent is a manager's event as the port's update event. Target
+// is the found version of UpdateAvailable, the consent's of
+// UpdateConsentChanged and the queued entry's otherwise; a check of
+// every node carries none (observe.go:98-104).
+func updateEvent(e *softwareupdate.UpdateEvent) fabricui.ControllerEvent {
+	out := fabricui.ControllerEvent{Type: fabricui.EventUpdate, Node: e.Peer.NodeID, UpdateKind: e.Kind.String()}
+	if e.Kind != softwareupdate.UpdateCheckFinished && e.Target.TargetSoftwareVersion != 0 {
+		v := e.Target.TargetSoftwareVersion
+		out.UpdateVersion = &v
+	}
+	if e.Err != nil {
+		out.UpdateErr = e.Err.Error()
+	}
+	return out
+}
+
 func (u *updates) Consent(ctx context.Context, nodeID uint64, vendorID, productID uint16, version uint32) error {
 	n, ok := u.s.lookup(nodeID)
 	if !ok {

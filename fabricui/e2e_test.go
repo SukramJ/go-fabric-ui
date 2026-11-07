@@ -16,10 +16,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SukramJ/go-fabric/clock"
 	"github.com/SukramJ/go-fabric/controller/commissioner"
 	"github.com/SukramJ/go-fabric/device"
 	"github.com/SukramJ/go-fabric/fabrictest"
 	"github.com/SukramJ/go-fabric/node"
+	"github.com/SukramJ/go-fabric/surface"
 
 	"github.com/SukramJ/go-fabric-ui/fabricui"
 )
@@ -42,6 +44,14 @@ type site struct {
 
 func newSite(t *testing.T, configured bool) *site {
 	t.Helper()
+	return newSiteWith(t, configured, false)
+}
+
+// newSiteWith is newSite; with erase the handler serves the device through
+// a NodeSource that follows its current node and erases it with
+// fabrictest.Device.FactoryReset — the host pattern of Options.Erase.
+func newSiteWith(t *testing.T, configured, erase bool) *site {
+	t.Helper()
 	s := &site{t: t, site: fabrictest.NewSite(t, fabrictest.Options{}), events: make(chan string, 32), seen: map[string]bool{}}
 	plug, err := device.NewOnOffPlugInUnit(device.Options{StableKey: device.StringKey("plug:1"), Name: "Plug"})
 	if err != nil {
@@ -61,9 +71,11 @@ func newSite(t *testing.T, configured bool) *site {
 		t.Fatal(err)
 	}
 	s.device = s.site.AddDevice(fabrictest.Topology{Bridged: []node.Endpoint{plug, owner}})
-	s.srv = httptest.NewServer(fabricui.Handler(fabricui.Options{
-		Node: s.device.Node(), ConfiguredWindow: configured,
-	}))
+	opts := fabricui.Options{Node: s.device.Node(), ConfiguredWindow: configured}
+	if erase {
+		opts.Node, opts.Erase = followNode{s.device}, s.device.FactoryReset
+	}
+	s.srv = httptest.NewServer(fabricui.Handler(opts))
 	t.Cleanup(s.srv.Close)
 
 	var st struct {
@@ -192,8 +204,13 @@ func (s *site) commissionAndRemove(passcode uint32) {
 	if _, err := c.Commission(ctx, s.device, opts); err != nil {
 		s.t.Fatal(err)
 	}
+	// The AddNOC, then the CommissioningComplete that ends the
+	// commissioning (node.Observers OnFabricAdded, OnCommissioningComplete).
 	s.waitEvent(fabricui.EventFabricAdded)
-	s.waitEvent(fabricui.EventWindowClosed)
+	s.waitEvent(fabricui.EventCommissioningComplete)
+	if !s.seen[fabricui.EventWindowClosed] {
+		s.waitEvent(fabricui.EventWindowClosed)
+	}
 
 	// The controller's CASE session is listed, on the node's own
 	// diagnostics (node.SessionDiagnostics).
@@ -404,4 +421,118 @@ func TestEndToEnd_FreshWindowCommissionsAndRemoves(t *testing.T) {
 		t.Fatalf("pairing while the fresh window is open %+v", p)
 	}
 	s.commissionAndRemove(w.Passcode)
+}
+
+// followNode is a host's NodeSource over a device whose node the erase
+// replaces: every call reaches the device's current node
+// (fabrictest.Device.Node), as a host that builds a new node after
+// node.FactoryReset hands its pages one source.
+type followNode struct{ d *fabrictest.Device }
+
+var _ fabricui.NodeSource = followNode{}
+
+func (f followNode) n() *node.Node                            { return f.d.Node() }
+func (f followNode) Health() (node.HealthSample, bool)        { return f.n().Health() }
+func (f followNode) LocalAddr() string                        { return f.n().LocalAddr() }
+func (f followNode) Window() node.WindowSnapshot              { return f.n().Window() }
+func (f followNode) SetupPayload() (node.SetupPayload, error) { return f.n().SetupPayload() }
+func (f followNode) Topology() node.BridgeTopology            { return f.n().Topology() }
+func (f followNode) SessionDiagnostics() node.SessionDiagnostics {
+	return f.n().SessionDiagnostics()
+}
+func (f followNode) Clock() clock.Clock                       { return f.n().Clock() }
+func (f followNode) MDNSEnabled() bool                        { return f.n().MDNSEnabled() }
+func (f followNode) MDNSServices() []node.MDNSService         { return f.n().MDNSServices() }
+func (f followNode) DiagnoseMDNS() []node.MDNSFinding         { return f.n().DiagnoseMDNS() }
+func (f followNode) DiagnosticEvents() []node.DiagnosticEvent { return f.n().DiagnosticEvents() }
+func (f followNode) Surface() surface.Report                  { return f.n().Surface() }
+func (f followNode) Events(q node.EventQuery) []node.Event    { return f.n().Events(q) }
+func (f followNode) Endpoints() []node.EndpointInfo           { return f.n().Endpoints() }
+func (f followNode) AttestationError() error                  { return f.n().AttestationError() }
+func (f followNode) BootReason() uint8                        { return f.n().BootReason() }
+func (f followNode) SessionParameters() node.SessionParameters {
+	return f.n().SessionParameters()
+}
+func (f followNode) TriggerReannounce(ctx context.Context) { f.n().TriggerReannounce(ctx) }
+
+func (f followNode) FabricInfos(ctx context.Context) ([]node.FabricInfo, error) {
+	return f.n().FabricInfos(ctx)
+}
+
+func (f followNode) RemoveFabric(ctx context.Context, i uint8) error {
+	return f.n().RemoveFabric(ctx, i)
+}
+
+func (f followNode) OpenOwnWindow(ctx context.Context, d time.Duration) error {
+	return f.n().OpenOwnWindow(ctx, d)
+}
+func (f followNode) CloseWindow(ctx context.Context) error { return f.n().CloseWindow(ctx) }
+
+func (f followNode) OpenBasicWindow(ctx context.Context, c node.WindowCredentials) error {
+	return f.n().OpenBasicWindow(ctx, c)
+}
+
+func (f followNode) PairingCodesFor(c node.WindowCredentials) (qr, manual string, err error) {
+	return f.n().PairingCodesFor(c)
+}
+func (f followNode) Observe(o node.Observers) func() { return f.n().Observe(o) }
+
+func (f followNode) ReadCluster(ctx context.Context, ep uint16, c uint32) ([]node.AttributeValue, error) {
+	return f.n().ReadCluster(ctx, ep, c)
+}
+
+func (f followNode) ReadAttribute(ctx context.Context, ep uint16, c, a uint32) (node.AttributeValue, error) {
+	return f.n().ReadAttribute(ctx, ep, c, a)
+}
+
+func (f followNode) OnHealthSample(fn func(node.HealthSample)) func() {
+	return f.n().OnHealthSample(fn)
+}
+
+func (f followNode) OnDiagnosticEvent(fn func(node.DiagnosticEvent)) func() {
+	return f.n().OnDiagnosticEvent(fn)
+}
+
+// The erase ends the node and the host brings a new one on the erased
+// store (Options.Erase = fabrictest.Device.FactoryReset, go-fabric
+// node/factory_reset.go:20-45 and fabrictest/device.go:396-416 at
+// v0.18.0): after 204 the status reports the new node without a fabric,
+// and the controller's fabric is gone from it.
+func TestEndToEnd_EraseBringsAFreshNode(t *testing.T) {
+	s := newSiteWith(t, true, true)
+	var st struct {
+		Erase       bool `json:"erase"`
+		FabricCount int  `json:"fabric_count"`
+		Enabled     bool `json:"enabled"`
+	}
+	s.getJSON("/node/status", &st)
+	if !st.Erase {
+		t.Fatalf("status %+v, want erase", st)
+	}
+	c := s.site.AddController(fabrictest.ControllerOptions{Label: "Controller"})
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if _, err := c.Commission(ctx, s.device, fabrictest.CommissionOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	s.waitEvent(fabricui.EventCommissioningComplete)
+	s.getJSON("/node/status", &st)
+	if st.FabricCount != 1 {
+		t.Fatalf("status after commissioning %+v", st)
+	}
+	before := s.device.Node()
+	s.expect(http.StatusBadRequest, http.MethodPost, "/node/maintenance/erase", `{"confirm":"remove-all-fabrics"}`)
+	s.expect(http.StatusNoContent, http.MethodPost, "/node/maintenance/erase", `{"confirm":"erase-node"}`)
+	if s.device.Node() == before || !s.device.Running() {
+		t.Fatal("the erase did not bring a new node")
+	}
+	s.getJSON("/node/status", &st)
+	if !st.Enabled || st.FabricCount != 0 {
+		t.Fatalf("status after the erase %+v", st)
+	}
+	var fl fabricList
+	s.getJSON("/node/fabrics", &fl)
+	if len(fl.Fabrics) != 0 {
+		t.Fatalf("fabrics after the erase %+v", fl)
+	}
 }

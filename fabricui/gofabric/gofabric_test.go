@@ -6,10 +6,14 @@ package gofabric
 import (
 	"encoding/hex"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/SukramJ/go-fabric/cluster/spec/accesscontrol"
+	"github.com/SukramJ/go-fabric/controller"
 	"github.com/SukramJ/go-fabric/controller/client"
+	"github.com/SukramJ/go-fabric/controller/commissioner"
+	"github.com/SukramJ/go-fabric/controller/softwareupdate"
 
 	"github.com/SukramJ/go-fabric-ui/fabricui"
 )
@@ -115,6 +119,86 @@ func TestIdentifierOf(t *testing.T) {
 	} {
 		if _, err := identifierOf(f); !errors.Is(err, fabricui.ErrInvalidArgument) {
 			t.Errorf("%+v: %v", f, err)
+		}
+	}
+}
+
+// editFor runs the host's Edit first and sets the request's terms after
+// it, so the request's acknowledgement wins; without terms it is the
+// host's Edit itself.
+func TestEditFor(t *testing.T) {
+	var order []string
+	host := func(o *commissioner.Options) {
+		order = append(order, "host")
+		o.TermsAndConditions = &commissioner.TermsAndConditionsAcknowledgement{Version: 9, Acknowledgements: 9}
+		o.RegulatoryCountryCode = "DE"
+	}
+	var o commissioner.Options
+	editFor(host, &fabricui.TermsAcknowledgement{Version: 1, Acknowledgements: 3})(&o)
+	if !slices.Equal(order, []string{"host"}) || o.RegulatoryCountryCode != "DE" ||
+		o.TermsAndConditions == nil || *o.TermsAndConditions != (commissioner.TermsAndConditionsAcknowledgement{Version: 1, Acknowledgements: 3}) {
+		t.Fatalf("order %v, options %+v", order, o)
+	}
+	var bare commissioner.Options
+	editFor(nil, &fabricui.TermsAcknowledgement{Version: 2, Acknowledgements: 1})(&bare)
+	if bare.TermsAndConditions == nil || bare.TermsAndConditions.Version != 2 {
+		t.Fatalf("without a host Edit: %+v", bare.TermsAndConditions)
+	}
+	if editFor(nil, nil) != nil {
+		t.Fatal("no host Edit and no terms is an Edit")
+	}
+	var plain commissioner.Options
+	editFor(host, nil)(&plain)
+	if plain.TermsAndConditions.Version != 9 {
+		t.Fatal("without terms the host's Edit is not the Edit")
+	}
+}
+
+// progressFor reports each step to the template's hook, then to the
+// port's in the port's shape, the phase by name.
+func TestProgressFor(t *testing.T) {
+	var host []controller.PairingStep
+	var port []fabricui.PairingStep
+	fn := progressFor(func(s controller.PairingStep) { host = append(host, s) }, func(s fabricui.PairingStep) { port = append(port, s) })
+	fn(controller.PairingStep{Number: 2, Sub: 2, Name: commissioner.StepPASE, Phase: commissioner.StepStarted})
+	fn(controller.PairingStep{Number: 2, Sub: 2, Name: commissioner.StepPASE, Phase: commissioner.StepFailed, Err: errors.New("refused")})
+	fn(controller.PairingStep{Number: 8, Sub: 3, Name: "GeneralCommissioning.ConfigureTCAcknowledgements", Phase: commissioner.StepSkipped})
+	want := []fabricui.PairingStep{
+		{Number: 2, Sub: 2, Name: "PASE", Phase: "started"},
+		{Number: 2, Sub: 2, Name: "PASE", Phase: "failed"},
+		{Number: 8, Sub: 3, Name: "GeneralCommissioning.ConfigureTCAcknowledgements", Phase: "skipped"},
+	}
+	if len(host) != 3 || !slices.Equal(port, want) {
+		t.Fatalf("host %d, port %+v", len(host), port)
+	}
+	if progressFor(nil, nil) != nil {
+		t.Fatal("no hook is a hook")
+	}
+}
+
+// A manager's event is an update event with its kind, node, target
+// version — none for a check of every node — and error text.
+func TestUpdateEvent(t *testing.T) {
+	peer := softwareupdate.Peer{NodeID: 0x11}
+	target := softwareupdate.Target{VendorID: 0xFFF1, ProductID: 0x8001, TargetSoftwareVersion: 2}
+	for _, c := range []struct {
+		in   softwareupdate.UpdateEvent
+		kind string
+		ver  uint32
+		err  string
+	}{
+		{softwareupdate.UpdateEvent{Kind: softwareupdate.UpdateAvailable, Peer: peer, Target: target}, "available", 2, ""},
+		{softwareupdate.UpdateEvent{Kind: softwareupdate.UpdateCheckFinished, Err: errors.New("ledger down")}, "check_finished", 0, "ledger down"},
+		{softwareupdate.UpdateEvent{Kind: softwareupdate.UpdateFailed, Peer: peer, Target: target, Err: softwareupdate.ErrUpdateCancelled}, "failed", 2, softwareupdate.ErrUpdateCancelled.Error()},
+		{softwareupdate.UpdateEvent{Kind: softwareupdate.UpdateTransferStarted, Peer: peer, Target: target}, "transfer_started", 2, ""},
+	} {
+		got := updateEvent(&c.in)
+		var ver uint32
+		if got.UpdateVersion != nil {
+			ver = *got.UpdateVersion
+		}
+		if got.Type != fabricui.EventUpdate || got.Node != c.in.Peer.NodeID || got.UpdateKind != c.kind || ver != c.ver || got.UpdateErr != c.err {
+			t.Errorf("%v: %+v", c.in.Kind, got)
 		}
 	}
 }

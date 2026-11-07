@@ -58,7 +58,8 @@ type ControllerOptions struct {
 	// Hooks deliver the nodes' transitions to the controller stream; the
 	// host wires them into controller.Config.HooksFor before
 	// controller.New. Nil leaves the stream with the handler's own
-	// events (commissioning progress, update).
+	// events (commissioning progress) and the update events the source
+	// observes on the controller's update manager.
 	Hooks *Hooks
 	// Credentials is the host's Wi-Fi and Thread credential store; nil
 	// serves none (the credential routes answer 503).
@@ -103,6 +104,9 @@ func ControllerOf(ctrl *controller.Controller, opts ControllerOptions) fabricui.
 	if opts.Topology != nil {
 		s.watchTopology(opts.Topology)
 	}
+	if m := ctrl.SoftwareUpdates(); m != nil {
+		s.watchUpdates(m)
+	}
 	if opts.Hooks != nil {
 		opts.Hooks.bind(s)
 	}
@@ -121,8 +125,9 @@ type source struct {
 	mu         sync.Mutex
 	discovered map[string]client.Device
 
-	// topoState holds the subscription to opts.Topology, released by
-	// Hooks.Close (or closeTopology without hooks).
+	// topoState holds the subscriptions to opts.Topology and to the
+	// controller's update manager, released by Hooks.Close (or
+	// closeTopology without hooks).
 	topoState
 }
 
@@ -270,6 +275,8 @@ func (s *source) Pair(ctx context.Context, code string, o fabricui.PairOptions) 
 	if s.opts.Pair.BLE != nil && !o.NetworkOnly && (pc.Manual || pc.Capabilities&capabilityBLE != 0) && (wifi != nil || th != nil) {
 		opts.BLE = s.opts.Pair.BLE
 	}
+	opts.Progress = progressFor(opts.Progress, o.Progress)
+	opts.Edit = editFor(opts.Edit, o.TermsAndConditions)
 	n, err := s.ctrl.Pair(ctx, code, opts)
 	if err != nil {
 		return nil, commissionError(err)
@@ -279,6 +286,44 @@ func (s *source) Pair(ctx context.Context, code string, o fabricui.PairOptions) 
 		return nil, fmt.Errorf("%w: the commissioned node has no peer address", fabricui.ErrNodeFailed)
 	}
 	return w, nil
+}
+
+// progressFor is the commissioning's progress hook: the template's, then
+// the port's with the step in the port's shape (go-fabric
+// controller.PairOptions.Progress, controller/controller.go:611-618 at
+// v0.18.0; the phases commissioner.StepStarted…StepSkipped,
+// controller/commissioner/progress.go:15-32). The step's error stays here:
+// the port's step carries none. Nil when neither is set.
+func progressFor(host func(controller.PairingStep), port func(fabricui.PairingStep)) func(controller.PairingStep) {
+	if port == nil {
+		return host
+	}
+	return func(st controller.PairingStep) {
+		if host != nil {
+			host(st)
+		}
+		port(fabricui.PairingStep{Number: st.Number, Sub: st.Sub, Name: st.Name, Phase: st.Phase.String()})
+	}
+}
+
+// editFor is the commissioner's Edit of one commissioning: the host's
+// template Edit first, then the request's Terms and Conditions
+// acknowledgement (commissioner.Options.TermsAndConditions, controller/
+// commissioner/commissioner.go:154-163 at v0.18.0), which the facade
+// reaches only through Edit (controller/controller.go:619-620). Without
+// an acknowledgement it is the host's Edit.
+func editFor(host func(*commissioner.Options), tc *fabricui.TermsAcknowledgement) func(*commissioner.Options) {
+	if tc == nil {
+		return host
+	}
+	ack := commissioner.TermsAndConditionsAcknowledgement{Version: tc.Version, Acknowledgements: tc.Acknowledgements}
+	return func(o *commissioner.Options) {
+		if host != nil {
+			host(o)
+		}
+		a := ack
+		o.TermsAndConditions = &a
+	}
 }
 
 // commissionError maps a commissioning's error to the port's kinds.
@@ -429,11 +474,12 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 		Options: commissioner.Options{
 			Passcode: passcode, OnAttestationFailure: po.OnAttestationFailure,
 			WiFiNetwork: wifi, ThreadNetwork: th,
+			Progress: progressFor(po.Progress, o.Progress),
 		},
 		AutoSubscribe: po.AutoSubscribe,
 	}
-	if po.Edit != nil {
-		po.Edit(&copts.Options)
+	if edit := editFor(po.Edit, o.TermsAndConditions); edit != nil {
+		edit(&copts.Options)
 	}
 	if err := reg.Commission(ctx, n, copts); err != nil {
 		return nil, commissionError(err)

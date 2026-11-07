@@ -66,23 +66,29 @@ func (s *source) watchTopology(svc *topology.Service) {
 	s.topoMu.Unlock()
 }
 
-// closeTopology releases the subscription of watchTopology; Hooks.Close
-// runs it when hooks are bound, a test without hooks calls it. It is
-// idempotent.
+// closeTopology releases the subscriptions of watchTopology and
+// watchUpdates; Hooks.Close runs it when hooks are bound, a test without
+// hooks calls it. It is idempotent.
 func (s *source) closeTopology() {
 	s.topoMu.Lock()
-	unsubscribe := s.unwatch
-	s.unwatch = nil
+	unsubscribe, unobserve := s.unwatch, s.unobserve
+	s.unwatch, s.unobserve = nil, nil
 	s.topoMu.Unlock()
 	if unsubscribe != nil {
 		unsubscribe()
 	}
+	if unobserve != nil {
+		unobserve()
+	}
 }
 
-// topoState is the subscription state of a source; embedded in source.
+// topoState is the subscription state of a source; embedded in source:
+// unwatch releases the topology service's, unobserve the update
+// manager's.
 type topoState struct {
-	topoMu  sync.Mutex
-	unwatch func()
+	topoMu    sync.Mutex
+	unwatch   func()
+	unobserve func()
 }
 
 // networkTopologyOf is go-fabric's topology snapshot as the port's graph:
