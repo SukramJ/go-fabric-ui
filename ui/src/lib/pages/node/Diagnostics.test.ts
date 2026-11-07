@@ -3,10 +3,10 @@
 // at b40b289a, on the contract fixtures (the endpoint cases moved to
 // Endpoints.test.ts).
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
 import { body, testUI } from "../../../test/support";
-import type { Compatibility, DiagnosticEventList, EndpointList, Mdns, SessionList } from "../../api/client";
+import type { Compatibility, DiagnosticEventList, EndpointList, Mdns, SessionList, Status as StatusT } from "../../api/client";
 import Diagnostics from "./Diagnostics.svelte";
 import Endpoints from "./Endpoints.svelte";
 
@@ -155,5 +155,27 @@ describe("Endpoints", () => {
     const ui = testUI({ answers: { "GET /node/endpoints": { status: 200, body: { endpoints: [] } } } });
     render(Harness, { ui, page: Endpoints });
     expect(await screen.findByText("node.endpoints.empty")).toBeInTheDocument();
+  });
+
+  it("re-announces for an admin and says so (0.7.0)", async () => {
+    const ui = testUI({ fixtures: [...ALL, "node-status.200", "node-mdns-reannounce.204"] });
+    await ui.node.loadStatus();
+    render(Harness, { ui, page: Diagnostics });
+    await fireEvent.click(await screen.findByTestId("node-reannounce"));
+    await waitFor(() => expect(ui.toastSpy.success).toHaveBeenCalledWith("node.diag.reannounced"));
+    expect(ui.sent.some((s) => s.method === "POST" && s.path === "/api/v1/node/mdns/reannounce")).toBe(true);
+  });
+
+  it("offers no re-announce without admin rights, and lists the session parameters", async () => {
+    const s = body<StatusT>("node-status.200");
+    s.admin = false;
+    const ui = testUI({ fixtures: ALL, answers: { "GET /node/status": { status: 200, body: s } } });
+    await ui.node.loadStatus();
+    render(Harness, { ui, page: Diagnostics });
+    const params = await screen.findByTestId("session-parameters");
+    expect(params).toHaveTextContent("0x01050000");
+    expect(params).toHaveTextContent("500 ms");
+    expect(params).toHaveTextContent("node.diag.params.tcp_no");
+    expect(screen.queryByTestId("node-reannounce")).toBeNull();
   });
 });

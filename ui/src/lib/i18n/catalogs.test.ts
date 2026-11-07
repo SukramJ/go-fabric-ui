@@ -82,4 +82,13 @@ describe("i18n catalogues", () => {
     ];
     expect(keys.filter((k) => !en.has(k))).toEqual([]);
   });
+
+  it("name every boot reason the status shows and every phase of a commissioning step (0.7.0)", () => {
+    // GeneralDiagnostics BootReasonEnum 0–6 and the PairingStep phases of the contract.
+    const keys = [
+      ...[0, 1, 2, 3, 4, 5, 6].map((r) => `node.status.boot_reason.${r}`),
+      ...["started", "succeeded", "failed", "skipped"].map((p) => `controller.commission.step.${p}`),
+    ];
+    expect(keys.filter((k) => !en.has(k))).toEqual([]);
+  });
 });

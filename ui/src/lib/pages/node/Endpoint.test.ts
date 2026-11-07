@@ -106,4 +106,14 @@ describe("Node Endpoint", () => {
     renderEndpoint(2, { answers: { "GET /node/endpoints/2": { status: 200, body: { ...d, tags: [], scope: undefined } } } });
     expect(await screen.findByText("node.endpoint.no_tags")).toBeInTheDocument();
   });
+
+  it("adds the stream's cluster_event of its endpoint at once, and no other (0.7.0)", async () => {
+    const ui = renderEndpoint(2);
+    await screen.findByTestId("event-9");
+    const ev = { number: 12, priority: "info" as const, endpoint: 2, cluster_hex: "0x0039", event_hex: "0x0003", name: "ReachableChanged" };
+    ui.node.applyEvent({ type: "cluster_event", data: { ...ev, number: 11, endpoint: 3 } });
+    ui.node.applyEvent({ type: "cluster_event", data: ev });
+    const list = await screen.findByTestId("event-list");
+    await waitFor(() => expect([...list.querySelectorAll("li")].map((li) => li.getAttribute("data-testid"))).toEqual(["event-12", "event-9", "event-7"]));
+  });
 });

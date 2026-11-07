@@ -125,3 +125,36 @@ describe("Fabrics — maintenance actions", () => {
     await waitFor(() => expect(ui.toastSpy.error).toHaveBeenCalledWith("Factory reset incomplete: removed 1 of 2 fabrics"));
   });
 });
+
+describe("Fabrics — erasing the node (0.7.0)", () => {
+  it("offers no erase when the host wires none", async () => {
+    const ui = renderWith(null);
+    await ui.node.loadStatus();
+    await screen.findByText("0x0000000000000042");
+    expect(screen.queryByTestId("node-erase")).toBeNull();
+  });
+
+  it("asks twice with the fabric count, erases and waits for the node", async () => {
+    const ui = testUI({ fixtures: ["node-fabrics.200", "node-status.200-attestation", "node-maintenance-erase.204"] });
+    await ui.node.loadStatus();
+    render(Harness, { ui, page: Fabrics });
+    await fireEvent.click(await screen.findByTestId("node-erase"));
+    await waitFor(() => expect(ui.sent.some((s) => s.path === "/api/v1/node/maintenance/erase")).toBe(true));
+    expect(ui.confirmSpy).toHaveBeenCalledTimes(2);
+    expect(ui.confirmSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({ destructive: true, body: expect.stringContaining('"count":2') }));
+    expect(ui.sent.find((s) => s.path === "/api/v1/node/maintenance/erase")?.body).toEqual({ confirm: "erase-node" });
+    await waitFor(() => expect(ui.toastSpy.success).toHaveBeenCalled());
+    expect(await screen.findByTestId("node-erased")).toHaveTextContent("node.maint.erase_waiting");
+  });
+
+  it("erases nothing when the second confirmation is declined", async () => {
+    const ui = testUI({ fixtures: ["node-fabrics.200", "node-status.200-attestation"] });
+    let n = 0;
+    ui.confirmSpy.mockImplementation(async () => ++n === 1);
+    await ui.node.loadStatus();
+    render(Harness, { ui, page: Fabrics });
+    await fireEvent.click(await screen.findByTestId("node-erase"));
+    await waitFor(() => expect(ui.confirmSpy).toHaveBeenCalledTimes(2));
+    expect(ui.sent.some((s) => s.path === "/api/v1/node/maintenance/erase")).toBe(false);
+  });
+});

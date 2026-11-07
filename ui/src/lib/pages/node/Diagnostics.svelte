@@ -4,12 +4,15 @@
      assets/ui/src/routes/matter/MatterDiagnostics.svelte:1-352 at b40b289a;
      the endpoint inspector moved to the Endpoints page. A burst of the
      stream's diagnostic_event reloads it in place (contract 0.5.0); the
-     Refresh button stays. -->
+     Refresh button stays. An admin asks the node to announce its DNS-SD
+     records now (POST /node/mdns/reannounce), and the session parameters
+     the node reports to every peer sit collapsed under the sessions
+     (contract 0.7.0). -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
-  import type { Compatibility, DiagnosticEvent, Mdns, Occupancy, Session } from "../../api/client";
+  import type { Compatibility, DiagnosticEvent, Mdns, Occupancy, Session, SessionParameters } from "../../api/client";
   import type { DataColumn } from "../../kit/data-table";
   import Badge from "../../kit/Badge.svelte";
   import Button from "../../kit/Button.svelte";
@@ -19,12 +22,15 @@
   import ErrorState from "../../kit/ErrorState.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
 
-  const { t, client, node } = useFabricUI();
+  const { t, toast, client, node } = useFabricUI();
+  const isAdmin = $derived(!!node.status?.csrf_token || node.status?.admin === true);
 
   let loading = $state(true);
   let error = $state<string | null>(null);
   let sessions = $state<Session[]>([]);
   let occupancy = $state<Occupancy | null>(null);
+  let parameters = $state<SessionParameters | null>(null);
+  let announcing = $state(false);
   let mdns = $state<Mdns | null>(null);
   let compat = $state<Compatibility | null>(null);
   let events = $state<DiagnosticEvent[]>([]);
@@ -43,6 +49,7 @@
       if (mine !== seq) return;
       sessions = s.sessions;
       occupancy = s.occupancy;
+      parameters = s.parameters ?? null;
       mdns = m;
       compat = c;
       events = ev.events;
@@ -54,6 +61,38 @@
   }
 
   onMount(() => void load());
+
+  async function reannounce() {
+    announcing = true;
+    try {
+      await client.reannounce();
+      toast.success(t("node.diag.reannounced"));
+    } catch (err) {
+      toast.error(errorText(err));
+    } finally {
+      announcing = false;
+    }
+  }
+
+  // The session parameters as label and value; a zero is "not stated", the
+  // peer falls back to the specification's default.
+  const parameterRows = $derived(
+    parameters
+      ? [
+          [t("node.diag.params.idle"), `${parameters.idle_interval_ms} ms`],
+          [t("node.diag.params.active"), `${parameters.active_interval_ms} ms`],
+          [t("node.diag.params.threshold"), `${parameters.active_threshold_ms} ms`],
+          [t("node.diag.params.data_model"), String(parameters.data_model_revision)],
+          [t("node.diag.params.interaction_model"), String(parameters.interaction_model_revision)],
+          [t("node.diag.params.specification"), `0x${parameters.specification_version_hex}`],
+          [t("node.diag.params.max_paths"), String(parameters.max_paths_per_invoke)],
+          [
+            t("node.diag.params.tcp"),
+            parameters.tcp ? t("node.diag.params.tcp_yes", { size: parameters.max_tcp_message_size ?? 0 }) : t("node.diag.params.tcp_no"),
+          ],
+        ]
+      : [],
+  );
 
   // The trace moved: reload in place. The first run only records the epoch.
   let seenEpoch = node.diagnosticEpoch;
@@ -126,7 +165,14 @@
     <ErrorState message={error} onRetry={() => void load()} />
   {:else}
     <Card class="p-4">
-      <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.diag.discovery")}</h3>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.diag.discovery")}</h3>
+        {#if isAdmin}
+          <Button size="sm" variant="outline" disabled={announcing} onclick={() => void reannounce()} data-testid="node-reannounce">
+            {t("node.diag.reannounce")}
+          </Button>
+        {/if}
+      </div>
       {#if !mdns?.advertising}
         <p class="mt-2 text-sm text-[var(--ha-secondary-text-color)]">{t("node.diag.not_advertising")}</p>
       {:else}
@@ -174,6 +220,18 @@
           emptyMessage={t("node.diag.no_sessions")}
         />
       </div>
+      {#if parameters}
+        <details class="mt-3 text-sm" data-testid="session-parameters">
+          <summary class="cursor-pointer text-[var(--ha-secondary-text-color)]">{t("node.diag.params.title")}</summary>
+          <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("node.diag.params.hint")}</p>
+          <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+            {#each parameterRows as [label, value] (label)}
+              <dt class="text-[var(--ha-secondary-text-color)]">{label}</dt>
+              <dd class="font-mono text-[var(--ha-primary-text-color)]">{value}</dd>
+            {/each}
+          </dl>
+        </details>
+      {/if}
     </Card>
 
     {#if compat}

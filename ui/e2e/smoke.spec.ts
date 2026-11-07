@@ -31,6 +31,11 @@ const SMOKES: Smoke[] = [
     shows: (p: Page) => p.getByTestId("node-title"),
   })),
   { name: "operation", hash: "#/operation", shows: (p) => p.getByTestId("log-record").first() },
+  // Completeness against go-fabric v0.18.0 (contract 0.7.0).
+  { name: "node status attestation", hash: "#/node/status", shows: (p) => p.getByTestId("node-attestation") },
+  { name: "node diagnostics reannounce", hash: "#/node/diagnostics", shows: (p) => p.getByTestId("node-reannounce") },
+  { name: "node fabrics erase", hash: "#/node/fabrics", shows: (p) => p.getByTestId("node-erase") },
+  { name: "controller commission terms", hash: "#/controller/commission", shows: (p) => p.getByTestId("commission-terms") },
 ];
 
 for (const s of SMOKES) {
@@ -81,5 +86,49 @@ test("a node is created from the selector and deleted from its status page", asy
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete for good" }).click();
   await expect(page).toHaveURL(/#\/node\/status$/);
   await expect(page.getByLabel("Node", { exact: true }).locator("option")).toHaveCount(before);
+  expect(errors).toEqual([]);
+});
+
+// Re-announce from the diagnostics page (contract 0.7.0): the admin route
+// answers and the page says so.
+test("the node re-announces from the diagnostics page", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+  await page.goto("/#/node/diagnostics");
+  await page.getByTestId("node-reannounce").click();
+  await expect(page.getByText("The node announced its records again.")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+// A commissioning with a Terms and Conditions acknowledgement on the memory
+// controller (contract 0.7.0): the steps it reports appear under the
+// progress.
+test("a commissioning with terms lists its steps", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+  await page.goto("/#/controller/commission");
+  await page.getByLabel("Pairing code").fill("34970112332");
+  await page.getByTestId("commission-terms").locator("summary").click();
+  await page.getByTestId("commission-terms-version").fill("1");
+  await page.getByTestId("commission-terms-acknowledgements").fill("1");
+  await page.getByRole("button", { name: "Commission", exact: true }).click();
+  await expect(page.getByTestId("commission-steps")).toContainText("Subscribe");
+  await expect(page.getByText("Commissioned", { exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+// The erase (contract 0.7.0), last: it empties the default node's fabrics.
+// Two confirmations, then the toast and the notice while the status is
+// polled.
+test("the node is erased after two confirmations", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+  await page.goto("/#/node/fabrics");
+  await page.getByTestId("node-erase").click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Erase node…" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Erase for good" }).click();
+  await expect(page.getByText(/erased\.$/)).toBeVisible();
+  await expect(page.getByTestId("node-erased")).toBeVisible();
+  await expect(page.getByText("Home", { exact: true })).toHaveCount(0, { timeout: 10_000 });
   expect(errors).toEqual([]);
 });

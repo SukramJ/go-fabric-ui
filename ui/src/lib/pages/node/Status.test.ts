@@ -116,4 +116,19 @@ describe("Status", () => {
     expect(await screen.findByText("node.status.disabled")).toBeInTheDocument();
     expect(screen.queryByTestId("node-surface")).toBeNull();
   });
+
+  it("names a refused attestation and the boot reason (0.7.0)", async () => {
+    render(Harness, { ui: testUI({ fixtures: ["node-status.200-attestation"] }), page: Status });
+    const att = await screen.findByTestId("node-attestation");
+    expect(att).toHaveTextContent("node.status.attestation");
+    expect(att).toHaveTextContent("node: attestation files: open /data/dac.pem");
+    expect(screen.getByTestId("node-boot-reason")).toHaveTextContent('node.status.boot_reason:{"reason":"node.status.boot_reason.5"}');
+  });
+
+  it("shows no attestation line when the files loaded", async () => {
+    render(Harness, { ui: testUI({ fixtures: ["node-status.200"] }), page: Status });
+    await screen.findByTestId("node-status");
+    expect(screen.queryByTestId("node-attestation")).toBeNull();
+    expect(screen.getByTestId("node-boot-reason")).toHaveTextContent("node.status.boot_reason.1");
+  });
 });
