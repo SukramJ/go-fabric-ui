@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-07
+
 Completeness against go-fabric v0.18.0 (wave U7, brief
 `notes/briefs/2026-11-07-U7-completeness.md`); contract 0.7.0, additive
 over 0.6.0.
