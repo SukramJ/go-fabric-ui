@@ -51,6 +51,13 @@ type nodePort interface {
 	// function runs (Node.OnHealthSample, Node.OnDiagnosticEvent).
 	onHealthSample(fn func(node.HealthSample)) (unsubscribe func())
 	onDiagnosticEvent(fn func(node.DiagnosticEvent)) (unsubscribe func())
+	// attestationError, bootReason, sessionParameters and reannounce are
+	// Node.AttestationError, BootReason, SessionParameters and
+	// TriggerReannounce (contract 0.7.0).
+	attestationError() error
+	bootReason() uint8
+	sessionParameters() node.SessionParameters
+	reannounce(ctx context.Context)
 }
 
 // nodeAdapter reads a [NodeSource] through the facade only.
@@ -162,6 +169,14 @@ func (a nodeAdapter) onHealthSample(fn func(node.HealthSample)) (unsubscribe fun
 func (a nodeAdapter) onDiagnosticEvent(fn func(node.DiagnosticEvent)) (unsubscribe func()) {
 	return a.n.OnDiagnosticEvent(fn)
 }
+
+func (a nodeAdapter) attestationError() error { return a.n.AttestationError() }
+
+func (a nodeAdapter) bootReason() uint8 { return a.n.BootReason() }
+
+func (a nodeAdapter) sessionParameters() node.SessionParameters { return a.n.SessionParameters() }
+
+func (a nodeAdapter) reannounce(ctx context.Context) { a.n.TriggerReannounce(ctx) }
 
 func (a nodeAdapter) eventLog(q node.EventQuery) []EventRecord {
 	evs := a.n.Events(q)

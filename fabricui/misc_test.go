@@ -22,6 +22,8 @@ import (
 	"github.com/SukramJ/go-fabric/eligibility"
 	"github.com/SukramJ/go-fabric/node"
 	"github.com/SukramJ/go-fabric/surface"
+
+	"github.com/SukramJ/go-fabric-ui/internal/api"
 )
 
 // *node.Node is a NodeSource: a facade change that breaks the subset fails
@@ -327,5 +329,50 @@ func TestEveryFixtureIsUsedByTheGoTests(t *testing.T) {
 		if !regexp.MustCompile(`"` + regexp.QuoteMeta(base) + `"`).MatchString(src.String()) {
 			t.Errorf("fixture %s is used by no Go test", base)
 		}
+	}
+}
+
+// The node's fabric update, the end of a commissioning and a cluster event
+// reach the stream as fabric_updated, commissioning_complete and
+// cluster_event (go-fabric node.Observers OnFabricUpdated,
+// OnCommissioningComplete, OnEvent; contract 0.7.0), in order, with their
+// payloads; NodeObservers yields the same.
+func TestStream_FabricUpdatedCommissioningCompleteClusterEvent(t *testing.T) {
+	n := sampleNode()
+	h, _ := newTestHandler(t, testOptions{node: n})
+	stream, host := &recorder{}, &recorder{}
+	defer h.subscribe(stream.add)()
+	defer n.observe(NodeObservers(host.add, n.window().Open))()
+
+	n.notify(func(o node.Observers) {
+		o.OnFabricAdded(node.FabricInfo{FabricIndex: 3, VendorID: 0xFFF1})
+	})
+	n.notify(func(o node.Observers) {
+		o.OnFabricUpdated(node.FabricInfo{FabricIndex: 3, VendorID: 0xFFF1, Label: "Kitchen"})
+	})
+	n.notify(func(o node.Observers) { o.OnCommissioningComplete(3) })
+	at := testNow.Add(-time.Second)
+	n.notify(func(o node.Observers) {
+		o.OnEvent(node.Event{Number: 12, Priority: 1, Endpoint: 2, Cluster: 0x0039, Event: 0x03, Time: at})
+	})
+
+	ms := at.UnixMilli()
+	want := []Event{
+		{Type: EventFabricAdded, Data: FabricEvent{FabricIndex: 3, VendorID: 0xFFF1, VendorName: eligibility.VendorName(0xFFF1)}},
+		{Type: EventFabricUpdated, Data: FabricEvent{FabricIndex: 3, VendorID: 0xFFF1, VendorName: eligibility.VendorName(0xFFF1), Label: "Kitchen"}},
+		{Type: EventCommissioningComplete, Data: FabricEvent{FabricIndex: 3}},
+		{Type: EventClusterEvent, Data: api.EventRecord{
+			Number: 12, Priority: "info", Endpoint: 2, ClusterHex: "0x0039", EventHex: "0x0003",
+			Name: ptr("ReachableChanged"), EpochMs: ptr(int(ms)),
+		}},
+	}
+	if !reflect.DeepEqual(stream.events, want) {
+		t.Fatalf("the stream yielded %+v, want %+v", stream.events, want)
+	}
+	if !reflect.DeepEqual(host.events, stream.events) {
+		t.Fatalf("NodeObservers yielded %+v, the stream %+v", host.events, stream.events)
+	}
+	if b := string(mustJSON(stream.events[3].Data)); !strings.Contains(b, `"cluster_hex":"0x0039"`) || strings.Contains(b, `"data"`) {
+		t.Fatalf("cluster_event on the wire %s", b)
 	}
 }

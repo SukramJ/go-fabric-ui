@@ -185,6 +185,31 @@ type fakeNode struct {
 	// registered.
 	healthFns map[int]func(node.HealthSample)
 	diagFns   map[int]func(node.DiagnosticEvent)
+
+	// attestationErr, boot and params are what AttestationError,
+	// BootReason and SessionParameters report; reannounced counts
+	// TriggerReannounce (contract 0.7.0).
+	attestationErr error
+	boot           uint8
+	params         node.SessionParameters
+	reannounced    int
+}
+
+func (f *fakeNode) attestationError() error                   { return f.attestationErr }
+func (f *fakeNode) bootReason() uint8                         { return f.boot }
+func (f *fakeNode) sessionParameters() node.SessionParameters { return f.params }
+
+func (f *fakeNode) reannounce(context.Context) {
+	f.mu.Lock()
+	f.reannounced++
+	f.mu.Unlock()
+}
+
+// reannounceCount is how often reannounce ran.
+func (f *fakeNode) reannounceCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.reannounced
 }
 
 func (f *fakeNode) onHealthSample(fn func(node.HealthSample)) (unsubscribe func()) {
@@ -615,6 +640,14 @@ func sampleNode() *fakeNode {
 			},
 		},
 		qr: "MT:Y.K9042C00KA0648G00", manual: "34970112332",
+		boot: 1,
+		// matter.js's defaults (SessionParameters.ts) at Matter 1.5: the
+		// intervals, the revisions, one path per invoke, no TCP.
+		params: node.SessionParameters{
+			SessionIdleInterval: 500, SessionActiveInterval: 300, SessionActiveThreshold: 4000,
+			DataModelRevision: 19, InteractionModelRevision: 13, SpecificationVersion: 0x01050000,
+			MaxPathsPerInvoke: 1,
+		},
 		topo: node.BridgeTopology{
 			Aggregator: 1,
 			Devices: []node.BridgedDevice{
@@ -680,6 +713,8 @@ type testOptions struct {
 	exposure   ExposureProvider
 	admin      func(*http.Request) bool
 	reassemble func(context.Context) error
+	// erase is Options.Erase (contract 0.7.0).
+	erase      func(context.Context) error
 	events     EventSource
 	configured bool
 	allowEmpty bool
@@ -713,7 +748,7 @@ func newTestHandler(t *testing.T, o testOptions) (*handler, *http.ServeMux) {
 	}
 	h, err := newHandler(Options{
 		Node: placeholder, Registry: o.registry, NodeConfig: o.nodeConfig,
-		Exposure: o.exposure, Admin: o.admin, Reassemble: o.reassemble, Events: o.events,
+		Exposure: o.exposure, Admin: o.admin, Reassemble: o.reassemble, Erase: o.erase, Events: o.events,
 		Logger: logger, ConfiguredWindow: o.configured, AllowEmptyTopology: o.allowEmpty,
 		Warnings: o.warnings, Controller: o.controller, Operations: o.operations, ExposureReason: o.exposureReason,
 	})

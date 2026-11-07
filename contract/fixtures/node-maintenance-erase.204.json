@@ -1,0 +1,16 @@
+{
+  "route": "POST /node/maintenance/erase",
+  "request": {
+    "method": "POST",
+    "path": "/node/maintenance/erase",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "confirm": "erase-node"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

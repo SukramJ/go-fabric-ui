@@ -1,0 +1,24 @@
+{
+  "route": "POST /node/maintenance/erase",
+  "request": {
+    "method": "POST",
+    "path": "/node/maintenance/erase",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "confirm": "erase-node"
+    }
+  },
+  "response": {
+    "status": 501,
+    "body": {
+      "code": "not_implemented",
+      "detail": "the host wires no Erase",
+      "instance": "/api/v1/node/maintenance/erase",
+      "status": 501,
+      "title": "Erase not available",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-not_implemented"
+    }
+  }
+}

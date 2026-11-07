@@ -137,7 +137,12 @@ var memoryTime = time.Date(2026, 10, 20, 8, 0, 0, 0, time.UTC)
 // MemoryController is an in-memory [ControllerSource]: two commissioned
 // nodes — a light on Wi-Fi with a pending update and a Binding cluster,
 // and a sleepy ICD contact sensor on Thread — one commissionable device a
-// discovery finds, a credential store and an update queue. The handler
+// discovery finds, a credential store and an update queue. A
+// commissioning reports the steps Discovery 2.1, PASE 2.2 and Subscribe
+// 21.1 through PairOptions.Progress, the names go-fabric gives the steps
+// around matter.js's flow (controller/controller.go:623-631 at v0.18.0);
+// a check and a consent emit update events of the kinds check_finished
+// and consent_changed. The handler
 // tests record the contract's fixtures from it; a host shows the pages
 // with it before it has a controller. It is safe for concurrent use.
 type MemoryController struct {
@@ -155,6 +160,9 @@ type MemoryController struct {
 	subs    *Events
 	// paired is whether the commissionable device was commissioned.
 	paired bool
+	// lastPair is the PairOptions of the last commissioning, without its
+	// Progress (the handler tests read it).
+	lastPair PairOptions
 }
 
 var _ ControllerSource = (*MemoryController)(nil)
@@ -222,15 +230,47 @@ func (m *MemoryController) Node(id uint64) (ControllerNode, bool) {
 // Pair implements [ControllerSource]: the commissionable device's manual
 // or QR code commissions it once; another code that reads as a code finds
 // no device; anything else is an invalid code.
-func (m *MemoryController) Pair(_ context.Context, code string, _ PairOptions) (ControllerNode, error) {
+func (m *MemoryController) Pair(_ context.Context, code string, o PairOptions) (ControllerNode, error) {
 	code = strings.ReplaceAll(strings.TrimSpace(code), "-", "")
 	if !strings.HasPrefix(code, "MT:") && !isDigits(code) {
 		return nil, fmt.Errorf("%w: not a QR payload or a manual pairing code", ErrInvalidArgument)
 	}
+	m.record(o)
+	report := progressOf(o)
+	report(memoryStepDiscovery, "started")
 	if code != memoryManualCode && code != memoryQRCode {
+		report(memoryStepDiscovery, "failed")
 		return nil, ErrNoDevice
 	}
-	return m.commission()
+	report(memoryStepDiscovery, "succeeded")
+	return m.commission(report)
+}
+
+// The steps a memory commissioning reports: go-fabric's own names before
+// and after matter.js's flow (commissioner.StepDiscovery, StepPASE,
+// StepSubscribe; controller/commissioner/progress.go:78-80 at v0.18.0).
+var (
+	memoryStepDiscovery = PairingStep{Number: 2, Sub: 1, Name: "Discovery"}
+	memoryStepPASE      = PairingStep{Number: 2, Sub: 2, Name: "PASE"}
+	memoryStepSubscribe = PairingStep{Number: 21, Sub: 1, Name: "Subscribe"}
+)
+
+// record keeps o as the last commissioning's options.
+func (m *MemoryController) record(o PairOptions) {
+	o.Progress = nil
+	m.mu.Lock()
+	m.lastPair = o
+	m.mu.Unlock()
+}
+
+// progressOf reports a step in a phase through o.Progress, if set.
+func progressOf(o PairOptions) func(st PairingStep, phase string) {
+	return func(st PairingStep, phase string) {
+		if o.Progress != nil {
+			st.Phase = phase
+			o.Progress(st)
+		}
+	}
 }
 
 func isDigits(s string) bool {
@@ -245,7 +285,9 @@ func isDigits(s string) bool {
 	return true
 }
 
-func (m *MemoryController) commission() (ControllerNode, error) {
+// commission commissions the commissionable device once, reporting PASE
+// and Subscribe.
+func (m *MemoryController) commission(report func(PairingStep, string)) (ControllerNode, error) {
 	m.mu.Lock()
 	if m.paired {
 		m.mu.Unlock()
@@ -256,7 +298,11 @@ func (m *MemoryController) commission() (ControllerNode, error) {
 	m.next++
 	m.nodes[n.id] = n
 	m.mu.Unlock()
+	report(memoryStepPASE, "started")
+	report(memoryStepPASE, "succeeded")
 	m.publish(ControllerEvent{Type: EventNodeAdded, Node: n.id})
+	report(memoryStepSubscribe, "started")
+	report(memoryStepSubscribe, "succeeded")
 	return n, nil
 }
 
@@ -299,14 +345,18 @@ func (m *MemoryController) Discover(_ context.Context, f DiscoverFilter, _ time.
 }
 
 // CommissionDiscovered implements [ControllerSource].
-func (m *MemoryController) CommissionDiscovered(_ context.Context, d Discovered, passcode uint32, _ PairOptions) (ControllerNode, error) {
+func (m *MemoryController) CommissionDiscovered(_ context.Context, d Discovered, passcode uint32, o PairOptions) (ControllerNode, error) {
+	m.record(o)
+	report := progressOf(o)
 	if d.InstanceName != memoryInstance {
 		return nil, ErrNoDevice
 	}
 	if passcode != memoryPasscode {
+		report(memoryStepPASE, "started")
+		report(memoryStepPASE, "failed")
 		return nil, fmt.Errorf("%w: PASE failed: the device refused the passcode", ErrNodeFailed)
 	}
-	return m.commission()
+	return m.commission(report)
 }
 
 // Decommission implements [ControllerSource].
@@ -366,21 +416,32 @@ func (u *memoryUpdates) Queue() []PendingUpdate {
 	return slices.Clone(u.queue)
 }
 
+// Check finds the light's update and emits check_finished, as go-fabric's
+// manager does after a check (softwareupdate.UpdateCheckFinished).
 func (u *memoryUpdates) Check(context.Context) ([]AvailableUpdate, error) {
+	u.m.publish(ControllerEvent{Type: EventUpdate, UpdateKind: "check_finished"})
 	return []AvailableUpdate{{NodeID: 0x11, VendorID: 0xFFF1, ProductID: 0x8001, SoftwareVersion: 2, SoftwareVersionString: "1.1.0"}}, nil
 }
 
+// Consent starts the queued update or queues a new one and emits
+// consent_changed with the target version (softwareupdate.
+// UpdateConsentChanged).
 func (u *memoryUpdates) Consent(_ context.Context, node uint64, vendorID, productID uint16, version uint32) error {
+	u.consent(node, vendorID, productID, version)
+	u.m.publish(ControllerEvent{Type: EventUpdate, Node: node, UpdateKind: "consent_changed", UpdateVersion: &version})
+	return nil
+}
+
+func (u *memoryUpdates) consent(node uint64, vendorID, productID uint16, version uint32) {
 	u.m.mu.Lock()
 	defer u.m.mu.Unlock()
 	for i, p := range u.queue {
 		if p.NodeID == node && p.VendorID == vendorID && p.ProductID == productID && p.TargetSoftwareVersion == version {
 			u.queue[i].Status, u.queue[i].ProgressStatus, u.queue[i].ProgressAt = "in_progress", "Querying", memoryTime
-			return nil
+			return
 		}
 	}
 	u.queue = append(u.queue, PendingUpdate{NodeID: node, VendorID: vendorID, ProductID: productID, TargetSoftwareVersion: version, Status: "queued"})
-	return nil
 }
 
 // memorySpec is what a memory node is made of.

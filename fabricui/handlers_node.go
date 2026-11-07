@@ -57,6 +57,16 @@ type statusResponse struct {
 	// Config is the node's configuration, read-only (0.6.0); absent when
 	// the host supplies none. Never the passcode.
 	Config *nodeConfig `json:"config,omitempty"`
+	// AttestationError is why the node's attestation files did not load
+	// (Node.AttestationError, 0.7.0); absent when they did, or without a
+	// node.
+	AttestationError string `json:"attestation_error,omitempty"`
+	// BootReason is the GeneralDiagnostics BootReason the node was built
+	// with (Node.BootReason, 0.7.0); absent without a node.
+	BootReason *uint8 `json:"boot_reason,omitempty"`
+	// Erase is whether the host wires an erase of the node (Options.Erase,
+	// NodeEntry.Erase, 0.7.0); absent without one.
+	Erase bool `json:"erase,omitempty"`
 	// Warnings is nil, and omitted, without Options.Warnings; with the
 	// hook it is a list, empty when the host finds nothing.
 	Warnings []Warning `json:"warnings,omitzero"`
@@ -122,7 +132,7 @@ func summariseSurface(r *surface.Report) *surfaceSummary {
 // 200 and enabled false, not 503: the status is what tells a page the
 // family is off (loom matter_exposures.go:363-372).
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
-	res := statusResponse{Exposure: h.exposure != nil, CSRFToken: h.token, NodeRegistry: h.registry != nil}
+	res := statusResponse{Exposure: h.exposure != nil, CSRFToken: h.token, NodeRegistry: h.registry != nil, Erase: h.erase != nil}
 	if h.admin != nil {
 		admin := h.admin(r)
 		res.Admin = &admin
@@ -150,6 +160,11 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res.Enabled = true
+	if err := h.node.attestationError(); err != nil {
+		res.AttestationError = err.Error()
+	}
+	boot := h.node.bootReason()
+	res.BootReason = &boot
 	res.ListenAddr = h.node.localAddr()
 	res.Listening = res.ListenAddr != ""
 	if healthy, note, ok := h.node.health(); ok {
@@ -322,6 +337,44 @@ func (h *handler) factoryReset(w http.ResponseWriter, r *http.Request) {
 		removed = append(removed, f.FabricIndex)
 	}
 	h.log.InfoContext(r.Context(), "fabricui.factory_reset.done", slog.Int("removed", len(removed)))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// eraseConfirmation is the word the body of POST /node/maintenance/erase
+// has to carry: it names the action, as factoryResetConfirmation does.
+const eraseConfirmation = "erase-node"
+
+// eraseNode serves POST /node/maintenance/erase (contract 0.7.0): the
+// host's erase — go-fabric's Node.FactoryReset, which removes every
+// fabric, stops the node and erases its store and endpoint records
+// (node/factory_reset.go:20-45 at v0.18.0), and the host's way back to a
+// node. 501 when the host wires none: the capability is the host's, as
+// GET /controller/topology answers 501 without a graph.
+func (h *handler) eraseNode(w http.ResponseWriter, r *http.Request) {
+	if h.node == nil {
+		nodeUnready(w, r)
+		return
+	}
+	if h.erase == nil {
+		writeProblem(w, r, http.StatusNotImplemented, codeNotImplemented, "Erase not available", "the host wires no Erase")
+		return
+	}
+	var body struct {
+		Confirm string `json:"confirm"`
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	if body.Confirm != eraseConfirmation {
+		writeProblem(w, r, http.StatusBadRequest, codeBadRequest, "Erase not confirmed",
+			`send {"confirm":"`+eraseConfirmation+`"} — this erases the node's fabrics, store and endpoint records `+
+				`and ends the node; every paired controller has to commission it again`)
+		return
+	}
+	if err := h.erase(r.Context()); err != nil {
+		h.serverError(w, r, "Failed to erase the node", err)
+		return
+	}
+	h.log.InfoContext(r.Context(), "fabricui.erase.done")
 	w.WriteHeader(http.StatusNoContent)
 }
 

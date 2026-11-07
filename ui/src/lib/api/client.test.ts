@@ -53,6 +53,15 @@ const cases: [string, Call][] = [
   ["node-maintenance-reassemble.503", (c) => c.reassemble()],
   ["node-maintenance-factory-reset.204", (c) => c.factoryReset()],
   ["node-maintenance-factory-reset.400", (c) => c.factoryReset()],
+  // Completeness against go-fabric v0.18.0 (0.7.0).
+  ["node-status.200-attestation", (c) => c.status()],
+  ["node-mdns-reannounce.204", (c) => c.reannounce()],
+  ["node-mdns-reannounce.503", (c) => c.reannounce()],
+  ["nodes-mdns-reannounce.404", (c) => c.forNode("unknown").reannounce()],
+  ["node-maintenance-erase.204", (c) => c.erase()],
+  ["node-maintenance-erase.400", (c) => c.erase()],
+  ["node-maintenance-erase.501", (c) => c.erase()],
+  ["nodes-maintenance-erase.404", (c) => c.forNode("unknown").erase()],
   // The node selector and a keyed node's routes (0.5.0).
   ["nodes.200", (c) => c.nodes()],
   ["nodes-status.200", (c) => c.forNode("second").status()],
@@ -111,9 +120,10 @@ describe("client against the contract fixtures", () => {
     const sent = ff.sent[0];
     expect(`${sent.method} ${sent.path}`).toBe(`${f.request.method} /api/v1${f.request.path}`);
     expect(sent.headers[TOKEN_HEADER]).toBe(token);
-    // The factory-reset refusal is the server's answer to a body this
-    // client never sends; every other request body is the fixture's.
-    if (name !== "node-maintenance-factory-reset.400") expect(sent.body).toEqual(f.request.body);
+    // The factory-reset and erase refusals are the server's answers to a
+    // body this client never sends; every other request body is the
+    // fixture's.
+    if (name !== "node-maintenance-factory-reset.400" && name !== "node-maintenance-erase.400") expect(sent.body).toEqual(f.request.body);
   });
 
   it("takes the admin token from the status of token mode", async () => {

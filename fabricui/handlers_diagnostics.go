@@ -4,6 +4,7 @@
 package fabricui
 
 import (
+	"fmt"
 	"net/http"
 	"slices"
 	"time"
@@ -65,6 +66,42 @@ type occupancyResponse struct {
 type sessionList struct {
 	Sessions  []sessionResponse `json:"sessions"`
 	Occupancy occupancyResponse `json:"occupancy"`
+	// Parameters are the session parameters the node reports (0.7.0).
+	Parameters *sessionParameters `json:"parameters,omitempty"`
+}
+
+// sessionParameters is the contract's SessionParameters: the fields of
+// go-fabric's sessionparams.Parameters (secure/sessionparams/
+// sessionparams.go:49-66 at v0.18.0) as Node.SessionParameters returns
+// them, the specification version as 8 hex digits.
+type sessionParameters struct {
+	IdleIntervalMS           uint32  `json:"idle_interval_ms"`
+	ActiveIntervalMS         uint32  `json:"active_interval_ms"`
+	ActiveThresholdMS        uint16  `json:"active_threshold_ms"`
+	DataModelRevision        uint16  `json:"data_model_revision"`
+	InteractionModelRevision uint16  `json:"interaction_model_revision"`
+	SpecificationVersionHex  string  `json:"specification_version_hex"`
+	MaxPathsPerInvoke        uint16  `json:"max_paths_per_invoke"`
+	SupportedTransports      uint16  `json:"supported_transports"`
+	TCP                      bool    `json:"tcp"`
+	MaxTCPMessageSize        *uint32 `json:"max_tcp_message_size,omitempty"`
+}
+
+// sessionParametersOf is p on the wire; max_tcp_message_size only with
+// TCP, as the structure encodes it (sessionparams.go:59-63).
+func sessionParametersOf(p *node.SessionParameters) *sessionParameters {
+	out := &sessionParameters{
+		IdleIntervalMS: p.SessionIdleInterval, ActiveIntervalMS: p.SessionActiveInterval,
+		ActiveThresholdMS: p.SessionActiveThreshold, DataModelRevision: p.DataModelRevision,
+		InteractionModelRevision: p.InteractionModelRevision,
+		SpecificationVersionHex:  fmt.Sprintf("%08X", p.SpecificationVersion),
+		MaxPathsPerInvoke:        p.MaxPathsPerInvoke, SupportedTransports: p.SupportedTransports,
+		TCP: p.SupportsTCP(),
+	}
+	if out.TCP {
+		out.MaxTCPMessageSize = &p.MaxTCPMessageSize
+	}
+	return out
 }
 
 // sessions serves GET /node/sessions: whether a commissioned controller is
@@ -84,9 +121,10 @@ func (h *handler) sessions(w http.ResponseWriter, r *http.Request) {
 		out = append(out, sessionOf(&diag.Sessions[i]))
 	}
 	occ := diag.Occupancy
+	params := h.node.sessionParameters()
 	writeJSON(w, sessionList{Sessions: out, Occupancy: occupancyResponse{
 		Live: occ.Live, Reserved: occ.Reserved, Capacity: occ.Capacity, Free: occ.Free,
-	}})
+	}, Parameters: sessionParametersOf(&params)})
 }
 
 // mdnsService is one advertised record (loom matter.go:404-413).
@@ -125,6 +163,20 @@ func (h *handler) mdns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, h.node.mdns())
+}
+
+// reannounce serves POST /node/mdns/reannounce (contract 0.7.0): the node
+// announces its DNS-SD records now (Node.TriggerReannounce, go-fabric
+// node/reannounce.go:12-26 at v0.18.0), a no-op on an advertiser that
+// cannot.
+func (h *handler) reannounce(w http.ResponseWriter, r *http.Request) {
+	if h.node == nil {
+		nodeUnready(w, r)
+		return
+	}
+	h.node.reannounce(r.Context())
+	h.log.InfoContext(r.Context(), "fabricui.mdns.reannounced")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // clusterResponse is one cluster server of an endpoint, named and revised

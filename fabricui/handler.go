@@ -31,7 +31,7 @@ type handler struct {
 	exposure ExposureProvider
 	// ctrl is the controller family's source; nil serves no controller
 	// routes. ctrlHub carries the handler's own controller events
-	// (commissioning progress, update).
+	// (commissioning progress).
 	ctrl    ControllerSource
 	ctrlHub *Events
 	admin   func(*http.Request) bool
@@ -39,7 +39,10 @@ type handler struct {
 	// set.
 	token      string
 	reassemble func(context.Context) error
-	warnings   func(context.Context) []Warning
+	// erase is the host's erase of this node (Options.Erase,
+	// NodeEntry.Erase); nil answers 501.
+	erase    func(context.Context) error
+	warnings func(context.Context) []Warning
 	// hub carries the handler's own events; extra is the host's source
 	// when it is not an *Events. The node's transitions come from
 	// node.Observe, per stream (subscribe).
@@ -93,6 +96,8 @@ type nodeEntry struct {
 	exposure   ExposureProvider
 	reassemble func(context.Context) error
 	events     EventSource
+	// erase is the node's erase (NodeEntry.Erase, contract 0.7.0).
+	erase func(context.Context) error
 	// config is the node's configuration view (Status.config).
 	config *NodeConfigView
 	// managed is a node of the registry: the page may rename and delete
@@ -102,7 +107,7 @@ type nodeEntry struct {
 
 // entryOf is e in the handler's terms.
 func entryOf(e *NodeEntry, managed bool) nodeEntry {
-	ne := nodeEntry{key: e.Key, label: e.Label, kind: e.Kind, exposure: e.Exposure, reassemble: e.Reassemble, events: e.Events, managed: managed}
+	ne := nodeEntry{key: e.Key, label: e.Label, kind: e.Kind, exposure: e.Exposure, reassemble: e.Reassemble, events: e.Events, erase: e.Erase, managed: managed}
 	if e.Config != nil {
 		c := *e.Config
 		if c.Source == "" {
@@ -212,6 +217,9 @@ func newHandler(o Options) (*handler, error) {
 		if o.Events == nil {
 			o.Events = d.events
 		}
+		if o.Erase == nil {
+			o.Erase = d.erase
+		}
 		if o.NodeConfig == nil {
 			o.NodeConfig = d.config
 		}
@@ -231,6 +239,7 @@ func newHandler(o Options) (*handler, error) {
 		ctrlHub:        NewEvents(),
 		admin:          o.Admin,
 		reassemble:     o.Reassemble,
+		erase:          o.Erase,
 		warnings:       o.Warnings,
 		prefix:         prefix,
 		log:            o.Logger,
@@ -285,6 +294,7 @@ var nodeRoutes = []nodeRoute{
 	{"GET", "/sessions", false, (*handler).sessions},
 	{"GET", "/topology", false, (*handler).topology},
 	{"GET", "/mdns", false, (*handler).mdns},
+	{"POST", "/mdns/reannounce", true, (*handler).reannounce},
 	{"GET", "/compatibility", false, (*handler).compatibility},
 	{"GET", "/events", false, (*handler).diagnosticEvents},
 	{"GET", "/exposure/schema", false, (*handler).exposureSchema},
@@ -293,6 +303,7 @@ var nodeRoutes = []nodeRoute{
 	{"POST", "/exposure/preview", true, (*handler).exposurePreview},
 	{"POST", "/maintenance/reassemble", true, (*handler).maintenanceReassemble},
 	{"POST", "/maintenance/factory-reset", true, (*handler).factoryReset},
+	{"POST", "/maintenance/erase", true, (*handler).eraseNode},
 	{"GET", "/stream", false, (*handler).stream},
 }
 
@@ -365,12 +376,12 @@ func (h *handler) mountNodes() {
 	}
 	h.served = served
 	h.keyed = make(map[string]*handler, len(served))
-	for i, e := range served {
+	for i := range served {
 		if i == 0 {
-			h.keyed[e.key] = h
+			h.keyed[served[i].key] = h
 			continue
 		}
-		h.keyed[e.key] = h.sibling(e)
+		h.keyed[served[i].key] = h.sibling(served[i])
 	}
 }
 
@@ -382,6 +393,7 @@ func (h *handler) sibling(e nodeEntry) *handler {
 		node:           e.port,
 		exposure:       e.exposure,
 		reassemble:     e.reassemble,
+		erase:          e.erase,
 		registry:       h.registry,
 		nodesHub:       h.nodesHub,
 		admin:          h.admin,
@@ -437,7 +449,8 @@ type deviceNodeList struct {
 func (h *handler) listNodes(w http.ResponseWriter, _ *http.Request) {
 	reg := h.registryEntries()
 	out := deviceNodeList{Nodes: make([]deviceNodeSummary, 0, len(h.served)+len(reg))}
-	for i, e := range h.served {
+	for i := range h.served {
+		e := h.served[i]
 		if i == 0 {
 			// The default node serves Options.Exposure (h.exposure).
 			e.exposure = h.exposure

@@ -354,3 +354,110 @@ func TestFactoryReset_ReportsAPartialReset(t *testing.T) {
 		t.Fatalf("the partial reset is not logged: %s", log.String())
 	}
 }
+
+// The status names a refused attestation chain and the boot reason
+// (go-fabric Node.AttestationError, Node.BootReason), and reports erase
+// when the host wires one (contract 0.7.0).
+func TestStatus_AttestationBootReasonAndErase(t *testing.T) {
+	n := sampleNode()
+	n.attestationErr = errors.New("node: attestation files: open /data/dac.pem: no such file or directory")
+	n.boot = 5
+	_, mux := newTestHandler(t, testOptions{
+		node: n, admin: func(*http.Request) bool { return true },
+		erase: func(context.Context) error { return nil },
+	})
+	runFixture(t, mux, "node-status.200-attestation")
+	// Without a node there is neither a boot reason nor an attestation.
+	_, mux = newTestHandler(t, testOptions{noNode: true, erase: func(context.Context) error { return nil }})
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(do(t, mux, http.MethodGet, "/node/status", "").Body.Bytes(), &m); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"boot_reason", "attestation_error"} {
+		if _, ok := m[k]; ok {
+			t.Errorf("%s without a node: %s", k, m[k])
+		}
+	}
+}
+
+// POST /node/maintenance/erase runs the host's Erase on the written
+// confirmation alone; 501 without one, 503 without a node, 500 on its
+// error (contract 0.7.0).
+func TestErase(t *testing.T) {
+	var erased int
+	var log bytes.Buffer
+	erase := func(context.Context) error { erased++; return nil }
+	_, mux := newTestHandler(t, testOptions{erase: erase, log: &log})
+	runFixture(t, mux, "node-maintenance-erase.400")
+	if rec := do(t, mux, http.MethodPost, "/node/maintenance/erase", ""); rec.Code != http.StatusBadRequest {
+		t.Fatalf("empty body: status %d, want 400", rec.Code)
+	}
+	if erased != 0 {
+		t.Fatalf("erased %d times without confirmation", erased)
+	}
+	runFixture(t, mux, "node-maintenance-erase.204")
+	if erased != 1 || !strings.Contains(log.String(), "fabricui.erase.done") {
+		t.Fatalf("erased %d times, log %s", erased, log.String())
+	}
+
+	_, mux = newTestHandler(t, testOptions{})
+	runFixture(t, mux, "node-maintenance-erase.501")
+	_, mux = newTestHandler(t, testOptions{noNode: true, erase: erase})
+	if rec := do(t, mux, http.MethodPost, "/node/maintenance/erase", `{"confirm":"erase-node"}`); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("without a node: status %d, want 503", rec.Code)
+	}
+	_, mux = newTestHandler(t, testOptions{erase: func(context.Context) error { return errors.New("store: busy") }})
+	if rec := do(t, mux, http.MethodPost, "/node/maintenance/erase", `{"confirm":"erase-node"}`); rec.Code != http.StatusInternalServerError {
+		t.Fatalf("a failed erase: status %d, want 500", rec.Code)
+	}
+	runFixture(t, mux, "nodes-maintenance-erase.404")
+}
+
+// A node of Options.Nodes and of the registry erases with its entry's
+// Erase; the default node with Options.Erase, which wins over its entry's.
+func TestErase_PerNode(t *testing.T) {
+	var got []string
+	eraser := func(key string) func(context.Context) error {
+		return func(context.Context) error { got = append(got, key); return nil }
+	}
+	first, second := sampleNode(), secondNode()
+	h, err := newHandler(Options{Nodes: []NodeEntry{
+		{Key: "first", Source: portSource{fakeNode: first}, Erase: eraser("first")},
+		{Key: "second", Source: portSource{fakeNode: second}, Erase: eraser("second")},
+		{Key: "third", Source: portSource{fakeNode: sampleNode()}},
+	}, Admin: func(*http.Request) bool { return true }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	h.register(mux)
+	for _, p := range []string{"/node", "/nodes/second", "/nodes/third"} {
+		do(t, mux, http.MethodPost, p+"/maintenance/erase", `{"confirm":"erase-node"}`)
+	}
+	if !slices.Equal(got, []string{"first", "second"}) {
+		t.Fatalf("erased %v, want the default and the second node", got)
+	}
+	status := func(p string) statusResponse {
+		var s statusResponse
+		if err := json.Unmarshal(do(t, mux, http.MethodGet, p+"/status", "").Body.Bytes(), &s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	if !status("/nodes/second").Erase || status("/nodes/third").Erase {
+		t.Fatal("Status.erase does not follow the entry's Erase")
+	}
+
+	got = nil
+	_, mux, reg := registryHandler(t, 0)
+	reg.mu.Lock()
+	reg.nodes[0].Erase = eraser(reg.nodes[0].Key)
+	key := reg.nodes[0].Key
+	reg.mu.Unlock()
+	if rec := do(t, mux, http.MethodPost, "/nodes/"+key+"/maintenance/erase", `{"confirm":"erase-node"}`); rec.Code != http.StatusNoContent {
+		t.Fatalf("registry node: %d %s", rec.Code, rec.Body)
+	}
+	if !slices.Equal(got, []string{key}) {
+		t.Fatalf("erased %v, want the registry node %s", got, key)
+	}
+}

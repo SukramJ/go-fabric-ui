@@ -8,6 +8,7 @@
     "status": 200,
     "body": {
       "advertising": true,
+      "boot_reason": 1,
       "commissioning_window_open": false,
       "config": {
         "discriminator": 3541,

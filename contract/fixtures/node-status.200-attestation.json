@@ -1,0 +1,43 @@
+{
+  "route": "GET /node/status",
+  "request": {
+    "method": "GET",
+    "path": "/node/status"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "admin": true,
+      "advertising": true,
+      "attestation_error": "node: attestation files: open /data/dac.pem: no such file or directory",
+      "boot_reason": 5,
+      "commissioning_window_open": false,
+      "enabled": true,
+      "endpoint_count": 2,
+      "erase": true,
+      "exposure": false,
+      "fabric_count": 2,
+      "health_note": "listener ok",
+      "healthy": true,
+      "listen_addr": "[::]:5540",
+      "listening": true,
+      "surface": {
+        "assembled": true,
+        "changed_count": 1,
+        "extensions": [
+          "BD-chip-Thermostat-Events",
+          "BD-chip-Thermostat-Schedules"
+        ],
+        "level": "1.5.1",
+        "level_origin": "explicit",
+        "profiles": [
+          "apple-home",
+          "home-assistant"
+        ],
+        "warning_count": 1,
+        "withheld_count": 1
+      },
+      "window_kind": "none"
+    }
+  }
+}
