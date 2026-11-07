@@ -7,6 +7,61 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Completeness against go-fabric v0.18.0 (wave U7, brief
+`notes/briefs/2026-11-07-U7-completeness.md`); contract 0.7.0, additive
+over 0.6.0.
+
+### Added
+
+- `POST /node/mdns/reannounce` and `/nodes/{node}/mdns/reannounce`
+  (admin): the node announces its DNS-SD records now
+  (`Node.TriggerReannounce`); a Re-announce button on the diagnostics
+  page.
+- `POST /node/maintenance/erase` and `/nodes/{node}/maintenance/erase`
+  (admin, body `{"confirm":"erase-node"}`): the host's erase of a node,
+  `Options.Erase` and `NodeEntry.Erase` — go-fabric's `Node.FactoryReset`
+  and the host's way back to a node (`fabrictest.Device.FactoryReset` is
+  the pattern); 501 `not_implemented` without one. `Status.erase` says
+  whether it is wired; the fabrics page offers it behind two
+  confirmations and polls the status until the node answers again. The
+  factory-reset route is unchanged: it removes the fabrics and keeps the
+  node.
+- `Status.attestation_error` (`Node.AttestationError`) and
+  `Status.boot_reason` (`Node.BootReason`), shown on the status page.
+- `SessionList.parameters` (`Node.SessionParameters`), a collapsed block
+  on the diagnostics page.
+- Node stream events `fabric_updated`, `commissioning_complete` and
+  `cluster_event` (`node.Observers` `OnFabricUpdated`,
+  `OnCommissioningComplete`, `OnEvent`); the node store reloads, toasts
+  and hands a cluster event to its endpoint's page.
+- `CommissionRequest.terms_and_conditions` and `PairOptions.
+  TermsAndConditions`: the Terms and Conditions acknowledgement a
+  commissioning sends (go-fabric `commissioner.Options.
+  TermsAndConditions`, set by the adapter through the commissioner's
+  `Edit`); a disclosure on the commission page.
+- `PairOptions.Progress` and `ControllerEvent.Step`: each step of a
+  commissioning (go-fabric `controller.PairingStep`) is a
+  `commissioning_progress` with `phase` `started` and `step`; the
+  commission page lists them.
+- `ControllerEvent.UpdateKind`, `UpdateVersion`, `UpdateErr` and the
+  stream's `update_kind`, `update_version`, `update_error`: the adapter
+  observes `softwareupdate.Manager.Observe`; the page toasts a finished or
+  failed update.
+
+### Changed
+
+- **Breaking for a host that wraps its node:** `NodeSource` gains
+  `AttestationError`, `BootReason`, `SessionParameters` and
+  `TriggerReannounce`. `*node.Node` has them; a wrapper forwards them
+  (`docs/embedding.md`).
+- The controller stream's `update` events come from the
+  `ControllerSource`, not the handler: the handler no longer publishes
+  one after `POST /controller/updates/check` or `/consent`. A host with a
+  `ControllerSource` of its own emits them; the go-fabric adapter and the
+  memory controller do.
+- The node stream reports a commissioning as `fabric_added`, then
+  `commissioning_complete`.
+
 ## [0.6.1] - 2026-11-07
 
 ### Changed

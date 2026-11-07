@@ -29,7 +29,13 @@ each project.
 > (log level, log ring and stream, version, uptime), a ping of a
 > commissioned node by Matter read, the camera QR scan when
 > commissioning, pairing hints per ecosystem, status and diagnostics that
-> follow the stream, and a Playwright smoke per page.
+> follow the stream, and a Playwright smoke per page. Wave U7
+> (unreleased, contract 0.7.0) completes the pages against go-fabric
+> v0.18.0: a refused attestation and the boot reason on the status, the
+> session parameters and a re-announce on diagnostics, the host's erase of
+> a node, step-by-step commissioning progress with a Terms and Conditions
+> acknowledgement, and the node's fabric update, commissioning end and
+> cluster events on the stream.
 
 ## Two artefacts, one version
 

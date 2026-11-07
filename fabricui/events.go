@@ -246,7 +246,7 @@ func (e *Events) Publish(ev Event) {
 // fabric, commissioning_complete the CommissioningComplete that ends the
 // commissioning (go-fabric node/observers.go:63-71 at v0.18.0).
 // cluster_event runs on the goroutine of the cluster server that emitted
-// the event (observers.go:127-136); push must not block. A surface change is
+// the event (observers.go:121-122, :291-292); push must not block. A surface change is
 // surface_changed, whichever assembly made it — a route's reassembly or
 // one the host runs on its own (go-fabric node/observers.go:75-84).
 //

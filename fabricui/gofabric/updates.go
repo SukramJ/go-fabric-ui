@@ -72,7 +72,7 @@ func (s *source) watchUpdates(m *softwareupdate.Manager) {
 // updateEvent is a manager's event as the port's update event. Target
 // is the found version of UpdateAvailable, the consent's of
 // UpdateConsentChanged and the queued entry's otherwise; a check of
-// every node carries none (observe.go:98-104).
+// every node carries none (observe.go:99-103).
 func updateEvent(e *softwareupdate.UpdateEvent) fabricui.ControllerEvent {
 	out := fabricui.ControllerEvent{Type: fabricui.EventUpdate, Node: e.Peer.NodeID, UpdateKind: e.Kind.String()}
 	if e.Kind != softwareupdate.UpdateCheckFinished && e.Target.TargetSoftwareVersion != 0 {

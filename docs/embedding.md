@@ -25,7 +25,7 @@ an unknown path under the API prefix answers a 404 problem.
 | Field | Purpose |
 | --- | --- |
 | `Node` | The default node (`*node.Node` satisfies `NodeSource`), served under `/node/*` and listed first by `GET /nodes` under the key `default`; nil serves the family as disabled unless `Nodes` names one. |
-| `Nodes` | Further device nodes (0.5.0), `[]NodeEntry{Key, Label, Kind, Source, Exposure, Reassemble, Events, Config}` in the selector's order, each under `/nodes/{key}/*`; with `Node` nil the first is the default. See [Several nodes](#several-nodes). |
+| `Nodes` | Further device nodes (0.5.0), `[]NodeEntry{Key, Label, Kind, Source, Exposure, Reassemble, Events, Erase, Config}` in the selector's order, each under `/nodes/{key}/*`; with `Node` nil the first is the default. See [Several nodes](#several-nodes). |
 | `Registry` | The host's node registry (0.6.0): further nodes the operator creates, renames and deletes in the page; needs `Node`, excludes `Nodes`. See [Nodes created in the page](#nodes-created-in-the-page). |
 | `NodeConfig` | The default node's configuration as its status page shows it, read-only (0.6.0); nil omits the block. Never a passcode. |
 | `Operations` | The daemon's log level, log ring and version (0.5.0) for the Operation page; nil answers 503 there and hides the page. See [Operation](#operation). |
@@ -34,6 +34,7 @@ an unknown path under the API prefix answers a 404 problem.
 | `Controller` | The controller family's source (`gofabric.ControllerOf` over a `*controller.Controller`, see below); nil serves no controller family and every `/controller/*` path answers 404. |
 | `Admin` | Who may write, read the pairing secret and use a controller route marked admin; nil selects token mode ([contract.md](contract.md#admin-rights)). |
 | `Reassemble` | Rebuilds the endpoints from the current selection (maintenance route, and after an exposure change). |
+| `Erase` | Erases the default node and brings it back (0.7.0): `POST /node/maintenance/erase`. Nil answers 501 and hides the page's button. See [Erasing a node](#erasing-a-node). A node of `Nodes` or of the registry carries its own in `NodeEntry.Erase`. |
 | `Events` | Events the host publishes beside the handler's own and the node's (an exposure change made outside the page). |
 | `Prefix` | The API prefix; default `/api/v1`. |
 | `Logger` | The handlers' logger; nothing it receives carries a passcode. |
@@ -91,6 +92,40 @@ them:
 func (w wrapped) OnHealthSample(fn func(node.HealthSample)) func()       { return w.n.OnHealthSample(fn) }
 func (w wrapped) OnDiagnosticEvent(fn func(node.DiagnosticEvent)) func() { return w.n.OnDiagnosticEvent(fn) }
 ```
+
+0.7.0 adds four methods of the facade the same way: `AttestationError`
+(the status's `attestation_error`), `BootReason` (`boot_reason`),
+`SessionParameters` (the sessions' `parameters`) and `TriggerReannounce`
+(`POST /node/mdns/reannounce`). `*node.Node` has them; a wrapper does not
+compile until it forwards them. The port follows the facade in one shape
+on purpose: an optional interface would let a wrapper that forgets a
+method lose a page field without a word.
+
+```go
+func (w wrapped) AttestationError() error                   { return w.n.AttestationError() }
+func (w wrapped) BootReason() uint8                         { return w.n.BootReason() }
+func (w wrapped) SessionParameters() node.SessionParameters { return w.n.SessionParameters() }
+func (w wrapped) TriggerReannounce(ctx context.Context)     { w.n.TriggerReannounce(ctx) }
+```
+
+### Erasing a node
+
+`POST /node/maintenance/factory-reset` removes every fabric through the
+`NodeSource` and leaves the node running. Erasing is more: go-fabric's
+`Node.FactoryReset` removes the fabrics, stops the node and erases its
+store and endpoint records, and a Go node is single-use, so the host has
+to bring a node back. That is a lifecycle action the handlers cannot take
+on a `NodeSource`; the host wires it as `Options.Erase` (the default
+node) or `NodeEntry.Erase` (0.7.0), as it wires `Reassemble`.
+`fabrictest.Device.FactoryReset` is the pattern: `node.FactoryReset`,
+then a new node on the erased store and the same address, started — or
+the daemon's exit for a supervisor to restart it. The handler keeps the
+`NodeSource` it was given, so a host that builds a new node in place
+hands over a source that delegates to its current node (the end-to-end
+test `TestEndToEnd_EraseBringsAFreshNode` does, over `Device.Node`). A
+registry node may instead appear in `Registry.List` with a new `Source`,
+which gets a fresh handler. Without an `Erase` the route answers 501 and
+`Status.erase` is absent, so the page offers no erase.
 
 ### Several nodes
 
@@ -176,7 +211,7 @@ mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Controller: src}))
 | --- | --- |
 | `Hooks` | Turns the nodes' `client.Hooks` into the controller stream's events (`node_added`, `node_removed`, `connection`, `subscription`, `node_updated`, coalesced — a structure change, a report or an event the node delivered). `Wrap` chains them after the host's own `HooksFor`, its `Event` hook included; `Close` (before the controller's) stops the pending timers; events after it, or while the controller has no registry, are dropped. Nil leaves the stream with the handler's own events. |
 | `Credentials` | The host's credential store: `fabricui.CredentialStore` (list names, set write-only, remove) plus `WiFi(id)` and `Thread(id)` for a commissioning that names one. `fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName)` is an in-memory one that checks a dataset with go-fabric's decoder. Nil answers 503 on the credential routes. |
-| `Pair` | The template of every commissioning: the attestation policy, the default subscription, the BLE central (`Capabilities().BLE`). The network a request names is set on a copy. |
+| `Pair` | The template of every commissioning: the attestation policy, the default subscription, the BLE central (`Capabilities().BLE`). The network a request names is set on a copy; the request's step reports run after the template's `Progress`, and its Terms and Conditions acknowledgement is set after the template's `Edit` (0.7.0). |
 | `Logger` | The adapter's logger; nothing it logs carries a passcode or a credential. |
 
 What each route calls on the facade:
@@ -192,15 +227,25 @@ What each route calls on the facade:
 | `GET`/`PUT …/acl`, `…/bindings` | `Node.Read` and one `Node.Write` of the whole list, built from `cluster/spec/accesscontrol` and `binding` with our fabric index |
 | `…/icd`, `/icd/register`, `/icd/unregister` | `Node.ICD()` (`Register`, `Unregister`, `Forget`) |
 | `GET …/fabrics`, `DELETE …/fabrics/{index}` | `Node.Read` of OperationalCredentials `Fabrics` and `CurrentFabricIndex`, `Node.Invoke` RemoveFabric |
-| `POST /controller/commission` | `Controller.Pair`, or `Registry().ForDevice` and `Commission` for a discovered device |
+| `POST /controller/commission` | `Controller.Pair`, or `Registry().ForDevice` and `Commission` for a discovered device; `PairOptions.Progress` (commissioner `Options.Progress`) for the steps, `TermsAndConditions` through the commissioner's `Edit` (0.7.0) |
 | `GET /controller/discovery` | `Controller.Discover` |
 | `PUT /controller/fabric/label` | `Fabric().SetLabel`, then `Registry().SetFabricLabel` in the background |
-| `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates`, `AddUpdateConsent` |
+| `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates`, `AddUpdateConsent`; the stream's `update` events from `Observe`, subscribed in `ControllerOf` and released by `Hooks.Close` (0.7.0) |
 | `GET /controller/topology` | `ControllerOptions.Topology`, the host's `*topology.Service`: `Topology()`, or `Refresh` with `refresh=true`; its `OnChanged` becomes `topology_changed`. The host wires it: `topology.Changes.Install(&cfg)` before `controller.New`, `topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})`, `ControllerOf(…, ControllerOptions{Topology: svc})`, and `svc.Close()` on shutdown (the subscription goes with `Hooks.Close`). Without it `NetworkTopology` answers `fabricui.ErrNotImplemented` (501) |
 
 A host without go-fabric's controller — a test, a demonstration —
 implements `fabricui.ControllerSource` itself; `fabricui.NewMemoryController()`
 is an in-memory one with two nodes, one ICD and a pending update.
+
+Two port changes of 0.7.0 concern such a source. `PairOptions` gains
+`TermsAndConditions` (the request's acknowledgement) and `Progress`, which
+the handler sets and the source calls with each `PairingStep` as it
+starts and ends; a source that never calls it shows no steps.
+`ControllerEvent` gains `Step`, `UpdateKind`, `UpdateVersion` and
+`UpdateErr`, and the `update` events are the source's: the handler no
+longer publishes one after a check or a consent, so a source of its own
+emits them through `Observe` (the memory controller emits
+`check_finished` and `consent_changed`).
 
 ## Mounting the API alone
 
