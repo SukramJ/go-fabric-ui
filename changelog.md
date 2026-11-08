@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-08
+
 The Commission page's Bluetooth LE decision is stated, never silent (wave
 U8, brief `notes/briefs/2026-11-07-U8-ble-no-silent-drop.md`); contract
 0.7.1, additive over 0.7.0.
