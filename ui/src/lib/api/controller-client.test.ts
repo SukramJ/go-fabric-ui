@@ -13,6 +13,8 @@ const b = (x: unknown) => x as any;
 
 const cases: [string, Call][] = [
   ["controller-status.200", (c) => c.controllerStatus()],
+  // A host with a central (0.7.1).
+  ["controller-status.200-ble", (c) => c.controllerStatus()],
   ["controller-nodes.200", (c) => c.controllerNodes()],
   ["controller-node.200", (c) => c.controllerNode(L)],
   ["controller-node.200-icd", (c) => c.controllerNode(S)],

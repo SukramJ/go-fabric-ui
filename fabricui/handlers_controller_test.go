@@ -95,6 +95,14 @@ func TestControllerFixtures(t *testing.T) {
 	}
 }
 
+// A host with a central reports capabilities.ble (contract 0.7.1): the
+// in-memory controller with BLE set.
+func TestControllerFixtures_BLE(t *testing.T) {
+	_, mux, m := controllerHandler(t, nil)
+	m.BLE = true
+	runFixture(t, mux, "controller-status.200-ble")
+}
+
 // Without Options.Controller every controller path is the API's 404, the
 // signal the shell hides the family by.
 func TestController_AbsentAnswers404(t *testing.T) {
@@ -423,6 +431,9 @@ func TestCommission_TermsAndSteps(t *testing.T) {
 			continue
 		}
 		d := ev.Data.(controllerEventData)
+		if d.BLE != nil {
+			continue // the BLE decision, TestCommission_BLEDecision's (0.7.1)
+		}
 		s := *d.Phase
 		if d.Step != nil {
 			if *d.Phase != "started" {
@@ -439,7 +450,7 @@ func TestCommission_TermsAndSteps(t *testing.T) {
 	if !slices.Equal(progress, want) {
 		t.Fatalf("progress %v, want %v", progress, want)
 	}
-	if b := string(mustJSON(rec.events[1].Data)); b != `{"phase":"started","step":{"number":2,"sub":1,"name":"Discovery","phase":"started"}}` {
+	if b := string(mustJSON(rec.events[2].Data)); b != `{"phase":"started","step":{"number":2,"sub":1,"name":"Discovery","phase":"started"}}` {
 		t.Fatalf("a step on the wire %s", b)
 	}
 	for _, body := range []string{
@@ -449,6 +460,97 @@ func TestCommission_TermsAndSteps(t *testing.T) {
 		if r := do(t, mux, http.MethodPost, "/controller/commission", body); r.Code != http.StatusBadRequest {
 			t.Fatalf("%s: %d, want 400", body, r.Code)
 		}
+	}
+}
+
+// The source's BLE decision is a commissioning_progress with phase
+// started and ble (contract 0.7.1), once, after the handler's own started
+// and before the first step: no_central without a central; with one,
+// no_network without a named credential, used with one, network_only
+// when the request rules BLE out. The event carries the reason word only.
+func TestCommission_BLEDecision(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		central bool
+		body    string
+		wire    string
+	}{
+		{"no central", false, `{"code":"34970112332"}`, `{"phase":"started","ble":{"used":false,"reason":"no_central"}}`},
+		{"no network", true, `{"code":"34970112332"}`, `{"phase":"started","ble":{"used":false,"reason":"no_network"}}`},
+		{"named", true, `{"code":"34970112332","thread_id":"mesh"}`, `{"phase":"started","ble":{"used":true}}`},
+		{"network only", true, `{"code":"34970112332","thread_id":"mesh","network_only":true}`, `{"phase":"started","ble":{"used":false,"reason":"network_only"}}`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h, mux, m := controllerHandler(t, nil)
+			m.BLE = c.central
+			rec := &recorder{}
+			defer h.subscribeController(rec.add)()
+			if r := do(t, mux, http.MethodPost, "/controller/commission", c.body); r.Code != http.StatusOK {
+				t.Fatalf("commission %d %s", r.Code, r.Body)
+			}
+			var progress []string
+			for _, ev := range rec.events {
+				if ev.Type != EventCommissioningProgress {
+					continue
+				}
+				d := ev.Data.(controllerEventData)
+				s := *d.Phase
+				switch {
+				case d.BLE != nil:
+					s += "+ble"
+				case d.Step != nil:
+					s = fmt.Sprintf("%s %d.%d %s", d.Step.Name, d.Step.Number, d.Step.Sub, d.Step.Phase)
+				}
+				progress = append(progress, s)
+			}
+			want := []string{
+				"started", "started+ble", "Discovery 2.1 started", "Discovery 2.1 succeeded", "PASE 2.2 started", "PASE 2.2 succeeded",
+				"Subscribe 21.1 started", "Subscribe 21.1 succeeded", "succeeded",
+			}
+			if !slices.Equal(progress, want) {
+				t.Fatalf("progress %v, want %v", progress, want)
+			}
+			if b := string(mustJSON(rec.events[1].Data)); b != c.wire {
+				t.Fatalf("the decision on the wire %s, want %s", b, c.wire)
+			}
+			m.mu.Lock()
+			last := m.lastPair
+			m.mu.Unlock()
+			if strings.Contains(c.body, "mesh") && last.ThreadID != "mesh" {
+				t.Fatalf("thread id %q", last.ThreadID)
+			}
+			if last.Transport != nil || last.Progress != nil {
+				t.Fatal("lastPair keeps a callback")
+			}
+		})
+	}
+	// A commissioning of a discovered device carries no decision.
+	h, mux, m := controllerHandler(t, nil)
+	m.BLE = true
+	rec := &recorder{}
+	defer h.subscribeController(rec.add)()
+	if r := runFixture(t, mux, "controller-commission.200-discovered"); r.Code != http.StatusOK {
+		t.Fatalf("discovered %d", r.Code)
+	}
+	for _, ev := range rec.events {
+		if d, ok := ev.Data.(controllerEventData); ok && d.BLE != nil {
+			t.Fatalf("a discovered commissioning reported %+v", *d.BLE)
+		}
+	}
+}
+
+// MarkDefault flags an entry while it is stored; List reports it as
+// Credential.Default (contract 0.7.1).
+func TestMemoryCredentials_MarkDefault(t *testing.T) {
+	ctx := context.Background()
+	c := NewMemoryCredentials(nil)
+	_ = c.SetWiFi(ctx, "home", "HomeNet", "pass")
+	_ = c.SetThread(ctx, "mesh", []byte{1})
+	c.MarkDefault(CredentialWiFi, "home")
+	c.MarkDefault(CredentialThread, "absent")
+	list, _ := c.List(ctx)
+	if len(list) != 2 || !list[0].Default || list[1].Default {
+		t.Fatalf("list %+v", list)
 	}
 }
 
