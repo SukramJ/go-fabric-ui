@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.7.0
+  version: 0.7.1
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
@@ -2604,7 +2604,7 @@ components:
       properties:
         ota: { type: boolean, description: The controller runs an OTA provider; the update routes answer. }
         credentials: { type: boolean, description: The host stores Wi-Fi and Thread credentials; the credential routes answer. }
-        ble: { type: boolean, description: The controller can commission over Bluetooth LE. }
+        ble: { type: boolean, description: "The host has a Bluetooth LE central. A commissioning searches over it when the code allows BLE, `network_only` is off and the request names a credential; the `commissioning_progress` event's `ble` says what was decided (0.7.1)." }
     ConnectionState:
       type: string
       enum: [connected, disconnected, reconnecting, waiting_for_discovery]
@@ -3052,7 +3052,7 @@ components:
         passcode: { type: integer, minimum: 1, maximum: 99999998 }
         wifi_id: { type: string, description: The stored Wi-Fi credential to put the device on. }
         thread_id: { type: string, description: The stored Thread dataset to put the device on. }
-        network_only: { type: boolean, description: Never commission over Bluetooth LE. }
+        network_only: { type: boolean, description: "Never commission over Bluetooth LE, and the `commissioning_progress` event's `ble` reason is `network_only` (0.7.1)." }
         timeout_seconds: { type: integer, minimum: 1, maximum: 600, description: The whole commissioning's bound; absent is the controller's default. }
         terms_and_conditions: { $ref: "#/components/schemas/TermsAcknowledgement" }
     TermsAcknowledgement:
@@ -3093,6 +3093,7 @@ components:
         kind: { type: string, enum: [wifi, thread] }
         id: { type: string }
         name: { type: string, description: The SSID of a Wi-Fi credential, the network name of a Thread dataset. }
+        default: { type: boolean, description: "The host's default entry (0.7.1): the one a commissioning started without a choice would use on the host's own interfaces; the pages preselect it. Absent is false." }
     CredentialList:
       type: object
       required: [credentials]
@@ -3169,12 +3170,20 @@ components:
         phase: { type: string, enum: [started, succeeded, failed], description: "commissioning_progress: the commissioning's phase." }
         detail: { type: string, description: "commissioning_progress failed: what went wrong (no secret)." }
         step: { $ref: "#/components/schemas/PairingStep" }
+        ble: { $ref: "#/components/schemas/BLEDecision" }
         update_kind:
           type: string
           enum: [available, consent_changed, check_finished, applying, done, failed, queued, transfer_started]
           description: "update (0.7.0): what the controller's update manager reported (go-fabric softwareupdate.UpdateEventKind)."
         update_version: { type: integer, description: "update: the target software version, for the kinds that carry one." }
         update_error: { type: string, description: "update: the error of check_finished and failed (no secret)." }
+    BLEDecision:
+      type: object
+      description: "commissioning_progress (0.7.1): whether a commissioning from a code searches over Bluetooth LE and, if not, why — once, before the first step, while the event's phase stays started. no_central: the host has no central; network_only: the request ruled BLE out; code_without_ble: the QR code's discovery capabilities do not name BLE; no_network: the request names no credential, and a device on BLE has no network yet. A commissioning of a discovered device carries none."
+      required: [used]
+      properties:
+        used: { type: boolean }
+        reason: { type: string, enum: [no_central, network_only, code_without_ble, no_network], description: Present when used is false. }
     PairingStep:
       type: object
       description: "commissioning_progress (0.7.0): one step of the commissioning as it starts and ends, while the event's phase stays started. Names are matter.js's commissioning steps verbatim, plus go-fabric's Discovery 2.1, PASE 2.2 and Subscribe 21.1 (go-fabric controller.PairingStep)."

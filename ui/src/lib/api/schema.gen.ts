@@ -2645,7 +2645,7 @@ export interface components {
             ota: boolean;
             /** @description The host stores Wi-Fi and Thread credentials; the credential routes answer. */
             credentials: boolean;
-            /** @description The controller can commission over Bluetooth LE. */
+            /** @description The host has a Bluetooth LE central. A commissioning searches over it when the code allows BLE, `network_only` is off and the request names a credential; the `commissioning_progress` event's `ble` says what was decided (0.7.1). */
             ble: boolean;
         };
         /** @enum {string} */
@@ -3023,7 +3023,7 @@ export interface components {
             wifi_id?: string;
             /** @description The stored Thread dataset to put the device on. */
             thread_id?: string;
-            /** @description Never commission over Bluetooth LE. */
+            /** @description Never commission over Bluetooth LE, and the `commissioning_progress` event's `ble` reason is `network_only` (0.7.1). */
             network_only?: boolean;
             /** @description The whole commissioning's bound; absent is the controller's default. */
             timeout_seconds?: number;
@@ -3060,6 +3060,8 @@ export interface components {
             id: string;
             /** @description The SSID of a Wi-Fi credential */
             name: string;
+            /** @description The host's default entry (0.7.1): the one a commissioning started without a choice would use on the host's own interfaces; the pages preselect it. Absent is false. */
+            default?: boolean;
         };
         CredentialList: {
             credentials: components["schemas"]["Credential"][];
@@ -3127,6 +3129,7 @@ export interface components {
             /** @description commissioning_progress failed: what went wrong (no secret). */
             detail?: string;
             step?: components["schemas"]["PairingStep"];
+            ble?: components["schemas"]["BLEDecision"];
             /**
              * @description update (0.7.0): what the controller's update manager reported (go-fabric softwareupdate.UpdateEventKind).
              * @enum {string}
@@ -3136,6 +3139,15 @@ export interface components {
             update_version?: number;
             /** @description update: the error of check_finished and failed (no secret). */
             update_error?: string;
+        };
+        /** @description commissioning_progress (0.7.1): whether a commissioning from a code searches over Bluetooth LE and, if not, why — once, before the first step, while the event's phase stays started. no_central: the host has no central; network_only: the request ruled BLE out; code_without_ble: the QR code's discovery capabilities do not name BLE; no_network: the request names no credential, and a device on BLE has no network yet. A commissioning of a discovered device carries none. */
+        BLEDecision: {
+            used: boolean;
+            /**
+             * @description Present when used is false.
+             * @enum {string}
+             */
+            reason?: "no_central" | "network_only" | "code_without_ble" | "no_network";
         };
         /** @description commissioning_progress (0.7.0): one step of the commissioning as it starts and ends, while the event's phase stays started. Names are matter.js's commissioning steps verbatim, plus go-fabric's Discovery 2.1, PASE 2.2 and Subscribe 21.1 (go-fabric controller.PairingStep). */
         PairingStep: {
