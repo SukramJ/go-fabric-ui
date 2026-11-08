@@ -237,9 +237,9 @@ type Options struct {
 	// does (fabrictest/device.go:396-416) — or exits for its supervisor to
 	// restart it. The handler keeps reading the NodeSource it was given:
 	// a host that builds a new node hands over a source that follows it
-	// (a NodeSource that delegates to the current node). Nil answers 501
-	// not_implemented and reports Status.erase false, so the page offers
-	// no erase. POST /node/maintenance/factory-reset is a different
+	// — a [NodeSwitch] over its first node, Set after the new node
+	// started. Nil answers 501 not_implemented and reports Status.erase
+	// false, so the page offers no erase. POST /node/maintenance/factory-reset is a different
 	// action: it removes every fabric and leaves the node running.
 	Erase func(ctx context.Context) error
 	// Events is a source of events beside the handler's own and the
