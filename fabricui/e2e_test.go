@@ -16,12 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SukramJ/go-fabric/clock"
 	"github.com/SukramJ/go-fabric/controller/commissioner"
 	"github.com/SukramJ/go-fabric/device"
 	"github.com/SukramJ/go-fabric/fabrictest"
 	"github.com/SukramJ/go-fabric/node"
-	"github.com/SukramJ/go-fabric/surface"
 
 	"github.com/SukramJ/go-fabric-ui/fabricui"
 )
@@ -48,8 +46,9 @@ func newSite(t *testing.T, configured bool) *site {
 }
 
 // newSiteWith is newSite; with erase the handler serves the device through
-// a NodeSource that follows its current node and erases it with
-// fabrictest.Device.FactoryReset — the host pattern of Options.Erase.
+// a fabricui.NodeSwitch over its node and erases it with
+// fabrictest.Device.FactoryReset, setting the new node after it — the
+// host pattern of Options.Erase.
 func newSiteWith(t *testing.T, configured, erase bool) *site {
 	t.Helper()
 	s := &site{t: t, site: fabrictest.NewSite(t, fabrictest.Options{}), events: make(chan string, 32), seen: map[string]bool{}}
@@ -73,7 +72,18 @@ func newSiteWith(t *testing.T, configured, erase bool) *site {
 	s.device = s.site.AddDevice(fabrictest.Topology{Bridged: []node.Endpoint{plug, owner}})
 	opts := fabricui.Options{Node: s.device.Node(), ConfiguredWindow: configured}
 	if erase {
-		opts.Node, opts.Erase = followNode{s.device}, s.device.FactoryReset
+		// The host's switch over its node: the erase brings a new node
+		// on the erased store, and only a node that came back is set
+		// (fabricui.NodeSwitch; fabrictest.Device.FactoryReset).
+		sw := fabricui.NewNodeSwitch(s.device.Node())
+		opts.Node = sw
+		opts.Erase = func(ctx context.Context) error {
+			err := s.device.FactoryReset(ctx)
+			if err == nil {
+				sw.Set(s.device.Node())
+			}
+			return err
+		}
 	}
 	s.srv = httptest.NewServer(fabricui.Handler(opts))
 	t.Cleanup(s.srv.Close)
@@ -421,76 +431,6 @@ func TestEndToEnd_FreshWindowCommissionsAndRemoves(t *testing.T) {
 		t.Fatalf("pairing while the fresh window is open %+v", p)
 	}
 	s.commissionAndRemove(w.Passcode)
-}
-
-// followNode is a host's NodeSource over a device whose node the erase
-// replaces: every call reaches the device's current node
-// (fabrictest.Device.Node), as a host that builds a new node after
-// node.FactoryReset hands its pages one source.
-type followNode struct{ d *fabrictest.Device }
-
-var _ fabricui.NodeSource = followNode{}
-
-func (f followNode) n() *node.Node                            { return f.d.Node() }
-func (f followNode) Health() (node.HealthSample, bool)        { return f.n().Health() }
-func (f followNode) LocalAddr() string                        { return f.n().LocalAddr() }
-func (f followNode) Window() node.WindowSnapshot              { return f.n().Window() }
-func (f followNode) SetupPayload() (node.SetupPayload, error) { return f.n().SetupPayload() }
-func (f followNode) Topology() node.BridgeTopology            { return f.n().Topology() }
-func (f followNode) SessionDiagnostics() node.SessionDiagnostics {
-	return f.n().SessionDiagnostics()
-}
-func (f followNode) Clock() clock.Clock                       { return f.n().Clock() }
-func (f followNode) MDNSEnabled() bool                        { return f.n().MDNSEnabled() }
-func (f followNode) MDNSServices() []node.MDNSService         { return f.n().MDNSServices() }
-func (f followNode) DiagnoseMDNS() []node.MDNSFinding         { return f.n().DiagnoseMDNS() }
-func (f followNode) DiagnosticEvents() []node.DiagnosticEvent { return f.n().DiagnosticEvents() }
-func (f followNode) Surface() surface.Report                  { return f.n().Surface() }
-func (f followNode) Events(q node.EventQuery) []node.Event    { return f.n().Events(q) }
-func (f followNode) Endpoints() []node.EndpointInfo           { return f.n().Endpoints() }
-func (f followNode) AttestationError() error                  { return f.n().AttestationError() }
-func (f followNode) BootReason() uint8                        { return f.n().BootReason() }
-func (f followNode) SessionParameters() node.SessionParameters {
-	return f.n().SessionParameters()
-}
-func (f followNode) TriggerReannounce(ctx context.Context) { f.n().TriggerReannounce(ctx) }
-
-func (f followNode) FabricInfos(ctx context.Context) ([]node.FabricInfo, error) {
-	return f.n().FabricInfos(ctx)
-}
-
-func (f followNode) RemoveFabric(ctx context.Context, i uint8) error {
-	return f.n().RemoveFabric(ctx, i)
-}
-
-func (f followNode) OpenOwnWindow(ctx context.Context, d time.Duration) error {
-	return f.n().OpenOwnWindow(ctx, d)
-}
-func (f followNode) CloseWindow(ctx context.Context) error { return f.n().CloseWindow(ctx) }
-
-func (f followNode) OpenBasicWindow(ctx context.Context, c node.WindowCredentials) error {
-	return f.n().OpenBasicWindow(ctx, c)
-}
-
-func (f followNode) PairingCodesFor(c node.WindowCredentials) (qr, manual string, err error) {
-	return f.n().PairingCodesFor(c)
-}
-func (f followNode) Observe(o node.Observers) func() { return f.n().Observe(o) }
-
-func (f followNode) ReadCluster(ctx context.Context, ep uint16, c uint32) ([]node.AttributeValue, error) {
-	return f.n().ReadCluster(ctx, ep, c)
-}
-
-func (f followNode) ReadAttribute(ctx context.Context, ep uint16, c, a uint32) (node.AttributeValue, error) {
-	return f.n().ReadAttribute(ctx, ep, c, a)
-}
-
-func (f followNode) OnHealthSample(fn func(node.HealthSample)) func() {
-	return f.n().OnHealthSample(fn)
-}
-
-func (f followNode) OnDiagnosticEvent(fn func(node.DiagnosticEvent)) func() {
-	return f.n().OnDiagnosticEvent(fn)
 }
 
 // The erase ends the node and the host brings a new one on the erased

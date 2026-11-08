@@ -71,10 +71,13 @@ const generatedDir = "internal/api"
 var generated = map[string]bool{"github.com/oapi-codegen/runtime": true}
 
 // testOnly is what a test may import beside the facade: the site the
-// end-to-end test runs on, the device constructors it bridges, and the
-// commissioner options fabrictest's Commission edits.
+// end-to-end test runs on, the device constructors it bridges, the
+// commissioner options fabrictest's Commission edits, and the in-memory
+// BLE central a site's device is reached over (fabrictest/ble.go:18-28 at
+// v0.18.0; brief U8 §3.4).
 var testOnly = map[string]bool{
 	goFabric + "/fabrictest":              true,
+	goFabric + "/controller/ble/bletest":  true,
 	goFabric + "/device":                  true,
 	goFabric + "/controller/commissioner": true,
 	goFabric + "/controller":              true,
@@ -170,6 +173,8 @@ func TestCheckClassifies(t *testing.T) {
 		{"fabricui", goFabric + "/fabrictest", false, false},
 		{"fabricui", goFabric + "/fabrictest", true, true},
 		{"fabricui", goFabric + "/mdns", true, false},
+		{"fabricui/gofabric", goFabric + "/controller/ble/bletest", true, true},
+		{"fabricui/gofabric", goFabric + "/controller/ble/bletest", false, false},
 		{"fabricui", "github.com/go-chi/chi/v5", false, false},
 		{"fabricui", module + "/fabricui", false, true},
 	} {

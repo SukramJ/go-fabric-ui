@@ -212,4 +212,16 @@ describe("controller store", () => {
     ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started" } });
     expect(ui.controller.progress.steps).toEqual([]);
   });
+
+  it("keeps the BLE decision under the phase started, cleared by the next commissioning (0.7.1)", () => {
+    const ui = testUI();
+    const ble = { used: false, reason: "no_network" as const };
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started" } });
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started", ble } });
+    expect(ui.controller.progress).toMatchObject({ phase: "started", ble, steps: [] });
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "succeeded", node_id_hex: "13" } });
+    expect(ui.controller.progress.ble).toEqual(ble);
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started" } });
+    expect(ui.controller.progress.ble).toBeNull();
+  });
 });

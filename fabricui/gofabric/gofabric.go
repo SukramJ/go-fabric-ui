@@ -256,11 +256,37 @@ func (s *source) networkOf(o fabricui.PairOptions) (*commissioner.WiFiNetwork, *
 // (controller.PairingCode.Capabilities).
 const capabilityBLE = 1 << 1
 
+// bleFor is a commissioning's BLE decision from the host-side inputs: a
+// central, the code's discovery capabilities (a manual code names none and
+// allows every transport; a QR code allows BLE with bit 1, go-fabric
+// client/discovery/session.go:73-93 at v0.18.0), network_only and a named
+// credential — go-fabric refuses BLE without a network
+// (controller/controller.go:674-676). The switch is the reasons'
+// precedence: the operator's network_only before the device's code before
+// the missing network (brief U8 §1).
+func bleFor(central bool, pc controller.PairingCode, networkOnly, network bool) fabricui.BLEDecision {
+	switch {
+	case !central:
+		return fabricui.BLEDecision{Reason: fabricui.BLESkipNoCentral}
+	case networkOnly:
+		return fabricui.BLEDecision{Reason: fabricui.BLESkipNetworkOnly}
+	case !pc.Manual && pc.Capabilities&capabilityBLE == 0:
+		return fabricui.BLEDecision{Reason: fabricui.BLESkipCode}
+	case !network:
+		return fabricui.BLEDecision{Reason: fabricui.BLESkipNoNetwork}
+	default:
+		return fabricui.BLEDecision{Used: true}
+	}
+}
+
 // Pair pairs the device code names — controller.Controller.Pair, over BLE
-// when the template has a central, the request does not rule it out, the
-// code allows it and a credential puts the device on its network, as
-// go-fabric-server's commission_with_code decides
-// (controllerapi/cmd_commission.go:98-141 at v0.3.2).
+// when bleFor says so: the template has a central, the request does not
+// rule it out, the code allows it and a named credential puts the device
+// on its network, the four inputs go-fabric-server's commission_with_code
+// decides on (controllerapi/cmd_commission.go:132-135 at main b947c93;
+// brief U8 §1). The decision is stated, never silent: through
+// PairOptions.Transport always, and as the log line
+// fabricui.pair.ble_skipped with its reason when a central is not used.
 func (s *source) Pair(ctx context.Context, code string, o fabricui.PairOptions) (fabricui.ControllerNode, error) {
 	pc, err := controller.ParsePairingCode(code)
 	if err != nil {
@@ -270,10 +296,17 @@ func (s *source) Pair(ctx context.Context, code string, o fabricui.PairOptions) 
 	if err != nil {
 		return nil, err
 	}
+	d := bleFor(s.opts.Pair.BLE != nil, pc, o.NetworkOnly, wifi != nil || th != nil)
 	opts := s.opts.Pair
 	opts.BLE, opts.WiFi, opts.Thread = nil, wifi, th
-	if s.opts.Pair.BLE != nil && !o.NetworkOnly && (pc.Manual || pc.Capabilities&capabilityBLE != 0) && (wifi != nil || th != nil) {
+	if d.Used {
 		opts.BLE = s.opts.Pair.BLE
+	}
+	if s.opts.Pair.BLE != nil && !d.Used {
+		s.log.Info("fabricui.pair.ble_skipped", slog.String("reason", string(d.Reason)))
+	}
+	if o.Transport != nil {
+		o.Transport(d)
 	}
 	opts.Progress = progressFor(opts.Progress, o.Progress)
 	opts.Edit = editFor(opts.Edit, o.TermsAndConditions)
@@ -438,7 +471,9 @@ const rediscoverWindow = 5 * time.Second
 // CommissionDiscovered commissions a discovered device with its passcode
 // through the registry (client.Registry.ForDevice and Commission), as
 // go-fabric-server's commission_on_network does
-// (controllerapi/cmd_commission.go:159-232).
+// (controllerapi/cmd_commission.go:159-232). The BLE decision does not
+// apply — the device came from a DNS-SD discovery — so it reports no
+// PairOptions.Transport.
 func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered, passcode uint32, o fabricui.PairOptions) (fabricui.ControllerNode, error) {
 	s.mu.Lock()
 	dev, ok := s.discovered[d.InstanceName]

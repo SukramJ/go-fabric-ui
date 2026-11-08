@@ -702,7 +702,7 @@ type CommissionRequest struct {
 	Code       *string        `json:"code,omitempty"`
 	Discovered *DiscoveredRef `json:"discovered,omitempty"`
 
-	// NetworkOnly Never commission over Bluetooth LE.
+	// NetworkOnly Never commission over Bluetooth LE, and the `commissioning_progress` event's `ble` reason is `network_only` (0.7.1).
 	NetworkOnly *bool `json:"network_only,omitempty"`
 	Passcode    *int  `json:"passcode,omitempty"`
 
@@ -747,7 +747,7 @@ type ConnectionState string
 
 // ControllerCapabilities defines model for ControllerCapabilities.
 type ControllerCapabilities struct {
-	// Ble The controller can commission over Bluetooth LE.
+	// Ble The host has a Bluetooth LE central. A commissioning searches over it when the code allows BLE, `network_only` is off and the request names a credential; the `commissioning_progress` event's `ble` says what was decided (0.7.1).
 	Ble bool `json:"ble"`
 
 	// Credentials The host stores Wi-Fi and Thread credentials; the credential routes answer.
@@ -811,8 +811,10 @@ type ControllerStatus struct {
 
 // Credential defines model for Credential.
 type Credential struct {
-	ID   string         `json:"id"`
-	Kind CredentialKind `json:"kind"`
+	// Default The host's default entry (0.7.1): the one a commissioning started without a choice would use on the host's own interfaces; the pages preselect it. Absent is false.
+	Default *bool          `json:"default,omitempty"`
+	ID      string         `json:"id"`
+	Kind    CredentialKind `json:"kind"`
 
 	// Name The SSID of a Wi-Fi credential
 	Name string `json:"name"`

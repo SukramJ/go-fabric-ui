@@ -23,6 +23,8 @@ type MemoryCredentials struct {
 	threadName func([]byte) (string, error)
 	wifi       map[string]wifiCredential
 	thread     map[string]threadCredential
+	// defaults are the entries MarkDefault flagged, by kind and id.
+	defaults map[Credential]bool
 }
 
 type wifiCredential struct{ ssid, passphrase string }
@@ -37,7 +39,16 @@ type threadCredential struct {
 // (gofabric.ThreadDatasetName, over go-fabric's thread); nil
 // names a dataset by its id and accepts any non-empty one.
 func NewMemoryCredentials(threadName func(dataset []byte) (string, error)) *MemoryCredentials {
-	return &MemoryCredentials{threadName: threadName, wifi: map[string]wifiCredential{}, thread: map[string]threadCredential{}}
+	return &MemoryCredentials{threadName: threadName, wifi: map[string]wifiCredential{}, thread: map[string]threadCredential{}, defaults: map[Credential]bool{}}
+}
+
+// MarkDefault flags the entry kind and id as the host's default, the
+// Credential.Default List reports while the entry is stored: a test seam
+// for a host's own default (contract 0.7.1, Credential.default).
+func (m *MemoryCredentials) MarkDefault(kind CredentialKind, id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.defaults[Credential{Kind: kind, ID: id}] = true
 }
 
 // List implements [CredentialStore]: Wi-Fi first, each kind by id.
@@ -46,10 +57,10 @@ func (m *MemoryCredentials) List(context.Context) ([]Credential, error) {
 	defer m.mu.Unlock()
 	out := make([]Credential, 0, len(m.wifi)+len(m.thread))
 	for _, id := range slices.Sorted(maps.Keys(m.wifi)) {
-		out = append(out, Credential{Kind: CredentialWiFi, ID: id, Name: m.wifi[id].ssid})
+		out = append(out, Credential{Kind: CredentialWiFi, ID: id, Name: m.wifi[id].ssid, Default: m.defaults[Credential{Kind: CredentialWiFi, ID: id}]})
 	}
 	for _, id := range slices.Sorted(maps.Keys(m.thread)) {
-		out = append(out, Credential{Kind: CredentialThread, ID: id, Name: m.thread[id].name})
+		out = append(out, Credential{Kind: CredentialThread, ID: id, Name: m.thread[id].name, Default: m.defaults[Credential{Kind: CredentialThread, ID: id}]})
 	}
 	return out, nil
 }
@@ -137,7 +148,8 @@ var memoryTime = time.Date(2026, 10, 20, 8, 0, 0, 0, time.UTC)
 // MemoryController is an in-memory [ControllerSource]: two commissioned
 // nodes — a light on Wi-Fi with a pending update and a Binding cluster,
 // and a sleepy ICD contact sensor on Thread — one commissionable device a
-// discovery finds, a credential store and an update queue. A
+// discovery finds, a credential store with the Thread entry mesh as its
+// default, and an update queue. A
 // commissioning reports the steps Discovery 2.1, PASE 2.2 and Subscribe
 // 21.1 through PairOptions.Progress, the names go-fabric gives the steps
 // around matter.js's flow (controller/controller.go:623-631 at v0.18.0);
@@ -150,6 +162,11 @@ type MemoryController struct {
 	// ErrNotImplemented (GET /controller/topology: 501). Set it before
 	// the handler serves.
 	Topology *NetworkTopology
+	// BLE stands for a Bluetooth LE central: Capabilities reports it, and
+	// Pair reports through PairOptions.Transport that it is used when the
+	// request names a credential and network_only is off (contract
+	// 0.7.1). Set it before the handler serves.
+	BLE bool
 
 	mu      sync.Mutex
 	fabric  ControllerFabric
@@ -161,7 +178,7 @@ type MemoryController struct {
 	// paired is whether the commissionable device was commissioned.
 	paired bool
 	// lastPair is the PairOptions of the last commissioning, without its
-	// Progress (the handler tests read it).
+	// Progress and Transport (the handler tests read it).
 	lastPair PairOptions
 }
 
@@ -183,6 +200,7 @@ func NewMemoryController() *MemoryController {
 	m.updates = &memoryUpdates{m: m}
 	_ = m.creds.SetWiFi(context.Background(), "home", "HomeNet", "secret-passphrase")
 	_ = m.creds.SetThread(context.Background(), "mesh", []byte{0x03, 0x04, 'M', 'e', 's', 'h'})
+	m.creds.MarkDefault(CredentialThread, "mesh")
 	light := newMemoryNode(m, 0x11, memoryLight())
 	sensor := newMemoryNode(m, 0x12, memorySensor())
 	m.nodes[light.id], m.nodes[sensor.id] = light, sensor
@@ -204,9 +222,10 @@ func (m *MemoryController) Fabric() ControllerFabric {
 	return m.fabric
 }
 
-// Capabilities implements [ControllerSource]; the in-memory controller
-// has no radio.
-func (m *MemoryController) Capabilities() ControllerCapabilities { return ControllerCapabilities{} }
+// Capabilities implements [ControllerSource]: a central when BLE is set.
+func (m *MemoryController) Capabilities() ControllerCapabilities {
+	return ControllerCapabilities{BLE: m.BLE}
+}
 
 // Nodes implements [ControllerSource].
 func (m *MemoryController) Nodes() []ControllerNode {
@@ -229,13 +248,17 @@ func (m *MemoryController) Node(id uint64) (ControllerNode, bool) {
 
 // Pair implements [ControllerSource]: the commissionable device's manual
 // or QR code commissions it once; another code that reads as a code finds
-// no device; anything else is an invalid code.
+// no device; anything else is an invalid code. A code that reads as one
+// reports the BLE decision through o.Transport first (memoryBLE).
 func (m *MemoryController) Pair(_ context.Context, code string, o PairOptions) (ControllerNode, error) {
 	code = strings.ReplaceAll(strings.TrimSpace(code), "-", "")
 	if !strings.HasPrefix(code, "MT:") && !isDigits(code) {
 		return nil, fmt.Errorf("%w: not a QR payload or a manual pairing code", ErrInvalidArgument)
 	}
 	m.record(o)
+	if o.Transport != nil {
+		o.Transport(memoryBLE(m.BLE, o))
+	}
 	report := progressOf(o)
 	report(memoryStepDiscovery, "started")
 	if code != memoryManualCode && code != memoryQRCode {
@@ -255,9 +278,27 @@ var (
 	memoryStepSubscribe = PairingStep{Number: 21, Sub: 1, Name: "Subscribe"}
 )
 
+// memoryBLE is the in-memory controller's BLE decision from the inputs it
+// has: a central, network_only and a named credential, in the
+// precedence of the reasons. code_without_ble is the go-fabric adapter's
+// alone (gofabric's bleFor), because only go-fabric parses a code's
+// discovery capabilities.
+func memoryBLE(central bool, o PairOptions) BLEDecision {
+	switch {
+	case !central:
+		return BLEDecision{Reason: BLESkipNoCentral}
+	case o.NetworkOnly:
+		return BLEDecision{Reason: BLESkipNetworkOnly}
+	case o.WiFiID == "" && o.ThreadID == "":
+		return BLEDecision{Reason: BLESkipNoNetwork}
+	default:
+		return BLEDecision{Used: true}
+	}
+}
+
 // record keeps o as the last commissioning's options.
 func (m *MemoryController) record(o PairOptions) {
-	o.Progress = nil
+	o.Progress, o.Transport = nil, nil
 	m.mu.Lock()
 	m.lastPair = o
 	m.mu.Unlock()

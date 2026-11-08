@@ -579,7 +579,42 @@ type PairOptions struct {
 	// controller/controller.go:611-618); it must not block. The handler
 	// sets it to report commissioning_progress with the step.
 	Progress func(PairingStep)
+	// Transport, when set, is called once on the commissioning's
+	// goroutine, before the first Progress report, with whether the
+	// search runs over Bluetooth LE and, if not, why; it must not block.
+	// A source without a central reports Used false with
+	// [BLESkipNoCentral]. Pair reports it; CommissionDiscovered does not
+	// (the device came from a DNS-SD discovery). The handler sets it to
+	// report commissioning_progress with ble (contract 0.7.1).
+	Transport func(BLEDecision)
 }
+
+// BLEDecision is whether a commissioning from a code searches over
+// Bluetooth LE and, if not, why (contract 0.7.1, BLEDecision). It is the
+// source's decision from its own inputs — a central, the request's
+// network_only and named credential, the code's discovery capabilities —
+// not a step: go-fabric reports the BLE search's own Discovery.BLE 2.1
+// step when it runs.
+type BLEDecision struct {
+	Used bool
+	// Reason is why BLE is not used; empty when Used.
+	Reason BLESkipReason
+}
+
+// BLESkipReason is why a commissioning does not search over Bluetooth
+// LE: the contract's BLEDecision.reason, one vocabulary for the stream,
+// the adapter's log line and the page.
+type BLESkipReason string
+
+// The reasons, in their precedence when several hold: the host has no
+// central; the operator's network_only; the device's QR code without the
+// BLE bit; no credential named, and a device on BLE has no network yet.
+const (
+	BLESkipNoCentral   BLESkipReason = "no_central"
+	BLESkipNetworkOnly BLESkipReason = "network_only"
+	BLESkipCode        BLESkipReason = "code_without_ble"
+	BLESkipNoNetwork   BLESkipReason = "no_network"
+)
 
 // TermsAcknowledgement is the version of the terms a user accepted and
 // the bitmap of the accepted terms (contract 0.7.0, TermsAcknowledgement).
@@ -654,6 +689,12 @@ type Credential struct {
 	Kind CredentialKind
 	ID   string
 	Name string
+	// Default marks the host's default entry: the one a commissioning
+	// started without a choice would use on the host's own interfaces
+	// (contract 0.7.1, Credential.default); the pages preselect it. A
+	// host that sets none lists no default. The lookup of a commissioning
+	// stays by the id the request names: an empty id names nothing.
+	Default bool
 }
 
 // SoftwareUpdateSource is the controller's OTA provider.

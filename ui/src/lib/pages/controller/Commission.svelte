@@ -7,7 +7,12 @@
      controller reports come under the progress as they start and end, and
      a collapsed block sends a Terms and Conditions acknowledgement — the
      two values chip-tool's --tc-acknowledgements-version and
-     --tc-acknowledgements send (contract 0.7.0). -->
+     --tc-acknowledgements send (contract 0.7.0). The network is an
+     explicit input: the host's default credential, or the only one, is
+     preselected; while none is picked on a host with a Bluetooth LE
+     central a hint says BLE needs one, and under the progress the
+     commissioning says whether BLE was used and why not (contract
+     0.7.1). -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -43,13 +48,26 @@
 
   onMount(() => {
     controller.resetProgress();
-    if (controller.status?.capabilities.credentials) void controller.loadCredentials();
+    if (controller.status?.capabilities.credentials) void controller.loadCredentials().then(preselect);
   });
+
+  // The host's default entry, else the only one, unless the operator has
+  // picked already; "No network credential" stays a choice.
+  function preselect() {
+    if (network !== "") return;
+    const list = controller.credentials;
+    const pick = list.find((c) => c.default) ?? (list.length === 1 ? list[0] : undefined);
+    if (pick) network = `${pick.kind}:${pick.id}`;
+  }
 
   const networkOptions = $derived([
     { value: "", label: t("controller.commission.network_none") },
-    ...controller.credentials.map((c) => ({ value: `${c.kind}:${c.id}`, label: `${t(`controller.credential.kind_${c.kind}`)} · ${c.name}` })),
+    ...controller.credentials.map((c) => ({
+      value: `${c.kind}:${c.id}`,
+      label: `${t(`controller.credential.kind_${c.kind}`)} · ${c.name}${c.default ? ` (${t("controller.credential.default")})` : ""}`,
+    })),
   ]);
+  const bleHint = $derived(!!controller.status?.capabilities.ble && network === "" && !networkOnly && controller.credentials.length > 0);
 
   function withNetwork(req: CommissionRequest): CommissionRequest {
     const [kind, ...rest] = network.split(":");
@@ -138,6 +156,7 @@
 
   const phase = $derived(controller.progress.phase);
   const steps = $derived(controller.progress.steps);
+  const ble = $derived(controller.progress.ble);
   const stepVariant = (p: string): "success" | "danger" | "muted" | "default" =>
     p === "succeeded" ? "success" : p === "failed" ? "danger" : p === "skipped" ? "muted" : "default";
 </script>
@@ -158,6 +177,9 @@
         {t("controller.commission.network_only")}
       </label>
     </div>
+    {#if bleHint}
+      <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]" data-testid="commission-ble-hint">{t("controller.commission.ble_hint")}</p>
+    {/if}
     <details class="mt-3 text-sm" data-testid="commission-terms">
       <summary class="cursor-pointer text-[var(--ha-secondary-text-color)]">{t("controller.commission.terms")}</summary>
       <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("controller.commission.terms_hint")}</p>
@@ -190,6 +212,11 @@
         <p class="text-sm text-[var(--ha-error-color)]"><Badge variant="danger">{t("controller.commission.failed")}</Badge> {failure}</p>
       {:else if phase === "failed"}
         <p class="text-sm text-[var(--ha-error-color)]">{t("controller.commission.failed")}</p>
+      {/if}
+      {#if ble}
+        <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]" data-testid="commission-ble">
+          {ble.used ? t("controller.commission.ble_used") : t(`controller.commission.ble_skipped.${ble.reason ?? "no_central"}`)}
+        </p>
       {/if}
       {#if steps.length > 0}
         <ol class="mt-3 space-y-1 text-xs" data-testid="commission-steps">

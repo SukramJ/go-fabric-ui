@@ -4,6 +4,7 @@
 // fabric-ui context, as the node store.
 import {
   ApiError,
+  type BLEDecision,
   type ControllerNodeSummary,
   type ControllerStatus,
   type Credential,
@@ -25,6 +26,8 @@ export interface CommissionProgress {
   nodeIdHex: string | null;
   /** The steps the controller reported, in order, each as it started and ended (0.7.0). */
   steps: PairingStep[];
+  /** Whether the commissioning searches over Bluetooth LE and, if not, why (0.7.1); null until reported. */
+  ble: BLEDecision | null;
 }
 
 export interface ControllerStoreDeps {
@@ -34,7 +37,7 @@ export interface ControllerStoreDeps {
   subscribe?: (onEvent: (ev: ControllerStreamEvent) => void) => () => void;
 }
 
-const IDLE: CommissionProgress = { phase: "idle", detail: null, nodeIdHex: null, steps: [] };
+const IDLE: CommissionProgress = { phase: "idle", detail: null, nodeIdHex: null, steps: [], ble: null };
 
 /** How long the store waits before reloading after an event, so a burst reloads once. */
 const RELOAD_DELAY = 250;
@@ -132,6 +135,13 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     switch (ev.type) {
       case "commissioning_progress": {
         const step = ev.data.step;
+        const ble = ev.data.ble;
+        if (ble) {
+          // The BLE decision is reported under the phase started (0.7.1),
+          // before the first step: it is kept, the phase stays.
+          progress = { ...progress, phase: progress.phase === "idle" ? "started" : progress.phase, ble };
+          break;
+        }
         if (step) {
           // A step is reported under the phase started (0.7.0): it joins
           // the list, the commissioning's own phase stays.
@@ -139,9 +149,16 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
           break;
         }
         const phase = (ev.data.phase ?? "started") as CommissionPhase;
-        // The commissioning's own started begins a new list of steps.
-        const steps = phase === "started" ? [] : progress.steps;
-        progress = { phase, detail: ev.data.detail ?? null, nodeIdHex: ev.data.node_id_hex ?? null, steps };
+        // The commissioning's own started begins a new list of steps and
+        // clears the last decision.
+        const fresh = phase === "started";
+        progress = {
+          phase,
+          detail: ev.data.detail ?? null,
+          nodeIdHex: ev.data.node_id_hex ?? null,
+          steps: fresh ? [] : progress.steps,
+          ble: fresh ? null : progress.ble,
+        };
         if (phase === "succeeded") scheduleReload();
         break;
       }

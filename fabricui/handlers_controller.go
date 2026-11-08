@@ -1282,6 +1282,12 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 	opts.Progress = func(st PairingStep) {
 		s.h.ctrlHub.Publish(Event{Type: EventCommissioningProgress, Data: controllerEventData{Phase: ptr("started"), Step: pairingStepOf(st)}})
 	}
+	// The source's BLE decision is a started commissioning_progress with
+	// ble, once, before the first step (contract 0.7.1): a reason word,
+	// nothing from the request.
+	opts.Transport = func(d BLEDecision) {
+		s.h.ctrlHub.Publish(Event{Type: EventCommissioningProgress, Data: controllerEventData{Phase: ptr("started"), BLE: &bleDecision{Used: d.Used, Reason: string(d.Reason)}}})
+	}
 	s.h.ctrlHub.Publish(Event{Type: EventCommissioningProgress, Data: controllerEventData{Phase: ptr("started")}})
 	var n ControllerNode
 	var err error
@@ -1382,7 +1388,11 @@ func (s *controllerServer) ListCredentials(ctx context.Context, _ api.ListCreden
 	}
 	out := api.ListCredentials200JSONResponse{Credentials: []api.Credential{}}
 	for _, e := range list {
-		out.Credentials = append(out.Credentials, api.Credential{Kind: api.CredentialKind(e.Kind), ID: e.ID, Name: e.Name})
+		c := api.Credential{Kind: api.CredentialKind(e.Kind), ID: e.ID, Name: e.Name}
+		if e.Default {
+			c.Default = ptr(true)
+		}
+		out.Credentials = append(out.Credentials, c)
 	}
 	return out, nil
 }
@@ -1647,6 +1657,14 @@ type controllerEventData struct {
 	UpdateKind    *string      `json:"update_kind,omitempty"`
 	UpdateVersion *uint32      `json:"update_version,omitempty"`
 	UpdateError   *string      `json:"update_error,omitempty"`
+	// BLE is contract 0.7.1's.
+	BLE *bleDecision `json:"ble,omitempty"`
+}
+
+// bleDecision is the contract's BLEDecision.
+type bleDecision struct {
+	Used   bool   `json:"used"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // pairingStep is the contract's PairingStep.

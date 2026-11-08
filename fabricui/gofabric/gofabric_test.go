@@ -154,6 +154,41 @@ func TestEditFor(t *testing.T) {
 	}
 }
 
+// bleFor is brief U8 §1's table: every row, and the precedence when
+// several reasons hold — network_only before code_without_ble before
+// no_network. Built from PairingCode values (bit 1 of a QR code's
+// discovery capabilities is BLE, client/discovery/session.go:73-76 at
+// v0.18.0), no parsing.
+func TestBLEFor(t *testing.T) {
+	manual := controller.PairingCode{Manual: true}
+	qrBLE := controller.PairingCode{Capabilities: 2}
+	qrIP := controller.PairingCode{Capabilities: 4}
+	used := fabricui.BLEDecision{Used: true}
+	skip := func(r fabricui.BLESkipReason) fabricui.BLEDecision { return fabricui.BLEDecision{Reason: r} }
+	for _, c := range []struct {
+		name                 string
+		central              bool
+		pc                   controller.PairingCode
+		networkOnly, network bool
+		want                 fabricui.BLEDecision
+	}{
+		{"no central, manual, network", false, manual, false, true, skip(fabricui.BLESkipNoCentral)},
+		{"no central, network only", false, qrBLE, true, false, skip(fabricui.BLESkipNoCentral)},
+		{"network only, manual", true, manual, true, true, skip(fabricui.BLESkipNetworkOnly)},
+		{"network only over a QR without BLE", true, qrIP, true, true, skip(fabricui.BLESkipNetworkOnly)},
+		{"QR without BLE", true, qrIP, false, true, skip(fabricui.BLESkipCode)},
+		{"QR without BLE and no network", true, qrIP, false, false, skip(fabricui.BLESkipCode)},
+		{"manual, no network", true, manual, false, false, skip(fabricui.BLESkipNoNetwork)},
+		{"QR with BLE, no network", true, qrBLE, false, false, skip(fabricui.BLESkipNoNetwork)},
+		{"manual, network", true, manual, false, true, used},
+		{"QR with BLE, network", true, qrBLE, false, true, used},
+	} {
+		if got := bleFor(c.central, c.pc, c.networkOnly, c.network); got != c.want {
+			t.Errorf("%s: %+v, want %+v", c.name, got, c.want)
+		}
+	}
+}
+
 // progressFor reports each step to the template's hook, then to the
 // port's in the port's shape, the phase by name.
 func TestProgressFor(t *testing.T) {

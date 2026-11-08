@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -17,8 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SukramJ/go-fabric/contract"
 	"github.com/SukramJ/go-fabric/controller"
 	"github.com/SukramJ/go-fabric/controller/attestation"
+	"github.com/SukramJ/go-fabric/controller/ble/bletest"
 	"github.com/SukramJ/go-fabric/controller/topology"
 	"github.com/SukramJ/go-fabric/device"
 	"github.com/SukramJ/go-fabric/fabrictest"
@@ -54,6 +57,12 @@ type ctrlSiteOptions struct {
 	// when configure sets them (device.Options.Surface).
 	surface surface.Policies
 	ota     *controller.OTAConfig
+	// ble builds the device with Wi-Fi commissioning
+	// (fabrictest.UseWiFiCommissioning) and gives the source a central
+	// on it (bletest.NewCentral over Device.BLE) and a stored Wi-Fi
+	// credential "lab"; log receives the adapter's lines.
+	ble bool
+	log *bytes.Buffer
 }
 
 func newCtrlSite(t *testing.T) *ctrlSite {
@@ -68,7 +77,16 @@ func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dev := site.AddDevice(fabrictest.Topology{Bridged: []node.Endpoint{plug}, Configure: o.configure})
+	configure := o.configure
+	if o.ble {
+		configure = func(cfg *node.Config) {
+			if o.configure != nil {
+				o.configure(cfg)
+			}
+			fabrictest.UseWiFiCommissioning(cfg, wifiDriver{})
+		}
+	}
+	dev := site.AddDevice(fabrictest.Topology{Bridged: []node.Endpoint{plug}, Configure: configure})
 	hooks := gofabric.NewHooks()
 	cfg := site.ControllerConfig(fabrictest.ControllerOptions{Label: "e2e", OTA: o.ota})
 	cfg.HooksFor = hooks.Wrap(cfg.HooksFor)
@@ -93,12 +111,25 @@ func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
 		hooks.Close() // before the controller goes: no timer outlives it
 		_ = site.Run(ctx, ctrl.Close)
 	})
+	creds := fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName)
+	// The site's device carries the module's test attestation.
+	pair := controller.PairOptions{OnAttestationFailure: attestation.Accept()}
+	var logger *slog.Logger
+	if o.log != nil {
+		logger = slog.New(slog.NewTextHandler(o.log, nil))
+	}
+	if o.ble {
+		pair.BLE = bletest.NewCentral(dev.BLE())
+		if err := creds.SetWiFi(context.Background(), "lab", "lab", "secret12"); err != nil {
+			t.Fatal(err)
+		}
+	}
 	src := gofabric.ControllerOf(ctrl, gofabric.ControllerOptions{
 		Hooks:       hooks,
 		Topology:    svc,
-		Credentials: fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName),
-		// The site's device carries the module's test attestation.
-		Pair: controller.PairOptions{OnAttestationFailure: attestation.Accept()},
+		Credentials: creds,
+		Pair:        pair,
+		Logger:      logger,
 	})
 	s := &ctrlSite{t: t, site: site, dev: dev, plug: plug, ctrl: ctrl, src: src, events: make(chan string, 256)}
 	// The node family beside the controller family: the device's node
@@ -863,4 +894,88 @@ func TestEndToEnd_UpdateEventsFromTheManager(t *testing.T) {
 			t.Fatalf("no check_finished; update events %v", got)
 		}
 	}
+}
+
+// wifiDriver is the device's Wi-Fi interface for a BLE commissioning: every
+// scan finds the network asked for, every connect succeeds
+// (contract.WiFiDriver, contract/wifi.go:17-25 at v0.18.0; the pattern of
+// go-fabric's controller/ble_test.go:24-38).
+type wifiDriver struct{}
+
+func (wifiDriver) ScanNetworks(_ context.Context, ssid []byte) (status uint8, debugText string, results []contract.WiFiScanResult) {
+	return 0, "", []contract.WiFiScanResult{{SSID: bytes.Clone(ssid), BSSID: make([]byte, 6), Channel: 6}}
+}
+
+func (wifiDriver) ConnectNetwork(context.Context, []byte, []byte) (status uint8, debugText string, errorValue int32) {
+	return 0, "", 0
+}
+
+// commissionEvents commissions with body and collects the
+// commissioning_progress data lines until succeeded.
+func (s *ctrlSite) commissionEvents(body string) []string {
+	s.t.Helper()
+	progress := s.controllerStream(fabricui.EventCommissioningProgress)
+	s.json(http.MethodPost, "/controller/commission", body, http.StatusOK, nil)
+	var got []string
+	deadline := time.After(10 * time.Second)
+	for {
+		select {
+		case d := <-progress:
+			got = append(got, d)
+			if !strings.Contains(d, `"step":`) && strings.Contains(d, `"phase":"succeeded"`) {
+				return got
+			}
+		case <-deadline:
+			s.t.Fatalf("no succeeded after %v", got)
+		}
+	}
+}
+
+// The BLE decision over a real central (brief U8 §3.4, issue #49): a
+// source whose template carries an in-memory central on the site's Wi-Fi
+// device. With wifi_id named the stream says ble used and go-fabric's
+// search over it starts (Discovery.BLE 2.1, controller/pair_race.go:25-26,
+// :243 at v0.18.0); without an id the stream says no_network, the log has
+// fabricui.pair.ble_skipped reason=no_network, no BLE search starts, and
+// the device is commissioned over DNS-SD on the site's network.
+func TestEndToEnd_BLEDecision(t *testing.T) {
+	t.Run("named", func(t *testing.T) {
+		var log bytes.Buffer
+		s := newCtrlSiteWith(t, ctrlSiteOptions{ble: true, log: &log})
+		sp, err := s.dev.Node().SetupPayload()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := s.commissionEvents(fmt.Sprintf(`{"code":%q,"wifi_id":"lab"}`, sp.Manual))
+		if len(got) < 2 || got[1] != `{"phase":"started","ble":{"used":true}}` {
+			t.Fatalf("the decision %v", got)
+		}
+		if !slices.ContainsFunc(got, func(d string) bool { return strings.Contains(d, `"name":"Discovery.BLE","phase":"started"`) }) {
+			t.Fatalf("no BLE search: %v", got)
+		}
+		if strings.Contains(log.String(), "fabricui.pair.ble_skipped") {
+			t.Fatalf("a used central logged a skip: %s", log.String())
+		}
+	})
+	t.Run("no network", func(t *testing.T) {
+		var log bytes.Buffer
+		s := newCtrlSiteWith(t, ctrlSiteOptions{ble: true, log: &log})
+		sp, err := s.dev.Node().SetupPayload()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := s.commissionEvents(fmt.Sprintf(`{"code":%q}`, sp.Manual))
+		if len(got) < 2 || got[1] != `{"phase":"started","ble":{"used":false,"reason":"no_network"}}` {
+			t.Fatalf("the decision %v", got)
+		}
+		if slices.ContainsFunc(got, func(d string) bool { return strings.Contains(d, `"name":"Discovery.BLE"`) }) {
+			t.Fatalf("a BLE search without a network: %v", got)
+		}
+		if !strings.Contains(log.String(), "msg=fabricui.pair.ble_skipped reason=no_network") {
+			t.Fatalf("no skip line: %s", log.String())
+		}
+		if strings.Contains(log.String(), sp.Manual) {
+			t.Fatal("the code reached the log")
+		}
+	})
 }
