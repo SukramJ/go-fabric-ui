@@ -105,6 +105,56 @@ describe("Controller Commission", () => {
     expect(ui.sent.find((s) => s.method === "POST")?.body).toEqual({ code: "34970112332", terms_and_conditions: { version: 1, acknowledgements: 1 } });
   });
 
+  it("preselects the only credential and sends it (0.7.1)", async () => {
+    const ui = testUI({
+      fixtures: ["controller-status.200", "controller-commission.200", "controller-nodes.200"],
+      answers: { "GET /controller/credentials": { status: 200, body: { credentials: [{ kind: "wifi", id: "home", name: "HomeNet" }] } } },
+    });
+    await ui.controller.loadStatus();
+    render(Harness, { ui, page: Commission });
+    const select = screen.getByLabelText("controller.commission.network") as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe("wifi:home"));
+    await fireEvent.input(screen.getByLabelText("controller.commission.code"), { target: { value: "34970112332" } });
+    await fireEvent.click(screen.getByText("controller.commission.start"));
+    await waitFor(() => expect(ui.sent.some((s) => s.method === "POST")).toBe(true));
+    expect(ui.sent.find((s) => s.method === "POST")?.body).toEqual({ code: "34970112332", wifi_id: "home" });
+  });
+
+  it("preselects the default among several and names it (0.7.1)", async () => {
+    const ui = testUI({ fixtures: ["controller-status.200", "controller-credentials.200"] });
+    await ui.controller.loadStatus();
+    render(Harness, { ui, page: Commission });
+    const select = screen.getByLabelText("controller.commission.network") as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe("thread:mesh"));
+    expect(screen.getByText("controller.credential.kind_thread · mesh (controller.credential.default)")).toBeInTheDocument();
+    expect(screen.queryByTestId("commission-ble-hint")).toBeNull();
+  });
+
+  it("shows the hint while no network is picked on a host with a central (0.7.1)", async () => {
+    const ui = testUI({ fixtures: ["controller-status.200-ble", "controller-credentials.200"] });
+    await ui.controller.loadStatus();
+    render(Harness, { ui, page: Commission });
+    const select = screen.getByLabelText("controller.commission.network") as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe("thread:mesh"));
+    expect(screen.queryByTestId("commission-ble-hint")).toBeNull();
+    await fireEvent.change(select, { target: { value: "" } });
+    expect(await screen.findByTestId("commission-ble-hint")).toHaveTextContent("controller.commission.ble_hint");
+    await fireEvent.click(screen.getByText("controller.commission.network_only"));
+    await waitFor(() => expect(screen.queryByTestId("commission-ble-hint")).toBeNull());
+  });
+
+  it("says why Bluetooth LE was not used, and that it was (0.7.1)", async () => {
+    const ui = testUI();
+    render(Harness, { ui, page: Commission });
+    // The wire bytes of fabricui's TestCommission_BLEDecision.
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started" } });
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started", ble: { used: false, reason: "no_network" } } });
+    expect(await screen.findByTestId("commission-ble")).toHaveTextContent("controller.commission.ble_skipped.no_network");
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started" } });
+    ui.controller.applyEvent({ type: "commissioning_progress", data: { phase: "started", ble: { used: true } } });
+    await waitFor(() => expect(screen.getByTestId("commission-ble")).toHaveTextContent("controller.commission.ble_used"));
+  });
+
   it("lists the steps the stream reports under the progress (0.7.0)", async () => {
     const ui = testUI();
     render(Harness, { ui, page: Commission });

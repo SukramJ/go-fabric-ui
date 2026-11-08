@@ -129,6 +129,8 @@ export type NodeConfig = S["NodeConfig"];
 export type SessionParameters = S["SessionParameters"];
 export type TermsAcknowledgement = S["TermsAcknowledgement"];
 export type PairingStep = S["PairingStep"];
+// The commissioning's BLE decision (contract 0.7.1).
+export type BLEDecision = S["BLEDecision"];
 /** What GET /operation/log selects: the lowest sequence number (inclusive) and how many of the newest. */
 export type LogWindow = { since?: number; limit?: number };
 /** What GET /controller/discovery selects by. */

@@ -36,6 +36,8 @@ const SMOKES: Smoke[] = [
   { name: "node diagnostics reannounce", hash: "#/node/diagnostics", shows: (p) => p.getByTestId("node-reannounce") },
   { name: "node fabrics erase", hash: "#/node/fabrics", shows: (p) => p.getByTestId("node-erase") },
   { name: "controller commission terms", hash: "#/controller/commission", shows: (p) => p.getByTestId("commission-terms") },
+  // The BLE decision (contract 0.7.1): the network select, with the default preselected.
+  { name: "controller commission ble", hash: "#/controller/commission", shows: (p) => p.getByLabel("Network for the device") },
 ];
 
 for (const s of SMOKES) {
@@ -114,6 +116,24 @@ test("a commissioning with terms lists its steps", async ({ page }) => {
   await page.getByRole("button", { name: "Commission", exact: true }).click();
   await expect(page.getByTestId("commission-steps")).toContainText("Subscribe");
   await expect(page.getByText("Commissioned", { exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+// The BLE decision (contract 0.7.1): on a host with a central the default
+// credential is preselected, so no hint shows, and a commissioning
+// without a choice uses it — the progress says Bluetooth LE is used. The
+// memory controller commissions its one device once (the terms flow
+// above did), so the result is not asserted here: the decision comes
+// before it.
+test("a commissioning without a choice uses the preselected network", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+  await page.goto("/#/controller/commission");
+  await expect(page.getByLabel("Network for the device")).toHaveValue("thread:mesh");
+  await expect(page.getByTestId("commission-ble-hint")).toHaveCount(0);
+  await page.getByLabel("Pairing code").fill("34970112332");
+  await page.getByRole("button", { name: "Commission", exact: true }).click();
+  await expect(page.getByTestId("commission-ble")).toHaveText("Bluetooth LE: used");
   expect(errors).toEqual([]);
 });
 

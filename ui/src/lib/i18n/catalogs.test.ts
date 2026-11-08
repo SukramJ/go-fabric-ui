@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { body } from "../../test/support";
-import type { ConformanceVerdict, EventRecord, TopologyGraph } from "../api/client";
+import type { BLEDecision, ConformanceVerdict, EventRecord, TopologyGraph } from "../api/client";
 import { TOPOLOGY_KINDS, TOPOLOGY_STATES, TOPOLOGY_STRENGTHS } from "../kit/graph-layout";
 import { ECOSYSTEM_HINTS } from "../pages/node/ecosystems";
 import { LEVELS } from "../pages/operation/log";
@@ -89,6 +89,12 @@ describe("i18n catalogues", () => {
       ...[0, 1, 2, 3, 4, 5, 6].map((r) => `node.status.boot_reason.${r}`),
       ...["started", "succeeded", "failed", "skipped"].map((p) => `controller.commission.step.${p}`),
     ];
+    expect(keys.filter((k) => !en.has(k))).toEqual([]);
+  });
+  it("name every reason a commissioning gives for not using Bluetooth LE (0.7.1)", () => {
+    // The contract's BLEDecision.reason enum.
+    const reasons: NonNullable<BLEDecision["reason"]>[] = ["no_central", "network_only", "code_without_ble", "no_network"];
+    const keys = reasons.map((r) => `controller.commission.ble_skipped.${r}`);
     expect(keys.filter((k) => !en.has(k))).toEqual([]);
   });
 });

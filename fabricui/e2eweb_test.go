@@ -29,7 +29,8 @@ const e2eWebAddr = "FABRIC_UI_E2E_ADDR"
 // the topology fixture and the operations ring — until the process is
 // interrupted. The default node reports a refused attestation and the boot
 // reason 5, and its erase removes its fabrics (contract 0.7.0); the
-// second node is clean. It is not a test of its own.
+// second node is clean. The controller has a Bluetooth LE central
+// (contract 0.7.1). It is not a test of its own.
 func TestServeE2EWeb(t *testing.T) {
 	addr := os.Getenv(e2eWebAddr)
 	if addr == "" {
@@ -39,6 +40,9 @@ func TestServeE2EWeb(t *testing.T) {
 	ctrl := NewMemoryController()
 	topo := controllerTopology()
 	ctrl.Topology = &topo
+	// A host with a central (contract 0.7.1): the Commission page
+	// preselects the default credential and states the BLE decision.
+	ctrl.BLE = true
 	// The second node is registry state without a selection, as the
 	// selector's and the second node's smokes expect it.
 	reg := newMemoryRegistry(0)
