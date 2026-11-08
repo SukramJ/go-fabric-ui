@@ -7,6 +7,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+The Commission page's Bluetooth LE decision is stated, never silent (wave
+U8, brief `notes/briefs/2026-11-07-U8-ble-no-silent-drop.md`); contract
+0.7.1, additive over 0.7.0.
+
+### Added
+
+- `fabricui.NodeSwitch` (`NewNodeSwitch`, `Set`, `Current`): a
+  `NodeSource` whose target the host swaps after an erase, so the pages
+  keep one source while the node is remade; a stream open across the swap
+  keeps the node it was opened on until the page reconnects.
+
+### Fixed
+
+- The Commission page no longer drops Bluetooth LE silently when no
+  network credential is picked (#49): the page preselects the host's
+  default or only credential, hints while none is picked on a host with a
+  central, and the commissioning's progress says whether BLE was used and
+  why not (`ble` on `commissioning_progress`, `fabricui.pair.ble_skipped`
+  in the log). `Credential.default` names the host's default entry.
+
 ## [0.7.0] - 2026-11-07
 
 Completeness against go-fabric v0.18.0 (wave U7, brief

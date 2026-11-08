@@ -24,7 +24,7 @@ an unknown path under the API prefix answers a 404 problem.
 
 | Field | Purpose |
 | --- | --- |
-| `Node` | The default node (`*node.Node` satisfies `NodeSource`), served under `/node/*` and listed first by `GET /nodes` under the key `default`; nil serves the family as disabled unless `Nodes` names one. |
+| `Node` | The default node (`*node.Node` satisfies `NodeSource`, or a `*NodeSwitch`, the source a host swaps after an erase), served under `/node/*` and listed first by `GET /nodes` under the key `default`; nil serves the family as disabled unless `Nodes` names one. |
 | `Nodes` | Further device nodes (0.5.0), `[]NodeEntry{Key, Label, Kind, Source, Exposure, Reassemble, Events, Erase, Config}` in the selector's order, each under `/nodes/{key}/*`; with `Node` nil the first is the default. See [Several nodes](#several-nodes). |
 | `Registry` | The host's node registry (0.6.0): further nodes the operator creates, renames and deletes in the page; needs `Node`, excludes `Nodes`. See [Nodes created in the page](#nodes-created-in-the-page). |
 | `NodeConfig` | The default node's configuration as its status page shows it, read-only (0.6.0); nil omits the block. Never a passcode. |
@@ -99,7 +99,10 @@ func (w wrapped) OnDiagnosticEvent(fn func(node.DiagnosticEvent)) func() { retur
 (`POST /node/mdns/reannounce`). `*node.Node` has them; a wrapper does not
 compile until it forwards them. The port follows the facade in one shape
 on purpose: an optional interface would let a wrapper that forgets a
-method lose a page field without a word.
+method lose a page field without a word. A host that wraps its node only
+to follow it across an erase uses `fabricui.NodeSwitch` (0.7.1) and writes
+no forwarder: the switch is this repository's, and its build fails when
+`NodeSource` gains a method it does not delegate.
 
 ```go
 func (w wrapped) AttestationError() error                   { return w.n.AttestationError() }
@@ -120,12 +123,41 @@ node) or `NodeEntry.Erase` (0.7.0), as it wires `Reassemble`.
 `fabrictest.Device.FactoryReset` is the pattern: `node.FactoryReset`,
 then a new node on the erased store and the same address, started — or
 the daemon's exit for a supervisor to restart it. The handler keeps the
-`NodeSource` it was given, so a host that builds a new node in place
-hands over a source that delegates to its current node (the end-to-end
-test `TestEndToEnd_EraseBringsAFreshNode` does, over `Device.Node`). A
-registry node may instead appear in `Registry.List` with a new `Source`,
-which gets a fresh handler. Without an `Erase` the route answers 501 and
-`Status.erase` is absent, so the page offers no erase.
+`NodeSource` it was given; how a host that builds a new node in place
+hands the pages that node is the next section. A registry node may
+instead appear in `Registry.List` with a new `Source`, which gets a fresh
+handler. Without an `Erase` the route answers 501 and `Status.erase` is
+absent, so the page offers no erase.
+
+#### Erase and a node that comes back
+
+The host builds a `fabricui.NewNodeSwitch(first)` over its first node and
+hands the switch to `Options.Node` or `NodeEntry.Source` (0.7.1). Its
+`Erase` runs `FactoryReset` and starts the new node, then calls
+`sw.Set(newNode)`; every method of the switch reaches the current
+target, swapped atomically. A failed restart calls nothing: the pages
+keep reading the stopped node — its last health verdict and its erased
+store's errors — and what the host shows about the failure is the
+host's. A stream open across `Set` keeps the node it was opened on (its
+observers were registered when it began) until the page reconnects; the
+erase flow polls `GET /node/status`, which reads through the switch,
+until the new node answers. As a registry node's `Source` the same
+`*NodeSwitch` stays the same value across `Set`, so the node keeps its
+handler. `NewNodeSwitch(nil)` and `Set(nil)` panic: a nil target would
+fail inside the first request, where a nil `Options.Node` answers 503.
+The end-to-end test `TestEndToEnd_EraseBringsAFreshNode` is the pattern:
+
+```go
+sw := fabricui.NewNodeSwitch(dev.Node())
+opts.Node = sw
+opts.Erase = func(ctx context.Context) error {
+	err := dev.FactoryReset(ctx)
+	if err == nil {
+		sw.Set(dev.Node())
+	}
+	return err
+}
+```
 
 ### Several nodes
 
@@ -210,9 +242,9 @@ mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Controller: src}))
 | Field | Purpose |
 | --- | --- |
 | `Hooks` | Turns the nodes' `client.Hooks` into the controller stream's events (`node_added`, `node_removed`, `connection`, `subscription`, `node_updated`, coalesced — a structure change, a report or an event the node delivered). `Wrap` chains them after the host's own `HooksFor`, its `Event` hook included; `Close` (before the controller's) stops the pending timers; events after it, or while the controller has no registry, are dropped. Nil leaves the stream with the handler's own events. |
-| `Credentials` | The host's credential store: `fabricui.CredentialStore` (list names, set write-only, remove) plus `WiFi(id)` and `Thread(id)` for a commissioning that names one. `fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName)` is an in-memory one that checks a dataset with go-fabric's decoder. Nil answers 503 on the credential routes. |
-| `Pair` | The template of every commissioning: the attestation policy, the default subscription, the BLE central (`Capabilities().BLE`). The network a request names is set on a copy; the request's step reports run after the template's `Progress`, and its Terms and Conditions acknowledgement is set after the template's `Edit` (0.7.0). |
-| `Logger` | The adapter's logger; nothing it logs carries a passcode or a credential. |
+| `Credentials` | The host's credential store: `fabricui.CredentialStore` (list names, set write-only, remove) plus `WiFi(id)` and `Thread(id)` for a commissioning that names one. `Credential.Default` (0.7.1) is the host's statement of its default entry — the one its own interfaces use without a choice; the pages preselect it. The lookup stays by the id a request names: an empty id names none. `fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName)` is an in-memory one that checks a dataset with go-fabric's decoder. Nil answers 503 on the credential routes. |
+| `Pair` | The template of every commissioning: the attestation policy, the default subscription, the BLE central (`Capabilities().BLE`). The network a request names is set on a copy; the request's step reports run after the template's `Progress`, and its Terms and Conditions acknowledgement is set after the template's `Edit` (0.7.0). The central is used when the code allows BLE, `network_only` is off and the request names a credential (0.7.1); the decision reaches `PairOptions.Transport` on every pairing from a code. go-fabric's network steps provision by the device's NetworkCommissioning features: a Wi-Fi credential is skipped on a device without the Wi-Fi feature, a Thread dataset on one without Thread (`controller/commissioner/network.go:217-235`, `:308-325` at v0.18.0). |
+| `Logger` | The adapter's logger; nothing it logs carries a passcode or a credential. `fabricui.pair.ble_skipped` (Info, `reason` `network_only`, `code_without_ble` or `no_network`, 0.7.1) says why a commissioning did not use the central. |
 
 What each route calls on the facade:
 

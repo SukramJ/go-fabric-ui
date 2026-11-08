@@ -58,8 +58,8 @@ runs the host's `Erase` — go-fabric's `Node.FactoryReset` erases the
 store and the endpoint records and ends the node, and the host builds a
 new one on the erased store or restarts. After its 204 the handler keeps
 reading the `NodeSource` it was given, so a host that builds a new node
-hands over a source that follows it; the page polls `GET /node/status`
-until it answers again.
+hands over a source that follows it (`fabricui.NodeSwitch`, 0.7.1); the
+page polls `GET /node/status` until it answers again.
 
 ## The node selector (0.5.0)
 
@@ -403,6 +403,8 @@ detail is a fixed sentence, never an error's text.
 The Go module and the npm package share one version. A minor version adds
 paths, methods, responses, fields and optional request fields; it never
 removes or renames one and never makes an optional request field required.
+A patch may add the optional field or event field a fix needs to state
+its behaviour; it adds no route and no problem code.
 `contract/previous/openapi.yaml` is the copy of the last release, and the
 contract guard (`make contract-check`, CI job `contract`) fails on a
 removal against it. The guard also fails on a schema a response is decoded
@@ -422,6 +424,12 @@ per node (`mdns/reannounce`, `maintenance/erase`), three status fields,
 the sessions' `parameters`, three node stream events,
 `CommissionRequest.terms_and_conditions` and the controller events'
 `step` and `update_*` fields. No problem code is new.
+
+Contract 0.7.1 (wave U8) is additive over 0.7.0, which
+`contract/previous/` holds as release 0.7.0 shipped it:
+`ControllerEvent.ble`, `Credential.default`, two descriptions
+(`ControllerCapabilities.ble`, `CommissionRequest.network_only`). No
+problem code is new.
 
 ## Controller routes (v0.2.0)
 
@@ -523,9 +531,21 @@ Details the fixtures pin:
   commissioning sends with SetTCAcknowledgements, chip-tool's
   `--tc-acknowledgements-version` and `--tc-acknowledgements`; a device
   that requires terms refuses CommissioningComplete without it, a 502
-  whose detail names the GeneralCommissioning error.
+  whose detail names the GeneralCommissioning error. Bluetooth LE (0.7.1):
+  a commissioning from a code searches over the host's central only when
+  the code allows BLE (a manual code, or a QR code with the BLE bit),
+  `network_only` is off and the request names a stored credential with
+  `wifi_id` or `thread_id` — a device on BLE has no network yet, and no
+  credential named means none, never the host's default. Otherwise it runs
+  over the IP network and says why: the stream's `ble` reason is the first
+  of `no_central`, `network_only`, `code_without_ble`, `no_network` that
+  holds, and the go-fabric adapter logs `fabricui.pair.ble_skipped` with
+  it when a central is not used. A commissioning of a discovered device
+  carries no decision.
 - **Credentials**: `GET` answers kind, id and name (SSID or Thread network
-  name), never a passphrase or a dataset.
+  name), never a passphrase or a dataset; `default: true` (0.7.1) marks
+  the host's default entry, which the Commission page preselects (else
+  the only entry).
 
 ## Identifiers, secrets and events of the controller family
 
@@ -545,7 +565,10 @@ Details the fixtures pin:
   `commissioning_progress` with `phase` `started` and `step`
   `{number, sub, name, phase}`, the step's phase `started`, `succeeded`,
   `failed` or `skipped` and no error text; a client that reads `phase`
-  alone sees `started`. `update` comes from the source, not the handler
+  alone sees `started`. From 0.7.1 a commissioning from a code reports,
+  once and before the first step, a `commissioning_progress` with `phase`
+  `started` and `ble` `{used, reason}` — the reason word only, present
+  when `used` is false. `update` comes from the source, not the handler
   (0.7.0): the go-fabric adapter observes the controller's update manager
   (`softwareupdate.Manager.Observe`) and emits each event with
   `update_kind` (`available`, `consent_changed`, `check_finished`,
