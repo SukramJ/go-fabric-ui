@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.7.1
+  version: 0.8.0
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
@@ -1613,6 +1613,11 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409":
+          description: "terms_required (0.8.0): the device requires an accepted version of its terms and conditions; the problem carries `version`, `acknowledgements` and `deadline`, and a second request with `terms_and_conditions` commissions it."
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /controller/discovery:
@@ -1858,7 +1863,19 @@ components:
         instance: { type: string }
         code:
           type: string
-          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large, node_error, not_implemented, node_limit, node_is_default]
+          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large, node_error, not_implemented, node_limit, node_is_default, terms_required]
+        version:
+          type: integer
+          minimum: 0
+          maximum: 65535
+          description: "terms_required (0.8.0): the device's TCMinRequiredVersion, the lowest version an acknowledgement has to name (go-fabric commissioner.TermsRequiredError.Version)."
+        acknowledgements:
+          type: ["integer", "null"]
+          description: "terms_required (0.8.0): the acknowledgement bits the device requires; null, since no device attribute names them — the terms the user accepts set them."
+        deadline:
+          type: ["integer", "null"]
+          minimum: 0
+          description: "terms_required (0.8.0): the device's TCUpdateDeadline in Matter epoch seconds (from 2000-01-01T00:00:00Z), by which a commissioned device expects an updated acceptance; null when the attribute is null."
     Status:
       type: object
       required: [enabled, listening, endpoint_count, fabric_count, advertising, commissioning_window_open, exposure]
@@ -3057,7 +3074,7 @@ components:
         terms_and_conditions: { $ref: "#/components/schemas/TermsAcknowledgement" }
     TermsAcknowledgement:
       type: object
-      description: "The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms refuses CommissioningComplete without one; absent sends none."
+      description: "The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms fails the commissioning without one, or with one below its version, with 409 terms_required (0.8.0; before 0.8.0 a 502 at CommissioningComplete); absent sends none."
       required: [version, acknowledgements]
       properties:
         version: { type: integer, minimum: 0, maximum: 65535, description: The version of the terms the user accepted. }
@@ -3168,7 +3185,7 @@ components:
         connection: { $ref: "#/components/schemas/ConnectionState" }
         active: { type: boolean, description: "subscription: whether the default subscription is up." }
         phase: { type: string, enum: [started, succeeded, failed], description: "commissioning_progress: the commissioning's phase." }
-        detail: { type: string, description: "commissioning_progress failed: what went wrong (no secret)." }
+        detail: { type: string, description: "commissioning_progress failed: the failure's kind, never its text — invalid_argument, no_device, timeout, node_failed, failed, and terms_required (0.8.0) for a device that requires an accepted version of its terms and conditions." }
         step: { $ref: "#/components/schemas/PairingStep" }
         ble: { $ref: "#/components/schemas/BLEDecision" }
         update_kind:

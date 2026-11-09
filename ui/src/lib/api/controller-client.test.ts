@@ -58,6 +58,8 @@ const cases: [string, Call][] = [
   ["controller-commission.400", (c, x) => c.commission(b(x))],
   ["controller-commission.404", (c, x) => c.commission(b(x))],
   ["controller-commission.502", (c, x) => c.commission(b(x))],
+  // A device that requires terms (0.8.0).
+  ["controller-commission.409-terms-required", (c, x) => c.commission(b(x))],
   ["controller-discovery.200", (c) => c.discover({ filter: "long_discriminator", value: 3840 })],
   ["controller-discovery.400", (c) => c.discover({ filter: "vendor" })],
   ["controller-credentials.200", (c) => c.credentials()],

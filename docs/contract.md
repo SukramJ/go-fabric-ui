@@ -392,6 +392,20 @@ the host's text.
 `PUT /nodes/{node}/label` or `DELETE /nodes/{node}` on a node that is the
 host's configuration rather than registry state (409, 0.6.0).
 
+### problem-terms_required
+`POST /controller/commission`: the device requires an accepted version of
+its terms and conditions and the request sent no acknowledgement, or one
+below that version (409, 0.8.0). go-fabric ends such a commissioning after
+its information step, before ArmFailSafe and AddNOC
+(`commissioner.TermsRequiredError`), so the device stays commissionable.
+Besides the problem's members it carries `version` (the device's
+TCMinRequiredVersion), `acknowledgements` (always `null`: no device
+attribute names the bits — the terms the user accepts set them) and
+`deadline` (the device's TCUpdateDeadline in Matter epoch seconds, from
+2000-01-01T00:00:00Z; `null` when the attribute is null). A second request
+with `terms_and_conditions` of that version or later commissions the
+device. The port's error is `*fabricui.ErrTermsRequired`.
+
 ### problem-not_implemented
 The host does not serve the route (501): `GET /controller/topology`
 from a host without a topology service, and `POST
@@ -465,7 +479,7 @@ hand-written.
 | `/controller/nodes/{id}/icd/register`, `/unregister` | POST | yes | 200, 400, 403, 404, 409, 502 |
 | `/controller/nodes/{id}/fabrics` | GET | – | 200, 400, 404, 502 |
 | `/controller/nodes/{id}/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 502 |
-| `/controller/commission` | POST | yes | 200, 400, 403, 404, 502, 503 |
+| `/controller/commission` | POST | yes | 200, 400, 403, 404, 409 (0.8.0), 502, 503 |
 | `/controller/discovery` | GET | yes | 200, 400, 403, 500 |
 | `/controller/credentials` | GET | – | 200, 500, 503 |
 | `/controller/credentials` | PUT / DELETE | yes | 204, 400, 403, (404), 500, 503 |
@@ -530,8 +544,14 @@ Details the fixtures pin:
   0–65535, else 400) is the Terms and Conditions acknowledgement the
   commissioning sends with SetTCAcknowledgements, chip-tool's
   `--tc-acknowledgements-version` and `--tc-acknowledgements`; a device
-  that requires terms refuses CommissioningComplete without it, a 502
-  whose detail names the GeneralCommissioning error. Bluetooth LE (0.7.1):
+  that requires terms fails the commissioning without it, or with a
+  version below its own, with 409 `terms_required` (0.8.0; until 0.7.1 a
+  502 at CommissioningComplete). The Commission page then opens the
+  acknowledgement block with the device's version filled in, the
+  acknowledgements field focused and the deadline as a date when the
+  device names one, and its button sends the same commissioning again
+  with the acknowledgement; the code or passcode is held for that one
+  retry only. Bluetooth LE (0.7.1):
   a commissioning from a code searches over the host's central only when
   the code allows BLE (a manual code, or a QR code with the BLE bit),
   `network_only` is off and the request names a stored credential with
@@ -558,8 +578,8 @@ Details the fixtures pin:
   `commissioning_progress` or `update`; `data:` is a `ControllerEvent`
   (`node_id_hex`, and `connection`, `active`, `phase`/`detail` by type).
   A commissioning's progress carries the failure's kind
-  (`invalid_argument`, `no_device`, `timeout`, `node_failed`), not its
-  text. From 0.7.0 every step the controller reports
+  (`invalid_argument`, `no_device`, `timeout`, `node_failed`, and from
+  0.8.0 `terms_required`), not its text. From 0.7.0 every step the controller reports
   (`PairOptions.Progress`, go-fabric `controller.PairingStep`: matter.js's
   step names plus Discovery 2.1, PASE 2.2 and Subscribe 21.1) is a
   `commissioning_progress` with `phase` `started` and `step`

@@ -6,6 +6,7 @@ package gofabric
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -123,34 +124,33 @@ func TestIdentifierOf(t *testing.T) {
 	}
 }
 
-// editFor runs the host's Edit first and sets the request's terms after
-// it, so the request's acknowledgement wins; without terms it is the
-// host's Edit itself.
-func TestEditFor(t *testing.T) {
-	var order []string
-	host := func(o *commissioner.Options) {
-		order = append(order, "host")
-		o.TermsAndConditions = &commissioner.TermsAndConditionsAcknowledgement{Version: 9, Acknowledgements: 9}
-		o.RegulatoryCountryCode = "DE"
+// termsOf is the request's acknowledgement, else the template's; the
+// host's Edit is not involved (it runs after, in go-fabric's Pair).
+func TestTermsOf(t *testing.T) {
+	tmpl := &commissioner.TermsAndConditionsAcknowledgement{Version: 9, Acknowledgements: 9}
+	got := termsOf(&fabricui.TermsAcknowledgement{Version: 1, Acknowledgements: 3}, tmpl)
+	if got == nil || *got != (commissioner.TermsAndConditionsAcknowledgement{Version: 1, Acknowledgements: 3}) {
+		t.Fatalf("request's terms: %+v", got)
 	}
-	var o commissioner.Options
-	editFor(host, &fabricui.TermsAcknowledgement{Version: 1, Acknowledgements: 3})(&o)
-	if !slices.Equal(order, []string{"host"}) || o.RegulatoryCountryCode != "DE" ||
-		o.TermsAndConditions == nil || *o.TermsAndConditions != (commissioner.TermsAndConditionsAcknowledgement{Version: 1, Acknowledgements: 3}) {
-		t.Fatalf("order %v, options %+v", order, o)
+	if termsOf(nil, tmpl) != tmpl {
+		t.Fatal("without the request's terms the template's are not kept")
 	}
-	var bare commissioner.Options
-	editFor(nil, &fabricui.TermsAcknowledgement{Version: 2, Acknowledgements: 1})(&bare)
-	if bare.TermsAndConditions == nil || bare.TermsAndConditions.Version != 2 {
-		t.Fatalf("without a host Edit: %+v", bare.TermsAndConditions)
+	if termsOf(nil, nil) != nil {
+		t.Fatal("no terms anywhere is an acknowledgement")
 	}
-	if editFor(nil, nil) != nil {
-		t.Fatal("no host Edit and no terms is an Edit")
+}
+
+// commissionError makes go-fabric's *commissioner.TermsRequiredError, also
+// wrapped, the port's *ErrTermsRequired with its version and deadline.
+func TestCommissionErrorTermsRequired(t *testing.T) {
+	deadline := uint32(852076800)
+	err := commissionError(fmt.Errorf("pair: %w", &commissioner.TermsRequiredError{Version: 2, Deadline: &deadline}))
+	var tr *fabricui.ErrTermsRequired
+	if !errors.As(err, &tr) || tr.Version != 2 || tr.Deadline == nil || *tr.Deadline != deadline {
+		t.Fatalf("%v", err)
 	}
-	var plain commissioner.Options
-	editFor(host, nil)(&plain)
-	if plain.TermsAndConditions.Version != 9 {
-		t.Fatal("without terms the host's Edit is not the Edit")
+	if errors.Is(err, fabricui.ErrNodeFailed) {
+		t.Fatal("a terms requirement is a node failure")
 	}
 }
 

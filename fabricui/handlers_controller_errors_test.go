@@ -6,6 +6,7 @@ package fabricui
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -239,6 +240,9 @@ func TestController_BadRequests(t *testing.T) {
 		if progressDetail(err) == "" {
 			t.Fatal(err)
 		}
+	}
+	if d := progressDetail(fmt.Errorf("pair: %w", &ErrTermsRequired{Version: 1})); d != "terms_required" {
+		t.Fatalf("terms_required's progress detail %q", d)
 	}
 	if (&apiProblem{title: "t", detail: "d"}).Error() != "t: d" {
 		t.Fatal("apiProblem.Error")

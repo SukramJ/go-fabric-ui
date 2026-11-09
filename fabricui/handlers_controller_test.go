@@ -95,6 +95,20 @@ func TestControllerFixtures(t *testing.T) {
 	}
 }
 
+// A device that requires terms and conditions refuses a commissioning
+// without the acknowledgement with 409 terms_required, its version and
+// deadline in the problem (contract 0.8.0): the in-memory controller with
+// Terms set; the commissioning_progress failed carries the code.
+func TestControllerFixtures_TermsRequired(t *testing.T) {
+	_, mux, m := controllerHandler(t, nil)
+	deadline := uint32(852076800) // 2027-01-01T00:00:00Z
+	m.Terms = &ErrTermsRequired{Version: 1, Deadline: &deadline}
+	rec := runFixture(t, mux, "controller-commission.409-terms-required")
+	if rec.Header().Get("X-Problem-Code") != codeTermsRequired {
+		t.Fatalf("X-Problem-Code %q", rec.Header().Get("X-Problem-Code"))
+	}
+}
+
 // A host with a central reports capabilities.ble (contract 0.7.1): the
 // in-memory controller with BLE set.
 func TestControllerFixtures_BLE(t *testing.T) {

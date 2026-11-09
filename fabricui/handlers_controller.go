@@ -164,7 +164,10 @@ func (h *handler) controllerError(w http.ResponseWriter, r *http.Request, err er
 		writeProblem(w, r, p.status, p.code, p.title, p.detail)
 		return
 	}
+	var terms *ErrTermsRequired
 	switch {
+	case errors.As(err, &terms):
+		writeTermsRequired(w, r, terms)
 	case errors.Is(err, ErrNodeNotFound):
 		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such node", err.Error())
 	case errors.Is(err, ErrEndpointNotFound):
@@ -1311,7 +1314,10 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 // progressDetail is a failed commissioning's kind for the stream — the
 // kind only, so no error text that might echo a code travels in an event.
 func progressDetail(err error) string {
+	var terms *ErrTermsRequired
 	switch {
+	case errors.As(err, &terms):
+		return codeTermsRequired
 	case errors.Is(err, ErrInvalidArgument):
 		return "invalid_argument"
 	case errors.Is(err, ErrNoDevice):

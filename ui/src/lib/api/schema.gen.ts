@@ -1913,7 +1913,13 @@ export interface components {
             detail?: string;
             instance?: string;
             /** @enum {string} */
-            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default";
+            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default" | "terms_required";
+            /** @description terms_required (0.8.0): the device's TCMinRequiredVersion, the lowest version an acknowledgement has to name (go-fabric commissioner.TermsRequiredError.Version). */
+            version?: number;
+            /** @description terms_required (0.8.0): the acknowledgement bits the device requires; null, since no device attribute names them — the terms the user accepts set them. */
+            acknowledgements?: number | null;
+            /** @description terms_required (0.8.0): the device's TCUpdateDeadline in Matter epoch seconds (from 2000-01-01T00:00:00Z), by which a commissioned device expects an updated acceptance; null when the attribute is null. */
+            deadline?: number | null;
         };
         Status: {
             enabled: boolean;
@@ -3029,7 +3035,7 @@ export interface components {
             timeout_seconds?: number;
             terms_and_conditions?: components["schemas"]["TermsAcknowledgement"];
         };
-        /** @description The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms refuses CommissioningComplete without one; absent sends none. */
+        /** @description The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms fails the commissioning without one, or with one below its version, with 409 terms_required (0.8.0; before 0.8.0 a 502 at CommissioningComplete); absent sends none. */
         TermsAcknowledgement: {
             /** @description The version of the terms the user accepted. */
             version: number;
@@ -3126,7 +3132,7 @@ export interface components {
              * @enum {string}
              */
             phase?: "started" | "succeeded" | "failed";
-            /** @description commissioning_progress failed: what went wrong (no secret). */
+            /** @description commissioning_progress failed: the failure's kind, never its text — invalid_argument, no_device, timeout, node_failed, failed, and terms_required (0.8.0) for a device that requires an accepted version of its terms and conditions. */
             detail?: string;
             step?: components["schemas"]["PairingStep"];
             ble?: components["schemas"]["BLEDecision"];
@@ -5370,6 +5376,15 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            /** @description terms_required (0.8.0): the device requires an accepted version of its terms and conditions; the problem carries `version`, `acknowledgements` and `deadline`, and a second request with `terms_and_conditions` commissions it. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             502: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };

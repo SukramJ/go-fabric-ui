@@ -810,28 +810,43 @@ func (s *ctrlSite) controllerStream(typ string) <-chan string {
 }
 
 // A device that requires Terms and Conditions refuses a commissioning
-// without the acknowledgement at CommissioningComplete — 502 node_error
-// naming GeneralCommissioning's TcAcknowledgementsNotReceived — and is
-// commissioned with terms_and_conditions, which the flow's step 8.3 sends
-// (go-fabric controller/commissioner/flow.go:710-742 at v0.18.0); the
-// steps reach the controller stream as commissioning_progress.
+// without the acknowledgement early, after the information step and
+// before ArmFailSafe (go-fabric commissioner.TermsRequiredError,
+// controller/commissioner/errors.go:158-176 at v0.19.1) — 409
+// terms_required with the device's version and a null deadline, and a
+// commissioning_progress failed with the code — and the same device is
+// commissioned by a second request with terms_and_conditions, which the
+// flow's step 8.3 sends; the steps reach the controller stream as
+// commissioning_progress (contract 0.8.0, issue #55).
 func TestEndToEnd_TermsAndConditions(t *testing.T) {
-	refused := newCtrlSiteWith(t, ctrlSiteOptions{configure: requireTerms, surface: termsPolicies})
-	sp, err := refused.dev.Node().SetupPayload()
-	if err != nil {
-		t.Fatal(err)
-	}
-	status, out := refused.call(http.MethodPost, "/controller/commission", fmt.Sprintf(`{"code":%q}`, sp.Manual))
-	if status != http.StatusBadGateway || !strings.Contains(string(out), `"code":"node_error"`) || !strings.Contains(string(out), "TcAcknowledgementsNotReceived") {
-		t.Fatalf("without terms: %d %s", status, out)
-	}
-
 	s := newCtrlSiteWith(t, ctrlSiteOptions{configure: requireTerms, surface: termsPolicies})
 	progress := s.controllerStream(fabricui.EventCommissioningProgress)
-	sp, err = s.dev.Node().SetupPayload()
+	sp, err := s.dev.Node().SetupPayload()
 	if err != nil {
 		t.Fatal(err)
 	}
+	status, out := s.call(http.MethodPost, "/controller/commission", fmt.Sprintf(`{"code":%q}`, sp.Manual))
+	var refused struct {
+		Code             string  `json:"code"`
+		Version          *int    `json:"version"`
+		Acknowledgements *int    `json:"acknowledgements"`
+		Deadline         *uint32 `json:"deadline"`
+	}
+	if err := json.Unmarshal(out, &refused); err != nil || status != http.StatusConflict || refused.Code != "terms_required" ||
+		refused.Version == nil || *refused.Version != 1 || refused.Acknowledgements != nil || refused.Deadline != nil ||
+		!strings.Contains(string(out), `"deadline":null`) {
+		t.Fatalf("without terms: %d %s", status, out)
+	}
+	failed := time.After(10 * time.Second)
+	for seen := false; !seen; {
+		select {
+		case d := <-progress:
+			seen = strings.Contains(d, `"phase":"failed"`) && strings.Contains(d, `"detail":"terms_required"`)
+		case <-failed:
+			t.Fatal("no commissioning_progress failed with terms_required")
+		}
+	}
+
 	var added nodeDetail
 	s.json(http.MethodPost, "/controller/commission",
 		fmt.Sprintf(`{"code":%q,"terms_and_conditions":{"version":1,"acknowledgements":1}}`, sp.Manual), http.StatusOK, &added)
