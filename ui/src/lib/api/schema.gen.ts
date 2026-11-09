@@ -2139,7 +2139,7 @@ export interface components {
             /** @description SPECIFICATION_VERSION as 8 uppercase hex digits, e.g. "01050000". */
             specification_version_hex: string;
             max_paths_per_invoke: number;
-            /** @description The SUPPORTED_TRANSPORTS bitmap */
+            /** @description The SUPPORTED_TRANSPORTS bitmap, the transports beside MRP over UDP. */
             supported_transports: number;
             /** @description The bitmap names TCP in either role. */
             tcp: boolean;
@@ -2150,7 +2150,7 @@ export interface components {
         TopologyGraph: {
             /**
              * Format: date-time
-             * @description When the graph was read
+             * @description When the graph was read, on the node's or the controller's clock.
              */
             as_of: string;
             /** @enum {string} */

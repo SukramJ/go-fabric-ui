@@ -1305,7 +1305,7 @@ type TopologyEdgeStrength string
 
 // TopologyGraph A family's topology as nodes and edges; the renderer needs no knowledge per kind.
 type TopologyGraph struct {
-	// AsOf When the graph was read
+	// AsOf When the graph was read, on the node's or the controller's clock.
 	AsOf   time.Time           `json:"as_of"`
 	Edges  []TopologyEdge      `json:"edges"`
 	Family TopologyGraphFamily `json:"family"`

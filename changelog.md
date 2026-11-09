@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `contract/openapi.yaml`: the descriptions of `SessionParameters.supported_transports` and `TopologyGraph.as_of` are quoted — inside a flow mapping their comma split them, so the generated `TopologyGraph.AsOf` comment read "When the graph was read" and a strict parser (OpenCCU-Loom's contract merge) refused the file (#58). No change in substance.
+
 ## [0.8.0] - 2026-11-09
 
 go-fabric v0.19.1: the Terms and Conditions retry, the host's counters and

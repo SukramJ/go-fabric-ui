@@ -2097,7 +2097,7 @@ components:
         interaction_model_revision: { type: integer }
         specification_version_hex: { type: string, description: "SPECIFICATION_VERSION as 8 uppercase hex digits, e.g. \"01050000\"." }
         max_paths_per_invoke: { type: integer }
-        supported_transports: { type: integer, description: The SUPPORTED_TRANSPORTS bitmap, the transports beside MRP over UDP. }
+        supported_transports: { type: integer, description: "The SUPPORTED_TRANSPORTS bitmap, the transports beside MRP over UDP." }
         tcp: { type: boolean, description: The bitmap names TCP in either role. }
         max_tcp_message_size: { type: integer, description: MAX_TCP_MESSAGE_SIZE in bytes; present with tcp. }
     TopologyGraph:
@@ -2105,7 +2105,7 @@ components:
       description: A family's topology as nodes and edges; the renderer needs no knowledge per kind.
       required: [as_of, family, nodes, edges]
       properties:
-        as_of: { type: string, format: date-time, description: When the graph was read, on the node's or the controller's clock. }
+        as_of: { type: string, format: date-time, description: "When the graph was read, on the node's or the controller's clock." }
         family: { type: string, enum: [node, controller] }
         nodes:
           type: array
