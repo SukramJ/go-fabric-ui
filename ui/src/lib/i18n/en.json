@@ -377,6 +377,7 @@
   "node.config.store": "Store",
   "node.config.title": "Configuration",
   "node.config.vendor": "Vendor",
+  "node.counters.title": "Host counters",
   "node.diag.age_hours": "{n}h",
   "node.diag.age_minutes": "{n}min",
   "node.diag.age_seconds": "{n}s",

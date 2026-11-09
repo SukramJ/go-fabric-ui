@@ -719,6 +719,7 @@ type testOptions struct {
 	configured bool
 	allowEmpty bool
 	warnings   func(context.Context) []Warning
+	counters   func(context.Context) []Counter
 	log        *bytes.Buffer
 	controller ControllerSource
 	operations Operations
@@ -750,7 +751,7 @@ func newTestHandler(t *testing.T, o testOptions) (*handler, *http.ServeMux) {
 		Node: placeholder, Registry: o.registry, NodeConfig: o.nodeConfig,
 		Exposure: o.exposure, Admin: o.admin, Reassemble: o.reassemble, Erase: o.erase, Events: o.events,
 		Logger: logger, ConfiguredWindow: o.configured, AllowEmptyTopology: o.allowEmpty,
-		Warnings: o.warnings, Controller: o.controller, Operations: o.operations, ExposureReason: o.exposureReason,
+		Warnings: o.warnings, Counters: o.counters, Controller: o.controller, Operations: o.operations, ExposureReason: o.exposureReason,
 	})
 	if err != nil {
 		t.Fatal(err)

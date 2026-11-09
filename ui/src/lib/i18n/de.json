@@ -377,6 +377,7 @@
   "node.config.store": "Speicher",
   "node.config.title": "Konfiguration",
   "node.config.vendor": "Hersteller",
+  "node.counters.title": "Zähler des Hosts",
   "node.diag.age_hours": "{n} h",
   "node.diag.age_minutes": "{n} min",
   "node.diag.age_seconds": "{n} s",

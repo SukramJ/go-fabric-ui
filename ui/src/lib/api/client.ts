@@ -9,6 +9,7 @@ type S = components["schemas"];
 export type Problem = S["Problem"];
 export type Status = S["Status"];
 export type Warning = S["Warning"];
+export type Counter = S["Counter"];
 export type Fabric = S["Fabric"];
 export type FabricList = S["FabricList"];
 export type Pairing = S["Pairing"];

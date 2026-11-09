@@ -35,7 +35,7 @@ func TestStatus_WithNode_Returns200WithSnapshot(t *testing.T) {
 	n.open, n.duration = true, 300
 	_, mux := newTestHandler(t, testOptions{
 		node: n, exposure: newMemoryProvider(), admin: func(*http.Request) bool { return true },
-		warnings: sampleWarnings,
+		warnings: sampleWarnings, counters: sampleCounters,
 	})
 	runFixture(t, mux, "node-status.200")
 }
@@ -46,6 +46,43 @@ func sampleWarnings(context.Context) []Warning {
 	return []Warning{
 		{Code: "label_unresolved", Message: `The label "Basement" names no item.`, Since: testNow.Add(-time.Hour)},
 		{Code: "rule_unused", Message: "The rule for remotes matches no item."},
+	}
+}
+
+// sampleCounters are the host counters of the node-status.200 fixture.
+func sampleCounters(context.Context) []Counter {
+	return []Counter{{Code: "discards", Value: 3, Message: "Commands answered with success that acted on nothing."}}
+}
+
+// The counters are omitted without the hook, an empty list when the host
+// reports none, reported by a host without a node and on a registry
+// node's status too (contract 0.8.0).
+func TestStatus_Counters(t *testing.T) {
+	get := func(o testOptions, path string) map[string]json.RawMessage {
+		t.Helper()
+		o.admin = func(*http.Request) bool { return true }
+		_, mux := newTestHandler(t, o)
+		rec := do(t, mux, http.MethodGet, path, "")
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal(rec.Body.Bytes(), &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	if c, ok := get(testOptions{}, "/node/status")["counters"]; ok {
+		t.Fatalf("counters without the hook: %s, want absent", c)
+	}
+	if c := string(get(testOptions{counters: func(context.Context) []Counter { return nil }}, "/node/status")["counters"]); c != "[]" {
+		t.Fatalf("counters of an empty hook: %q, want []", c)
+	}
+	var cs []Counter
+	if err := json.Unmarshal(get(testOptions{noNode: true, counters: sampleCounters}, "/node/status")["counters"], &cs); err != nil ||
+		len(cs) != 1 || cs[0] != (Counter{Code: "discards", Value: 3, Message: "Commands answered with success that acted on nothing."}) {
+		t.Fatalf("counters without a node: %v %v", cs, err)
+	}
+	cs = nil
+	if err := json.Unmarshal(get(testOptions{second: sampleNode(), counters: sampleCounters}, "/nodes/second/status")["counters"], &cs); err != nil || len(cs) != 1 {
+		t.Fatalf("counters of a second node: %v %v", cs, err)
 	}
 }
 

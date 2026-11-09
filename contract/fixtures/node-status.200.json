@@ -12,6 +12,13 @@
       "boot_reason": 1,
       "commissioning_window_duration_seconds": 300,
       "commissioning_window_open": true,
+      "counters": [
+        {
+          "code": "discards",
+          "message": "Commands answered with success that acted on nothing.",
+          "value": 3
+        }
+      ],
       "enabled": true,
       "enabled_count": 1,
       "endpoint_count": 2,

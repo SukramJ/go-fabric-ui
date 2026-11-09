@@ -1964,6 +1964,8 @@ export interface components {
             erase?: boolean;
             /** @description The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing. */
             warnings?: components["schemas"]["Warning"][];
+            /** @description The host's own counters a scraper reads beside the health (0.8.0), e.g. `discards`, commands the host answered with success and acted on nothing; absent when the host reports none (no Options.Counters), empty when it has none to report. Host-wide: every node's status carries the same list. */
+            counters?: components["schemas"]["Counter"][];
             /** @description The policies the node's served surface is composed under (go-fabric node.Node.Surface) and the counts that tell whether to look further; absent without a node. */
             surface?: {
                 /** @description The specification level the surface is composed at (go-fabric surface.Report.Level), e.g. "1.6.1". */
@@ -1994,6 +1996,15 @@ export interface components {
              * @description When the host first saw it; absent when unknown.
              */
             since?: string;
+        };
+        /** @description One of the host's counters (0.8.0, Options.Counters). */
+        Counter: {
+            /** @description The counter's stable machine name, e.g. discards. */
+            code: string;
+            /** @description The count since the host started. */
+            value: number;
+            /** @description What the counter counts, in one line in the host's language. */
+            message: string;
         };
         Fabric: {
             fabric_index: number;

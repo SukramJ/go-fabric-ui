@@ -41,6 +41,7 @@ an unknown path under the API prefix answers a 404 problem.
 | `ConfiguredWindow` | Open the window on the node's configured passcode instead of fresh credentials. |
 | `AllowEmptyTopology` | Allow a window while no endpoint is exposed. |
 | `Warnings` | The host's findings about its own configuration, shown on the status and selection pages. |
+| `Counters` | The host's own counters (0.8.0), shown on the status page and served to a scraper on `GET /node/status`. |
 
 A provider's configuration can be half-valid — a label name that resolves
 to nothing, a rule that matches no item — and a log line is where nobody
@@ -52,6 +53,21 @@ above the status, the code as a chip and the message as text; the
 selection page shows the same list collapsed above the table. `Code` is
 the host's stable identifier for the kind of finding, `Message` is already
 in the host's language, and a zero `Since` is left out.
+
+A host also counts things a scraper wants beside the health — commands it
+answered with success and acted on nothing, for one. `Options.Counters`
+(0.8.0) returns them as `Counter{Code, Value, Message}`; it is called on
+every `GET /node/status` and `GET /nodes/{node}/status`, which answer them
+as `counters` (absent without the hook, `[]` when the host has none, also
+when the host serves no node; host-wide, so every node's status carries
+the same list). `Code` is the counter's stable machine name (`discards`),
+`Value` the count since the host started, `Message` the host's one-line
+meaning in its own language. The status page shows them in a small table
+under the warnings card, code, value and message verbatim, and hides it
+when the list is absent or empty; every node event that reloads the
+status (a health verdict, a fabric, a window, an endpoint change) reloads
+the counters with it, as it does the warnings — a counter alone sends no
+event.
 
 The node's transitions need no wiring: each open stream registers an
 observer with `Node.Observe` and removes it when the connection closes, so

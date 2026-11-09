@@ -69,6 +69,24 @@ describe("Status", () => {
     expect(screen.queryByTestId("host-warnings")).toBeNull();
   });
 
+  it("shows the host's counters in a table under the warnings, verbatim (0.8.0)", async () => {
+    render(Harness, { ui: testUI({ fixtures: ["node-status.200"] }), page: Status });
+    const card = await screen.findByTestId("host-counters");
+    expect(card).toHaveTextContent("node.counters.title");
+    const cells = within(card).getAllByRole("cell").map((c) => c.textContent);
+    expect(cells).toEqual(["discards", "3", "Commands answered with success that acted on nothing."]);
+    expect(screen.getByTestId("host-warnings").compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(screen.getByTestId("node-status")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows no counters table when the host reports none", async () => {
+    const s = body<StatusT>("node-status.200");
+    delete s.counters;
+    render(Harness, { ui: testUI({ answers: { "GET /node/status": { status: 200, body: s } } }), page: Status });
+    await screen.findByTestId("node-status");
+    expect(screen.queryByTestId("host-counters")).toBeNull();
+  });
+
   it("shows the surface row: level with its origin, profiles, extensions and the non-zero counts", async () => {
     render(Harness, { ui: testUI({ fixtures: ["node-status.200"] }), page: Status });
     const row = await screen.findByTestId("node-surface");

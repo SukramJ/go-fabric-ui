@@ -43,6 +43,7 @@ type handler struct {
 	// NodeEntry.Erase); nil answers 501.
 	erase    func(context.Context) error
 	warnings func(context.Context) []Warning
+	counters func(context.Context) []Counter
 	// hub carries the handler's own events; extra is the host's source
 	// when it is not an *Events. The node's transitions come from
 	// node.Observe, per stream (subscribe).
@@ -241,6 +242,7 @@ func newHandler(o Options) (*handler, error) {
 		reassemble:     o.Reassemble,
 		erase:          o.Erase,
 		warnings:       o.Warnings,
+		counters:       o.Counters,
 		prefix:         prefix,
 		log:            o.Logger,
 		configured:     o.ConfiguredWindow,
@@ -386,7 +388,7 @@ func (h *handler) mountNodes() {
 }
 
 // sibling is the handler of another node: h's admin check, token, host
-// warnings, logger, window options and registry on the node of e, with
+// warnings and counters, logger, window options and registry on the node of e, with
 // e's selection, rebuild and events.
 func (h *handler) sibling(e nodeEntry) *handler {
 	s := &handler{
@@ -399,6 +401,7 @@ func (h *handler) sibling(e nodeEntry) *handler {
 		admin:          h.admin,
 		token:          h.token,
 		warnings:       h.warnings,
+		counters:       h.counters,
 		ctrlHub:        h.ctrlHub,
 		prefix:         h.prefix,
 		log:            h.log,

@@ -70,6 +70,9 @@ type statusResponse struct {
 	// Warnings is nil, and omitted, without Options.Warnings; with the
 	// hook it is a list, empty when the host finds nothing.
 	Warnings []Warning `json:"warnings,omitzero"`
+	// Counters is nil, and omitted, without Options.Counters; with the
+	// hook it is a list, empty when the host reports none (0.8.0).
+	Counters []Counter `json:"counters,omitzero"`
 	// Surface summarises the policies the node's served surface is
 	// composed under (Node.Surface); absent without a node.
 	Surface *surfaceSummary `json:"surface,omitempty"`
@@ -153,6 +156,14 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		res.Warnings = h.warnings(r.Context())
 		if res.Warnings == nil {
 			res.Warnings = []Warning{}
+		}
+	}
+	if h.counters != nil {
+		// The host's counters, like its findings, are the host's: a host
+		// without a node reports them too.
+		res.Counters = h.counters(r.Context())
+		if res.Counters == nil {
+			res.Counters = []Counter{}
 		}
 	}
 	if h.node == nil {

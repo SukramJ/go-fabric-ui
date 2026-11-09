@@ -1913,6 +1913,10 @@ components:
           type: array
           description: The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing.
           items: { $ref: "#/components/schemas/Warning" }
+        counters:
+          type: array
+          description: "The host's own counters a scraper reads beside the health (0.8.0), e.g. `discards`, commands the host answered with success and acted on nothing; absent when the host reports none (no Options.Counters), empty when it has none to report. Host-wide: every node's status carries the same list."
+          items: { $ref: "#/components/schemas/Counter" }
         surface:
           type: object
           description: The policies the node's served surface is composed under (go-fabric node.Node.Surface) and the counts that tell whether to look further; absent without a node.
@@ -1933,6 +1937,14 @@ components:
         code: { type: string, description: "The kind of finding, stable across host releases." }
         message: { type: string, description: "What is wrong, in the host's language." }
         since: { type: string, format: date-time, description: "When the host first saw it; absent when unknown." }
+    Counter:
+      type: object
+      description: "One of the host's counters (0.8.0, Options.Counters)."
+      required: [code, value, message]
+      properties:
+        code: { type: string, description: "The counter's stable machine name, e.g. discards." }
+        value: { type: integer, minimum: 0, description: The count since the host started. }
+        message: { type: string, description: "What the counter counts, in one line in the host's language." }
     Fabric:
       type: object
       required: [fabric_index, fabric_id, fabric_id_hex, node_id, node_id_hex, vendor_id, vendor_name, compressed_id, root_public_key]
