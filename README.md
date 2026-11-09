@@ -35,7 +35,11 @@ each project.
 > session parameters and a re-announce on diagnostics, the host's erase of
 > a node, step-by-step commissioning progress with a Terms and Conditions
 > acknowledgement, and the node's fabric update, commissioning end and
-> cluster events on the stream.
+> cluster events on the stream. Wave U9 (`v0.8.0`, contract 0.8.0)
+> carries go-fabric v0.19.1: a device that requires terms and conditions
+> answers `terms_required` and the Commission page retries with the
+> acknowledgement, the host's counters show on the status page, and the
+> Network page draws the Thread border routers.
 
 ## Two artefacts, one version
 
