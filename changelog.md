@@ -7,6 +7,46 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-09
+
+go-fabric v0.19.1: the Terms and Conditions retry, the host's counters and
+the Thread border routers (wave U9, brief
+`notes/briefs/2026-11-09-U9-gofabric-0.19.1.md`, issues #55 and #56);
+contract 0.8.0, additive over 0.7.1.
+
+### Added
+
+- `POST /controller/commission` answers a device that requires an accepted
+  version of its terms and conditions with 409 `terms_required` (#55),
+  carrying the device's `version`, `acknowledgements` (null) and
+  `deadline` (Matter epoch seconds, or null); the port's error is
+  `*fabricui.ErrTermsRequired`, which the go-fabric adapter makes from
+  `commissioner.TermsRequiredError`, and the failed
+  `commissioning_progress` carries the kind `terms_required`. The
+  Commission page opens the acknowledgement block with the version filled
+  in, the acknowledgements field focused and the deadline as a date, and
+  one click sends the same commissioning again with the acknowledgement.
+  The in-memory controller's `Terms` stands for such a device.
+- `Options.Counters` and `Counter{Code, Value, Message}`: the host's own
+  counters — go-ha2fabric's `discards`, say — as `counters` on
+  `GET /node/status` and `/nodes/{node}/status`, absent without the hook;
+  the Status page shows them in a small table under the warnings.
+- The Network page draws the Thread border routers go-fabric's registry
+  knows as `border_router` nodes (#56), labelled by their host name, `ok`
+  while seen within the registry's expiry, with host, vendor, model and
+  network name and when they were last seen; Thread neighbours carry
+  their `network_name` where go-fabric fills it, and a legend under the
+  graph names every kind it draws. A node of a kind the adapter does not
+  know yet is drawn by its network instead of being dropped.
+
+### Changed
+
+- go-fabric v0.19.1 (was v0.18.0). The go-fabric adapter sets the request's
+  Terms and Conditions acknowledgement on `PairOptions.TermsAndConditions`
+  (and the commissioner's options for a discovered device) instead of
+  through `Edit`; the host's `Edit` runs after it, as go-fabric runs it,
+  and the template's acknowledgement applies when the request sends none.
+
 ## [0.7.1] - 2026-11-08
 
 The Commission page's Bluetooth LE decision is stated, never silent (wave

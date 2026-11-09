@@ -309,7 +309,7 @@ func (s *source) Pair(ctx context.Context, code string, o fabricui.PairOptions) 
 		o.Transport(d)
 	}
 	opts.Progress = progressFor(opts.Progress, o.Progress)
-	opts.Edit = editFor(opts.Edit, o.TermsAndConditions)
+	opts.TermsAndConditions = termsOf(o.TermsAndConditions, opts.TermsAndConditions)
 	n, err := s.ctrl.Pair(ctx, code, opts)
 	if err != nil {
 		return nil, commissionError(err)
@@ -339,28 +339,30 @@ func progressFor(host func(controller.PairingStep), port func(fabricui.PairingSt
 	}
 }
 
-// editFor is the commissioner's Edit of one commissioning: the host's
-// template Edit first, then the request's Terms and Conditions
-// acknowledgement (commissioner.Options.TermsAndConditions, controller/
-// commissioner/commissioner.go:154-163 at v0.18.0), which the facade
-// reaches only through Edit (controller/controller.go:619-620). Without
-// an acknowledgement it is the host's Edit.
-func editFor(host func(*commissioner.Options), tc *fabricui.TermsAcknowledgement) func(*commissioner.Options) {
+// termsOf is the request's Terms and Conditions acknowledgement as
+// go-fabric's (controller.PairOptions.TermsAndConditions, controller/
+// controller.go:654-663 at v0.19.1; commissioner.Options.TermsAndConditions,
+// controller/commissioner/commissioner.go:154-167), else the host
+// template's. The host's Edit runs after it, as go-fabric's Pair runs it
+// (controller/controller.go:752-768): what the host edits stays the
+// host's.
+func termsOf(tc *fabricui.TermsAcknowledgement, template *commissioner.TermsAndConditionsAcknowledgement) *commissioner.TermsAndConditionsAcknowledgement {
 	if tc == nil {
-		return host
+		return template
 	}
-	ack := commissioner.TermsAndConditionsAcknowledgement{Version: tc.Version, Acknowledgements: tc.Acknowledgements}
-	return func(o *commissioner.Options) {
-		if host != nil {
-			host(o)
-		}
-		a := ack
-		o.TermsAndConditions = &a
-	}
+	return &commissioner.TermsAndConditionsAcknowledgement{Version: tc.Version, Acknowledgements: tc.Acknowledgements}
 }
 
-// commissionError maps a commissioning's error to the port's kinds.
+// commissionError maps a commissioning's error to the port's kinds. A
+// device that requires terms and conditions is the port's
+// *ErrTermsRequired with its version and deadline
+// (commissioner.TermsRequiredError, controller/commissioner/
+// errors.go:158-176 at v0.19.1).
 func commissionError(err error) error {
+	var terms *commissioner.TermsRequiredError
+	if errors.As(err, &terms) {
+		return &fabricui.ErrTermsRequired{Version: terms.Version, Deadline: terms.Deadline}
+	}
 	switch {
 	case errors.Is(err, controller.ErrPairingCode), errors.Is(err, controller.ErrConfiguration):
 		return fmt.Errorf("%w: %w", fabricui.ErrInvalidArgument, err)
@@ -509,12 +511,13 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 		Options: commissioner.Options{
 			Passcode: passcode, OnAttestationFailure: po.OnAttestationFailure,
 			WiFiNetwork: wifi, ThreadNetwork: th,
-			Progress: progressFor(po.Progress, o.Progress),
+			TermsAndConditions: termsOf(o.TermsAndConditions, po.TermsAndConditions),
+			Progress:           progressFor(po.Progress, o.Progress),
 		},
 		AutoSubscribe: po.AutoSubscribe,
 	}
-	if edit := editFor(po.Edit, o.TermsAndConditions); edit != nil {
-		edit(&copts.Options)
+	if po.Edit != nil {
+		po.Edit(&copts.Options)
 	}
 	if err := reg.Commission(ctx, n, copts); err != nil {
 		return nil, commissionError(err)

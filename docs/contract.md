@@ -318,14 +318,31 @@ The controller family's graph (go-fabric's `controller/topology`, through
   `Controller`; details `nodes`, `collected_at`) with a `session` edge to
   every commissioned node, `peer:<node_id_hex>` (state `ok` or
   `unreachable`; `role` its Thread or Wi-Fi role, else its network — an
-  Ethernet node is a `peer` with role `ethernet`, the `ethernet` kind is
-  not produced; details `network`, `role`, `rloc16`, `ext_address`,
+  Ethernet node is a `peer` with role `ethernet`, not the `ethernet`
+  kind; details `network`, `role`, `rloc16`, `ext_address`,
   `ext_pan_id`, `network_name`, `ssid`, `bssid`, `bridge`, `addresses`,
   each only when known);
 - a Thread neighbour no commissioned node matches is
   `unknown_<extended address>`, `thread_router` when a node saw it
-  rx-on-when-idle, else `thread_end_device`; an access point is
-  `ap_<BSSID>`, `wifi_ap`, labelled by its SSID; both have state `unknown`;
+  rx-on-when-idle, else `thread_end_device` (details `ext_address`,
+  `ext_pan_id`, `role`, and `network_name` when go-fabric fills it — its
+  own, or from 0.8.0 the border-router registry's for its extended PAN
+  id); an access point is `ap_<BSSID>`, `wifi_ap`, labelled by its SSID;
+  both have state `unknown`;
+- a Thread neighbour go-fabric's border-router registry knows (0.8.0,
+  go-fabric `topology.KindBorderRouter`, issue #56) is
+  `br_<extended address>`, `border_router`, labelled by its mDNS host
+  name without the trailing dot and `.local` (go-fabric strips it as
+  matterjs-server does), else by its extended address; state `ok` while
+  the registry saw it within its 24-hour expiry (`brdiscovery.StaleRetention`)
+  before the snapshot, else `unknown`; details `host_name`, `vendor_name`,
+  `model_name`, `network_name`, `ext_address`, `ext_pan_id`, `last_seen`
+  (RFC 3339, UTC), each only when known. The Network page draws it square
+  and dashed and names every kind it draws in a legend under the graph;
+- a node of a kind the adapter does not know yet (one go-fabric adds
+  later) is never dropped: it is drawn by its network — on Thread as a
+  neighbour is, on Wi-Fi as `wifi_ap`, otherwise as `ethernet` — with
+  state `unknown` and its go-fabric kind as the first detail, `kind`;
 - a `link` per Thread pair and Wi-Fi station carries `strength`
   (`strong`, `medium`, `weak`, `none` — observed dead —, `unknown` —
   no measurement), the `lqi` (Thread) and `rssi` of the direction the
@@ -392,6 +409,20 @@ the host's text.
 `PUT /nodes/{node}/label` or `DELETE /nodes/{node}` on a node that is the
 host's configuration rather than registry state (409, 0.6.0).
 
+### problem-terms_required
+`POST /controller/commission`: the device requires an accepted version of
+its terms and conditions and the request sent no acknowledgement, or one
+below that version (409, 0.8.0). go-fabric ends such a commissioning after
+its information step, before ArmFailSafe and AddNOC
+(`commissioner.TermsRequiredError`), so the device stays commissionable.
+Besides the problem's members it carries `version` (the device's
+TCMinRequiredVersion), `acknowledgements` (always `null`: no device
+attribute names the bits — the terms the user accepts set them) and
+`deadline` (the device's TCUpdateDeadline in Matter epoch seconds, from
+2000-01-01T00:00:00Z; `null` when the attribute is null). A second request
+with `terms_and_conditions` of that version or later commissions the
+device. The port's error is `*fabricui.ErrTermsRequired`.
+
 ### problem-not_implemented
 The host does not serve the route (501): `GET /controller/topology`
 from a host without a topology service, and `POST
@@ -431,6 +462,13 @@ Contract 0.7.1 (wave U8) is additive over 0.7.0, which
 (`ControllerCapabilities.ble`, `CommissionRequest.network_only`). No
 problem code is new.
 
+Contract 0.8.0 (wave U9) is additive over 0.7.1, which
+`contract/previous/` holds as release 0.7.1 shipped it: the problem code
+`terms_required` (409 on `POST /controller/commission`) with its
+`version`, `acknowledgements` and `deadline` members on `Problem`, the
+`commissioning_progress` failure kind `terms_required`, `Status.counters`
+with the `Counter` schema, and the topology node kind `border_router`.
+
 ## Controller routes (v0.2.0)
 
 Served only when the host passes `Options.Controller`; without it every
@@ -465,7 +503,7 @@ hand-written.
 | `/controller/nodes/{id}/icd/register`, `/unregister` | POST | yes | 200, 400, 403, 404, 409, 502 |
 | `/controller/nodes/{id}/fabrics` | GET | – | 200, 400, 404, 502 |
 | `/controller/nodes/{id}/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 502 |
-| `/controller/commission` | POST | yes | 200, 400, 403, 404, 502, 503 |
+| `/controller/commission` | POST | yes | 200, 400, 403, 404, 409 (0.8.0), 502, 503 |
 | `/controller/discovery` | GET | yes | 200, 400, 403, 500 |
 | `/controller/credentials` | GET | – | 200, 500, 503 |
 | `/controller/credentials` | PUT / DELETE | yes | 204, 400, 403, (404), 500, 503 |
@@ -530,8 +568,14 @@ Details the fixtures pin:
   0–65535, else 400) is the Terms and Conditions acknowledgement the
   commissioning sends with SetTCAcknowledgements, chip-tool's
   `--tc-acknowledgements-version` and `--tc-acknowledgements`; a device
-  that requires terms refuses CommissioningComplete without it, a 502
-  whose detail names the GeneralCommissioning error. Bluetooth LE (0.7.1):
+  that requires terms fails the commissioning without it, or with a
+  version below its own, with 409 `terms_required` (0.8.0; until 0.7.1 a
+  502 at CommissioningComplete). The Commission page then opens the
+  acknowledgement block with the device's version filled in, the
+  acknowledgements field focused and the deadline as a date when the
+  device names one, and its button sends the same commissioning again
+  with the acknowledgement; the code or passcode is held for that one
+  retry only. Bluetooth LE (0.7.1):
   a commissioning from a code searches over the host's central only when
   the code allows BLE (a manual code, or a QR code with the BLE bit),
   `network_only` is off and the request names a stored credential with
@@ -558,8 +602,8 @@ Details the fixtures pin:
   `commissioning_progress` or `update`; `data:` is a `ControllerEvent`
   (`node_id_hex`, and `connection`, `active`, `phase`/`detail` by type).
   A commissioning's progress carries the failure's kind
-  (`invalid_argument`, `no_device`, `timeout`, `node_failed`), not its
-  text. From 0.7.0 every step the controller reports
+  (`invalid_argument`, `no_device`, `timeout`, `node_failed`, and from
+  0.8.0 `terms_required`), not its text. From 0.7.0 every step the controller reports
   (`PairOptions.Progress`, go-fabric `controller.PairingStep`: matter.js's
   step names plus Discovery 2.1, PASE 2.2 and Subscribe 21.1) is a
   `commissioning_progress` with `phase` `started` and `step`

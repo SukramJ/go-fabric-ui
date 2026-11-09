@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -571,8 +572,9 @@ type PairOptions struct {
 	// TermsAndConditions is the Terms and Conditions acknowledgement the
 	// commissioning sends with GeneralCommissioning's
 	// SetTCAcknowledgements (contract 0.7.0; go-fabric
-	// commissioner.Options.TermsAndConditions, controller/commissioner/
-	// commissioner.go:154-163 at v0.18.0); nil sends none.
+	// controller.PairOptions.TermsAndConditions, controller/controller.go:
+	// 654-663 at v0.19.1); nil sends none, and a device that requires
+	// terms then fails the commissioning with [*ErrTermsRequired].
 	TermsAndConditions *TermsAcknowledgement
 	// Progress, when set, is called on the commissioning's goroutine as
 	// each step starts and ends (go-fabric controller.PairOptions.Progress,
@@ -801,3 +803,26 @@ var (
 	// ErrNotRead: the controller has not read the element yet (503).
 	ErrNotRead = errors.New("fabricui: not read yet")
 )
+
+// ErrTermsRequired is a commissioning the device refused for want of an
+// accepted version of its terms and conditions (contract 0.8.0, problem
+// terms_required, 409): the device serves GeneralCommissioning's TC
+// feature, holds no satisfying acceptance, and the request sent no
+// acknowledgement or one below Version. go-fabric ends such a
+// commissioning right after its information step, before ArmFailSafe and
+// AddNOC (commissioner.TermsRequiredError, controller/commissioner/
+// errors.go:158-176 at v0.19.1), so a second commissioning with
+// [PairOptions.TermsAndConditions] set finds the device as the first did.
+// A source reports it as a *ErrTermsRequired.
+type ErrTermsRequired struct {
+	// Version is the device's TCMinRequiredVersion, the lowest version an
+	// acknowledgement has to name.
+	Version uint16
+	// Deadline is the device's TCUpdateDeadline in Matter epoch seconds
+	// (from 2000-01-01T00:00:00Z); nil when the attribute is null.
+	Deadline *uint32
+}
+
+func (e *ErrTermsRequired) Error() string {
+	return fmt.Sprintf("fabricui: the device requires acknowledgement of its terms and conditions, version %d or later", e.Version)
+}

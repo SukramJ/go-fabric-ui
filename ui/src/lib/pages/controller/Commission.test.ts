@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
-import { fixture, testUI } from "../../../test/support";
+import { fixture, fixtureFetch, testUI } from "../../../test/support";
+import { createClient } from "../../api/client";
 import Commission from "./Commission.svelte";
 
 // The scan chunk stands in for the camera: it reads the fixture's QR payload at once.
@@ -103,6 +104,33 @@ describe("Controller Commission", () => {
     await fireEvent.click(screen.getByText("controller.commission.start"));
     await waitFor(() => expect(ui.sent.some((s) => s.method === "POST")).toBe(true));
     expect(ui.sent.find((s) => s.method === "POST")?.body).toEqual({ code: "34970112332", terms_and_conditions: { version: 1, acknowledgements: 1 } });
+  });
+
+  it("opens the terms block on terms_required and sends the same commissioning with the acknowledgement (0.8.0)", async () => {
+    const ff = fixtureFetch(["controller-commission.409-terms-required", "controller-nodes.200"]);
+    const client = createClient("/api/v1", ff.fetch);
+    const ui = testUI({ client });
+    render(Harness, { ui, page: Commission });
+    await fireEvent.input(screen.getByLabelText("controller.commission.code"), { target: { value: "34970112332" } });
+    await fireEvent.click(screen.getByText("controller.commission.start"));
+    const retry = await screen.findByTestId("commission-terms-retry");
+    expect((screen.getByTestId("commission-terms") as HTMLDetailsElement).open).toBe(true);
+    expect((screen.getByTestId("commission-terms-version") as HTMLInputElement).value).toBe("1");
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("commission-terms-acknowledgements")));
+    expect(screen.getByTestId("commission-progress")).toHaveTextContent('controller.commission.terms_required:{"version":1}');
+    const date = new Date((946684800 + 852076800) * 1000).toLocaleDateString();
+    expect(screen.getByTestId("commission-terms-deadline")).toHaveTextContent(`controller.commission.terms_deadline:${JSON.stringify({ date })}`);
+    // Without an acknowledgement the retry is refused before any request.
+    await fireEvent.click(retry);
+    expect(ui.toastSpy.error).toHaveBeenCalledWith("controller.commission.terms_invalid");
+    expect(ff.sent.filter((s) => s.method === "POST")).toHaveLength(1);
+    ff.routes.set("POST /api/v1/controller/commission", fixture("controller-commission.200"));
+    await fireEvent.input(screen.getByTestId("commission-terms-acknowledgements"), { target: { value: "1" } });
+    await fireEvent.click(retry);
+    expect(await screen.findByText("controller.commission.succeeded")).toBeInTheDocument();
+    const posts = ff.sent.filter((s) => s.method === "POST");
+    expect(posts.map((s) => s.body)).toEqual([{ code: "34970112332" }, { code: "34970112332", terms_and_conditions: { version: 1, acknowledgements: 1 } }]);
+    expect(screen.queryByTestId("commission-terms-retry")).toBeNull();
   });
 
   it("preselects the only credential and sends it (0.7.1)", async () => {

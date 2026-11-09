@@ -167,6 +167,11 @@ type MemoryController struct {
 	// request names a credential and network_only is off (contract
 	// 0.7.1). Set it before the handler serves.
 	BLE bool
+	// Terms, when set, is the commissionable device's terms requirement:
+	// a commissioning without an acknowledgement of Terms.Version or later
+	// fails with it after PASE (contract 0.8.0, terms_required), and the
+	// device stays commissionable. Set it before the handler serves.
+	Terms *ErrTermsRequired
 
 	mu      sync.Mutex
 	fabric  ControllerFabric
@@ -266,7 +271,7 @@ func (m *MemoryController) Pair(_ context.Context, code string, o PairOptions) (
 		return nil, ErrNoDevice
 	}
 	report(memoryStepDiscovery, "succeeded")
-	return m.commission(report)
+	return m.commission(o, report)
 }
 
 // The steps a memory commissioning reports: go-fabric's own names before
@@ -328,11 +333,18 @@ func isDigits(s string) bool {
 
 // commission commissions the commissionable device once, reporting PASE
 // and Subscribe.
-func (m *MemoryController) commission(report func(PairingStep, string)) (ControllerNode, error) {
+func (m *MemoryController) commission(o PairOptions, report func(PairingStep, string)) (ControllerNode, error) {
 	m.mu.Lock()
 	if m.paired {
 		m.mu.Unlock()
 		return nil, ErrNoDevice
+	}
+	if req := m.Terms; req != nil && (o.TermsAndConditions == nil || o.TermsAndConditions.Version < req.Version) {
+		m.mu.Unlock()
+		report(memoryStepPASE, "started")
+		report(memoryStepPASE, "succeeded")
+		e := *req
+		return nil, &e
 	}
 	m.paired = true
 	n := newMemoryNode(m, m.next, memoryPlug())
@@ -397,7 +409,7 @@ func (m *MemoryController) CommissionDiscovered(_ context.Context, d Discovered,
 		report(memoryStepPASE, "failed")
 		return nil, fmt.Errorf("%w: PASE failed: the device refused the passcode", ErrNodeFailed)
 	}
-	return m.commission(report)
+	return m.commission(o, report)
 }
 
 // Decommission implements [ControllerSource].

@@ -13,7 +13,9 @@
      whose attestation files did not load says so first (go-fabric
      Node.AttestationError: it refuses every commissioning), and the boot
      reason the node was built with is named under the counts (contract
-     0.7.0; the labels are the GeneralDiagnostics BootReasonEnum's). -->
+     0.7.0; the labels are the GeneralDiagnostics BootReasonEnum's). The
+     host's own counters follow its warnings, in a small table of code,
+     value and the host's message (HostCounters, contract 0.8.0). -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -22,6 +24,7 @@
   import Card from "../../kit/Card.svelte";
   import ErrorState from "../../kit/ErrorState.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
+  import HostCounters from "./HostCounters.svelte";
   import HostWarnings from "./HostWarnings.svelte";
   import NodeConfig from "./NodeConfig.svelte";
   import NodeManage from "./NodeManage.svelte";
@@ -53,11 +56,13 @@
   <ErrorState message={node.statusError} onRetry={() => void node.loadStatus()} />
 {:else if s && !s.enabled}
   <HostWarnings warnings={s.warnings ?? []} />
+  <HostCounters counters={s.counters ?? []} />
   <Card class="p-4">
     <p class="text-sm font-medium text-[var(--ha-secondary-text-color)]">{t("node.status.disabled")}</p>
   </Card>
 {:else if s}
   <HostWarnings warnings={s.warnings ?? []} />
+  <HostCounters counters={s.counters ?? []} />
   <Card class="p-4" data-testid="node-status">
     {#if s.attestation_error}
       <div class="mb-3 flex flex-wrap items-start gap-2" data-testid="node-attestation">

@@ -1857,11 +1857,20 @@ export interface paths {
          * The controller's network as a graph — its nodes and the links between them.
          * @description `family` is `controller`. Nodes are the controller (`node`), its
          *     commissioned nodes (`peer:<node_id_hex>`, `role` their Thread role
-         *     or network — an Ethernet node is a `peer` with role `ethernet`, so
-         *     the `ethernet` kind does not occur), the Thread neighbours no
+         *     or network — an Ethernet node is a `peer` with role `ethernet`, not
+         *     the `ethernet` kind), the Thread neighbours no
          *     commissioned node matches (`unknown_<extended address>`,
-         *     `thread_router` or `thread_end_device`) and the Wi-Fi access
-         *     points (`ap_<BSSID>`, `wifi_ap`); edges are a `session` from the
+         *     `thread_router` or `thread_end_device`, with `network_name` where
+         *     go-fabric fills it), the Thread border routers go-fabric's
+         *     border-router registry knows (`br_<extended address>`,
+         *     `border_router`, 0.8.0: labelled by the mDNS host name, `ok` while
+         *     the registry saw it within its 24-hour expiry, details
+         *     `host_name`, `vendor_name`, `model_name`, `network_name`,
+         *     `ext_address`, `ext_pan_id`, `last_seen`) and the Wi-Fi access
+         *     points (`ap_<BSSID>`, `wifi_ap`). A node of a kind the go-fabric
+         *     adapter does not know yet is drawn by its network, with its kind
+         *     as the detail `kind`, never dropped — an `ethernet` node is such a
+         *     node off Thread and Wi-Fi. Edges are a `session` from the
          *     controller to every commissioned node and a `link` per Thread pair
          *     and Wi-Fi station with its strength, LQI and RSSI.
          *     `refresh=true` re-reads the nodes' network diagnostics first and
@@ -1913,7 +1922,13 @@ export interface components {
             detail?: string;
             instance?: string;
             /** @enum {string} */
-            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default";
+            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default" | "terms_required";
+            /** @description terms_required (0.8.0): the device's TCMinRequiredVersion, the lowest version an acknowledgement has to name (go-fabric commissioner.TermsRequiredError.Version). */
+            version?: number;
+            /** @description terms_required (0.8.0): the acknowledgement bits the device requires; null, since no device attribute names them — the terms the user accepts set them. */
+            acknowledgements?: number | null;
+            /** @description terms_required (0.8.0): the device's TCUpdateDeadline in Matter epoch seconds (from 2000-01-01T00:00:00Z), by which a commissioned device expects an updated acceptance; null when the attribute is null. */
+            deadline?: number | null;
         };
         Status: {
             enabled: boolean;
@@ -1958,6 +1973,8 @@ export interface components {
             erase?: boolean;
             /** @description The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing. */
             warnings?: components["schemas"]["Warning"][];
+            /** @description The host's own counters a scraper reads beside the health (0.8.0), e.g. `discards`, commands the host answered with success and acted on nothing; absent when the host reports none (no Options.Counters), empty when it has none to report. Host-wide: every node's status carries the same list. */
+            counters?: components["schemas"]["Counter"][];
             /** @description The policies the node's served surface is composed under (go-fabric node.Node.Surface) and the counts that tell whether to look further; absent without a node. */
             surface?: {
                 /** @description The specification level the surface is composed at (go-fabric surface.Report.Level), e.g. "1.6.1". */
@@ -1988,6 +2005,15 @@ export interface components {
              * @description When the host first saw it; absent when unknown.
              */
             since?: string;
+        };
+        /** @description One of the host's counters (0.8.0, Options.Counters). */
+        Counter: {
+            /** @description The counter's stable machine name, e.g. discards. */
+            code: string;
+            /** @description The count since the host started. */
+            value: number;
+            /** @description What the counter counts, in one line in the host's language. */
+            message: string;
         };
         Fabric: {
             fabric_index: number;
@@ -2141,7 +2167,7 @@ export interface components {
             /** @description Unique in the graph: `node`, `ep:<n>`, `fabric:<index>`, `session:<id>`, `peer:<node_id_hex>`. */
             id: string;
             /** @enum {string} */
-            kind: "node" | "aggregator" | "device" | "part" | "fabric" | "session" | "peer" | "thread_router" | "thread_end_device" | "wifi_ap" | "ethernet";
+            kind: "node" | "aggregator" | "device" | "part" | "fabric" | "session" | "peer" | "thread_router" | "thread_end_device" | "wifi_ap" | "ethernet" | "border_router";
             label: string;
             /** @enum {string} */
             state: "ok" | "unreachable" | "idle" | "unknown";
@@ -3029,7 +3055,7 @@ export interface components {
             timeout_seconds?: number;
             terms_and_conditions?: components["schemas"]["TermsAcknowledgement"];
         };
-        /** @description The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms refuses CommissioningComplete without one; absent sends none. */
+        /** @description The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms fails the commissioning without one, or with one below its version, with 409 terms_required (0.8.0; before 0.8.0 a 502 at CommissioningComplete); absent sends none. */
         TermsAcknowledgement: {
             /** @description The version of the terms the user accepted. */
             version: number;
@@ -3126,7 +3152,7 @@ export interface components {
              * @enum {string}
              */
             phase?: "started" | "succeeded" | "failed";
-            /** @description commissioning_progress failed: what went wrong (no secret). */
+            /** @description commissioning_progress failed: the failure's kind, never its text — invalid_argument, no_device, timeout, node_failed, failed, and terms_required (0.8.0) for a device that requires an accepted version of its terms and conditions. */
             detail?: string;
             step?: components["schemas"]["PairingStep"];
             ble?: components["schemas"]["BLEDecision"];
@@ -5370,6 +5396,15 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            /** @description terms_required (0.8.0): the device requires an accepted version of its terms and conditions; the problem carries `version`, `acknowledgements` and `deadline`, and a second request with `terms_and_conditions` commissions it. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             502: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };

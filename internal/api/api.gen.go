@@ -241,6 +241,7 @@ const (
 	ProblemCodeNotImplemented  ProblemCode = "not_implemented"
 	ProblemCodePayloadTooLarge ProblemCode = "payload_too_large"
 	ProblemCodeServiceUnready  ProblemCode = "service_unready"
+	ProblemCodeTermsRequired   ProblemCode = "terms_required"
 )
 
 // Valid indicates whether the value is a known member of the ProblemCode enum.
@@ -267,6 +268,8 @@ func (e ProblemCode) Valid() bool {
 	case ProblemCodePayloadTooLarge:
 		return true
 	case ProblemCodeServiceUnready:
+		return true
+	case ProblemCodeTermsRequired:
 		return true
 	default:
 		return false
@@ -420,6 +423,7 @@ func (e TopologyGraphFamily) Valid() bool {
 // Defines values for TopologyNodeKind.
 const (
 	TopologyNodeKindAggregator      TopologyNodeKind = "aggregator"
+	TopologyNodeKindBorderRouter    TopologyNodeKind = "border_router"
 	TopologyNodeKindDevice          TopologyNodeKind = "device"
 	TopologyNodeKindEthernet        TopologyNodeKind = "ethernet"
 	TopologyNodeKindFabric          TopologyNodeKind = "fabric"
@@ -436,6 +440,8 @@ const (
 func (e TopologyNodeKind) Valid() bool {
 	switch e {
 	case TopologyNodeKindAggregator:
+		return true
+	case TopologyNodeKindBorderRouter:
 		return true
 	case TopologyNodeKindDevice:
 		return true
@@ -706,7 +712,7 @@ type CommissionRequest struct {
 	NetworkOnly *bool `json:"network_only,omitempty"`
 	Passcode    *int  `json:"passcode,omitempty"`
 
-	// TermsAndConditions The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms refuses CommissioningComplete without one; absent sends none.
+	// TermsAndConditions The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms fails the commissioning without one, or with one below its version, with 409 terms_required (0.8.0; before 0.8.0 a 502 at CommissioningComplete); absent sends none.
 	TermsAndConditions *TermsAcknowledgement `json:"terms_and_conditions,omitempty"`
 
 	// ThreadID The stored Thread dataset to put the device on.
@@ -1191,12 +1197,20 @@ type PingResultMethod string
 
 // Problem defines model for Problem.
 type Problem struct {
-	Code     ProblemCode `json:"code"`
-	Detail   *string     `json:"detail,omitempty"`
-	Instance *string     `json:"instance,omitempty"`
-	Status   int         `json:"status"`
-	Title    string      `json:"title"`
-	Type     string      `json:"type"`
+	// Acknowledgements terms_required (0.8.0): the acknowledgement bits the device requires; null, since no device attribute names them — the terms the user accepts set them.
+	Acknowledgements *int        `json:"acknowledgements,omitempty"`
+	Code             ProblemCode `json:"code"`
+
+	// Deadline terms_required (0.8.0): the device's TCUpdateDeadline in Matter epoch seconds (from 2000-01-01T00:00:00Z), by which a commissioned device expects an updated acceptance; null when the attribute is null.
+	Deadline *int    `json:"deadline,omitempty"`
+	Detail   *string `json:"detail,omitempty"`
+	Instance *string `json:"instance,omitempty"`
+	Status   int     `json:"status"`
+	Title    string  `json:"title"`
+	Type     string  `json:"type"`
+
+	// Version terms_required (0.8.0): the device's TCMinRequiredVersion, the lowest version an acknowledgement has to name (go-fabric commissioner.TermsRequiredError.Version).
+	Version *int `json:"version,omitempty"`
 }
 
 // ProblemCode defines model for Problem.Code.
@@ -1246,7 +1260,7 @@ type SurfaceDecisionOrigin string
 // SurfaceDecisionVerdict defines model for SurfaceDecision.Verdict.
 type SurfaceDecisionVerdict string
 
-// TermsAcknowledgement The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms refuses CommissioningComplete without one; absent sends none.
+// TermsAcknowledgement The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms fails the commissioning without one, or with one below its version, with 409 terms_required (0.8.0; before 0.8.0 a 502 at CommissioningComplete); absent sends none.
 type TermsAcknowledgement struct {
 	// Acknowledgements The bitmap of the terms the user accepted.
 	Acknowledgements int `json:"acknowledgements"`
@@ -2809,6 +2823,20 @@ func (response CommissionNode404ApplicationProblemPlusJSONResponse) VisitCommiss
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommissionNode409ApplicationProblemPlusJSONResponse Problem
+
+func (response CommissionNode409ApplicationProblemPlusJSONResponse) VisitCommissionNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }

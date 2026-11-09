@@ -21,6 +21,7 @@ const (
 	codeTooLarge       = "payload_too_large"
 	codeNodeError      = "node_error"
 	codeNotImplemented = "not_implemented"
+	codeTermsRequired  = "terms_required"
 )
 
 // problemTypeBase is the base of every problem's type URI: the contract
@@ -46,6 +47,12 @@ type problem struct {
 // writeProblem writes a problem with the code, title and detail; the
 // instance is the request path. Mirrors loom problem.go:61-85 (Write, New).
 func writeProblem(w http.ResponseWriter, r *http.Request, status int, code, title, detail string) {
+	writeProblemBody(w, status, code, newProblem(r, status, code, title, detail))
+}
+
+// newProblem is the problem writeProblem writes, for a problem with
+// extension members to embed.
+func newProblem(r *http.Request, status int, code, title, detail string) problem {
 	p := problem{
 		Type:   problemTypeBase + code,
 		Title:  title,
@@ -56,10 +63,37 @@ func writeProblem(w http.ResponseWriter, r *http.Request, status int, code, titl
 	if r != nil {
 		p.Instance = r.URL.Path
 	}
+	return p
+}
+
+// writeProblemBody writes body, a problem or one embedding it, with the
+// code's header.
+func writeProblemBody(w http.ResponseWriter, status int, code string, body any) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.Header().Set("X-Problem-Code", code)
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(p)
+	_ = json.NewEncoder(w).Encode(body)
+}
+
+// termsProblem is terms_required (contract 0.8.0): the problem and the
+// device's requirement as its extension members. acknowledgements is
+// always null — no device attribute names the bits a version requires —
+// and deadline is null when the device's TCUpdateDeadline is.
+type termsProblem struct {
+	problem
+	Version          uint16  `json:"version"`
+	Acknowledgements *uint16 `json:"acknowledgements"`
+	Deadline         *uint32 `json:"deadline"`
+}
+
+// writeTermsRequired answers 409 terms_required with the requirement.
+func writeTermsRequired(w http.ResponseWriter, r *http.Request, e *ErrTermsRequired) {
+	p := termsProblem{
+		problem:  newProblem(r, http.StatusConflict, codeTermsRequired, "Terms and conditions required", e.Error()),
+		Version:  e.Version,
+		Deadline: e.Deadline,
+	}
+	writeProblemBody(w, http.StatusConflict, codeTermsRequired, p)
 }
 
 // serverError logs err and answers 500 internal with an empty detail: an

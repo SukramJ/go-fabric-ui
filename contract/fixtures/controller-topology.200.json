@@ -67,6 +67,14 @@
           "source": "peer:0000000000000013",
           "strength": "unknown",
           "target": "ap_AABBCCDDEEFF"
+        },
+        {
+          "kind": "link",
+          "lqi": 3,
+          "rssi": -50,
+          "source": "peer:0000000000000011",
+          "strength": "strong",
+          "target": "br_CAFE0000CAFE0001"
         }
       ],
       "family": "controller",
@@ -248,6 +256,10 @@
             {
               "key": "role",
               "value": "router"
+            },
+            {
+              "key": "network_name",
+              "value": "Home"
             }
           ],
           "id": "unknown_0011223344556677",
@@ -288,6 +300,42 @@
           "label": "home-wifi",
           "ssid": "home-wifi",
           "state": "unknown"
+        },
+        {
+          "details": [
+            {
+              "key": "host_name",
+              "value": "otbr-kitchen"
+            },
+            {
+              "key": "vendor_name",
+              "value": "OpenThread"
+            },
+            {
+              "key": "model_name",
+              "value": "OTBR"
+            },
+            {
+              "key": "network_name",
+              "value": "Home"
+            },
+            {
+              "key": "ext_address",
+              "value": "CAFE0000CAFE0001"
+            },
+            {
+              "key": "ext_pan_id",
+              "value": "DEAD00BEEF00CAFE"
+            },
+            {
+              "key": "last_seen",
+              "value": "2026-10-25T11:55:00Z"
+            }
+          ],
+          "id": "br_CAFE0000CAFE0001",
+          "kind": "border_router",
+          "label": "otbr-kitchen",
+          "state": "ok"
         }
       ]
     }

@@ -22,8 +22,9 @@ import (
 // topologyLiteral is go-fabric's snapshot behind the
 // controller-topology.200 fixture: a Thread router (17), a sleepy end
 // device (18), an unreachable Wi-Fi station (19) with its access point,
-// an Ethernet bridge (20), and a Thread router and an end device no
-// commissioned node matches; a link of every strength. Build never
+// an Ethernet bridge (20), a Thread router (with its network name) and an
+// end device no commissioned node matches, and a border router the
+// registry knows (contract 0.8.0); a link of every strength. Build never
 // yields a connection of strength none (a pair whose directions are all
 // dead is dropped), so that one link is written by hand.
 func topologyLiteral() topology.Topology {
@@ -49,9 +50,14 @@ func topologyLiteral() topology.Topology {
 				ID: "20", Kind: topology.KindMatter, NetworkType: topology.NetworkEthernet, NodeID: 0x14, Available: true, IsBridge: true,
 				Addresses: []netip.Addr{netip.MustParseAddr("192.168.1.20")},
 			},
-			{ID: "unknown_0011223344556677", Kind: topology.KindThreadUnknown, NetworkType: topology.NetworkThread, Role: topology.RoleRouter, ExtAddress: 0x0011223344556677, ExtPanID: pan},
+			{ID: "unknown_0011223344556677", Kind: topology.KindThreadUnknown, NetworkType: topology.NetworkThread, Role: topology.RoleRouter, ExtAddress: 0x0011223344556677, ExtPanID: pan, NetworkName: "Home"},
 			{ID: "unknown_8899AABBCCDDEEFF", Kind: topology.KindThreadUnknown, NetworkType: topology.NetworkThread, ExtAddress: 0x8899AABBCCDDEEFF, ExtPanID: pan},
 			{ID: "ap_AABBCCDDEEFF", Kind: topology.KindWiFiAP, NetworkType: topology.NetworkWiFi, Role: topology.RoleAP, NetworkName: bssid, SSID: "home-wifi", BSSID: bssid},
+			{
+				ID: "br_CAFE0000CAFE0001", Kind: topology.KindBorderRouter, NetworkType: topology.NetworkThread, Role: topology.RoleRouter,
+				ExtAddress: 0xCAFE0000CAFE0001, ExtPanID: pan, NetworkName: "Home", HostName: "otbr-kitchen", VendorName: "OpenThread", ModelName: "OTBR",
+				LastSeen: time.Date(2026, 10, 25, 11, 55, 0, 0, time.UTC),
+			},
 		},
 		Connections: []topology.Connection{
 			{
@@ -73,6 +79,10 @@ func topologyLiteral() topology.Topology {
 				SourceToTarget: &topology.Direction{Strength: topology.StrengthNone},
 			},
 			{Source: "19", Target: "ap_AABBCCDDEEFF", Network: topology.NetworkWiFi, Strength: topology.StrengthUnknown},
+			{
+				Source: "17", Target: "br_CAFE0000CAFE0001", Network: topology.NetworkThread, Strength: topology.StrengthStrong,
+				SourceToTarget: &topology.Direction{Strength: topology.StrengthStrong, LQI: 3, RSSI: rssi(-50)},
+			},
 		},
 	}
 }
@@ -109,6 +119,45 @@ func TestNetworkTopologyOf_IsTheFixture(t *testing.T) {
 	if !reflect.DeepEqual(body, fixture.Response.Body) {
 		want, _ := json.Marshal(fixture.Response.Body)
 		t.Fatalf("graph\n got: %s\nwant: %s", rec.Body.Bytes(), want)
+	}
+}
+
+// A border router is ok while the registry saw it within its expiry
+// before the snapshot, unknown after it or never seen; without a host
+// name its extended address labels it.
+func TestBorderRouterOf(t *testing.T) {
+	at := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+	br := topology.Node{ID: "br_00000000000000AB", Kind: topology.KindBorderRouter, ExtAddress: 0xAB, LastSeen: at.Add(-borderRouterExpiry)}
+	if n := borderRouterOf(&br, at); n.State != "ok" || n.Label != "00000000000000AB" || n.Kind != "border_router" {
+		t.Fatalf("at the expiry %+v", n)
+	}
+	br.LastSeen = at.Add(-borderRouterExpiry - time.Second)
+	if n := borderRouterOf(&br, at); n.State != "unknown" {
+		t.Fatalf("past the expiry %+v", n)
+	}
+	br.LastSeen = time.Time{}
+	if n := borderRouterOf(&br, at); n.State != "unknown" || len(n.Details) != 1 {
+		t.Fatalf("never seen %+v", n)
+	}
+}
+
+// A kind go-fabric adds after this adapter is drawn by its network with
+// its kind as a detail, never dropped.
+func TestNetworkTopologyOf_KeepsAnUnknownKind(t *testing.T) {
+	g := networkTopologyOf(topology.Topology{Nodes: []topology.Node{
+		{ID: "x_1", Kind: "future", NetworkType: topology.NetworkThread, Role: topology.RoleRouter, ExtAddress: 0x1},
+		{ID: "x_2", Kind: "future", NetworkType: topology.NetworkWiFi},
+		{ID: "x_3", Kind: "future"},
+	}}, "Controller", nil)
+	if len(g.Nodes) != 4 {
+		t.Fatalf("nodes %+v", g.Nodes)
+	}
+	want := []struct{ kind, label string }{{"thread_router", "0000000000000001"}, {"wifi_ap", "x_2"}, {"ethernet", "x_3"}}
+	for i, w := range want {
+		n := g.Nodes[i+1]
+		if n.Kind != w.kind || n.Label != w.label || n.State != "unknown" || n.Details[0] != (fabricui.TopologyDetail{Key: "kind", Value: "future"}) {
+			t.Errorf("%d: %+v", i, n)
+		}
 	}
 }
 

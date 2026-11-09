@@ -41,6 +41,7 @@ an unknown path under the API prefix answers a 404 problem.
 | `ConfiguredWindow` | Open the window on the node's configured passcode instead of fresh credentials. |
 | `AllowEmptyTopology` | Allow a window while no endpoint is exposed. |
 | `Warnings` | The host's findings about its own configuration, shown on the status and selection pages. |
+| `Counters` | The host's own counters (0.8.0), shown on the status page and served to a scraper on `GET /node/status`. |
 
 A provider's configuration can be half-valid — a label name that resolves
 to nothing, a rule that matches no item — and a log line is where nobody
@@ -52,6 +53,21 @@ above the status, the code as a chip and the message as text; the
 selection page shows the same list collapsed above the table. `Code` is
 the host's stable identifier for the kind of finding, `Message` is already
 in the host's language, and a zero `Since` is left out.
+
+A host also counts things a scraper wants beside the health — commands it
+answered with success and acted on nothing, for one. `Options.Counters`
+(0.8.0) returns them as `Counter{Code, Value, Message}`; it is called on
+every `GET /node/status` and `GET /nodes/{node}/status`, which answer them
+as `counters` (absent without the hook, `[]` when the host has none, also
+when the host serves no node; host-wide, so every node's status carries
+the same list). `Code` is the counter's stable machine name (`discards`),
+`Value` the count since the host started, `Message` the host's one-line
+meaning in its own language. The status page shows them in a small table
+under the warnings card, code, value and message verbatim, and hides it
+when the list is absent or empty; every node event that reloads the
+status (a health verdict, a fabric, a window, an endpoint change) reloads
+the counters with it, as it does the warnings — a counter alone sends no
+event.
 
 The node's transitions need no wiring: each open stream registers an
 observer with `Node.Observe` and removes it when the connection closes, so
@@ -243,7 +259,7 @@ mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Controller: src}))
 | --- | --- |
 | `Hooks` | Turns the nodes' `client.Hooks` into the controller stream's events (`node_added`, `node_removed`, `connection`, `subscription`, `node_updated`, coalesced — a structure change, a report or an event the node delivered). `Wrap` chains them after the host's own `HooksFor`, its `Event` hook included; `Close` (before the controller's) stops the pending timers; events after it, or while the controller has no registry, are dropped. Nil leaves the stream with the handler's own events. |
 | `Credentials` | The host's credential store: `fabricui.CredentialStore` (list names, set write-only, remove) plus `WiFi(id)` and `Thread(id)` for a commissioning that names one. `Credential.Default` (0.7.1) is the host's statement of its default entry — the one its own interfaces use without a choice; the pages preselect it. The lookup stays by the id a request names: an empty id names none. `fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName)` is an in-memory one that checks a dataset with go-fabric's decoder. Nil answers 503 on the credential routes. |
-| `Pair` | The template of every commissioning: the attestation policy, the default subscription, the BLE central (`Capabilities().BLE`). The network a request names is set on a copy; the request's step reports run after the template's `Progress`, and its Terms and Conditions acknowledgement is set after the template's `Edit` (0.7.0). The central is used when the code allows BLE, `network_only` is off and the request names a credential (0.7.1); the decision reaches `PairOptions.Transport` on every pairing from a code. go-fabric's network steps provision by the device's NetworkCommissioning features: a Wi-Fi credential is skipped on a device without the Wi-Fi feature, a Thread dataset on one without Thread (`controller/commissioner/network.go:217-235`, `:308-325` at v0.18.0). |
+| `Pair` | The template of every commissioning: the attestation policy, the default subscription, the BLE central (`Capabilities().BLE`). The network a request names is set on a copy; the request's step reports run after the template's `Progress`, and its Terms and Conditions acknowledgement is set on `PairOptions.TermsAndConditions` before the template's `Edit` runs, as go-fabric runs it — the template's acknowledgement applies when the request sends none (0.8.0; 0.7.x set it through `Edit`, after the template's). A device that requires terms the request does not acknowledge fails with go-fabric's `commissioner.TermsRequiredError`, which the adapter reports as `*fabricui.ErrTermsRequired` (409 `terms_required`). The central is used when the code allows BLE, `network_only` is off and the request names a credential (0.7.1); the decision reaches `PairOptions.Transport` on every pairing from a code. go-fabric's network steps provision by the device's NetworkCommissioning features: a Wi-Fi credential is skipped on a device without the Wi-Fi feature, a Thread dataset on one without Thread (`controller/commissioner/network.go:217-235`, `:308-325` at v0.18.0). |
 | `Logger` | The adapter's logger; nothing it logs carries a passcode or a credential. `fabricui.pair.ble_skipped` (Info, `reason` `network_only`, `code_without_ble` or `no_network`, 0.7.1) says why a commissioning did not use the central. |
 
 What each route calls on the facade:
@@ -259,11 +275,11 @@ What each route calls on the facade:
 | `GET`/`PUT …/acl`, `…/bindings` | `Node.Read` and one `Node.Write` of the whole list, built from `cluster/spec/accesscontrol` and `binding` with our fabric index |
 | `…/icd`, `/icd/register`, `/icd/unregister` | `Node.ICD()` (`Register`, `Unregister`, `Forget`) |
 | `GET …/fabrics`, `DELETE …/fabrics/{index}` | `Node.Read` of OperationalCredentials `Fabrics` and `CurrentFabricIndex`, `Node.Invoke` RemoveFabric |
-| `POST /controller/commission` | `Controller.Pair`, or `Registry().ForDevice` and `Commission` for a discovered device; `PairOptions.Progress` (commissioner `Options.Progress`) for the steps, `TermsAndConditions` through the commissioner's `Edit` (0.7.0) |
+| `POST /controller/commission` | `Controller.Pair`, or `Registry().ForDevice` and `Commission` for a discovered device; `PairOptions.Progress` (commissioner `Options.Progress`) for the steps, `PairOptions.TermsAndConditions` (commissioner `Options.TermsAndConditions` for a discovered device; 0.8.0) |
 | `GET /controller/discovery` | `Controller.Discover` |
 | `PUT /controller/fabric/label` | `Fabric().SetLabel`, then `Registry().SetFabricLabel` in the background |
 | `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates`, `AddUpdateConsent`; the stream's `update` events from `Observe`, subscribed in `ControllerOf` and released by `Hooks.Close` (0.7.0) |
-| `GET /controller/topology` | `ControllerOptions.Topology`, the host's `*topology.Service`: `Topology()`, or `Refresh` with `refresh=true`; its `OnChanged` becomes `topology_changed`. The host wires it: `topology.Changes.Install(&cfg)` before `controller.New`, `topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})`, `ControllerOf(…, ControllerOptions{Topology: svc})`, and `svc.Close()` on shutdown (the subscription goes with `Hooks.Close`). Without it `NetworkTopology` answers `fabricui.ErrNotImplemented` (501) |
+| `GET /controller/topology` | `ControllerOptions.Topology`, the host's `*topology.Service`: `Topology()`, or `Refresh` with `refresh=true`; its `OnChanged` becomes `topology_changed`. The host wires it: `topology.Changes.Install(&cfg)` before `controller.New`, `topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})`, `ControllerOf(…, ControllerOptions{Topology: svc})`, and `svc.Close()` on shutdown (the subscription goes with `Hooks.Close`). The border routers (0.8.0) need nothing more: with `topology.Config.BorderRouters` nil the service builds on the controller's own registry, `Controller.BorderRouters` (go-fabric `controller/topology/service.go:57-60`, `:163-165` at v0.19.1). Without it `NetworkTopology` answers `fabricui.ErrNotImplemented` (501) |
 
 A host without go-fabric's controller — a test, a demonstration —
 implements `fabricui.ControllerSource` itself; `fabricui.NewMemoryController()`

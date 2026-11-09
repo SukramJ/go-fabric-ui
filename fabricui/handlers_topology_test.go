@@ -161,7 +161,7 @@ func TestStream_SessionEvents(t *testing.T) {
 // the port carries it: the controller, a Thread router, a sleepy end
 // device, an unreachable Wi-Fi station with its access point, an
 // Ethernet bridge, a Thread router and an end device no commissioned node
-// matches, and a link of every strength. It is what the go-fabric
+// matches, a border router (contract 0.8.0), and a link of every strength. It is what the go-fabric
 // adapter maps its topology test literal to
 // (fabricui/gofabric/topology_test.go), so the fixture holds both ends.
 func controllerTopology() NetworkTopology {
@@ -210,7 +210,7 @@ func controllerTopology() NetworkTopology {
 			},
 			{
 				ID: "unknown_0011223344556677", Kind: "thread_router", Label: "0011223344556677", State: "unknown",
-				Details: []TopologyDetail{{"ext_address", "0011223344556677"}, {"ext_pan_id", pan}, {"role", "router"}},
+				Details: []TopologyDetail{{"ext_address", "0011223344556677"}, {"ext_pan_id", pan}, {"role", "router"}, {"network_name", "Home"}},
 			},
 			{
 				ID: "unknown_8899AABBCCDDEEFF", Kind: "thread_end_device", Label: "8899AABBCCDDEEFF", State: "unknown",
@@ -219,6 +219,18 @@ func controllerTopology() NetworkTopology {
 			{
 				ID: "ap_AABBCCDDEEFF", Kind: "wifi_ap", Label: "home-wifi", State: "unknown", SSID: "home-wifi", BSSID: "AA:BB:CC:DD:EE:FF",
 				Details: []TopologyDetail{{"bssid", "AA:BB:CC:DD:EE:FF"}, {"ssid", "home-wifi"}},
+			},
+			{
+				ID: "br_CAFE0000CAFE0001", Kind: "border_router", Label: "otbr-kitchen", State: "ok",
+				Details: []TopologyDetail{
+					{"host_name", "otbr-kitchen"},
+					{"vendor_name", "OpenThread"},
+					{"model_name", "OTBR"},
+					{"network_name", "Home"},
+					{"ext_address", "CAFE0000CAFE0001"},
+					{"ext_pan_id", pan},
+					{"last_seen", "2026-10-25T11:55:00Z"},
+				},
 			},
 		},
 		Connections: []NetworkConnection{
@@ -231,6 +243,7 @@ func controllerTopology() NetworkTopology {
 			{Source: "peer:0000000000000011", Target: "unknown_8899AABBCCDDEEFF", Kind: "link", Strength: "weak", LQI: lqi(1), RSSI: rssi(-88)},
 			{Source: "peer:0000000000000012", Target: "unknown_0011223344556677", Kind: "link", Strength: "none", LQI: lqi(0)},
 			{Source: "peer:0000000000000013", Target: "ap_AABBCCDDEEFF", Kind: "link", Strength: "unknown"},
+			{Source: "peer:0000000000000011", Target: "br_CAFE0000CAFE0001", Kind: "link", Strength: "strong", LQI: lqi(3), RSSI: rssi(-50)},
 		},
 	}
 }

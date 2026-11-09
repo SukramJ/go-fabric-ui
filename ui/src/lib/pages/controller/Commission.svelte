@@ -12,12 +12,16 @@
      preselected; while none is picked on a host with a Bluetooth LE
      central a hint says BLE needs one, and under the progress the
      commissioning says whether BLE was used and why not (contract
-     0.7.1). -->
+     0.7.1). A device that requires terms answers 409 terms_required: the
+     block opens with the device's version filled in, the acknowledgements
+     field focused and the deadline as a date, and one click sends the
+     same commissioning again with the acknowledgement (contract 0.8.0);
+     the code or passcode is held for that retry only. -->
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
-  import type { CommissionRequest, ControllerNodeDetail, Discovered } from "../../api/client";
+  import { ApiError, type CommissionRequest, type ControllerNodeDetail, type Discovered } from "../../api/client";
   import type { DataColumn } from "../../kit/data-table";
   import Badge from "../../kit/Badge.svelte";
   import Button from "../../kit/Button.svelte";
@@ -37,6 +41,11 @@
   // The Terms and Conditions acknowledgement, sent when both are set.
   let tcVersion = $state("");
   let tcAcknowledgements = $state("");
+  let termsOpen = $state(false);
+  // A device's terms requirement from a 409 terms_required, and the
+  // request it refused, held for the one retry with the acknowledgement.
+  let termsRequired = $state<{ version: number; deadline: number | null } | null>(null);
+  let retry = $state<CommissionRequest | null>(null);
   let running = $state(false);
   let result = $state<ControllerNodeDetail | null>(null);
   let failure = $state<string | null>(null);
@@ -93,19 +102,55 @@
   }
   const termsInvalid = $derived((tcVersion.trim() !== "" || tcAcknowledgements.trim() !== "") && !terms());
 
+  // The Matter epoch (2000-01-01T00:00:00Z) in Unix seconds: a terms
+  // deadline counts from it.
+  const MATTER_EPOCH = 946684800;
+  const deadlineText = (s: number) => new Date((MATTER_EPOCH + s) * 1000).toLocaleDateString();
+
   async function commission(req: CommissionRequest) {
     running = true;
     result = null;
     failure = null;
+    retry = null;
+    termsRequired = null;
     try {
-      result = await client.commission(withNetwork(req));
+      // A copy: the request held for a terms retry stays without the
+      // network and terms of this attempt, which the retry sets anew.
+      result = await client.commission(withNetwork({ ...req }));
       toast.success(t("controller.commission.done", { name: nodeName(result.node) }));
       void controller.loadNodes();
     } catch (err) {
-      failure = errorText(err);
+      if (err instanceof ApiError && err.problem?.code === "terms_required") {
+        await requireTerms(req, err.problem.version ?? 0, err.problem.deadline ?? null);
+      } else {
+        failure = errorText(err);
+      }
     } finally {
       running = false;
     }
+  }
+
+  // The device requires terms: the block opens with its version, the
+  // acknowledgements field takes the focus, and the request waits for
+  // the retry.
+  async function requireTerms(req: CommissionRequest, version: number, deadline: number | null) {
+    termsRequired = { version, deadline };
+    retry = req;
+    tcVersion = String(version);
+    termsOpen = true;
+    failure = t("controller.commission.terms_required", { version });
+    await tick();
+    document.getElementById("commission-terms-acknowledgements")?.focus();
+  }
+
+  async function sendTerms() {
+    const req = retry;
+    if (!req) return;
+    if (!terms()) {
+      toast.error(t("controller.commission.terms_invalid"));
+      return;
+    }
+    await commission(req);
   }
 
   async function byCode() {
@@ -180,7 +225,7 @@
     {#if bleHint}
       <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]" data-testid="commission-ble-hint">{t("controller.commission.ble_hint")}</p>
     {/if}
-    <details class="mt-3 text-sm" data-testid="commission-terms">
+    <details class="mt-3 text-sm" data-testid="commission-terms" bind:open={termsOpen}>
       <summary class="cursor-pointer text-[var(--ha-secondary-text-color)]">{t("controller.commission.terms")}</summary>
       <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("controller.commission.terms_hint")}</p>
       <div class="mt-2 flex flex-wrap items-center gap-3">
@@ -190,9 +235,17 @@
         </label>
         <label class="text-xs text-[var(--ha-secondary-text-color)]">
           {t("controller.commission.terms_acknowledgements")}
-          <Input class="mt-1 w-28 font-mono" inputmode="numeric" autocomplete="off" bind:value={tcAcknowledgements} data-testid="commission-terms-acknowledgements" />
+          <Input class="mt-1 w-28 font-mono" inputmode="numeric" autocomplete="off" bind:value={tcAcknowledgements} id="commission-terms-acknowledgements" data-testid="commission-terms-acknowledgements" />
         </label>
+        {#if retry}
+          <Button size="sm" class="self-end" disabled={running} onclick={() => void sendTerms()} data-testid="commission-terms-retry">{t("controller.commission.terms_retry")}</Button>
+        {/if}
       </div>
+      {#if termsRequired && termsRequired.deadline !== null}
+        <p class="mt-2 text-xs text-[var(--ha-primary-text-color)]" data-testid="commission-terms-deadline">
+          {t("controller.commission.terms_deadline", { date: deadlineText(termsRequired.deadline) })}
+        </p>
+      {/if}
       {#if termsInvalid}
         <p class="mt-1 text-xs text-[var(--ha-error-color)]">{t("controller.commission.terms_invalid")}</p>
       {/if}

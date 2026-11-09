@@ -271,6 +271,12 @@ type Options struct {
 	// than only the host's log. It is called on every GET /node/status;
 	// nil omits the status response's warnings.
 	Warnings func(ctx context.Context) []Warning
+	// Counters reports the host's own counters a scraper reads beside the
+	// health — commands a host answered with success and acted on
+	// nothing, say (contract 0.8.0). It is called on every GET
+	// /node/status (and /nodes/{node}/status); nil omits the status
+	// response's counters.
+	Counters func(ctx context.Context) []Counter
 }
 
 // Warning is one finding of the host about its own configuration.
@@ -282,6 +288,18 @@ type Warning struct {
 	Message string `json:"message"`
 	// Since is when the host first saw the finding; zero omits it.
 	Since time.Time `json:"since,omitzero"`
+}
+
+// Counter is one of the host's counters (contract 0.8.0, Counter).
+type Counter struct {
+	// Code is the counter's stable machine name ("discards"); the page
+	// shows it verbatim.
+	Code string `json:"code"`
+	// Value is the count since the host started.
+	Value uint64 `json:"value"`
+	// Message says what the counter counts, in one line in the host's
+	// language; the page shows it verbatim.
+	Message string `json:"message"`
 }
 
 // Mount registers the API routes on mux under o.Prefix. It fails on an

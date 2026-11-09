@@ -7,7 +7,9 @@
      diagnostics again" asks the controller to re-read the nodes' network
      diagnostics first (refresh=true, an admin route). A host without a
      topology service answers 501, shown as an empty state. New in brief
-     U3b. -->
+     U3b. The Thread border routers go-fabric's registry knows are nodes of
+     their own (border_router, contract 0.8.0), and a legend under the
+     graph names each kind it draws by its shape. -->
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { refHref, useFabricUI } from "../../context";
@@ -19,6 +21,7 @@
   import ErrorState from "../../kit/ErrorState.svelte";
   import Graph from "../../kit/Graph.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
+  import { KIND_SHAPE, TOPOLOGY_KINDS } from "../../kit/graph-layout";
 
   type Props = { follow?: (href: string) => void };
   let { follow }: Props = $props();
@@ -70,6 +73,8 @@
 
   // Nothing but the controller: no node commissioned.
   const empty = $derived(!!graph && !graph.nodes.some((n) => n.kind !== "node"));
+  // The kinds the graph draws, in the contract's order, for the legend.
+  const kinds = $derived(graph ? TOPOLOGY_KINDS.filter((k) => graph!.nodes.some((n) => n.kind === k)) : []);
   const hrefOf = (n: TopologyNode) => (n.kind === "peer" ? refHref(n.ref, routes) : undefined);
 </script>
 
@@ -92,6 +97,16 @@
       <EmptyState message={t("controller.network.empty")} />
     {:else if graph}
       <Graph {graph} {hrefOf} {follow} label={t("controller.network.graph_label")} />
+      <ul class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--ha-secondary-text-color)]" data-testid="network-legend" aria-label={t("controller.network.legend")}>
+        {#each kinds as k (k)}
+          <li class="inline-flex items-center gap-1.5" data-kind={k}>
+            <svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true">
+              <rect x="1" y="1" width="20" height="12" rx={Math.min(KIND_SHAPE[k].rx, 6)} fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray={KIND_SHAPE[k].dash} />
+            </svg>
+            {t(`graph.kind.${k}`)}
+          </li>
+        {/each}
+      </ul>
     {/if}
   </div>
 </Card>

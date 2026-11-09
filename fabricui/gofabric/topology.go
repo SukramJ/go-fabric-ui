@@ -94,9 +94,11 @@ type topoState struct {
 // networkTopologyOf is go-fabric's topology snapshot as the port's graph:
 // the controller as the root node with a session edge to every
 // commissioned node, the commissioned nodes as peers, the Thread
-// neighbours no commissioned node matches as thread_router or
-// thread_end_device, the access points as wifi_ap, and one link edge
-// per connection. root labels the controller, names the commissioned
+// neighbours the border-router registry knows as border_router (contract
+// 0.8.0), the other Thread neighbours no commissioned node matches as
+// thread_router or thread_end_device, the access points as wifi_ap, a
+// node of a kind this adapter does not know by its network with its
+// details, never dropped, and one link edge per connection. root labels the controller, names the commissioned
 // nodes by node id (as the Nodes page names them; the hex id otherwise).
 func networkTopologyOf(t topology.Topology, root string, names map[uint64]string) fabricui.NetworkTopology {
 	ids := make(map[string]string, len(t.Nodes))
@@ -128,8 +130,12 @@ func networkTopologyOf(t topology.Topology, root string, names map[uint64]string
 			out.Connections = append(out.Connections, fabricui.NetworkConnection{Source: controllerID, Target: ids[n.ID], Kind: "session"})
 		case topology.KindThreadUnknown:
 			out.Nodes = append(out.Nodes, threadUnknownOf(n))
+		case topology.KindBorderRouter:
+			out.Nodes = append(out.Nodes, borderRouterOf(n, t.CollectedAt))
 		case topology.KindWiFiAP:
 			out.Nodes = append(out.Nodes, accessPointOf(n))
+		default:
+			out.Nodes = append(out.Nodes, otherOf(n))
 		}
 	}
 	for i := range t.Connections {
@@ -203,7 +209,79 @@ func threadUnknownOf(n *topology.Node) fabricui.NetworkNode {
 	d.addHex("ext_address", n.ExtAddress)
 	d.addHex("ext_pan_id", n.ExtPanID)
 	d.add("role", string(n.Role))
+	d.add("network_name", n.NetworkName)
 	return fabricui.NetworkNode{ID: n.ID, Kind: kind, Label: hex16(n.ExtAddress), State: "unknown", Details: d.list()}
+}
+
+// borderRouterExpiry is how long the border-router registry keeps an
+// entry no mDNS instance carries any more: go-fabric's
+// brdiscovery.StaleRetention (thread/brdiscovery/registry.go:44 at
+// v0.19.1), after matter.js BorderRouterRegistry's #pruneExpired.
+const borderRouterExpiry = 24 * time.Hour
+
+// borderRouterOf is a Thread neighbour the border-router registry knows
+// (topology.KindBorderRouter, go-fabric #461): labelled by its mDNS host
+// name, which go-fabric hands over without the trailing dot and ".local"
+// as matterjs-server strips it (NetworkTopologyService.ts:452-478 at
+// 0bd06f2; go-fabric controller/topology/build.go:92-101 at v0.19.1),
+// else by its extended address; state ok while the registry saw it within
+// its expiry before the snapshot, unknown otherwise.
+func borderRouterOf(n *topology.Node, at time.Time) fabricui.NetworkNode {
+	label := n.HostName
+	if label == "" {
+		label = hex16(n.ExtAddress)
+	}
+	state := "unknown"
+	if !n.LastSeen.IsZero() && !at.IsZero() && at.Sub(n.LastSeen) <= borderRouterExpiry {
+		state = "ok"
+	}
+	var d details
+	d.add("host_name", n.HostName)
+	d.add("vendor_name", n.VendorName)
+	d.add("model_name", n.ModelName)
+	d.add("network_name", n.NetworkName)
+	d.addHex("ext_address", n.ExtAddress)
+	d.addHex("ext_pan_id", n.ExtPanID)
+	if !n.LastSeen.IsZero() {
+		d.add("last_seen", n.LastSeen.UTC().Format(time.RFC3339))
+	}
+	return fabricui.NetworkNode{ID: n.ID, Kind: "border_router", Label: label, State: state, Details: d.list()}
+}
+
+// otherOf is a node of a kind go-fabric added after this adapter: drawn
+// by its network — a Thread neighbour as threadUnknownOf draws one, a
+// Wi-Fi node as an access point, anything else as ethernet — with its
+// go-fabric kind and what it carries as details, so a new kind is never
+// dropped from the graph.
+func otherOf(n *topology.Node) fabricui.NetworkNode {
+	var d details
+	d.add("kind", string(n.Kind))
+	d.add("network", string(n.NetworkType))
+	d.add("role", string(n.Role))
+	d.addHex("ext_address", n.ExtAddress)
+	d.addHex("ext_pan_id", n.ExtPanID)
+	d.add("network_name", n.NetworkName)
+	d.add("host_name", n.HostName)
+	d.add("ssid", n.SSID)
+	d.add("bssid", n.BSSID)
+	kind := "ethernet"
+	switch {
+	case n.NetworkType == topology.NetworkThread && n.Role == topology.RoleRouter:
+		kind = "thread_router"
+	case n.NetworkType == topology.NetworkThread:
+		kind = "thread_end_device"
+	case n.NetworkType == topology.NetworkWiFi:
+		kind = "wifi_ap"
+	}
+	label := n.HostName
+	switch {
+	case label != "":
+	case n.ExtAddress != 0:
+		label = hex16(n.ExtAddress)
+	default:
+		label = n.ID
+	}
+	return fabricui.NetworkNode{ID: n.ID, Kind: kind, Label: label, State: "unknown", Details: d.list()}
 }
 
 // accessPointOf is a Wi-Fi access point, labelled by the SSID its
