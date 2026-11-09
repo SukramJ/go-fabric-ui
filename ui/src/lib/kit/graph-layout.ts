@@ -18,7 +18,25 @@ export const TOPOLOGY_KINDS = [
   "thread_end_device",
   "wifi_ap",
   "ethernet",
+  "border_router",
 ] as const satisfies readonly TopologyNode["kind"][];
+
+/** A node's shape by its kind: rounded corners and a dash; the state is the border colour. */
+export const KIND_SHAPE: Record<TopologyNode["kind"], { rx: number; dash?: string }> = {
+  node: { rx: 20 },
+  aggregator: { rx: 4 },
+  device: { rx: 8 },
+  part: { rx: 8, dash: "4 3" },
+  fabric: { rx: 0 },
+  session: { rx: 20 },
+  peer: { rx: 20 },
+  thread_router: { rx: 4 },
+  thread_end_device: { rx: 12 },
+  wifi_ap: { rx: 0 },
+  ethernet: { rx: 0 },
+  // A border router is a Thread router with a host: square, dashed (0.8.0).
+  border_router: { rx: 0, dash: "6 3" },
+};
 
 /** Every node state of the contract. */
 export const TOPOLOGY_STATES = ["ok", "unreachable", "idle", "unknown"] as const satisfies readonly TopologyNode["state"][];

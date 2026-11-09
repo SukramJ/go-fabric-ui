@@ -1857,11 +1857,20 @@ export interface paths {
          * The controller's network as a graph — its nodes and the links between them.
          * @description `family` is `controller`. Nodes are the controller (`node`), its
          *     commissioned nodes (`peer:<node_id_hex>`, `role` their Thread role
-         *     or network — an Ethernet node is a `peer` with role `ethernet`, so
-         *     the `ethernet` kind does not occur), the Thread neighbours no
+         *     or network — an Ethernet node is a `peer` with role `ethernet`, not
+         *     the `ethernet` kind), the Thread neighbours no
          *     commissioned node matches (`unknown_<extended address>`,
-         *     `thread_router` or `thread_end_device`) and the Wi-Fi access
-         *     points (`ap_<BSSID>`, `wifi_ap`); edges are a `session` from the
+         *     `thread_router` or `thread_end_device`, with `network_name` where
+         *     go-fabric fills it), the Thread border routers go-fabric's
+         *     border-router registry knows (`br_<extended address>`,
+         *     `border_router`, 0.8.0: labelled by the mDNS host name, `ok` while
+         *     the registry saw it within its 24-hour expiry, details
+         *     `host_name`, `vendor_name`, `model_name`, `network_name`,
+         *     `ext_address`, `ext_pan_id`, `last_seen`) and the Wi-Fi access
+         *     points (`ap_<BSSID>`, `wifi_ap`). A node of a kind the go-fabric
+         *     adapter does not know yet is drawn by its network, with its kind
+         *     as the detail `kind`, never dropped — an `ethernet` node is such a
+         *     node off Thread and Wi-Fi. Edges are a `session` from the
          *     controller to every commissioned node and a `link` per Thread pair
          *     and Wi-Fi station with its strength, LQI and RSSI.
          *     `refresh=true` re-reads the nodes' network diagnostics first and
@@ -2158,7 +2167,7 @@ export interface components {
             /** @description Unique in the graph: `node`, `ep:<n>`, `fabric:<index>`, `session:<id>`, `peer:<node_id_hex>`. */
             id: string;
             /** @enum {string} */
-            kind: "node" | "aggregator" | "device" | "part" | "fabric" | "session" | "peer" | "thread_router" | "thread_end_device" | "wifi_ap" | "ethernet";
+            kind: "node" | "aggregator" | "device" | "part" | "fabric" | "session" | "peer" | "thread_router" | "thread_end_device" | "wifi_ap" | "ethernet" | "border_router";
             label: string;
             /** @enum {string} */
             state: "ok" | "unreachable" | "idle" | "unknown";

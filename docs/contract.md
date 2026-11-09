@@ -318,14 +318,31 @@ The controller family's graph (go-fabric's `controller/topology`, through
   `Controller`; details `nodes`, `collected_at`) with a `session` edge to
   every commissioned node, `peer:<node_id_hex>` (state `ok` or
   `unreachable`; `role` its Thread or Wi-Fi role, else its network — an
-  Ethernet node is a `peer` with role `ethernet`, the `ethernet` kind is
-  not produced; details `network`, `role`, `rloc16`, `ext_address`,
+  Ethernet node is a `peer` with role `ethernet`, not the `ethernet`
+  kind; details `network`, `role`, `rloc16`, `ext_address`,
   `ext_pan_id`, `network_name`, `ssid`, `bssid`, `bridge`, `addresses`,
   each only when known);
 - a Thread neighbour no commissioned node matches is
   `unknown_<extended address>`, `thread_router` when a node saw it
-  rx-on-when-idle, else `thread_end_device`; an access point is
-  `ap_<BSSID>`, `wifi_ap`, labelled by its SSID; both have state `unknown`;
+  rx-on-when-idle, else `thread_end_device` (details `ext_address`,
+  `ext_pan_id`, `role`, and `network_name` when go-fabric fills it — its
+  own, or from 0.8.0 the border-router registry's for its extended PAN
+  id); an access point is `ap_<BSSID>`, `wifi_ap`, labelled by its SSID;
+  both have state `unknown`;
+- a Thread neighbour go-fabric's border-router registry knows (0.8.0,
+  go-fabric `topology.KindBorderRouter`, issue #56) is
+  `br_<extended address>`, `border_router`, labelled by its mDNS host
+  name without the trailing dot and `.local` (go-fabric strips it as
+  matterjs-server does), else by its extended address; state `ok` while
+  the registry saw it within its 24-hour expiry (`brdiscovery.StaleRetention`)
+  before the snapshot, else `unknown`; details `host_name`, `vendor_name`,
+  `model_name`, `network_name`, `ext_address`, `ext_pan_id`, `last_seen`
+  (RFC 3339, UTC), each only when known. The Network page draws it square
+  and dashed and names every kind it draws in a legend under the graph;
+- a node of a kind the adapter does not know yet (one go-fabric adds
+  later) is never dropped: it is drawn by its network — on Thread as a
+  neighbour is, on Wi-Fi as `wifi_ap`, otherwise as `ethernet` — with
+  state `unknown` and its go-fabric kind as the first detail, `kind`;
 - a `link` per Thread pair and Wi-Fi station carries `strength`
   (`strong`, `medium`, `weak`, `none` — observed dead —, `unknown` —
   no measurement), the `lqi` (Thread) and `rssi` of the direction the
@@ -444,6 +461,13 @@ Contract 0.7.1 (wave U8) is additive over 0.7.0, which
 `ControllerEvent.ble`, `Credential.default`, two descriptions
 (`ControllerCapabilities.ble`, `CommissionRequest.network_only`). No
 problem code is new.
+
+Contract 0.8.0 (wave U9) is additive over 0.7.1, which
+`contract/previous/` holds as release 0.7.1 shipped it: the problem code
+`terms_required` (409 on `POST /controller/commission`) with its
+`version`, `acknowledgements` and `deadline` members on `Problem`, the
+`commissioning_progress` failure kind `terms_required`, `Status.counters`
+with the `Counter` schema, and the topology node kind `border_router`.
 
 ## Controller routes (v0.2.0)
 

@@ -423,6 +423,7 @@ func (e TopologyGraphFamily) Valid() bool {
 // Defines values for TopologyNodeKind.
 const (
 	TopologyNodeKindAggregator      TopologyNodeKind = "aggregator"
+	TopologyNodeKindBorderRouter    TopologyNodeKind = "border_router"
 	TopologyNodeKindDevice          TopologyNodeKind = "device"
 	TopologyNodeKindEthernet        TopologyNodeKind = "ethernet"
 	TopologyNodeKindFabric          TopologyNodeKind = "fabric"
@@ -439,6 +440,8 @@ const (
 func (e TopologyNodeKind) Valid() bool {
 	switch e {
 	case TopologyNodeKindAggregator:
+		return true
+	case TopologyNodeKindBorderRouter:
 		return true
 	case TopologyNodeKindDevice:
 		return true

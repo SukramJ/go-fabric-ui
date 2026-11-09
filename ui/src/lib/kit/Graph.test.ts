@@ -51,6 +51,7 @@ describe("Graph", () => {
       "weak",
       "none",
       "unknown",
+      "strong",
     ]);
     expect(["strong", "medium", "weak", "none", "unknown"].map((s) => link(s).getAttribute("stroke-width"))).toEqual(["3", "2", "1", "1", "1"]);
     expect(link("none")).toHaveAttribute("stroke-dasharray", "1 4");

@@ -19,7 +19,7 @@ export { default as ClusterView } from "./ClusterView.svelte";
 export { default as AttributeTable } from "./AttributeTable.svelte";
 export { default as TagChips } from "./TagChips.svelte";
 export { default as EventList } from "./EventList.svelte";
-export { layoutGraph, columnsOf, fitText, nodeWidth, LAYOUT, TOPOLOGY_KINDS, TOPOLOGY_STATES } from "./graph-layout";
+export { layoutGraph, columnsOf, fitText, nodeWidth, KIND_SHAPE, LAYOUT, TOPOLOGY_KINDS, TOPOLOGY_STATES } from "./graph-layout";
 export type { GraphLayout, LaidNode, LaidEdge, LayoutInputNode, LayoutInputEdge } from "./graph-layout";
 export type { DataColumn, DataTableAlign, DataTableSort } from "./data-table";
 export type { TabItem } from "./tabs";

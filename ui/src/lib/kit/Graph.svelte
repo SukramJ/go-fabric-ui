@@ -12,7 +12,7 @@
   import { useT } from "../context";
   import Badge from "./Badge.svelte";
   import Button from "./Button.svelte";
-  import { layoutGraph } from "./graph-layout";
+  import { KIND_SHAPE, layoutGraph } from "./graph-layout";
   import { cn } from "./utils";
 
   type Props = {
@@ -45,20 +45,9 @@
 
   let svg: SVGSVGElement | undefined = $state();
 
-  // Rounded corners and a dash per kind; the state is the border colour.
-  const SHAPE: Record<string, { rx: number; dash?: string }> = {
-    node: { rx: 20 },
-    aggregator: { rx: 4 },
-    device: { rx: 8 },
-    part: { rx: 8, dash: "4 3" },
-    fabric: { rx: 0 },
-    session: { rx: 20 },
-    peer: { rx: 20 },
-    thread_router: { rx: 4 },
-    thread_end_device: { rx: 12 },
-    wifi_ap: { rx: 0 },
-    ethernet: { rx: 0 },
-  };
+  // Rounded corners and a dash per kind (KIND_SHAPE); the state is the
+  // border colour.
+  const SHAPE: Record<string, { rx: number; dash?: string }> = KIND_SHAPE;
   const STROKE: Record<string, string> = {
     ok: "var(--ha-primary-color)",
     unreachable: "var(--ha-error-color)",

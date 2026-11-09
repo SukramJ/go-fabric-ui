@@ -30,6 +30,28 @@ describe("Controller Network", () => {
     expect(topo(ui)).toEqual(["/api/v1/controller/topology"]);
   });
 
+  it("draws a border router as a node of its own with its host name and names each kind in the legend (0.8.0)", async () => {
+    const ui = testUI({ fixtures: ["controller-topology.200"] });
+    render(Harness, { ui, page: Network });
+    await screen.findByTestId("graph");
+    const br = graphNode("br_CAFE0000CAFE0001");
+    expect(br).toHaveAttribute("data-state", "ok");
+    expect(br.getAttribute("aria-label")).toContain("otbr-kitchen");
+    expect(br.querySelector("rect")?.getAttribute("stroke-dasharray")).toBe("6 3");
+    await fireEvent.click(br);
+    const panel = screen.getByTestId("graph-panel");
+    for (const text of ["host_name", "OpenThread", "OTBR", "2026-10-25T11:55:00Z"]) expect(panel).toHaveTextContent(text);
+    const legend = screen.getByTestId("network-legend");
+    expect([...legend.querySelectorAll("li")].map((li) => li.getAttribute("data-kind"))).toEqual([
+      "node",
+      "peer",
+      "thread_router",
+      "thread_end_device",
+      "wifi_ap",
+      "border_router",
+    ]);
+  });
+
   it("links a commissioned node to its page and nothing else", async () => {
     const ui = testUI({ fixtures: ["controller-topology.200"] });
     render(Harness, { ui, page: Network });
