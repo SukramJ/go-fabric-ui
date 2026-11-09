@@ -114,7 +114,9 @@
     retry = null;
     termsRequired = null;
     try {
-      result = await client.commission(withNetwork(req));
+      // A copy: the request held for a terms retry stays without the
+      // network and terms of this attempt, which the retry sets anew.
+      result = await client.commission(withNetwork({ ...req }));
       toast.success(t("controller.commission.done", { name: nodeName(result.node) }));
       void controller.loadNodes();
     } catch (err) {
