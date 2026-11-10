@@ -218,10 +218,16 @@ type NodeRecord struct {
 	// unknown.
 	FabricIndexOnPeer uint8
 	// Addresses are the node's known addresses ("[fe80::1%eth0]:5540").
-	Addresses      []string
-	Hostname       string
-	DiscoveredAt   time.Time
-	CommissionedAt time.Time
+	Addresses []string
+	// Hostname is the host the commissionable advertisement's SRV record
+	// named.
+	Hostname string
+	// OperationalHost is the operational SRV target that owned the node's
+	// address (Addresses' first) when it was last reached; empty when
+	// unknown. Not Hostname.
+	OperationalHost string
+	DiscoveredAt    time.Time
+	CommissionedAt  time.Time
 	// Discriminator, VendorID, ProductID and DeviceType are what the node
 	// announced when it was found; nil when unknown.
 	Discriminator *uint16

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.8.0
+  version: 0.8.1
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
@@ -2676,7 +2676,10 @@ components:
         fabric_index: { type: integer, description: Our fabric index. }
         fabric_index_on_peer: { type: integer, description: The index the node gave our fabric; absent when unknown. }
         addresses: { type: array, items: { type: string } }
-        hostname: { type: string }
+        hostname: { type: string, description: "The host the commissionable advertisement's SRV record named." }
+        operational_host:
+          type: string
+          description: "The operational SRV target that owned the node's address (the first of addresses) when it was last reached; absent when unknown or stored before go-fabric 0.20.0. Not hostname, the commissionable advertisement's host."
         discovered_at: { type: string, format: date-time }
         commissioned_at: { type: string, format: date-time }
         discriminator: { type: integer }

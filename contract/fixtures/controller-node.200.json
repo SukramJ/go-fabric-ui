@@ -127,7 +127,8 @@
         "discovered_at": "2026-10-20T07:00:00Z",
         "fabric_index": 1,
         "fabric_index_on_peer": 1,
-        "hostname": "light-1.local."
+        "hostname": "light-1.local.",
+        "operational_host": "0123456789abcdef.local"
       }
     }
   }

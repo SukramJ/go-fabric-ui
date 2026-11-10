@@ -562,7 +562,8 @@ func memoryLight() memorySpec {
 		basic: NodeBasic{VendorID: 0xFFF1, VendorName: "Test Vendor", ProductID: 0x8001, ProductName: "Light", NodeLabel: "Kitchen", SerialNumber: "L-0001", SoftwareVersion: "1.0.0"},
 		record: NodeRecord{
 			FabricIndexOnPeer: 1, Addresses: []string{"[fd00::11]:5540", "192.168.1.11:5540"}, Hostname: "light-1.local.",
-			DiscoveredAt: memoryTime.Add(-time.Hour), CommissionedAt: memoryTime.Add(-time.Hour),
+			OperationalHost: "0123456789abcdef.local",
+			DiscoveredAt:    memoryTime.Add(-time.Hour), CommissionedAt: memoryTime.Add(-time.Hour),
 		},
 		silent: map[string]bool{"192.168.1.11:5540": true},
 		props:  NodeProperties{SupportsWiFi: true, MainsPowered: true, SpecificationVersion: 0x01060100, DeviceTypes: []uint32{0x0016, 0x0100}},

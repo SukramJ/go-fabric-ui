@@ -362,6 +362,7 @@ func nodeDetail(n ControllerNode) api.ControllerNodeDetail {
 			FabricIndexOnPeer:   nonZero(rec.FabricIndexOnPeer),
 			Addresses:           nonNil(rec.Addresses),
 			Hostname:            optString(rec.Hostname),
+			OperationalHost:     optString(rec.OperationalHost),
 			DiscoveredAt:        optTime(rec.DiscoveredAt),
 			CommissionedAt:      optTime(rec.CommissionedAt),
 			Discriminator:       optUint(rec.Discriminator),
