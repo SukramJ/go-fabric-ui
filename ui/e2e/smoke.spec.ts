@@ -25,6 +25,8 @@ const SMOKES: Smoke[] = [
   { name: "controller network", hash: "#/controller/nodes?tab=network", shows: (p) => p.getByRole("button", { name: "Peer node Light, OK" }) },
   { name: "controller commission", hash: "#/controller/commission", shows: (p) => p.getByRole("button", { name: "Scan QR code" }) },
   { name: "controller settings", hash: "#/controller/settings", shows: (p) => p.getByTestId("controller-info") },
+  // The controller's diagnostics (contract 0.9.0).
+  { name: "controller diagnostics", hash: "#/controller/diagnostics", shows: (p) => p.getByTestId("peer-link").first() },
   ...["overview", "endpoints", "inventory", "events", "attributes", "acl", "bindings", "window", "icd", "fabrics", "updates"].map((tab) => ({
     name: `controller node ${tab}`,
     hash: `#/controller/node/${L}?tab=${tab}`,

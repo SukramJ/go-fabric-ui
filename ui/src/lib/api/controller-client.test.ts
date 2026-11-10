@@ -75,6 +75,11 @@ const cases: [string, Call][] = [
   ["controller-topology.200", (c) => c.controllerTopology()],
   ["controller-topology.403", (c) => c.controllerTopology(true)],
   ["controller-topology.501", (c) => c.controllerTopology()],
+  // The controller's diagnostics (0.9.0).
+  ["controller-diagnostics.200", (c) => c.controllerDiagnostics()],
+  ["controller-diagnostics.501", (c) => c.controllerDiagnostics()],
+  ["controller-mdns.200", (c) => c.controllerMdns()],
+  ["controller-events.200", (c) => c.controllerEvents()],
 ];
 
 describe("controller client against the contract fixtures", () => {

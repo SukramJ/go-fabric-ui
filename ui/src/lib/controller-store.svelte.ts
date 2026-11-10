@@ -60,10 +60,14 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   // graphEpoch moves, once per burst, on every topology_changed: the
   // network graph's page (GET /controller/topology) reloads when it does.
   let graphEpoch = $state(0);
+  // diagnosticEpoch moves, once per burst, on every
+  // controller_diagnostic_event (0.9.0): the diagnostics page reloads.
+  let diagnosticEpoch = $state(0);
 
   let unsub: (() => void) | null = null;
   let reload: ReturnType<typeof setTimeout> | null = null;
   let graphTimer: ReturnType<typeof setTimeout> | null = null;
+  let diagnosticTimer: ReturnType<typeof setTimeout> | null = null;
 
   const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -131,6 +135,16 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     }, 300);
   }
 
+  // A trace entry rarely comes alone (a reconnect records a session and
+  // a reachability verdict): one move of the epoch per burst.
+  function scheduleDiagnosticReload() {
+    if (diagnosticTimer) clearTimeout(diagnosticTimer);
+    diagnosticTimer = setTimeout(() => {
+      diagnosticTimer = null;
+      diagnosticEpoch++;
+    }, 300);
+  }
+
   function applyEvent(ev: ControllerStreamEvent) {
     switch (ev.type) {
       case "commissioning_progress": {
@@ -174,6 +188,10 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
         // lists stay.
         scheduleGraphReload();
         break;
+      case "controller_diagnostic_event":
+        // The diagnostics page reloads on it; the lists stay.
+        scheduleDiagnosticReload();
+        break;
       default:
         changed = ev.data.node_id_hex ?? null;
         revision++;
@@ -192,8 +210,8 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   }
 
   function close() {
-    for (const timer of [reload, graphTimer]) if (timer) clearTimeout(timer);
-    reload = graphTimer = null;
+    for (const timer of [reload, graphTimer, diagnosticTimer]) if (timer) clearTimeout(timer);
+    reload = graphTimer = diagnosticTimer = null;
     unsub?.();
     unsub = null;
   }
@@ -215,6 +233,8 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     get changed() { return changed; },
     /** Moves once per burst of topology_changed; the network page reloads when it does. */
     get graphEpoch() { return graphEpoch; },
+    /** Moves once per burst of controller_diagnostic_event (0.9.0); the diagnostics page reloads when it does. */
+    get diagnosticEpoch() { return diagnosticEpoch; },
     loadStatus,
     loadNodes,
     loadCredentials,
