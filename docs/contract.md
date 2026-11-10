@@ -624,11 +624,11 @@ that mirror the node family's `/node/sessions`, `/node/mdns` and
 `DiagnosticEvents` :140, `OnDiagnosticEvent` :154, `DiagnoseMDNS` :547).
 The port is `ControllerSource.Diagnostics`, `DiagnoseMDNS`,
 `DiagnosticEvents` and `OnDiagnosticEvent` with types of `fabricui`
-(`docs/embedding.md`); a source whose `Diagnostics` reports false serves
-none of them.
+(`docs/embedding.md`); a source states that it serves them with
+`ControllerCapabilities.Diagnostics` in `Capabilities()`.
 
-- **`capabilities.diagnostics`** on `GET /controller/status` says whether
-  the source serves them. False: the three routes answer `501
+- **`capabilities.diagnostics`** on `GET /controller/status` is the
+  source's flag, read without a snapshot. False: the three routes answer `501
   not_implemented`, the stream carries no `controller_diagnostic_event`,
   and the shell hides the tab (the page, opened by its route, shows an
   empty state and asks no route).

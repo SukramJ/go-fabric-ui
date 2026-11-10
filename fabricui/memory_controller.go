@@ -234,7 +234,7 @@ func (m *MemoryController) Fabric() ControllerFabric {
 
 // Capabilities implements [ControllerSource]: a central when BLE is set.
 func (m *MemoryController) Capabilities() ControllerCapabilities {
-	return ControllerCapabilities{BLE: m.BLE}
+	return ControllerCapabilities{BLE: m.BLE, Diagnostics: !m.NoDiagnostics}
 }
 
 // Nodes implements [ControllerSource].

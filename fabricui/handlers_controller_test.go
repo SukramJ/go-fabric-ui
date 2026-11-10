@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -672,5 +673,39 @@ func TestControllerStream_DiagnosticEvent(t *testing.T) {
 	want := TraceEvent{At: "2026-11-10T09:00:00Z", Kind: "reachability", Severity: "warning", Message: "Node 11 answered no probe.", Detail: map[string]string{"node_id": "0000000000000011"}}
 	if d, ok := got[0].Data.(TraceEvent); !ok || d.At != want.At || d.Kind != want.Kind || d.Message != want.Message || d.Detail["node_id"] != "0000000000000011" {
 		t.Fatalf("payload %+v", got[0].Data)
+	}
+}
+
+// emptyDiagnostics claims the capability, answers no snapshot and counts
+// the snapshots asked for.
+type emptyDiagnostics struct {
+	*MemoryController
+	calls atomic.Int32
+}
+
+func (c *emptyDiagnostics) Diagnostics() (ControllerDiagnostics, bool) {
+	c.calls.Add(1)
+	return ControllerDiagnostics{}, false
+}
+
+// capabilities.diagnostics is the source's flag and costs no snapshot; a
+// source that claims it and answers nothing is 501 on the snapshot route.
+func TestControllerDiagnostics_CapabilityCostsNoSnapshot(t *testing.T) {
+	src := &emptyDiagnostics{MemoryController: NewMemoryController()}
+	_, mux := newTestHandler(t, testOptions{noNode: true, controller: src})
+	rec := do(t, mux, http.MethodGet, "/controller/status", "")
+	if !strings.Contains(rec.Body.String(), `"diagnostics":true`) || src.calls.Load() != 0 {
+		t.Fatalf("status %s, %d snapshots", rec.Body, src.calls.Load())
+	}
+	for _, path := range []string{"/controller/mdns", "/controller/events"} {
+		if rec := do(t, mux, http.MethodGet, path, ""); rec.Code != http.StatusOK {
+			t.Fatalf("%s: status %d", path, rec.Code)
+		}
+	}
+	if src.calls.Load() != 0 {
+		t.Fatalf("%d snapshots for mdns and events", src.calls.Load())
+	}
+	if rec := do(t, mux, http.MethodGet, "/controller/diagnostics", ""); rec.Code != http.StatusNotImplemented || src.calls.Load() != 1 {
+		t.Fatalf("diagnostics: status %d, %d snapshots", rec.Code, src.calls.Load())
 	}
 }

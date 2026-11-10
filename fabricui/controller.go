@@ -60,9 +60,9 @@ type ControllerSource interface {
 	// source serves no graph (GET /controller/topology answers 501).
 	NetworkTopology(ctx context.Context, refresh bool) (NetworkTopology, error)
 	// Diagnostics is a snapshot of the controller's sessions and peers
-	// (GET /controller/diagnostics, contract 0.9.0); false when the
-	// source serves no diagnostics: the three diagnostic routes answer
-	// 501 and capabilities.diagnostics is false.
+	// (GET /controller/diagnostics, contract 0.9.0). It is called only
+	// when Capabilities().Diagnostics is true; false there answers 501
+	// as well (a source that claims the capability and has nothing).
 	Diagnostics() (ControllerDiagnostics, bool)
 	// DiagnoseMDNS is what keeps the controller's DNS-SD from working,
 	// errors first (GET /controller/mdns). It is called from a request
@@ -296,6 +296,12 @@ type ControllerFabric struct {
 type ControllerCapabilities struct {
 	// BLE: the controller commissions over Bluetooth LE.
 	BLE bool
+	// Diagnostics: the source serves the controller's diagnostics
+	// (contract 0.9.0, capabilities.diagnostics) — Diagnostics,
+	// DiagnoseMDNS, DiagnosticEvents and OnDiagnosticEvent. False: the
+	// three diagnostic routes answer 501 without calling them, and the
+	// stream carries no controller_diagnostic_event.
+	Diagnostics bool
 }
 
 // ConnectionState is a node's connection state.

@@ -161,7 +161,7 @@ func beUint64(b []byte) uint64 {
 }
 
 func (s *source) Capabilities() fabricui.ControllerCapabilities {
-	return fabricui.ControllerCapabilities{BLE: s.opts.Pair.BLE != nil}
+	return fabricui.ControllerCapabilities{BLE: s.opts.Pair.BLE != nil, Diagnostics: true}
 }
 
 // nodeOf wraps a commissioned node; false while it has no peer address.

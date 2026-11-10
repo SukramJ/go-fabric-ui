@@ -36,8 +36,9 @@ contract 0.9.0, additive over 0.8.1.
   `DiagnosticEvents` and `OnDiagnosticEvent`, with the port types
   `ControllerDiagnostics`, `ControllerSession`, `SessionOccupancy`,
   `ControllerPeer`, `MDNSFinding` and `DiagnosticEvent`; a source of its
-  own implements them (`false` and nil when it serves none). The
-  `gofabric` adapter maps go-fabric's controller diagnostics one to one;
+  own implements them, and `fabricui.ControllerCapabilities` gains
+  `Diagnostics`, the flag a source serving them sets. The
+  `gofabric` adapter sets it and maps go-fabric's controller diagnostics one to one;
   `MemoryController.NoDiagnostics` stands for a source without them.
 
 ### Changed

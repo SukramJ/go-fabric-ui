@@ -1644,8 +1644,10 @@ func (h *handler) subscribeController(fn func(Event)) (unsubscribe func()) {
 	unsubs := []func(){h.ctrlHub.Subscribe(fn)}
 	if h.ctrl != nil {
 		unsubs = append(unsubs, h.ctrl.Observe(func(e ControllerEvent) { fn(controllerEvent(e)) }))
-		if u := h.ctrl.OnDiagnosticEvent(func(e DiagnosticEvent) { fn(controllerTraceEvent(e)) }); u != nil {
-			unsubs = append(unsubs, u)
+		if h.ctrl.Capabilities().Diagnostics {
+			if u := h.ctrl.OnDiagnosticEvent(func(e DiagnosticEvent) { fn(controllerTraceEvent(e)) }); u != nil {
+				unsubs = append(unsubs, u)
+			}
 		}
 	}
 	return func() {
@@ -1725,6 +1727,10 @@ func controllerEvent(e ControllerEvent) Event {
 // snapshot of the controller's sessions and peers; a source that serves
 // none answers ErrNotImplemented, 501.
 func (s *controllerServer) GetControllerDiagnostics(context.Context, api.GetControllerDiagnosticsRequestObject) (api.GetControllerDiagnosticsResponseObject, error) {
+	if !s.diagnosticsServed() {
+		return nil, ErrNotImplemented
+	}
+	// A source that claims the capability and answers nothing is 501 too.
 	d, ok := s.src.Diagnostics()
 	if !ok {
 		return nil, ErrNotImplemented
@@ -1818,7 +1824,7 @@ func controllerPeerOf(p *ControllerPeer) api.ControllerPeer {
 // GetControllerMdns serves GET /controller/mdns: the port's findings in
 // its order (errors first); 501 when the source serves no diagnostics.
 func (s *controllerServer) GetControllerMdns(context.Context, api.GetControllerMdnsRequestObject) (api.GetControllerMdnsResponseObject, error) {
-	if _, ok := s.src.Diagnostics(); !ok {
+	if !s.diagnosticsServed() {
 		return nil, ErrNotImplemented
 	}
 	findings := s.src.DiagnoseMDNS()
@@ -1835,7 +1841,7 @@ func (s *controllerServer) GetControllerMdns(context.Context, api.GetControllerM
 // port's trace newest first, as GET /node/events; 501 when the source
 // serves no diagnostics.
 func (s *controllerServer) ListControllerDiagnosticEvents(context.Context, api.ListControllerDiagnosticEventsRequestObject) (api.ListControllerDiagnosticEventsResponseObject, error) {
-	if _, ok := s.src.Diagnostics(); !ok {
+	if !s.diagnosticsServed() {
 		return nil, ErrNotImplemented
 	}
 	events := s.src.DiagnosticEvents()
@@ -1863,9 +1869,8 @@ func controllerTraceEvent(e DiagnosticEvent) Event {
 	}}
 }
 
-// diagnosticsServed is capabilities.diagnostics: whether the source serves
-// the controller's diagnostics.
+// diagnosticsServed is capabilities.diagnostics: the source's own
+// statement, which costs no snapshot (GET /controller/status is polled).
 func (s *controllerServer) diagnosticsServed() bool {
-	_, ok := s.src.Diagnostics()
-	return ok
+	return s.src.Capabilities().Diagnostics
 }

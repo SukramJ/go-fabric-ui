@@ -298,19 +298,22 @@ emits them through `Observe` (the memory controller emits
 
 The port change of 0.9.0: `ControllerSource` gains four methods for the
 controller's diagnostics, with types of `fabricui`, not go-fabric's.
-`Diagnostics() (ControllerDiagnostics, bool)` is the snapshot of the
-sessions (`ControllerSession`) and peers (`ControllerPeer`); false means
-the source serves no diagnostics — `GET /controller/diagnostics`,
-`/controller/mdns` and `/controller/events` answer 501 and
-`capabilities.diagnostics` is false, and the other three methods are not
-called by those routes. `DiagnoseMDNS() []MDNSFinding` is called from a
+A source states that it serves them with
+`ControllerCapabilities.Diagnostics` in `Capabilities()` — the flag
+`capabilities.diagnostics` reports, read without a snapshot, since
+`GET /controller/status` is polled; the `gofabric` adapter sets it. With
+the flag false, `GET /controller/diagnostics`, `/controller/mdns` and
+`/controller/events` answer 501 without calling the four methods, and the
+stream does not subscribe. `Diagnostics() (ControllerDiagnostics, bool)`
+is the snapshot of the sessions (`ControllerSession`) and peers
+(`ControllerPeer`); `false` there answers 501 as well. `DiagnoseMDNS() []MDNSFinding` is called from a
 request handler only, errors first. `DiagnosticEvents() []DiagnosticEvent`
 is the trace oldest first; the route serves it newest first.
 `OnDiagnosticEvent(fn)` registers fn for every new entry and returns its
 unsubscribe function, or nil when the source serves no diagnostics; fn
-must not block. A source of its own that has no diagnostics returns
-`false`, nil, nil and nil; `MemoryController.NoDiagnostics` stands for
-one.
+must not block. A source of its own that has no diagnostics leaves the
+flag false and may return `false`, nil, nil and nil;
+`MemoryController.NoDiagnostics` stands for one.
 
 ## Mounting the API alone
 
