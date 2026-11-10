@@ -198,6 +198,8 @@
   "controller.nodes.tabs": "Ansichten der Knoten",
   "controller.nodes.window": "Fenster",
   "controller.overview.addresses": "Adressen",
+  "controller.overview.operational_host": "Operativer Host",
+  "controller.overview.operational_host_hint": "Der Host, der für den Knoten zuletzt geantwortet hat; ein Wiederverbinden versucht ihn zuerst",
   "controller.overview.commissioned_at": "Gekoppelt am",
   "controller.overview.connection": "Verbindung",
   "controller.overview.fabric_index": "Unser Fabric-Index auf dem Knoten",

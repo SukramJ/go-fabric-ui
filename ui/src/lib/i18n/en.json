@@ -198,6 +198,8 @@
   "controller.nodes.tabs": "Node views",
   "controller.nodes.window": "Window",
   "controller.overview.addresses": "Addresses",
+  "controller.overview.operational_host": "Operational host",
+  "controller.overview.operational_host_hint": "The host that answered for the node when it was last reached; reconnects try it first",
   "controller.overview.commissioned_at": "Commissioned",
   "controller.overview.connection": "Connection",
   "controller.overview.fabric_index": "Our fabric index on the node",

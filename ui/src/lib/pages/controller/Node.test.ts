@@ -26,6 +26,16 @@ describe("Controller Node", () => {
     expect(screen.getByText("controller.overview.flag.supports_wifi")).toBeInTheDocument();
   });
 
+  it("shows the operational host when the record has one, and nothing without it", async () => {
+    renderNode(L, "overview", []);
+    expect(await screen.findByTestId("node-operational-host")).toHaveTextContent("0123456789abcdef.local");
+    expect(screen.getByText("controller.overview.operational_host")).toBeInTheDocument();
+    cleanup();
+    renderNode(S, "overview", []);
+    expect(await screen.findByTestId("node-overview")).toBeInTheDocument();
+    expect(screen.queryByTestId("node-operational-host")).toBeNull();
+  });
+
   it("pings the node and says it measured a Matter read, per address", async () => {
     const ui = renderNode(L, "overview", ["controller-node-ping.200"]);
     await screen.findByTestId("node-overview");
