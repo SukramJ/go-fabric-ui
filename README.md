@@ -39,7 +39,9 @@ each project.
 > carries go-fabric v0.19.1: a device that requires terms and conditions
 > answers `terms_required` and the Commission page retries with the
 > acknowledgement, the host's counters show on the status page, and the
-> Network page draws the Thread border routers.
+> Network page draws the Thread border routers. Wave U10 (`v0.8.1`,
+> contract 0.8.1) carries go-fabric v0.20.0 and shows a node's operational
+> host.
 
 ## Two artefacts, one version
 
