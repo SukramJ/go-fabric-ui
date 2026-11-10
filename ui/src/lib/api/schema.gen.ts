@@ -2701,7 +2701,10 @@ export interface components {
             /** @description The index the node gave our fabric; absent when unknown. */
             fabric_index_on_peer?: number;
             addresses: string[];
+            /** @description The host the commissionable advertisement's SRV record named. */
             hostname?: string;
+            /** @description The operational SRV target that owned the node's address (the first of addresses) when it was last reached; absent when unknown or stored before go-fabric 0.20.0. Not hostname, the commissionable advertisement's host. */
+            operational_host?: string;
             /** Format: date-time */
             discovered_at?: string;
             /** Format: date-time */

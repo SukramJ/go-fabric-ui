@@ -72,6 +72,7 @@
         {#if n.subscription_active}<Badge>{t("controller.nodes.subscribed")}</Badge>{/if}
         {#if n.disabled}<Badge variant="warning">{t("controller.nodes.disabled")}</Badge>{/if}</dd>
       <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.overview.addresses")}</dt><dd class="font-mono text-xs">{r.addresses.join(", ")}</dd>
+      {#if r.operational_host}<dt class="text-[var(--ha-secondary-text-color)]" title={t("controller.overview.operational_host_hint")}>{t("controller.overview.operational_host")}</dt><dd class="font-mono text-xs" data-testid="node-operational-host">{r.operational_host}</dd>{/if}
       <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.overview.fabric_index")}</dt><dd>{r.fabric_index_on_peer ?? "–"}</dd>
       <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.overview.commissioned_at")}</dt><dd>{r.commissioned_at ? new Date(r.commissioned_at).toLocaleString() : "–"}</dd>
     </dl>

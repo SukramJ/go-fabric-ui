@@ -7,6 +7,32 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-10
+
+go-fabric v0.20.0 and the node record's operational host (wave U10, brief
+`notes/briefs/2026-11-10-U10-gofabric-0.20.0.md`); contract 0.8.1,
+additive over 0.8.0.
+
+### Added
+
+- `NodeRecord.operational_host` on `GET /controller/nodes/{node}` and
+  `fabricui.NodeRecord.OperationalHost`: the operational SRV target that
+  owned the node's address when it was last reached, which go-fabric
+  0.20.0 records as `client.Record.OperationalHost`; absent when unknown
+  or stored before go-fabric 0.20.0, and not `hostname`, the
+  commissionable advertisement's host. The controller node page's overview
+  shows it as "Operational host" when set.
+
+### Changed
+
+- go-fabric v0.19.1 → v0.20.0. v0.19.2: the fabric-leaving flush of a
+  node's factory reset or fabric removal sends the Leave event and the
+  attributes owed in one report and waits at most 500 ms, so a reset no
+  longer waits about 14 s. v0.20.0: the controller reconnects to a node
+  through the operational host its last session proved first, so a Thread
+  node behind a border router that answers its instance with its own host
+  no longer costs every reconnect 45 s.
+
 ### Fixed
 
 - `contract/openapi.yaml`: the descriptions of `SessionParameters.supported_transports` and `TopologyGraph.as_of` are quoted — inside a flow mapping their comma split them, so the generated `TopologyGraph.AsOf` comment read "When the graph was read" and a strict parser (OpenCCU-Loom's contract merge) refused the file (#58). No change in substance.

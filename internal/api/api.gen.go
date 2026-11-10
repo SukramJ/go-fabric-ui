@@ -1119,8 +1119,13 @@ type NodeRecord struct {
 	FabricIndex int `json:"fabric_index"`
 
 	// FabricIndexOnPeer The index the node gave our fabric; absent when unknown.
-	FabricIndexOnPeer *int    `json:"fabric_index_on_peer,omitempty"`
-	Hostname          *string `json:"hostname,omitempty"`
+	FabricIndexOnPeer *int `json:"fabric_index_on_peer,omitempty"`
+
+	// Hostname The host the commissionable advertisement's SRV record named.
+	Hostname *string `json:"hostname,omitempty"`
+
+	// OperationalHost The operational SRV target that owned the node's address (the first of addresses) when it was last reached; absent when unknown or stored before go-fabric 0.20.0. Not hostname, the commissionable advertisement's host.
+	OperationalHost *string `json:"operational_host,omitempty"`
 }
 
 // NodeWindow defines model for NodeWindow.

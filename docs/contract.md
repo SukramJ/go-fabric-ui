@@ -469,6 +469,14 @@ Contract 0.8.0 (wave U9) is additive over 0.7.1, which
 `commissioning_progress` failure kind `terms_required`, `Status.counters`
 with the `Counter` schema, and the topology node kind `border_router`.
 
+Contract 0.8.1 (wave U10) is additive over 0.8.0, which
+`contract/previous/` holds as release 0.8.0 shipped it:
+`NodeRecord.operational_host`, the operational SRV target that owned the
+node's address when it was last reached (go-fabric 0.20.0's
+`client.Record.OperationalHost`), absent when unknown or stored before
+go-fabric 0.20.0, and not `hostname`, the commissionable advertisement's
+host. No problem code is new.
+
 ## Controller routes (v0.2.0)
 
 Served only when the host passes `Options.Controller`; without it every

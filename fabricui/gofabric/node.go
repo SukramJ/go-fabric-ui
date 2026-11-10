@@ -54,10 +54,12 @@ type node struct {
 
 func (w *node) ID() uint64 { return w.id }
 
-func (w *node) Record() fabricui.NodeRecord {
-	r := w.n.Record()
+func (w *node) Record() fabricui.NodeRecord { return nodeRecord(w.n.Record()) }
+
+// nodeRecord is the port's record of go-fabric's.
+func nodeRecord(r client.Record) fabricui.NodeRecord {
 	out := fabricui.NodeRecord{
-		FabricIndexOnPeer: r.FabricIndexOnPeer, Hostname: r.Hostname,
+		FabricIndexOnPeer: r.FabricIndexOnPeer, Hostname: r.Hostname, OperationalHost: r.OperationalHost,
 		DiscoveredAt: r.DiscoveredAt, CommissionedAt: r.CommissionedAt,
 		Discriminator: r.Discriminator, VendorID: r.VendorID, ProductID: r.ProductID, DeviceType: r.DeviceType,
 		DeviceName: r.DeviceName, Addresses: []string{},
