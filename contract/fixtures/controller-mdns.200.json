@@ -1,0 +1,19 @@
+{
+  "route": "GET /controller/mdns",
+  "request": {
+    "method": "GET",
+    "path": "/controller/mdns"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "findings": [
+        {
+          "code": "no_operational_names",
+          "message": "None of the 2 commissioned nodes has an operational record in the DNS-SD cache; the controller's browse gets no answer on this network.",
+          "severity": "warning"
+        }
+      ]
+    }
+  }
+}

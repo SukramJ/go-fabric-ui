@@ -10,6 +10,7 @@
       "capabilities": {
         "ble": false,
         "credentials": true,
+        "diagnostics": true,
         "ota": true
       },
       "compressed_fabric_id_hex": "87E1B004E235A130",

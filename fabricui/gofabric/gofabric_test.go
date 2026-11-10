@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/SukramJ/go-fabric/cluster/spec/accesscontrol"
 	"github.com/SukramJ/go-fabric/controller"
 	"github.com/SukramJ/go-fabric/controller/client"
 	"github.com/SukramJ/go-fabric/controller/commissioner"
 	"github.com/SukramJ/go-fabric/controller/softwareupdate"
+	"github.com/SukramJ/go-fabric/diag"
 
 	"github.com/SukramJ/go-fabric-ui/fabricui"
 )
@@ -235,5 +237,39 @@ func TestUpdateEvent(t *testing.T) {
 		if got.Type != fabricui.EventUpdate || got.Node != c.in.Peer.NodeID || got.UpdateKind != c.kind || ver != c.ver || got.UpdateErr != c.err {
 			t.Errorf("%v: %+v", c.in.Kind, got)
 		}
+	}
+}
+
+// diagnosticsOf maps go-fabric's snapshot one to one; a peer's state is
+// client.ConnectionState's String in the contract's names, "" for one
+// without a registered node or a name go-fabric adds later.
+func TestDiagnosticsOf(t *testing.T) {
+	for in, want := range map[string]fabricui.ConnectionState{
+		"Connected": fabricui.ConnectionConnected, "Disconnected": fabricui.ConnectionDisconnected,
+		"Reconnecting": fabricui.ConnectionReconnecting, "WaitingForDeviceDiscovery": fabricui.ConnectionWaitingForDiscovery,
+		"": "", "Later": "",
+	} {
+		if got := peerStateOf(in); got != want {
+			t.Errorf("peerStateOf(%q) = %q, want %q", in, got, want)
+		}
+	}
+	at := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+	got := diagnosticsOf(diag.SessionDiagnostics{
+		AsOf:     at,
+		Sessions: []diag.SessionInfo{{ID: 7, FabricIndex: 1, PeerNodeID: 0x11, CreatedAt: at, Resumed: true, Transport: "tcp", PeerLost: true}},
+		Peers: []diag.PeerInfo{{
+			FabricIndex: 1, NodeID: 0x11, Registered: true, State: "Reconnecting", TimeOffline: time.Minute,
+			OperationalHost: "h.local", TCPUnsupported: true, DiscoveredNames: []string{"A-B"}, NextExpectedCheckIn: at, SessionIDs: []uint16{7},
+		}},
+	})
+	s, p := got.Sessions[0], got.Peers[0]
+	if !got.AsOf.Equal(at) || s.ID != 7 || !s.Resumed || s.Transport != "tcp" || !s.PeerLost || !s.CreatedAt.Equal(at) ||
+		p.State != fabricui.ConnectionReconnecting || p.TimeOffline != time.Minute || p.OperationalHost != "h.local" ||
+		!p.TCPUnsupported || p.DiscoveredNames[0] != "A-B" || !p.NextExpectedCheckIn.Equal(at) || p.SessionIDs[0] != 7 {
+		t.Fatalf("diagnosticsOf = %+v", got)
+	}
+	ev := diagnosticEventOf(&diag.Event{At: at, Kind: "icd", Severity: "warning", Message: "m", Detail: map[string]string{"k": "v"}})
+	if ev.Kind != "icd" || ev.Severity != "warning" || ev.Detail["k"] != "v" || !ev.At.Equal(at) {
+		t.Fatalf("diagnosticEventOf = %+v", ev)
 	}
 }

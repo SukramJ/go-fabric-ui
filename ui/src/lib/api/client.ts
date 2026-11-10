@@ -112,6 +112,10 @@ export type UpdateConsentRequest = S["UpdateConsentRequest"];
 export type AvailableUpdate = S["AvailableUpdate"];
 export type AvailableUpdateList = S["AvailableUpdateList"];
 export type ControllerEvent = S["ControllerEvent"];
+// The controller's diagnostics (contract 0.9.0).
+export type ControllerDiagnostics = S["ControllerDiagnostics"];
+export type ControllerPeer = S["ControllerPeer"];
+export type ControllerMdns = S["ControllerMdns"];
 // Operation, the node selector, ping and the stream's health and trace events (contract 0.5.0).
 export type NodeSummary = S["NodeSummary"];
 export type NodeSummaryList = S["NodeSummaryList"];
@@ -264,6 +268,12 @@ export interface FabricClient {
   checkUpdates(): Promise<AvailableUpdateList>;
   /** The controller's network as a graph; refresh re-reads the nodes' diagnostics first (admin). 501 when the host serves no graph. */
   controllerTopology(refresh?: boolean): Promise<TopologyGraph>;
+  /** The controller's sessions and peers (0.9.0); 501 when the source serves no diagnostics. */
+  controllerDiagnostics(): Promise<ControllerDiagnostics>;
+  /** What keeps the controller's DNS-SD from working, errors first (0.9.0); 501 as above. */
+  controllerMdns(): Promise<ControllerMdns>;
+  /** The controller's diagnostic trace, newest first (0.9.0); 501 as above. */
+  controllerEvents(): Promise<DiagnosticEventList>;
   /** The URL of the controller's event stream. */
   controllerStreamUrl(): string;
 }
@@ -417,6 +427,9 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       checkUpdates: () => call("POST", "/controller/updates/check", { admin: true }),
       controllerTopology: (refresh) =>
         refresh ? call("GET", "/controller/topology?refresh=true", { admin: true }) : call("GET", "/controller/topology"),
+      controllerDiagnostics: () => call("GET", "/controller/diagnostics"),
+      controllerMdns: () => call("GET", "/controller/mdns"),
+      controllerEvents: () => call("GET", "/controller/events"),
       controllerStreamUrl: () => base + "/controller/stream",
     };
   }

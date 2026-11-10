@@ -42,6 +42,7 @@
   import ControllerCommission from "../lib/pages/controller/Commission.svelte";
   import ControllerNode from "../lib/pages/controller/Node.svelte";
   import ControllerSettings from "../lib/pages/controller/Settings.svelte";
+  import ControllerDiagnostics from "../lib/pages/controller/Diagnostics.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import NodeCreateDialog from "./NodeCreateDialog.svelte";
   import Toaster from "./Toaster.svelte";
@@ -58,7 +59,7 @@
   const controller = ui.controller;
 
   const nodePages = { status: NodeStatus, pair: NodePair, fabrics: NodeFabrics, selection: NodeSelection, endpoints: NodeEndpoints, surface: NodeSurface, diagnostics: NodeDiagnostics, topology: NodeTopology };
-  const controllerPages = { nodes: ControllerNodes, commission: ControllerCommission, settings: ControllerSettings };
+  const controllerPages = { nodes: ControllerNodes, commission: ControllerCommission, settings: ControllerSettings, diagnostics: ControllerDiagnostics };
 
   // null until probed: whether GET /node/status answered (not 404).
   let nodeServed = $state<boolean | null>(null);
@@ -141,6 +142,11 @@
     { key: "nodes", label: t("controller.tab.nodes"), href: ui.routes.controllerNodes },
     { key: "commission", label: t("controller.tab.commission"), href: ui.routes.controllerCommission },
     { key: "settings", label: t("controller.tab.settings"), href: ui.routes.controllerSettings },
+    // Hidden while the source serves no diagnostics (0.9.0); the page
+    // itself says so when its route is opened.
+    ...(ui.controller.status?.capabilities.diagnostics
+      ? [{ key: "diagnostics", label: t("controller.tab.diagnostics"), href: ui.routes.controllerDiagnostics }]
+      : []),
   ]);
 
   const controllerPage = $derived(route.family === "controller" && route.page in controllerPages ? (route.page as keyof typeof controllerPages) : "nodes");

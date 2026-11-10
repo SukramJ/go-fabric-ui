@@ -94,11 +94,15 @@ export const CONTROLLER_STREAM_EVENTS = [
   "commissioning_progress",
   "update",
   "topology_changed",
+  "controller_diagnostic_event",
 ] as const;
 
 export type ControllerStreamEventType = (typeof CONTROLLER_STREAM_EVENTS)[number];
 
-export type ControllerStreamEvent = { type: ControllerStreamEventType; data: ControllerEvent };
+/** One controller stream event; controller_diagnostic_event (0.9.0) carries a trace entry, every other a ControllerEvent. */
+export type ControllerStreamEvent =
+  | { type: Exclude<ControllerStreamEventType, "controller_diagnostic_event">; data: ControllerEvent }
+  | { type: "controller_diagnostic_event"; data: DiagnosticEvent };
 
 /**
  * Subscribes to the controller stream at `url`, as subscribeStream does
@@ -118,7 +122,7 @@ export function subscribeControllerStream(
       } catch {
         return;
       }
-      onEvent({ type, data: data as ControllerEvent });
+      onEvent({ type, data } as ControllerStreamEvent);
     });
   }
   return () => es.close();

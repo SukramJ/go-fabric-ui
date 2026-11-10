@@ -59,6 +59,105 @@ type ControllerSource interface {
 	// the nodes' network diagnostics first. [ErrNotImplemented] when the
 	// source serves no graph (GET /controller/topology answers 501).
 	NetworkTopology(ctx context.Context, refresh bool) (NetworkTopology, error)
+	// Diagnostics is a snapshot of the controller's sessions and peers
+	// (GET /controller/diagnostics, contract 0.9.0). It is called only
+	// when Capabilities().Diagnostics is true; false there answers 501
+	// as well (a source that claims the capability and has nothing).
+	Diagnostics() (ControllerDiagnostics, bool)
+	// DiagnoseMDNS is what keeps the controller's DNS-SD from working,
+	// errors first (GET /controller/mdns). It is called from a request
+	// handler only, never from a callback of the source.
+	DiagnoseMDNS() []MDNSFinding
+	// DiagnosticEvents is the controller's diagnostic trace, oldest first
+	// (GET /controller/events serves it newest first).
+	DiagnosticEvents() []DiagnosticEvent
+	// OnDiagnosticEvent registers fn for every entry the trace records
+	// from now on (the stream's controller_diagnostic_event) and returns
+	// the function that unregisters it; nil when the source serves no
+	// diagnostics. fn must not block.
+	OnDiagnosticEvent(fn func(DiagnosticEvent)) (unsubscribe func())
+}
+
+// ControllerDiagnostics is the controller's diagnostic snapshot as GET
+// /controller/diagnostics serves it (the contract's ControllerDiagnostics):
+// the port's own shape of go-fabric's diag.SessionDiagnostics, so the
+// port carries no go-fabric type.
+type ControllerDiagnostics struct {
+	// AsOf is when the snapshot was taken; every age is measured against
+	// it.
+	AsOf time.Time
+	// Occupancy is the session-id space's usage; Capacity 0 when the
+	// controller does not track it.
+	Occupancy SessionOccupancy
+	// Sessions are the open sessions, by peer, then session.
+	Sessions []ControllerSession
+	// Peers are the controller's peers, in the order they joined.
+	Peers []ControllerPeer
+}
+
+// SessionOccupancy is how much of the session-id space is held.
+type SessionOccupancy struct {
+	Live, Reserved, Capacity, Free int
+}
+
+// ControllerSession is one open PASE or CASE session of the controller
+// (the contract's Session with the fields of 0.9.0).
+type ControllerSession struct {
+	ID                      uint16
+	FabricIndex             uint8
+	PeerNodeID, LocalNodeID uint64
+	PASE                    bool
+	Subscriptions           int
+	LastActivity            time.Time
+	LastPeerActivity        time.Time
+	Idle, PeerIdle          time.Duration
+	CreatedAt               time.Time
+	Resumed                 bool
+	// Transport is "udp", "tcp" or "ble"; "" when unknown.
+	Transport string
+	PeerLost  bool
+}
+
+// ControllerPeer is one of the controller's peers (the contract's
+// ControllerPeer, go-fabric diag.PeerInfo).
+type ControllerPeer struct {
+	FabricIndex uint8
+	NodeID      uint64
+	// Registered: a commissioned node of the controller's registry has
+	// this address.
+	Registered bool
+	// State is the node's connection state; "" without a registered node.
+	State     ConnectionState
+	LoadError string
+	// TimeOffline is how long the peer's connection process has been
+	// trying; 0 when none runs.
+	TimeOffline                         time.Duration
+	OperationalAddress, OperationalHost string
+	TCPUnsupported, Reachable           bool
+	DiscoveredNames                     []string
+	// LastCheckInAt and NextExpectedCheckIn are zero when unknown.
+	LastCheckInAt, NextExpectedCheckIn time.Time
+	SubscriptionActive                 bool
+	SessionIDs                         []uint16
+}
+
+// MDNSFinding is one condition that keeps the controller's DNS-SD from
+// working (the contract's MdnsFinding).
+type MDNSFinding struct {
+	// Severity is "error" or "warning".
+	Severity, Code, Message string
+	// Service is the instance the finding is about; "" for none.
+	Service string
+}
+
+// DiagnosticEvent is one entry of the controller's diagnostic trace (the
+// contract's DiagnosticEvent).
+type DiagnosticEvent struct {
+	At time.Time
+	// Kind is pairing, session, discovery, reachability, icd, ota or
+	// camera; Severity info, warning or error.
+	Kind, Severity, Message string
+	Detail                  map[string]string
 }
 
 // NetworkTopology is a controller's network as GET /controller/topology
@@ -197,6 +296,12 @@ type ControllerFabric struct {
 type ControllerCapabilities struct {
 	// BLE: the controller commissions over Bluetooth LE.
 	BLE bool
+	// Diagnostics: the source serves the controller's diagnostics
+	// (contract 0.9.0, capabilities.diagnostics) — Diagnostics,
+	// DiagnoseMDNS, DiagnosticEvents and OnDiagnosticEvent. False: the
+	// three diagnostic routes answer 501 without calling them, and the
+	// stream carries no controller_diagnostic_event.
+	Diagnostics bool
 }
 
 // ConnectionState is a node's connection state.
@@ -750,6 +855,10 @@ const (
 	EventUpdate                = "update"
 	// EventTopologyChanged tells a page to reload GET /controller/topology.
 	EventTopologyChanged = "topology_changed"
+	// EventControllerDiagnosticEvent carries one [DiagnosticEvent] the
+	// controller's trace recorded (contract 0.9.0); the handler publishes
+	// it from [ControllerSource.OnDiagnosticEvent].
+	EventControllerDiagnosticEvent = "controller_diagnostic_event"
 )
 
 // ControllerEvent is one event of the controller: Type is one of the

@@ -7,6 +7,51 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-10
+
+go-fabric v0.21.0 and the controller family's Diagnostics tab (wave U11,
+issue #60, brief `notes/briefs/2026-11-10-U11-controller-diagnostics.md`);
+contract 0.9.0, additive over 0.8.1.
+
+### Added
+
+- The controller family's **Diagnostics** tab (`#/controller/diagnostics`,
+  "Diagnose" in German): the DNS-SD findings, one row per peer (connection
+  state, reachability, operational address and host, time offline, ICD
+  check-ins, sessions; a commissioned node links to its page), the open
+  sessions with transport, establishment time, resumption and a lost peer,
+  and the recent events newest first. It reloads on a burst of
+  `controller_diagnostic_event`; a source that serves no diagnostics hides
+  the tab and the page shows an empty state.
+- `GET /controller/diagnostics`, `GET /controller/mdns` and
+  `GET /controller/events` (contract 0.9.0), with the schemas
+  `ControllerDiagnostics`, `ControllerPeer` and `ControllerMdns`; the
+  stream event `controller_diagnostic_event`; the required
+  `ControllerCapabilities.diagnostics`; the optional `Session` fields
+  `created_at`, `resumed`, `transport` and `peer_lost` (the controller's
+  sessions only); the `DiagnosticEvent` kinds `reachability`, `icd`,
+  `ota` and `camera`. A source without diagnostics answers the three
+  routes with 501 `not_implemented`.
+- `fabricui.ControllerSource` gains `Diagnostics`, `DiagnoseMDNS`,
+  `DiagnosticEvents` and `OnDiagnosticEvent`, with the port types
+  `ControllerDiagnostics`, `ControllerSession`, `SessionOccupancy`,
+  `ControllerPeer`, `MDNSFinding` and `DiagnosticEvent`; a source of its
+  own implements them, and `fabricui.ControllerCapabilities` gains
+  `Diagnostics`, the flag a source serving them sets. The
+  `gofabric` adapter sets it and maps go-fabric's controller diagnostics one to one;
+  `MemoryController.NoDiagnostics` stands for a source without them.
+
+### Changed
+
+- go-fabric v0.20.0 → v0.21.0. The controller serves diagnostics — the
+  sessions and connection state of every peer, a bounded trace with
+  reachability, ICD, OTA and camera events, and the browse-side mDNS
+  finding `no_operational_names` (issue 483) — which this release's tab
+  shows. A peer learns its proven operational host from discovery, not
+  only when a session is established, and while another responder's
+  cache-flush hides that host a reconnect tries the last operational
+  address first (issue 488).
+
 ## [0.8.1] - 2026-11-10
 
 go-fabric v0.20.0 and the node record's operational host (wave U10, brief

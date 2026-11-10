@@ -41,7 +41,9 @@ each project.
 > acknowledgement, the host's counters show on the status page, and the
 > Network page draws the Thread border routers. Wave U10 (`v0.8.1`,
 > contract 0.8.1) carries go-fabric v0.20.0 and shows a node's operational
-> host.
+> host. Wave U11 (`v0.9.0`, contract 0.9.0) carries go-fabric v0.21.0 and
+> gives the controller family a Diagnostics tab: DNS-SD findings, peers,
+> sessions and the diagnostic trace.
 
 ## Two artefacts, one version
 

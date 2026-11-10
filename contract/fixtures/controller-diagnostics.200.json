@@ -1,0 +1,73 @@
+{
+  "route": "GET /controller/diagnostics",
+  "request": {
+    "method": "GET",
+    "path": "/controller/diagnostics"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "as_of": "2026-10-20T08:00:00Z",
+      "occupancy": {
+        "capacity": 0,
+        "free": 0,
+        "live": 0,
+        "reserved": 0
+      },
+      "peers": [
+        {
+          "discovered_names": [
+            "87E1B004E235A130-0000000000000011"
+          ],
+          "fabric_index": 1,
+          "node_id_hex": "0000000000000011",
+          "operational_address": "[fd00::11]:5540",
+          "operational_host": "0123456789abcdef.local",
+          "reachable": true,
+          "registered": true,
+          "session_ids": [
+            256
+          ],
+          "state": "connected",
+          "subscription_active": true,
+          "tcp_unsupported": false,
+          "time_offline_ms": 0
+        },
+        {
+          "discovered_names": [],
+          "fabric_index": 1,
+          "last_check_in_at": "2026-10-20T08:00:00Z",
+          "next_expected_check_in": "2026-10-20T09:00:00Z",
+          "node_id_hex": "0000000000000012",
+          "reachable": false,
+          "registered": true,
+          "session_ids": [],
+          "state": "waiting_for_discovery",
+          "subscription_active": false,
+          "tcp_unsupported": false,
+          "time_offline_ms": 900000
+        }
+      ],
+      "sessions": [
+        {
+          "created_at": "2026-10-20T07:50:00Z",
+          "fabric_index": 1,
+          "idle_seconds": 0,
+          "is_pase": false,
+          "last_activity": "0001-01-01T00:00:00Z",
+          "last_peer_activity": "2026-10-20T07:59:30Z",
+          "local_node_id": 112233,
+          "local_node_id_hex": "000000000001B669",
+          "peer_idle_seconds": 30,
+          "peer_lost": false,
+          "peer_node_id": 17,
+          "peer_node_id_hex": "0000000000000011",
+          "resumed": true,
+          "session_id": 256,
+          "subscriptions": 0,
+          "transport": "udp"
+        }
+      ]
+    }
+  }
+}
