@@ -426,8 +426,10 @@ device. The port's error is `*fabricui.ErrTermsRequired`.
 ### problem-not_implemented
 The host does not serve the route (501): `GET /controller/topology`
 from a host without a topology service, and `POST
-/node/maintenance/erase` from a host that wires no `Erase` (0.7.0). Its
-detail is a fixed sentence, never an error's text.
+/node/maintenance/erase` from a host that wires no `Erase` (0.7.0), and
+`GET /controller/diagnostics`, `/controller/mdns` and `/controller/events`
+from a source that serves no diagnostics (0.9.0). Its detail is a fixed
+sentence, never an error's text.
 
 ## Versioning
 
@@ -477,6 +479,17 @@ node's address when it was last reached (go-fabric 0.20.0's
 go-fabric 0.20.0, and not `hostname`, the commissionable advertisement's
 host. No problem code is new.
 
+Contract 0.9.0 (wave U11, issue #60) is additive over 0.8.1, which
+`contract/previous/` holds as release 0.8.1 shipped it: three controller
+routes (`/controller/diagnostics`, `/controller/mdns`,
+`/controller/events`) with the schemas `ControllerDiagnostics`,
+`ControllerPeer` and `ControllerMdns`, the stream event
+`controller_diagnostic_event`, the required
+`ControllerCapabilities.diagnostics`, the optional `Session` fields
+`created_at`, `resumed`, `transport` and `peer_lost`, and the
+`DiagnosticEvent` kinds `reachability`, `icd`, `ota` and `camera`. No
+problem code is new.
+
 ## Controller routes (v0.2.0)
 
 Served only when the host passes `Options.Controller`; without it every
@@ -519,6 +532,9 @@ hand-written.
 | `/controller/updates` | GET | – | 200 |
 | `/controller/updates/consent`, `/check` | POST | yes | 200/204, 400, 403, 404, 500, 503 |
 | `/controller/topology` | GET | `refresh=true` only | 200, 403, 501, 502 — served from 0.3.1; 501 `not_implemented` from a host without a topology service |
+| `/controller/diagnostics` | GET | – | 200, 501 — served from 0.9.0 |
+| `/controller/mdns` | GET | – | 200, 501 — served from 0.9.0 |
+| `/controller/events` | GET | – | 200, 501 — served from 0.9.0 |
 | `/controller/stream` | GET | – | 200 (`text/event-stream`) |
 
 Details the fixtures pin:
@@ -599,6 +615,57 @@ Details the fixtures pin:
   the host's default entry, which the Commission page preselects (else
   the only entry).
 
+## Controller diagnostics (v0.9.0)
+
+The controller family's Diagnostics tab (issue #60) reads three routes
+that mirror the node family's `/node/sessions`, `/node/mdns` and
+`/node/events`, over go-fabric v0.21.0's controller diagnostics
+(`controller/diagnostics.go`: `Controller.SessionDiagnostics` :46,
+`DiagnosticEvents` :140, `OnDiagnosticEvent` :154, `DiagnoseMDNS` :547).
+The port is `ControllerSource.Diagnostics`, `DiagnoseMDNS`,
+`DiagnosticEvents` and `OnDiagnosticEvent` with types of `fabricui`
+(`docs/embedding.md`); a source whose `Diagnostics` reports false serves
+none of them.
+
+- **`capabilities.diagnostics`** on `GET /controller/status` says whether
+  the source serves them. False: the three routes answer `501
+  not_implemented`, the stream carries no `controller_diagnostic_event`,
+  and the shell hides the tab (the page, opened by its route, shows an
+  empty state and asks no route).
+- **`GET /controller/diagnostics`** (`ControllerDiagnostics`): `as_of`,
+  `occupancy`, `sessions` and `peers` (`diag.SessionDiagnostics`,
+  `diag/diag.go:50`). A session is the node family's `Session` with the
+  0.9.0 fields `created_at`, `resumed`, `transport` (`udp`, `tcp`, `ble`;
+  absent when unknown) and `peer_lost` (`diag.SessionInfo`, :68), which
+  the node family never sends. The controller keeps its subscriptions by
+  peer, so a session's `subscriptions` is 0; its exchange sessions export
+  no any-direction timestamp, so `last_activity` is the zero time and
+  `idle_seconds` 0; it tracks no session-id occupancy, so `occupancy` is
+  all zero. A peer (`ControllerPeer`, `diag.PeerInfo` :130) carries
+  `node_id_hex`, `fabric_index`, `registered`, `state` (go-fabric's
+  connection-state name mapped onto `ConnectionState`; absent without a
+  registered node), `load_error`, `time_offline_ms`,
+  `operational_address`, `operational_host`, `tcp_unsupported`,
+  `reachable`, `discovered_names`, `last_check_in_at`,
+  `next_expected_check_in` (both absent when zero),
+  `subscription_active` and `session_ids`.
+- **`GET /controller/mdns`** (`ControllerMdns`): `findings`, errors first,
+  in the node family's `MdnsFinding` shape. Beside the advertisement's
+  codes, `no_operational_names` (a warning; `mdns/diagnose_browse.go:14`):
+  a commissioned node waits for device discovery while the DNS-SD cache
+  holds none of the commissioned nodes' operational records. The
+  controller has no interface allow-list, so the node's interface findings
+  do not occur. The handler calls `DiagnoseMDNS` from the request only:
+  go-fabric's call waits for the DNS-SD cache and must not run from a
+  callback the cache runs.
+- **`GET /controller/events`** (`DiagnosticEventList`): the bounded trace,
+  newest first, as `GET /node/events`; the kinds are the node's
+  `pairing`, `session` and `discovery` plus `reachability`, `icd`, `ota`
+  and `camera` (`diagevent/ring.go:49-58`).
+- **`controller_diagnostic_event`** on `GET /controller/stream` carries
+  one `DiagnosticEvent` in the node family's `diagnostic_event` shape; the
+  page reloads once per burst (the controller store's `diagnosticEpoch`).
+
 ## Identifiers, secrets and events of the controller family
 
 - **Secrets**: a commissioning's code and passcode, a window's passcode
@@ -628,7 +695,9 @@ Details the fixtures pin:
   `update_version` for the kinds that carry a target and `update_error`
   for `check_finished` and `failed`; a controller without an update
   manager emits none. `topology_changed` (`{}`) tells a page to reload
-  `/controller/topology`. A comment line arrives every 15 s.
+  `/controller/topology`. `controller_diagnostic_event` (0.9.0) carries a
+  `DiagnosticEvent`, not a `ControllerEvent` (section "Controller
+  diagnostics"). A comment line arrives every 15 s.
 - **`node_error`** (502): the interaction with the node failed. Unlike
   the other 5xx problems it carries a detail — the node's answer, which
   names no host path.

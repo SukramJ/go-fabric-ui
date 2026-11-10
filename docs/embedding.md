@@ -280,6 +280,7 @@ What each route calls on the facade:
 | `PUT /controller/fabric/label` | `Fabric().SetLabel`, then `Registry().SetFabricLabel` in the background |
 | `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates`, `AddUpdateConsent`; the stream's `update` events from `Observe`, subscribed in `ControllerOf` and released by `Hooks.Close` (0.7.0) |
 | `GET /controller/topology` | `ControllerOptions.Topology`, the host's `*topology.Service`: `Topology()`, or `Refresh` with `refresh=true`; its `OnChanged` becomes `topology_changed`. The host wires it: `topology.Changes.Install(&cfg)` before `controller.New`, `topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})`, `ControllerOf(…, ControllerOptions{Topology: svc})`, and `svc.Close()` on shutdown (the subscription goes with `Hooks.Close`). The border routers (0.8.0) need nothing more: with `topology.Config.BorderRouters` nil the service builds on the controller's own registry, `Controller.BorderRouters` (go-fabric `controller/topology/service.go:57-60`, `:163-165` at v0.19.1). Without it `NetworkTopology` answers `fabricui.ErrNotImplemented` (501) |
+| `GET /controller/diagnostics`, `/mdns`, `/events`; `controller_diagnostic_event` | `Controller.SessionDiagnostics`, `DiagnoseMDNS`, `DiagnosticEvents` and `OnDiagnosticEvent` (go-fabric `controller/diagnostics.go:46`, `:547`, `:140`, `:154` at v0.21.0), mapped one to one onto the port's types; nothing to wire. `DiagnoseMDNS` waits for the DNS-SD cache and is called from the request only; `OnDiagnosticEvent` runs on the goroutine that recorded the event, and the handler only queues it (0.9.0) |
 
 A host without go-fabric's controller — a test, a demonstration —
 implements `fabricui.ControllerSource` itself; `fabricui.NewMemoryController()`
@@ -294,6 +295,22 @@ starts and ends; a source that never calls it shows no steps.
 longer publishes one after a check or a consent, so a source of its own
 emits them through `Observe` (the memory controller emits
 `check_finished` and `consent_changed`).
+
+The port change of 0.9.0: `ControllerSource` gains four methods for the
+controller's diagnostics, with types of `fabricui`, not go-fabric's.
+`Diagnostics() (ControllerDiagnostics, bool)` is the snapshot of the
+sessions (`ControllerSession`) and peers (`ControllerPeer`); false means
+the source serves no diagnostics — `GET /controller/diagnostics`,
+`/controller/mdns` and `/controller/events` answer 501 and
+`capabilities.diagnostics` is false, and the other three methods are not
+called by those routes. `DiagnoseMDNS() []MDNSFinding` is called from a
+request handler only, errors first. `DiagnosticEvents() []DiagnosticEvent`
+is the trace oldest first; the route serves it newest first.
+`OnDiagnosticEvent(fn)` registers fn for every new entry and returns its
+unsubscribe function, or nil when the source serves no diagnostics; fn
+must not block. A source of its own that has no diagnostics returns
+`false`, nil, nil and nil; `MemoryController.NoDiagnostics` stands for
+one.
 
 ## Mounting the API alone
 
