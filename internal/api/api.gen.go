@@ -153,6 +153,60 @@ func (e CredentialRequestKind) Valid() bool {
 	}
 }
 
+// Defines values for DiagnosticEventKind.
+const (
+	DiagnosticEventKindCamera       DiagnosticEventKind = "camera"
+	DiagnosticEventKindDiscovery    DiagnosticEventKind = "discovery"
+	DiagnosticEventKindIcd          DiagnosticEventKind = "icd"
+	DiagnosticEventKindOta          DiagnosticEventKind = "ota"
+	DiagnosticEventKindPairing      DiagnosticEventKind = "pairing"
+	DiagnosticEventKindReachability DiagnosticEventKind = "reachability"
+	DiagnosticEventKindSession      DiagnosticEventKind = "session"
+)
+
+// Valid indicates whether the value is a known member of the DiagnosticEventKind enum.
+func (e DiagnosticEventKind) Valid() bool {
+	switch e {
+	case DiagnosticEventKindCamera:
+		return true
+	case DiagnosticEventKindDiscovery:
+		return true
+	case DiagnosticEventKindIcd:
+		return true
+	case DiagnosticEventKindOta:
+		return true
+	case DiagnosticEventKindPairing:
+		return true
+	case DiagnosticEventKindReachability:
+		return true
+	case DiagnosticEventKindSession:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DiagnosticEventSeverity.
+const (
+	DiagnosticEventSeverityError   DiagnosticEventSeverity = "error"
+	DiagnosticEventSeverityInfo    DiagnosticEventSeverity = "info"
+	DiagnosticEventSeverityWarning DiagnosticEventSeverity = "warning"
+)
+
+// Valid indicates whether the value is a known member of the DiagnosticEventSeverity enum.
+func (e DiagnosticEventSeverity) Valid() bool {
+	switch e {
+	case DiagnosticEventSeverityError:
+		return true
+	case DiagnosticEventSeverityInfo:
+		return true
+	case DiagnosticEventSeverityWarning:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EventRecordPriority.
 const (
 	EventRecordPriorityCritical EventRecordPriority = "critical"
@@ -186,6 +240,24 @@ func (e IcdStateOperatingMode) Valid() bool {
 	case IcdStateOperatingModeLit:
 		return true
 	case IcdStateOperatingModeSit:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MdnsFindingSeverity.
+const (
+	MdnsFindingSeverityError   MdnsFindingSeverity = "error"
+	MdnsFindingSeverityWarning MdnsFindingSeverity = "warning"
+)
+
+// Valid indicates whether the value is a known member of the MdnsFindingSeverity enum.
+func (e MdnsFindingSeverity) Valid() bool {
+	switch e {
+	case MdnsFindingSeverityError:
+		return true
+	case MdnsFindingSeverityWarning:
 		return true
 	default:
 		return false
@@ -270,6 +342,27 @@ func (e ProblemCode) Valid() bool {
 	case ProblemCodeServiceUnready:
 		return true
 	case ProblemCodeTermsRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SessionTransport.
+const (
+	SessionTransportBle SessionTransport = "ble"
+	SessionTransportTCP SessionTransport = "tcp"
+	SessionTransportUDP SessionTransport = "udp"
+)
+
+// Valid indicates whether the value is a known member of the SessionTransport enum.
+func (e SessionTransport) Valid() bool {
+	switch e {
+	case SessionTransportBle:
+		return true
+	case SessionTransportTCP:
+		return true
+	case SessionTransportUDP:
 		return true
 	default:
 		return false
@@ -759,8 +852,29 @@ type ControllerCapabilities struct {
 	// Credentials The host stores Wi-Fi and Thread credentials; the credential routes answer.
 	Credentials bool `json:"credentials"`
 
+	// Diagnostics The source serves the controller's diagnostics (0.9.0): `GET /controller/diagnostics`, `/controller/mdns` and `/controller/events` answer, the stream carries controller_diagnostic_event. False: the three routes answer 501.
+	Diagnostics bool `json:"diagnostics"`
+
 	// Ota The controller runs an OTA provider; the update routes answer.
 	Ota bool `json:"ota"`
+}
+
+// ControllerDiagnostics The controller's sessions and peers (0.9.0, go-fabric `diag.SessionDiagnostics`).
+type ControllerDiagnostics struct {
+	// AsOf When the snapshot was taken, on the controller's clock; every age is measured against it.
+	AsOf      time.Time `json:"as_of"`
+	Occupancy Occupancy `json:"occupancy"`
+
+	// Peers One entry per peer, in the order the peers joined.
+	Peers []ControllerPeer `json:"peers"`
+
+	// Sessions The open sessions, by peer, then session.
+	Sessions []Session `json:"sessions"`
+}
+
+// ControllerMdns The controller's DNS-SD findings (0.9.0, go-fabric `Controller.DiagnoseMDNS`), errors first. Beside the codes of `GET /node/mdns`, `no_operational_names` (a warning): a commissioned node waits for device discovery and the DNS-SD cache holds none of the commissioned nodes' operational records.
+type ControllerMdns struct {
+	Findings []MdnsFinding `json:"findings"`
 }
 
 // ControllerNodeDetail defines model for ControllerNodeDetail.
@@ -792,6 +906,48 @@ type ControllerNodeSummary struct {
 	SubscriptionActive bool    `json:"subscription_active"`
 	VendorID           *int    `json:"vendor_id,omitempty"`
 	VendorName         *string `json:"vendor_name,omitempty"`
+}
+
+// ControllerPeer One of the controller's peers (0.9.0, go-fabric `diag.PeerInfo`): a node on our fabric the controller keeps a connection to.
+type ControllerPeer struct {
+	// DiscoveredNames The peer's operational instance names the DNS-SD cache holds records for.
+	DiscoveredNames []string `json:"discovered_names"`
+	FabricIndex     int      `json:"fabric_index"`
+
+	// LastCheckInAt The last ICD Check-In the peer sent; absent when none arrived.
+	LastCheckInAt *time.Time `json:"last_check_in_at,omitempty"`
+
+	// LoadError Why the node's stored state did not load; absent when it did or without a registered node.
+	LoadError *string `json:"load_error,omitempty"`
+
+	// NextExpectedCheckIn When the next Check-In is due; absent when the peer is no registered LIT ICD.
+	NextExpectedCheckIn *time.Time `json:"next_expected_check_in,omitempty"`
+	NodeIDHex           string     `json:"node_id_hex"`
+
+	// OperationalAddress The address the peer's sessions use; absent when none is known.
+	OperationalAddress *string `json:"operational_address,omitempty"`
+
+	// OperationalHost The discovered SRV target that owns the operational address; absent when none does.
+	OperationalHost *string `json:"operational_host,omitempty"`
+
+	// Reachable The peer's operational service is believed reachable.
+	Reachable bool `json:"reachable"`
+
+	// Registered A commissioned node of the controller's registry has this address; a peer the host added itself has none.
+	Registered bool `json:"registered"`
+
+	// SessionIds The ids of the peer's sessions, each listed in `sessions`.
+	SessionIds []int            `json:"session_ids"`
+	State      *ConnectionState `json:"state,omitempty"`
+
+	// SubscriptionActive The node's default subscription is established.
+	SubscriptionActive bool `json:"subscription_active"`
+
+	// TCPUnsupported The peer refused TCP.
+	TCPUnsupported bool `json:"tcp_unsupported"`
+
+	// TimeOfflineMs How long the peer's connection process has been trying; 0 when none runs.
+	TimeOfflineMs int `json:"time_offline_ms"`
 }
 
 // ControllerStatus defines model for ControllerStatus.
@@ -850,6 +1006,28 @@ type CredentialRequest struct {
 
 // CredentialRequestKind defines model for CredentialRequest.Kind.
 type CredentialRequestKind string
+
+// DiagnosticEvent defines model for DiagnosticEvent.
+type DiagnosticEvent struct {
+	At     time.Time          `json:"at"`
+	Detail *map[string]string `json:"detail,omitempty"`
+
+	// Kind pairing, session and discovery on both families; reachability, icd, ota and camera on the controller's trace (0.9.0).
+	Kind     DiagnosticEventKind     `json:"kind"`
+	Message  string                  `json:"message"`
+	Severity DiagnosticEventSeverity `json:"severity"`
+}
+
+// DiagnosticEventKind pairing, session and discovery on both families; reachability, icd, ota and camera on the controller's trace (0.9.0).
+type DiagnosticEventKind string
+
+// DiagnosticEventSeverity defines model for DiagnosticEvent.Severity.
+type DiagnosticEventSeverity string
+
+// DiagnosticEventList defines model for DiagnosticEventList.
+type DiagnosticEventList struct {
+	Events []DiagnosticEvent `json:"events"`
+}
 
 // Discovered defines model for Discovered.
 type Discovered struct {
@@ -1034,6 +1212,17 @@ type InvokeResult struct {
 	Status int `json:"status"`
 }
 
+// MdnsFinding defines model for MdnsFinding.
+type MdnsFinding struct {
+	Code     string              `json:"code"`
+	Message  string              `json:"message"`
+	Service  *string             `json:"service,omitempty"`
+	Severity MdnsFindingSeverity `json:"severity"`
+}
+
+// MdnsFindingSeverity defines model for MdnsFinding.Severity.
+type MdnsFindingSeverity string
+
 // NodeCluster defines model for NodeCluster.
 type NodeCluster struct {
 	Features []string `json:"features"`
@@ -1145,6 +1334,14 @@ type NodeWindowRequest struct {
 	TimeoutSeconds *int `json:"timeout_seconds,omitempty"`
 }
 
+// Occupancy defines model for Occupancy.
+type Occupancy struct {
+	Capacity int `json:"capacity"`
+	Free     int `json:"free"`
+	Live     int `json:"live"`
+	Reserved int `json:"reserved"`
+}
+
 // PendingUpdate defines model for PendingUpdate.
 type PendingUpdate struct {
 	Length     *int       `json:"length,omitempty"`
@@ -1237,6 +1434,40 @@ type SemanticTag struct {
 	Namespace int  `json:"namespace"`
 	Tag       int  `json:"tag"`
 }
+
+// Session defines model for Session.
+type Session struct {
+	// CreatedAt When the session was established (0.9.0); the controller's sessions only, absent on the node.
+	CreatedAt        *time.Time `json:"created_at,omitempty"`
+	FabricIndex      int        `json:"fabric_index"`
+	IdleSeconds      int        `json:"idle_seconds"`
+	IsPase           bool       `json:"is_pase"`
+	LastActivity     time.Time  `json:"last_activity"`
+	LastPeerActivity time.Time  `json:"last_peer_activity"`
+
+	// LocalNodeID Informational; use local_node_id_hex.
+	LocalNodeID     int    `json:"local_node_id"`
+	LocalNodeIDHex  string `json:"local_node_id_hex"`
+	PeerIdleSeconds int    `json:"peer_idle_seconds"`
+
+	// PeerLost The session was given up because the peer is gone or closed it, still listed while it closes (0.9.0); the controller's sessions only.
+	PeerLost *bool `json:"peer_lost,omitempty"`
+
+	// PeerNodeID Informational; use peer_node_id_hex.
+	PeerNodeID    int    `json:"peer_node_id"`
+	PeerNodeIDHex string `json:"peer_node_id_hex"`
+
+	// Resumed The session came from a CASE resumption (0.9.0); the controller's sessions only.
+	Resumed       *bool `json:"resumed,omitempty"`
+	SessionID     int   `json:"session_id"`
+	Subscriptions int   `json:"subscriptions"`
+
+	// Transport The session's carrier (0.9.0); the controller's sessions only, absent when unknown.
+	Transport *SessionTransport `json:"transport,omitempty"`
+}
+
+// SessionTransport The session's carrier (0.9.0); the controller's sessions only, absent when unknown.
+type SessionTransport string
 
 // SurfaceDecision One policy's judgement of one element (surface.Decision).
 type SurfaceDecision struct {
@@ -1526,12 +1757,21 @@ type ServerInterface interface {
 	// SetCredential Store a Wi-Fi credential or a Thread dataset (write-only).
 	// (PUT /controller/credentials)
 	SetCredential(w http.ResponseWriter, r *http.Request)
+	// GetControllerDiagnostics The controller's open sessions and one entry per peer (0.9.0).
+	// (GET /controller/diagnostics)
+	GetControllerDiagnostics(w http.ResponseWriter, r *http.Request)
 	// DiscoverDevices Commissionable devices on the network.
 	// (GET /controller/discovery)
 	DiscoverDevices(w http.ResponseWriter, r *http.Request, params DiscoverDevicesParams)
+	// ListControllerDiagnosticEvents The controller's diagnostic trace, newest first (0.9.0).
+	// (GET /controller/events)
+	ListControllerDiagnosticEvents(w http.ResponseWriter, r *http.Request)
 	// SetFabricLabel The controller's fabric label, pushed to every node.
 	// (PUT /controller/fabric/label)
 	SetFabricLabel(w http.ResponseWriter, r *http.Request)
+	// GetControllerMdns What keeps the controller's DNS-SD from working (0.9.0).
+	// (GET /controller/mdns)
+	GetControllerMdns(w http.ResponseWriter, r *http.Request)
 	// ListControllerNodes The commissioned nodes.
 	// (GET /controller/nodes)
 	ListControllerNodes(w http.ResponseWriter, r *http.Request)
@@ -1724,6 +1964,20 @@ func (siw *ServerInterfaceWrapper) SetCredential(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetControllerDiagnostics operation middleware
+func (siw *ServerInterfaceWrapper) GetControllerDiagnostics(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetControllerDiagnostics(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DiscoverDevices operation middleware
 func (siw *ServerInterfaceWrapper) DiscoverDevices(w http.ResponseWriter, r *http.Request) {
 
@@ -1783,11 +2037,39 @@ func (siw *ServerInterfaceWrapper) DiscoverDevices(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// ListControllerDiagnosticEvents operation middleware
+func (siw *ServerInterfaceWrapper) ListControllerDiagnosticEvents(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListControllerDiagnosticEvents(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SetFabricLabel operation middleware
 func (siw *ServerInterfaceWrapper) SetFabricLabel(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SetFabricLabel(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetControllerMdns operation middleware
+func (siw *ServerInterfaceWrapper) GetControllerMdns(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetControllerMdns(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2759,6 +3041,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/updates/consent", wrapper.ConsentUpdate)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/controller/updates/check", wrapper.CheckUpdates)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/topology", wrapper.GetControllerTopology)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/diagnostics", wrapper.GetControllerDiagnostics)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/mdns", wrapper.GetControllerMdns)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/events", wrapper.ListControllerDiagnosticEvents)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/stream", wrapper.ControllerStream)
 
 	return m
@@ -3087,6 +3372,43 @@ func (response SetCredential503ApplicationProblemPlusJSONResponse) VisitSetCrede
 	return err
 }
 
+type GetControllerDiagnosticsRequestObject struct {
+}
+
+type GetControllerDiagnosticsResponseObject interface {
+	VisitGetControllerDiagnosticsResponse(w http.ResponseWriter) error
+}
+
+type GetControllerDiagnostics200JSONResponse ControllerDiagnostics
+
+func (response GetControllerDiagnostics200JSONResponse) VisitGetControllerDiagnosticsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetControllerDiagnostics501ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetControllerDiagnostics501ApplicationProblemPlusJSONResponse) VisitGetControllerDiagnosticsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(501)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DiscoverDevicesRequestObject struct {
 	Params DiscoverDevicesParams
 }
@@ -3153,6 +3475,43 @@ func (response DiscoverDevices500ApplicationProblemPlusJSONResponse) VisitDiscov
 	return err
 }
 
+type ListControllerDiagnosticEventsRequestObject struct {
+}
+
+type ListControllerDiagnosticEventsResponseObject interface {
+	VisitListControllerDiagnosticEventsResponse(w http.ResponseWriter) error
+}
+
+type ListControllerDiagnosticEvents200JSONResponse DiagnosticEventList
+
+func (response ListControllerDiagnosticEvents200JSONResponse) VisitListControllerDiagnosticEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListControllerDiagnosticEvents501ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response ListControllerDiagnosticEvents501ApplicationProblemPlusJSONResponse) VisitListControllerDiagnosticEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(501)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetFabricLabelRequestObject struct {
 	Body *SetFabricLabelJSONRequestBody
 }
@@ -3209,6 +3568,43 @@ func (response SetFabricLabel500ApplicationProblemPlusJSONResponse) VisitSetFabr
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetControllerMdnsRequestObject struct {
+}
+
+type GetControllerMdnsResponseObject interface {
+	VisitGetControllerMdnsResponse(w http.ResponseWriter) error
+}
+
+type GetControllerMdns200JSONResponse ControllerMdns
+
+func (response GetControllerMdns200JSONResponse) VisitGetControllerMdnsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetControllerMdns501ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetControllerMdns501ApplicationProblemPlusJSONResponse) VisitGetControllerMdnsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(501)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5283,12 +5679,21 @@ type StrictServerInterface interface {
 	// SetCredential Store a Wi-Fi credential or a Thread dataset (write-only).
 	// (PUT /controller/credentials)
 	SetCredential(ctx context.Context, request SetCredentialRequestObject) (SetCredentialResponseObject, error)
+	// GetControllerDiagnostics The controller's open sessions and one entry per peer (0.9.0).
+	// (GET /controller/diagnostics)
+	GetControllerDiagnostics(ctx context.Context, request GetControllerDiagnosticsRequestObject) (GetControllerDiagnosticsResponseObject, error)
 	// DiscoverDevices Commissionable devices on the network.
 	// (GET /controller/discovery)
 	DiscoverDevices(ctx context.Context, request DiscoverDevicesRequestObject) (DiscoverDevicesResponseObject, error)
+	// ListControllerDiagnosticEvents The controller's diagnostic trace, newest first (0.9.0).
+	// (GET /controller/events)
+	ListControllerDiagnosticEvents(ctx context.Context, request ListControllerDiagnosticEventsRequestObject) (ListControllerDiagnosticEventsResponseObject, error)
 	// SetFabricLabel The controller's fabric label, pushed to every node.
 	// (PUT /controller/fabric/label)
 	SetFabricLabel(ctx context.Context, request SetFabricLabelRequestObject) (SetFabricLabelResponseObject, error)
+	// GetControllerMdns What keeps the controller's DNS-SD from working (0.9.0).
+	// (GET /controller/mdns)
+	GetControllerMdns(ctx context.Context, request GetControllerMdnsRequestObject) (GetControllerMdnsResponseObject, error)
 	// ListControllerNodes The commissioned nodes.
 	// (GET /controller/nodes)
 	ListControllerNodes(ctx context.Context, request ListControllerNodesRequestObject) (ListControllerNodesResponseObject, error)
@@ -5535,6 +5940,30 @@ func (sh *strictHandler) SetCredential(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetControllerDiagnostics operation middleware
+func (sh *strictHandler) GetControllerDiagnostics(w http.ResponseWriter, r *http.Request) {
+	var request GetControllerDiagnosticsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetControllerDiagnostics(ctx, request.(GetControllerDiagnosticsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetControllerDiagnostics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetControllerDiagnosticsResponseObject); ok {
+		if err := validResponse.VisitGetControllerDiagnosticsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // DiscoverDevices operation middleware
 func (sh *strictHandler) DiscoverDevices(w http.ResponseWriter, r *http.Request, params DiscoverDevicesParams) {
 	var request DiscoverDevicesRequestObject
@@ -5554,6 +5983,30 @@ func (sh *strictHandler) DiscoverDevices(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DiscoverDevicesResponseObject); ok {
 		if err := validResponse.VisitDiscoverDevicesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListControllerDiagnosticEvents operation middleware
+func (sh *strictHandler) ListControllerDiagnosticEvents(w http.ResponseWriter, r *http.Request) {
+	var request ListControllerDiagnosticEventsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListControllerDiagnosticEvents(ctx, request.(ListControllerDiagnosticEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListControllerDiagnosticEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListControllerDiagnosticEventsResponseObject); ok {
+		if err := validResponse.VisitListControllerDiagnosticEventsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -5585,6 +6038,30 @@ func (sh *strictHandler) SetFabricLabel(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SetFabricLabelResponseObject); ok {
 		if err := validResponse.VisitSetFabricLabelResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetControllerMdns operation middleware
+func (sh *strictHandler) GetControllerMdns(w http.ResponseWriter, r *http.Request) {
+	var request GetControllerMdnsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetControllerMdns(ctx, request.(GetControllerMdnsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetControllerMdns")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetControllerMdnsResponseObject); ok {
+		if err := validResponse.VisitGetControllerMdnsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

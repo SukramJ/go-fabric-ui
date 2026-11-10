@@ -1,0 +1,37 @@
+{
+  "route": "GET /controller/events",
+  "request": {
+    "method": "GET",
+    "path": "/controller/events"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "events": [
+        {
+          "at": "2026-10-20T07:55:00Z",
+          "detail": {
+            "fabric_index": "1",
+            "node_id": "0000000000000012"
+          },
+          "kind": "icd",
+          "message": "Node 0000000000000012 missed its expected check-in.",
+          "severity": "warning"
+        },
+        {
+          "at": "2026-10-20T07:50:00Z",
+          "detail": {
+            "fabric_index": "1",
+            "node_id": "0000000000000011",
+            "resumed": "true",
+            "session_id": "256",
+            "transport": "udp"
+          },
+          "kind": "session",
+          "message": "A secure session with node 0000000000000011 was established.",
+          "severity": "info"
+        }
+      ]
+    }
+  }
+}

@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -311,6 +313,7 @@ func (s *controllerServer) GetControllerStatus(context.Context, api.GetControlle
 			Ota:         s.src.SoftwareUpdates() != nil,
 			Credentials: s.src.Credentials() != nil,
 			Ble:         s.src.Capabilities().BLE,
+			Diagnostics: s.diagnosticsServed(),
 		},
 	}
 	if s.h.admin == nil {
@@ -1641,6 +1644,9 @@ func (h *handler) subscribeController(fn func(Event)) (unsubscribe func()) {
 	unsubs := []func(){h.ctrlHub.Subscribe(fn)}
 	if h.ctrl != nil {
 		unsubs = append(unsubs, h.ctrl.Observe(func(e ControllerEvent) { fn(controllerEvent(e)) }))
+		if u := h.ctrl.OnDiagnosticEvent(func(e DiagnosticEvent) { fn(controllerTraceEvent(e)) }); u != nil {
+			unsubs = append(unsubs, u)
+		}
 	}
 	return func() {
 		for _, u := range unsubs {
@@ -1711,4 +1717,155 @@ func controllerEvent(e ControllerEvent) Event {
 		d.UpdateError = optString(e.UpdateErr)
 	}
 	return Event{Type: e.Type, Data: d}
+}
+
+// --- diagnostics (contract 0.9.0) ---
+
+// GetControllerDiagnostics serves GET /controller/diagnostics: the port's
+// snapshot of the controller's sessions and peers; a source that serves
+// none answers ErrNotImplemented, 501.
+func (s *controllerServer) GetControllerDiagnostics(context.Context, api.GetControllerDiagnosticsRequestObject) (api.GetControllerDiagnosticsResponseObject, error) {
+	d, ok := s.src.Diagnostics()
+	if !ok {
+		return nil, ErrNotImplemented
+	}
+	out := api.GetControllerDiagnostics200JSONResponse{
+		AsOf: wireTime(d.AsOf),
+		Occupancy: api.Occupancy{
+			Live: d.Occupancy.Live, Reserved: d.Occupancy.Reserved, Capacity: d.Occupancy.Capacity, Free: d.Occupancy.Free,
+		},
+		Sessions: make([]api.Session, 0, len(d.Sessions)),
+		Peers:    make([]api.ControllerPeer, 0, len(d.Peers)),
+	}
+	for i := range d.Sessions {
+		out.Sessions = append(out.Sessions, controllerSessionOf(&d.Sessions[i]))
+	}
+	for i := range d.Peers {
+		out.Peers = append(out.Peers, controllerPeerOf(&d.Peers[i]))
+	}
+	return out, nil
+}
+
+// wireTime is a time as the diagnostic routes carry it: UTC, to the
+// second, as the node family's sessions and trace carry theirs.
+func wireTime(t time.Time) time.Time { return t.UTC().Truncate(time.Second) }
+
+// optWireTime is a wireTime the contract omits when it is zero.
+func optWireTime(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return ptr(wireTime(t))
+}
+
+// controllerSessionOf is one of the controller's sessions as the contract's
+// Session: the node's fields, plus created_at, resumed, transport and
+// peer_lost.
+func controllerSessionOf(c *ControllerSession) api.Session {
+	out := api.Session{
+		SessionID:        int(c.ID),
+		FabricIndex:      int(c.FabricIndex),
+		PeerNodeID:       int(c.PeerNodeID), //nolint:gosec // informational; the hex twin is exact
+		PeerNodeIDHex:    hex16(c.PeerNodeID),
+		LocalNodeID:      int(c.LocalNodeID), //nolint:gosec // informational; the hex twin is exact
+		LocalNodeIDHex:   hex16(c.LocalNodeID),
+		IsPase:           c.PASE,
+		Subscriptions:    c.Subscriptions,
+		LastActivity:     wireTime(c.LastActivity),
+		LastPeerActivity: wireTime(c.LastPeerActivity),
+		IdleSeconds:      int(c.Idle.Seconds()),
+		PeerIdleSeconds:  int(c.PeerIdle.Seconds()),
+		CreatedAt:        optWireTime(c.CreatedAt),
+		Resumed:          ptr(c.Resumed),
+		PeerLost:         ptr(c.PeerLost),
+	}
+	if c.Transport != "" {
+		out.Transport = ptr(api.SessionTransport(c.Transport))
+	}
+	return out
+}
+
+// controllerPeerOf is one peer as the contract's ControllerPeer.
+func controllerPeerOf(p *ControllerPeer) api.ControllerPeer {
+	out := api.ControllerPeer{
+		NodeIDHex:           hex16(p.NodeID),
+		FabricIndex:         int(p.FabricIndex),
+		Registered:          p.Registered,
+		LoadError:           optString(p.LoadError),
+		TimeOfflineMs:       int(p.TimeOffline.Milliseconds()),
+		OperationalAddress:  optString(p.OperationalAddress),
+		OperationalHost:     optString(p.OperationalHost),
+		TCPUnsupported:      p.TCPUnsupported,
+		Reachable:           p.Reachable,
+		DiscoveredNames:     slices.Clone(p.DiscoveredNames),
+		LastCheckInAt:       optWireTime(p.LastCheckInAt),
+		NextExpectedCheckIn: optWireTime(p.NextExpectedCheckIn),
+		SubscriptionActive:  p.SubscriptionActive,
+		SessionIds:          make([]int, 0, len(p.SessionIDs)),
+	}
+	if out.DiscoveredNames == nil {
+		out.DiscoveredNames = []string{}
+	}
+	if p.State != "" {
+		out.State = ptr(api.ConnectionState(p.State))
+	}
+	for _, id := range p.SessionIDs {
+		out.SessionIds = append(out.SessionIds, int(id))
+	}
+	return out
+}
+
+// GetControllerMdns serves GET /controller/mdns: the port's findings in
+// its order (errors first); 501 when the source serves no diagnostics.
+func (s *controllerServer) GetControllerMdns(context.Context, api.GetControllerMdnsRequestObject) (api.GetControllerMdnsResponseObject, error) {
+	if _, ok := s.src.Diagnostics(); !ok {
+		return nil, ErrNotImplemented
+	}
+	findings := s.src.DiagnoseMDNS()
+	out := api.GetControllerMdns200JSONResponse{Findings: make([]api.MdnsFinding, 0, len(findings))}
+	for _, f := range findings {
+		out.Findings = append(out.Findings, api.MdnsFinding{
+			Severity: api.MdnsFindingSeverity(f.Severity), Code: f.Code, Message: f.Message, Service: optString(f.Service),
+		})
+	}
+	return out, nil
+}
+
+// ListControllerDiagnosticEvents serves GET /controller/events: the
+// port's trace newest first, as GET /node/events; 501 when the source
+// serves no diagnostics.
+func (s *controllerServer) ListControllerDiagnosticEvents(context.Context, api.ListControllerDiagnosticEventsRequestObject) (api.ListControllerDiagnosticEventsResponseObject, error) {
+	if _, ok := s.src.Diagnostics(); !ok {
+		return nil, ErrNotImplemented
+	}
+	events := s.src.DiagnosticEvents()
+	out := api.ListControllerDiagnosticEvents200JSONResponse{Events: make([]api.DiagnosticEvent, 0, len(events))}
+	for i := len(events) - 1; i >= 0; i-- {
+		e := &events[i]
+		ev := api.DiagnosticEvent{
+			At: wireTime(e.At), Kind: api.DiagnosticEventKind(e.Kind),
+			Severity: api.DiagnosticEventSeverity(e.Severity), Message: e.Message,
+		}
+		if len(e.Detail) > 0 {
+			ev.Detail = ptr(maps.Clone(e.Detail))
+		}
+		out.Events = append(out.Events, ev)
+	}
+	return out, nil
+}
+
+// controllerTraceEvent is one entry of the controller's trace as the
+// stream's controller_diagnostic_event carries it: the node's
+// diagnostic_event shape.
+func controllerTraceEvent(e DiagnosticEvent) Event {
+	return Event{Type: EventControllerDiagnosticEvent, Data: TraceEvent{
+		At: e.At.UTC().Format(time.RFC3339), Kind: e.Kind, Severity: e.Severity, Message: e.Message, Detail: e.Detail,
+	}}
+}
+
+// diagnosticsServed is capabilities.diagnostics: whether the source serves
+// the controller's diagnostics.
+func (s *controllerServer) diagnosticsServed() bool {
+	_, ok := s.src.Diagnostics()
+	return ok
 }

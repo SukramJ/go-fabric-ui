@@ -276,6 +276,67 @@ func TestEndToEnd_Controller(t *testing.T) {
 		t.Fatalf("graph %+v", graph)
 	}
 
+	// The diagnostics (contract 0.9.0): the node is a registered peer with
+	// a CASE session over UDP the trace recorded (its connection state is
+	// whatever the subscription reached by now).
+	var diagnostics struct {
+		Sessions []struct {
+			SessionID     int    `json:"session_id"`
+			PeerNodeIDHex string `json:"peer_node_id_hex"`
+			Transport     string `json:"transport"`
+			CreatedAt     string `json:"created_at"`
+		} `json:"sessions"`
+		Peers []struct {
+			NodeIDHex  string `json:"node_id_hex"`
+			Registered bool   `json:"registered"`
+			State      string `json:"state"`
+			SessionIDs []int  `json:"session_ids"`
+		} `json:"peers"`
+	}
+	s.json(http.MethodGet, "/controller/diagnostics", "", http.StatusOK, &diagnostics)
+	if len(diagnostics.Peers) != 1 || diagnostics.Peers[0].NodeIDHex != id || !diagnostics.Peers[0].Registered ||
+		diagnostics.Peers[0].State == "" || len(diagnostics.Peers[0].SessionIDs) == 0 {
+		t.Fatalf("diagnostics peers %+v", diagnostics.Peers)
+	}
+	if len(diagnostics.Sessions) == 0 || diagnostics.Sessions[0].PeerNodeIDHex != id ||
+		diagnostics.Sessions[0].Transport != "udp" || diagnostics.Sessions[0].CreatedAt == "" {
+		t.Fatalf("diagnostics sessions %+v", diagnostics.Sessions)
+	}
+	var trace struct {
+		Events []struct {
+			Kind   string            `json:"kind"`
+			Detail map[string]string `json:"detail"`
+		} `json:"events"`
+	}
+	s.json(http.MethodGet, "/controller/events", "", http.StatusOK, &trace)
+	if !slices.ContainsFunc(trace.Events, func(e struct {
+		Kind   string            `json:"kind"`
+		Detail map[string]string `json:"detail"`
+	},
+	) bool {
+		return e.Kind == "session" && e.Detail["node_id"] == id
+	}) {
+		t.Fatalf("trace %+v", trace.Events)
+	}
+	var findings struct {
+		Findings []struct {
+			Code string `json:"code"`
+		} `json:"findings"`
+	}
+	s.json(http.MethodGet, "/controller/mdns", "", http.StatusOK, &findings)
+	if findings.Findings == nil {
+		t.Fatal("mdns: findings absent")
+	}
+	var status struct {
+		Capabilities struct {
+			Diagnostics bool `json:"diagnostics"`
+		} `json:"capabilities"`
+	}
+	s.json(http.MethodGet, "/controller/status", "", http.StatusOK, &status)
+	if !status.Capabilities.Diagnostics {
+		t.Fatal("status: capabilities.diagnostics false")
+	}
+
 	var list struct {
 		Nodes []struct {
 			NodeIDHex string `json:"node_id_hex"`

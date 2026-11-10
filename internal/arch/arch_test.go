@@ -54,6 +54,7 @@ var adapter = map[string]bool{
 	goFabric + "/controller/commissioner":             true,
 	goFabric + "/controller/softwareupdate":           true,
 	goFabric + "/controller/topology":                 true,
+	goFabric + "/diag":                                true,
 	goFabric + "/client/discovery":                    true,
 	goFabric + "/thread":                              true,
 	goFabric + "/cluster/spec":                        true,

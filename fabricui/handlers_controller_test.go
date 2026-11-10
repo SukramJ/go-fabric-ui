@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -86,6 +87,9 @@ func TestControllerFixtures(t *testing.T) {
 		"controller-updates.200",
 		"controller-updates-consent.204",
 		"controller-updates-check.200",
+		"controller-diagnostics.200",
+		"controller-mdns.200",
+		"controller-events.200",
 		"controller-unknown.404",
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -115,6 +119,25 @@ func TestControllerFixtures_BLE(t *testing.T) {
 	_, mux, m := controllerHandler(t, nil)
 	m.BLE = true
 	runFixture(t, mux, "controller-status.200-ble")
+}
+
+// A source that serves no diagnostics (contract 0.9.0) answers the three
+// diagnostic routes with 501 not_implemented, reports
+// capabilities.diagnostics false, and its stream still serves.
+func TestControllerDiagnostics_NotServed(t *testing.T) {
+	_, mux, m := controllerHandler(t, nil)
+	m.NoDiagnostics = true
+	runFixture(t, mux, "controller-diagnostics.501")
+	for _, path := range []string{"/controller/mdns", "/controller/events"} {
+		rec := do(t, mux, http.MethodGet, path, "")
+		if rec.Code != http.StatusNotImplemented {
+			t.Fatalf("%s: status %d, want 501", path, rec.Code)
+		}
+	}
+	rec := do(t, mux, http.MethodGet, "/controller/status", "")
+	if !strings.Contains(rec.Body.String(), `"diagnostics":false`) {
+		t.Fatalf("status without diagnostics: %s", rec.Body)
+	}
 }
 
 // Without Options.Controller every controller path is the API's 404, the
@@ -600,5 +623,54 @@ func TestUpdates_EventsComeFromTheSource(t *testing.T) {
 	e := controllerEvent(ControllerEvent{Type: EventUpdate, Node: 0x11, UpdateKind: "failed", UpdateErr: "softwareupdate: the update was cancelled"})
 	if b := string(mustJSON(e.Data)); b != `{"node_id_hex":"0000000000000011","update_kind":"failed","update_error":"softwareupdate: the update was cancelled"}` {
 		t.Fatalf("failed on the wire %s", b)
+	}
+}
+
+// tracingController is the in-memory controller with a trace that grows:
+// record hands an entry to every OnDiagnosticEvent function.
+type tracingController struct {
+	*MemoryController
+	mu  sync.Mutex
+	fns []func(DiagnosticEvent)
+}
+
+func (c *tracingController) OnDiagnosticEvent(fn func(DiagnosticEvent)) (unsubscribe func()) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.fns = append(c.fns, fn)
+	return func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.fns = nil
+	}
+}
+
+func (c *tracingController) record(e DiagnosticEvent) {
+	c.mu.Lock()
+	fns := slices.Clone(c.fns)
+	c.mu.Unlock()
+	for _, fn := range fns {
+		fn(e)
+	}
+}
+
+// The controller stream carries every entry the source's trace records as
+// controller_diagnostic_event in the node's diagnostic_event shape
+// (contract 0.9.0), and stops when the stream closes.
+func TestControllerStream_DiagnosticEvent(t *testing.T) {
+	src := &tracingController{MemoryController: NewMemoryController()}
+	h, _ := newTestHandler(t, testOptions{noNode: true, controller: src})
+	var got []Event
+	unsubscribe := h.subscribeController(func(e Event) { got = append(got, e) })
+	at := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+	src.record(DiagnosticEvent{At: at, Kind: "reachability", Severity: "warning", Message: "Node 11 answered no probe.", Detail: map[string]string{"node_id": "0000000000000011"}})
+	unsubscribe()
+	src.record(DiagnosticEvent{At: at, Kind: "icd", Severity: "info", Message: "after"})
+	if len(got) != 1 || got[0].Type != EventControllerDiagnosticEvent {
+		t.Fatalf("events %+v", got)
+	}
+	want := TraceEvent{At: "2026-11-10T09:00:00Z", Kind: "reachability", Severity: "warning", Message: "Node 11 answered no probe.", Detail: map[string]string{"node_id": "0000000000000011"}}
+	if d, ok := got[0].Data.(TraceEvent); !ok || d.At != want.At || d.Kind != want.Kind || d.Message != want.Message || d.Detail["node_id"] != "0000000000000011" {
+		t.Fatalf("payload %+v", got[0].Data)
 	}
 }

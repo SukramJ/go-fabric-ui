@@ -6,8 +6,9 @@
 // *controller.Controller, the one place in this module that knows the
 // controller facade (controller, controller/client,
 // controller/softwareupdate, the network graph controller/topology, the
-// Thread dataset codec thread and the generated cluster definitions it
-// encodes ACL and Binding entries with). A host passes it in
+// diagnostic shapes diag, the Thread dataset codec thread and the
+// generated cluster definitions it encodes ACL and Binding entries with).
+// A host passes it in
 // fabricui.Options.Controller:
 //
 //	hooks := gofabric.NewHooks()

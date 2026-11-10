@@ -172,6 +172,11 @@ type MemoryController struct {
 	// fails with it after PASE (contract 0.8.0, terms_required), and the
 	// device stays commissionable. Set it before the handler serves.
 	Terms *ErrTermsRequired
+	// NoDiagnostics stands for a source that serves no diagnostics
+	// (contract 0.9.0): Diagnostics reports false, the three diagnostic
+	// routes answer 501 and capabilities.diagnostics is false. Set it
+	// before the handler serves.
+	NoDiagnostics bool
 
 	mu      sync.Mutex
 	fabric  ControllerFabric
@@ -455,6 +460,101 @@ func (m *MemoryController) NetworkTopology(context.Context, bool) (NetworkTopolo
 		return NetworkTopology{}, ErrNotImplemented
 	}
 	return *m.Topology, nil
+}
+
+// Diagnostics implements [ControllerSource] (contract 0.9.0): one peer
+// per commissioned node, by node id; a connected node holds one resumed
+// CASE session over UDP, a node waiting for discovery none. The
+// controller tracks no session-id occupancy.
+func (m *MemoryController) Diagnostics() (ControllerDiagnostics, bool) {
+	if m.NoDiagnostics {
+		return ControllerDiagnostics{}, false
+	}
+	m.mu.Lock()
+	nodes := make([]*memoryNode, 0, len(m.nodes))
+	for _, id := range slices.Sorted(maps.Keys(m.nodes)) {
+		nodes = append(nodes, m.nodes[id])
+	}
+	local, fabric := m.fabric.NodeID, m.fabric.FabricIndex
+	m.mu.Unlock()
+	out := ControllerDiagnostics{AsOf: memoryTime}
+	for i, n := range nodes {
+		p := ControllerPeer{
+			FabricIndex: fabric, NodeID: n.id, Registered: true, State: n.ConnectionState(),
+			SubscriptionActive: n.SubscriptionActive(), DiscoveredNames: []string{},
+		}
+		if icd, ok := n.ICD(); ok {
+			p.LastCheckInAt, p.NextExpectedCheckIn = icd.LastCheckIn, icd.NextCheckIn
+		}
+		if p.State == ConnectionConnected {
+			id := uint16(0x100 + i) //nolint:gosec // a handful of nodes
+			rec := n.Record()
+			p.OperationalAddress, p.OperationalHost, p.Reachable = rec.Addresses[0], rec.OperationalHost, true
+			p.DiscoveredNames = []string{fmt.Sprintf("%016X-%016X", m.fabric.CompressedFabricID, n.id)}
+			p.SessionIDs = []uint16{id}
+			out.Sessions = append(out.Sessions, ControllerSession{
+				ID: id, FabricIndex: fabric, PeerNodeID: n.id, LocalNodeID: local,
+				LastPeerActivity: memoryTime.Add(-30 * time.Second), PeerIdle: 30 * time.Second,
+				CreatedAt: memoryTime.Add(-10 * time.Minute), Resumed: true, Transport: "udp",
+			})
+		} else {
+			p.TimeOffline = 15 * time.Minute
+		}
+		out.Peers = append(out.Peers, p)
+	}
+	return out, true
+}
+
+// DiagnoseMDNS implements [ControllerSource]: no_operational_names while a
+// commissioned node waits for device discovery, as go-fabric's browse-side
+// finding (mdns/diagnose_browse.go at v0.21.0).
+func (m *MemoryController) DiagnoseMDNS() []MDNSFinding {
+	if m.NoDiagnostics {
+		return nil
+	}
+	m.mu.Lock()
+	nodes := slices.Collect(maps.Values(m.nodes))
+	m.mu.Unlock()
+	for _, n := range nodes {
+		if n.ConnectionState() == ConnectionWaitingForDiscovery {
+			return []MDNSFinding{{
+				Severity: "warning", Code: "no_operational_names",
+				Message: fmt.Sprintf("None of the %d commissioned nodes has an operational record in the DNS-SD cache; "+
+					"the controller's browse gets no answer on this network.", len(nodes)),
+			}}
+		}
+	}
+	return []MDNSFinding{}
+}
+
+// DiagnosticEvents implements [ControllerSource]: the light's session and
+// the sensor's missed Check-In, oldest first, in go-fabric's sentences
+// (controller/diagnostics.go at v0.21.0).
+func (m *MemoryController) DiagnosticEvents() []DiagnosticEvent {
+	if m.NoDiagnostics {
+		return nil
+	}
+	return []DiagnosticEvent{
+		{
+			At: memoryTime.Add(-10 * time.Minute), Kind: "session", Severity: "info",
+			Message: "A secure session with node 0000000000000011 was established.",
+			Detail:  map[string]string{"node_id": "0000000000000011", "fabric_index": "1", "session_id": "256", "transport": "udp", "resumed": "true"},
+		},
+		{
+			At: memoryTime.Add(-5 * time.Minute), Kind: "icd", Severity: "warning",
+			Message: "Node 0000000000000012 missed its expected check-in.",
+			Detail:  map[string]string{"node_id": "0000000000000012", "fabric_index": "1"},
+		},
+	}
+}
+
+// OnDiagnosticEvent implements [ControllerSource]: the in-memory trace
+// does not grow, so fn is never called; nil without diagnostics.
+func (m *MemoryController) OnDiagnosticEvent(func(DiagnosticEvent)) (unsubscribe func()) {
+	if m.NoDiagnostics {
+		return nil
+	}
+	return func() {}
 }
 
 // memoryUpdates is the in-memory update queue.
