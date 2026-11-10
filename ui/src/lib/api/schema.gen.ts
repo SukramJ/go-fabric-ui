@@ -1899,10 +1899,9 @@ export interface paths {
          *     (go-fabric `Controller.SessionDiagnostics`, v0.21.0). `sessions` are
          *     ordered by peer, then session; each peer in `peers` names its
          *     sessions by `session_ids`. The controller keeps its subscriptions by
-         *     peer, not by session, so a session's `subscriptions` is 0 and
-         *     `subscription_ids` absent; its exchange sessions export no
-         *     any-direction timestamp, so `last_activity` is the zero time and
-         *     `idle_seconds` 0. `occupancy.capacity` 0 means the controller does
+         *     peer, not by session, so a session's `subscriptions` is 0; its
+         *     exchange sessions export no any-direction timestamp, so
+         *     `last_activity` is the zero time and `idle_seconds` 0. `occupancy.capacity` 0 means the controller does
          *     not track the session-id space. 501 `not_implemented` when the
          *     source serves no diagnostics (`capabilities.diagnostics` false).
          */
