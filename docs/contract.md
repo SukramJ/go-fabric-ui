@@ -289,6 +289,10 @@ fetches the newer ones on it.
 
 ## The topology graph
 
+The node family's page is named Topology and the controller family's tab
+Network; go-fabric's [glossary](https://sukramj.github.io/go-fabric/reference/glossary/#the-familys-terms)
+says what each one draws.
+
 `GET /node/topology` and `GET /controller/topology` (from U3b) answer a
 `TopologyGraph{as_of, family, nodes[], edges[]}`. A node has an `id`, a
 `kind`, a `label`, a `state` (`ok`, `unreachable`, `idle`, `unknown`), a
