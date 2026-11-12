@@ -7,6 +7,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-12
+
+### Changed
+
+- go-fabric `v0.22.2` (patch): the dependency only — its fix is in the
+  nested module `ble/esphome` (go-fabric PR 512: a C1 write an ESPHome
+  Bluetooth proxy answers with a GATT error is the peripheral's
+  disconnect), which these pages do not use; the root module does not
+  change.
+
 ## [0.9.1] - 2026-11-12
 
 ### Changed
