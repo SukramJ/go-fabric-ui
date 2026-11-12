@@ -57,8 +57,8 @@ type ctrlSiteOptions struct {
 	// when configure sets them (device.Options.Surface).
 	surface surface.Policies
 	ota     *controller.OTAConfig
-	// ble builds the device with Wi-Fi commissioning
-	// (fabrictest.UseWiFiCommissioning) and gives the source a central
+	// ble builds the device with a BLE radio (fabrictest.Topology.BLE) and
+	// Wi-Fi commissioning (node.Network.WiFi.Driver) and gives the source a central
 	// on it (bletest.NewCentral over Device.BLE) and a stored Wi-Fi
 	// credential "lab"; log receives the adapter's lines.
 	ble bool
@@ -83,10 +83,10 @@ func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
 			if o.configure != nil {
 				o.configure(cfg)
 			}
-			fabrictest.UseWiFiCommissioning(cfg, wifiDriver{})
+			cfg.Network.WiFi = &node.WiFi{Driver: wifiDriver{}}
 		}
 	}
-	dev := site.AddDevice(fabrictest.Topology{Bridged: []node.Endpoint{plug}, Configure: configure})
+	dev := site.AddDevice(fabrictest.Topology{Bridged: []node.Endpoint{plug}, Configure: configure, BLE: o.ble})
 	hooks := gofabric.NewHooks()
 	cfg := site.ControllerConfig(fabrictest.ControllerOptions{Label: "e2e", OTA: o.ota})
 	cfg.HooksFor = hooks.Wrap(cfg.HooksFor)
