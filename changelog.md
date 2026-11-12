@@ -12,12 +12,15 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - Built with Go 1.27.4: `GO-2026-6859` (`net/http`, fixed in 1.27.4); `go.mod`, the workflows and the Dockerfiles move together.
-- go-fabric `v0.22.0` (milestone 7, phase 28: BLE and Wi-Fi commissioning
-  on the device side). Nothing these pages read changes; the end-to-end
+- go-fabric `v0.22.1` (`v0.22.0`: milestone 7, phase 28, BLE and Wi-Fi
+  commissioning on the device side). Nothing these pages read changes; the end-to-end
   test's BLE site migrates from the removed
   `fabrictest.UseWiFiCommissioning` to `node.Network.WiFi.Driver` and gives
   its device a radio with `fabrictest.Topology.BLE`, which
   `fabrictest.Device.BLE` now requires. No migration for an embedder.
+- go-fabric `v0.22.1` (patch): the dependency only — its `client/peer`
+  reconnect fix (go-fabric issue 507) reaches the controller a host runs,
+  not these pages.
 
 ## [0.9.0] - 2026-11-10
 
