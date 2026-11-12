@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Built with Go 1.27.4: `GO-2026-6859` (`net/http`, fixed in 1.27.4); `go.mod`, the workflows and the Dockerfiles move together.
 - go-fabric `v0.22.0` (milestone 7, phase 28: BLE and Wi-Fi commissioning
   on the device side). Nothing these pages read changes; the end-to-end
   test's BLE site migrates from the removed
