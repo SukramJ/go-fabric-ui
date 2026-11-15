@@ -102,23 +102,30 @@ reached only through go-fabric.
 ## Which model does which work
 
 As go-fabric's `CLAUDE.md` (owner, 2026-10-10; the review split 2026-11-08,
-go-fabric #456), adapted: a statement about go-fabric's facade, the
-reference pages (the section above) or the contract that lands in the repo
-(`docs/contract.md`, `docs/embedding.md`, `docs/provider.md`, a concept
-page, a report's decisions) is cited later as fact by the hosts, so the work
-that produces such statements gets the strongest model, and the work a guard
-checks may use a cheaper one.
+go-fabric #456; re-cut by the owner on 2026-11-15, mirrored from go-fabric
+#529 and openccu-loom #1108, in the owner's words: "Wichtig ist, dass die
+Qualität hoch ist, aber Fable gezielt für die Dinge eingesetzt wird, die es
+wirklich besser kann"), adapted. The bar is unchanged: a statement about
+go-fabric's facade, the reference pages (the section above) or the contract
+that lands in the repo (`docs/contract.md`, `docs/embedding.md`,
+`docs/provider.md`, a concept page, a report's decisions) is cited later as
+fact by the hosts, so it comes from the strongest model. But the strongest
+model does only the part that needs it: reading the reference and judging.
+The writing, the mechanics and the code review are Opus.
 
 | Work | Model |
 | --- | --- |
-| Analysis, planning, briefs, the wave report, the contract's design (a route, a problem code, an event's payload, a port on `fabricui.Options`); anything written into `docs/`, `CONCEPT.md` or a comment that cites a go-fabric, matter.js or reference-page line; rebases and merge conflicts where upstream may have overtaken the change; a question or hand-over issue to go-fabric | **Fable** (the default for this repo) |
-| Implementation of a finished brief with guards behind it: handlers and the `gofabric` adapter against a contract the brief fixes, Svelte pages and stores, fixtures used on both contract sides, `make generate` and `make web`, a dependency bump, a `changelog.md` entry for a finished diff | **Opus** (also what fast mode runs on) |
-| **Review of a wave's pull request, split (owner decision 2026-11-08, go-fabric #456).** The code review — correctness, concurrency, error paths, tests, the fixed report shape — is **Opus**. On top of it **Fable** reads, bounded: every new citation line against the pinned source (go-fabric at its tag, matter.js and the reference pages at their pins), every line that enters `docs/contract.md`, `docs/embedding.md` or `docs/provider.md`, the admin and token paths of the handler, and the brief's decisions against go-fabric and the hosts — the behavioural gaps a code review does not see. The load-bearing claims of the Opus review are verified before they reach the implementer. | **Opus**, then **Fable** |
+| **Coordination** of a wave: starting agents, integrating, guards, pull requests, status | **Opus**, in a fresh session per wave (the state is in the notes and the memory, never in a long context) |
+| **Planning and decisions:** the wave plan and its brief; the contract's design (a route, a problem code, an event's payload, a port on `fabricui.Options`); *which* guard gets built and its bite line; a question or hand-over issue to go-fabric; the verdict where go-fabric, matter.js, the reference pages and the hosts contradict each other | **Fable**, as a targeted agent |
+| **Reading the reference and judging:** what go-fabric's facade (at its tag), matter.js and the reference pages ([The reference for the pages](#the-reference-for-the-pages), at their pins) do, and whether a difference is a deliberate divergence or a gap — for `docs/`, `CONCEPT.md`, a report's decisions and every comment that cites a go-fabric, matter.js or reference-page line | **Fable** gives the verdict with the lines as a short fact note; **Opus** writes the entry or the comment in the file's form; **Fable** reads the finished text once against its note. Every reference statement comes from Fable |
+| **Implementation**, also on the handler's admin and token paths; handlers and the `gofabric` adapter, Svelte pages and stores, fixtures used on both contract sides, `make generate` and `make web`; test ports; a dependency bump; a `changelog.md` entry, the wave report and docs; rebases and merge conflicts | **Opus** (also what fast mode runs on) — with the Fable read of the next row before it merges where it touches the admin and token paths or mirrors go-fabric or a reference page |
+| **Review** of a wave's pull request | **Opus** does the code review — correctness, concurrency, error paths, tests, the fixed report shape. **Fable** reads on top, bounded: behaviour against go-fabric at its tag, matter.js and the reference pages at their pins and the hosts, the admin and token paths of the row above, and every finding of high or medium severity for confirmation before it reaches an implementer |
+| **Citations** | **Opus** checks every range (the file, the lines, the construct the sentence names). **Fable** reads every citation that is the reason for behaviour ("as go-fabric does", "ported from openccu-loom"), every doubtful one and a sample of the rest |
 | Work a test or generator checks immediately: `make generate`, `make web`, `gofumpt`, regenerating the coverage floors, a Playwright smoke or handler test in an existing pattern; search and first reading of a source tree (go-fabric, the reference pages, the hosts, this repo) whose result a stronger model or the owner reads again | **Sonnet**, including as the model of a delegated search subagent |
 
 Sonnet never writes a fact about go-fabric or the reference pages into the
-repo, and never touches the handler's admin and token paths. When in doubt
-about which row a task is in, it is in the first.
+repo. Opus does not either: it writes what Fable's fact note states. When in
+doubt whether a statement is a reference fact, it is one.
 
 ## Token use
 
@@ -162,6 +169,32 @@ rules below are what keeps that from doubling.
   scripted call with asserted anchors, not a chain of interactive edits;
   a generated file (`internal/api`, the bundle `fabricui/dist`) is
   regenerated, never patched.
+- **The strongest model for the part that needs it.** Set by the owner on
+  2026-11-15. Fable reads references, judges and plans (the table above);
+  it does not coordinate, format, write prose or run mechanics. A Fable
+  agent's brief is bounded: the lines to read, the question to answer, a
+  fact note back.
+- **Few turns in a long session.** A coordinator waits for several agents
+  at once and integrates them together; a status message carries new
+  information or is not sent; a wave starts in a fresh session.
+- **The assistant says when to clear the context.** Set by the owner on
+  2026-11-15. It does not wait to be asked: it proposes a fresh session
+  when a wave or a pull request is merged; when the context has been
+  summarised once and the work that remains is of another kind; or when
+  what it still needs fits in a short hand-over and the turns are mostly
+  waiting for agents or pipelines. It does NOT propose one while agents of
+  the session are running or a decision of the owner is open. The proposal
+  comes with the hand-over already written — the state, the open points
+  with where each goes, the next step, the lessons — into the memory file
+  and the notes (never only into the chat), and with the exact way to go
+  on: `/clear`, the model to switch to (`/model`), and the first message
+  to send, which names the files to read.
+- **The pipeline's guards before the pull request, not after.** The local
+  guard set is what the jobs of `.github/workflows/ci.yml` run: `make ci`,
+  `make race`, `make cover-check`, `make vuln licenses secrets`,
+  `GOARCH=386 make build`, and after `make web-install` the web jobs'
+  `make notices-check`, `make version-check`, `make contract-check` and
+  `make e2e-web`. A red pipeline costs a round of coordinator turns.
 - **Agents read what the brief names.** An implementing agent gets the
   file list and the pinned sources in the brief, reads those, and reports
   in the fixed shape; it does not survey the tree. The brief is copied to
