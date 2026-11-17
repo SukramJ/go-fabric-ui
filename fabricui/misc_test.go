@@ -5,6 +5,7 @@ package fabricui
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"io/fs"
 	"net/http"
@@ -254,13 +255,34 @@ func TestMount_RegistersTheRoutesAndRefusesABadPrefix(t *testing.T) {
 	}
 }
 
+// A Mount that fails on a pattern the host's mux already serves leaves
+// that mux as it was: no route of the API answers afterwards, and the host's
+// own route still does (UR-P0-api-32).
+func TestMount_AFailedMountLeavesTheMuxUntouched(t *testing.T) {
+	for _, taken := range []string{"GET /ui-api/operation/info", "/ui-api/", "GET /ui-api/nodes/{x}/stream"} {
+		mux := http.NewServeMux()
+		mux.HandleFunc(taken, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) })
+		err := Mount(mux, Options{Prefix: "/ui-api"})
+		if err == nil || !strings.Contains(err.Error(), "nothing was registered") {
+			t.Fatalf("%s: err %v", taken, err)
+		}
+		for _, path := range []string{"/ui-api/node/status", "/ui-api/node/fabrics", "/ui-api/nodes"} {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil))
+			if rec.Code == http.StatusOK {
+				t.Fatalf("%s: %s answers %d after a failed mount", taken, path, rec.Code)
+			}
+		}
+	}
+}
+
 func TestSPA_ServesTheBundleWithItsCacheHeaders(t *testing.T) {
 	h := spaHandlerFS(fstest.MapFS{
 		"index.html":       {Data: []byte("<!doctype html><title>shell</title>")},
 		"assets/app-1.js":  {Data: []byte("console.log(1)")},
 		"favicon.svg":      {Data: []byte("<svg/>")},
 		"assets/dir/x.css": {Data: []byte("a{}")},
-	})
+	}, nil)
 	get := func(p string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, p, nil))
@@ -282,7 +304,7 @@ func TestSPA_ServesTheBundleWithItsCacheHeaders(t *testing.T) {
 
 func TestSPA_NotBuiltAnswers503(t *testing.T) {
 	rec := httptest.NewRecorder()
-	spaHandlerFS(fstest.MapFS{"README": {Data: []byte("x")}}).ServeHTTP(rec,
+	spaHandlerFS(fstest.MapFS{"README": {Data: []byte("x")}}, nil).ServeHTTP(rec,
 		httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil))
 	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "Bundle not built") {
 		t.Fatalf("got %d %s", rec.Code, rec.Body)
@@ -374,5 +396,50 @@ func TestStream_FabricUpdatedCommissioningCompleteClusterEvent(t *testing.T) {
 	}
 	if b := string(mustJSON(stream.events[3].Data)); !strings.Contains(b, `"cluster_hex":"0x0039"`) || strings.Contains(b, `"data"`) {
 		t.Fatalf("cluster_event on the wire %s", b)
+	}
+}
+
+// An event whose type is not [a-z_]+ — here one with a line break that
+// would forge a frame — never reaches the stream; it is logged without its
+// payload and the next event arrives as usual (UR-P0-web-33).
+func TestStream_DropsAnEventWithAnInvalidType(t *testing.T) {
+	host := &recordingSource{}
+	var log bytes.Buffer
+	h, mux := newTestHandler(t, testOptions{events: host, log: &log})
+	h.heartbeat = time.Hour
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/node/stream", http.NoBody)
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	sc := bufio.NewScanner(resp.Body)
+	next := func() string {
+		t.Helper()
+		for sc.Scan() {
+			if line := sc.Text(); line != "" {
+				return line
+			}
+		}
+		t.Fatalf("stream ended: %v", sc.Err())
+		return ""
+	}
+	if line := next(); line != ": connected" {
+		t.Fatalf("first line %q", line)
+	}
+	waitFor(t, func() bool { return host.subscribers() == 1 })
+	for _, typ := range []string{"x\nevent: fabric_removed\ndata: {}", "Exposure", "", "a-b"} {
+		host.publish(Event{Type: typ, Data: ExposureEvent{Keys: []string{"secret-payload"}}})
+	}
+	host.publish(Event{Type: EventExposureChanged, Data: ExposureEvent{Keys: []string{"lamp-1"}}})
+	if a, b := next(), next(); a != "event: exposure_changed" || b != `data: {"keys":["lamp-1"]}` {
+		t.Fatalf("event lines %q %q", a, b)
+	}
+	if !strings.Contains(log.String(), "fabricui.stream.invalid_type") || strings.Contains(log.String(), "secret-payload") {
+		t.Fatalf("log %s", log.String())
 	}
 }

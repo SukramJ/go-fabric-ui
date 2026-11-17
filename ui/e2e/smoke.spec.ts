@@ -42,6 +42,19 @@ const SMOKES: Smoke[] = [
   { name: "controller commission ble", hash: "#/controller/commission", shows: (p) => p.getByLabel("Network for the device") },
 ];
 
+// collectViolations records every Content-Security-Policy violation of the
+// page (UR-P0-web-24) from before its first script; violations() reads
+// them. Chromium also logs each as a console error, which the smokes
+// collect besides.
+async function collectViolations(page: Page): Promise<() => Promise<string[]>> {
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    (window as unknown as { __cspViolations: string[] }).__cspViolations = seen;
+    document.addEventListener("securitypolicyviolation", (e) => seen.push(`${e.effectiveDirective} ${e.blockedURI} ${e.sourceFile}:${e.lineNumber}`));
+  });
+  return () => page.evaluate(() => (window as unknown as { __cspViolations: string[] }).__cspViolations);
+}
+
 for (const s of SMOKES) {
   test(s.name, async ({ page }) => {
     const errors: string[] = [];
@@ -49,12 +62,56 @@ for (const s of SMOKES) {
       if (msg.type() === "error") errors.push(msg.text());
     });
     page.on("pageerror", (err) => errors.push(err.message));
-    await page.goto("/" + s.hash);
+    const violations = await collectViolations(page);
+    const resp = await page.goto("/" + s.hash);
+    expect(resp?.headers()["content-security-policy"]).toContain("frame-ancestors 'self'");
     await expect(s.shows(page)).toBeVisible();
     await page.waitForLoadState("networkidle");
+    expect(await violations()).toEqual([]);
     expect(errors).toEqual([]);
   });
 }
+
+// The open pairing window under the policy: its QR code and its countdown
+// ring, whose transition is set through the CSSOM (style:transition), not
+// a style attribute the policy would refuse.
+test("the pairing window opens with its ring without a policy violation", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") errors.push(msg.text());
+  });
+  page.on("pageerror", (err) => errors.push(err.message));
+  const violations = await collectViolations(page);
+  await page.goto("/#/node/pair");
+  await page.getByRole("button", { name: /^(Add another controller|Pairing window open)$/ }).click();
+  await expect(page.getByTestId("pair-qr")).toBeVisible();
+  await expect(page.locator("circle[stroke-dasharray]")).toHaveCSS("transition", /stroke-dashoffset 1s linear/);
+  await page.getByRole("button", { name: "Close pairing window" }).click();
+  expect(await violations()).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+// The QR scan under the policy: Chromium's fake camera (the launch flags in
+// playwright.config.ts) feeds the video, and neither the stream nor the
+// decoder needs a source the policy lacks.
+test.describe("camera", () => {
+  test.use({ permissions: ["camera"] });
+  test("the QR scan opens the camera without a policy violation", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") errors.push(msg.text());
+    });
+    page.on("pageerror", (err) => errors.push(err.message));
+    const violations = await collectViolations(page);
+    await page.goto("/#/controller/commission");
+    await page.getByRole("button", { name: "Scan QR code" }).click();
+    await expect(page.getByTestId("scan-view")).toBeVisible();
+    await expect.poll(() => page.locator("video").evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(2);
+    await page.waitForTimeout(1500);
+    expect(await violations()).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+});
 
 test("the node selector lists both nodes and switches to the second", async ({ page }) => {
   await page.goto("/#/node/status");

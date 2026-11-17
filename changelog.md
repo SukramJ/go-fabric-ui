@@ -7,6 +7,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `Options.FrameAncestors` (UR-P0-web-23): further origins that may frame
+  the page, each a CSP host-source naming the parent's origin; `Handler`
+  panics and `Mount` fails on anything else, and on an entry that admits
+  any parent (`*`, `https:`, `https://*`). The default admits the page's own origin
+  only, which is the Ingress parent. See `docs/embedding.md`, "Response
+  headers and framing".
+
 ### Fixed
 
 - `theme/tokens.css` applies inside a shadow root (#72): each selector
@@ -16,6 +25,46 @@ All notable changes to this project are documented here. The format follows
   that adopts the sheet in a shadow root sets `class="dark"` and
   `data-skin="ha"` on its custom element. The document-level values do not
   change.
+- A hash with a malformed `%` sequence (`#/node/%`) opens the default
+  node's status page instead of throwing `URIError` in the shell
+  (UR-P0-ui-30).
+- A failed `Mount` leaves the host's mux as it was (UR-P0-api-32): the API
+  is built on a mux of its own and registered as the one pattern
+  `Prefix + "/"`, after every route pattern was looked up on the host's
+  mux; before, a duplicate pattern failed the mount after part of the
+  routes were registered. A route the host registers under the prefix
+  afterwards shadows the API's.
+
+### Changed
+
+- `make licenses` fails on a Go dependency whose licence go-licenses
+  cannot classify (`unknown` is disallowed); the ones read by hand are
+  listed in `LICENSES_CHECKED` with their licence and where it was read —
+  today `modernc.org/mathutil` (BSD-3-Clause) (UR-P0-sup-02).
+
+### Security
+
+- The page carries a `Content-Security-Policy` (UR-P0-web-23,
+  UR-P0-web-24): `default-src 'self'`, the inline pre-paint script by its
+  hash (derived from the embedded `index.html` when the handler is built),
+  `style-src 'self'`, `img-src 'self'`, `object-src 'none'`,
+  `base-uri 'none'`, `form-action 'self'` and `frame-ancestors 'self'`;
+  the 503 page while the bundle is not built carries it too. The bundle's
+  responses carry `Referrer-Policy: no-referrer` beside `nosniff`. The
+  pairing ring's transition moved from a style attribute to
+  `style:transition`, so no inline style needs admitting. The Playwright
+  smoke fails on any policy violation and opens the pairing window and
+  the camera scan under the policy.
+
+- The event streams drop an event whose type is not `[a-z_]+` and log
+  `fabricui.stream.invalid_type` without its payload: a type with a line
+  break from a host's `Options.Events` could otherwise forge a frame
+  (UR-P0-web-33). Every type this module publishes passes.
+- Every answer of the API — JSON, problem, stream, the generated
+  controller routes — carries `Cache-Control: no-store`
+  (UR-P0-leak-25): pairing codes, the token and the daemon's state are
+  kept by no cache. It also carries `X-Content-Type-Options: nosniff` and
+  `Referrer-Policy: no-referrer`, as the bundle does (UR-P0-web-24).
 
 ## [0.9.2] - 2026-11-12
 

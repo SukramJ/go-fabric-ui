@@ -92,10 +92,10 @@ type controllerServer struct {
 
 var _ api.StrictServerInterface = (*controllerServer)(nil)
 
-// mountController registers the controller family on mux under the
-// prefix: the generated routes on a mux of their own behind the admin
-// gate, and a 404 problem for any other /controller path.
-func (h *handler) mountController(mux *http.ServeMux) {
+// controllerRoutes is the controller family under the prefix: the
+// generated routes on a mux of their own behind the admin gate, and a 404
+// problem for any other /controller path.
+func (h *handler) controllerRoutes() http.Handler {
 	srv := &controllerServer{h: h, src: h.ctrl}
 	strict := api.NewStrictHandlerWithOptions(srv, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  func(w http.ResponseWriter, r *http.Request, err error) { badBody(w, r, err) },
@@ -112,7 +112,7 @@ func (h *handler) mountController(mux *http.ServeMux) {
 	sub.HandleFunc(h.prefix+"/controller/", func(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such route", r.Method+" "+r.URL.Path)
 	})
-	mux.Handle(h.prefix+"/controller/", h.controllerGate(sub))
+	return h.controllerGate(sub)
 }
 
 // controllerGate refuses an admin route the request may not use before

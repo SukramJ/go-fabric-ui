@@ -6,7 +6,6 @@ package fabricui
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -265,6 +264,17 @@ type Options struct {
 	// with 503 and Retry-After: a controller that subscribes before the
 	// first endpoint appears caches an empty parts list.
 	AllowEmptyTopology bool
+	// FrameAncestors are the origins besides the page's own that may frame
+	// the web interface [Handler] serves: its Content-Security-Policy says
+	// frame-ancestors 'self' and these. Each is a CSP host-source
+	// ("https://dash.example:8123", "https://*.example.com"); New and
+	// [Mount] refuse anything else, a quoted keyword included, and an entry
+	// that admits any parent ("*", "https:", "https://*"), which is what
+	// the default prevents: a page that frames the interface acts with the
+	// operator's admin rights. An Ingress parent is the same
+	// origin and needs no entry. [Mount] serves no page and only checks
+	// the field.
+	FrameAncestors []string
 	// Warnings reports what the host found half-valid in its own
 	// configuration — a label that resolves to nothing, a rule that
 	// matches no item — so the status and selection pages show it rather
@@ -302,20 +312,17 @@ type Counter struct {
 	Message string `json:"message"`
 }
 
-// Mount registers the API routes on mux under o.Prefix. It fails on an
-// invalid prefix and when mux already holds one of the patterns.
-func Mount(mux *http.ServeMux, o Options) (err error) {
+// Mount registers the API on mux under o.Prefix, as the one pattern
+// o.Prefix + "/". It fails on invalid options, when mux already serves one
+// of the API's routes under the prefix, and when the pattern conflicts
+// with one of mux's; a failed Mount leaves mux as it was. A route the host
+// registers under the prefix afterwards shadows the API's.
+func Mount(mux *http.ServeMux, o Options) error {
 	h, err := newHandler(o)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("fabricui: mount: %v", r)
-		}
-	}()
-	h.register(mux)
-	return nil
+	return h.mount(mux)
 }
 
 // Handler returns the API routes and the embedded web interface: the API
@@ -328,7 +335,7 @@ func Handler(o Options) http.Handler {
 	}
 	mux := http.NewServeMux()
 	h.register(mux)
-	mux.Handle("/", spaHandler())
+	mux.Handle("/", spaHandler(o.FrameAncestors))
 	return mux
 }
 

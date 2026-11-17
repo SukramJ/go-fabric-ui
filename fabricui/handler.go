@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -201,6 +202,9 @@ func newHandler(o Options) (*handler, error) {
 	if err := validPrefix(prefix); err != nil {
 		return nil, err
 	}
+	if err := validFrameAncestors(o.FrameAncestors); err != nil {
+		return nil, err
+	}
 	nodes, err := nodeEntries(&o)
 	if err != nil {
 		return nil, err
@@ -320,13 +324,102 @@ var registryRoutes = []nodeRoute{
 // operationAdmin are the /operation routes the contract marks x-admin.
 var operationAdmin = map[string]bool{"PUT /operation/log/level": true}
 
-// register puts every route on mux: the node family under /node for the
-// default node and under /nodes/{node} for each node, GET /nodes, the
-// operation routes and the controller family.
+// register puts the API on mux (see mount) and panics where mount fails.
 func (h *handler) register(mux *http.ServeMux) {
+	if err := h.mount(mux); err != nil {
+		panic(err)
+	}
+}
+
+// mount puts the API on mux under the one pattern prefix + "/", which
+// serves a mux of the API's own (routes). One registration on the host's
+// mux either succeeds or leaves it as it was: first every route pattern
+// is looked up on mux, and one the host already serves under the prefix
+// fails the mount before anything is registered; then the single
+// registration's panic (a conflicting host pattern) is recovered into the
+// error. A pattern the host registers under the prefix after the mount is
+// more specific than prefix + "/" and shadows the API's route.
+func (h *handler) mount(mux *http.ServeMux) (err error) {
+	api, patterns := h.routes()
+	for _, p := range patterns {
+		if q := servedPattern(mux, p); q != "" && h.underPrefix(q) {
+			return fmt.Errorf("fabricui: mount: the mux already serves %q for the API route %q; nothing was registered", q, p)
+		}
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("fabricui: mount: %v; nothing was registered", r)
+		}
+	}()
+	mux.Handle(h.prefix+"/", apiHeaders(api))
+	return nil
+}
+
+// apiHeaders sets the headers every answer of the API carries before the
+// route writes: no-store, because answers carry pairing codes, a token or
+// the daemon's state, which no cache keeps (UR-P0-leak-25); nosniff and
+// no-referrer as on the bundle (UR-P0-web-24).
+func apiHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hdr := w.Header()
+		hdr.Set("Cache-Control", "no-store")
+		setCommonHeaders(hdr)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// setCommonHeaders sets what every response of the handler carries, the
+// API's and the bundle's: nosniff and no-referrer (UR-P0-web-24).
+func setCommonHeaders(hdr http.Header) {
+	hdr.Set("X-Content-Type-Options", "nosniff")
+	hdr.Set("Referrer-Policy", "no-referrer")
+}
+
+// servedPattern is the pattern mux serves a request for p with — p's
+// method, or GET, and its path with every wildcard a plain segment — or
+// "" when mux has none.
+func servedPattern(mux *http.ServeMux, p string) string {
+	method, path, ok := strings.Cut(p, " ")
+	if !ok {
+		method, path = http.MethodGet, p
+	}
+	path = wildcard.ReplaceAllString(path, "x")
+	req, err := http.NewRequestWithContext(context.Background(), method, path, http.NoBody)
+	if err != nil {
+		return ""
+	}
+	_, q := mux.Handler(req)
+	return q
+}
+
+// wildcard is a pattern's {name} or {name...} segment.
+var wildcard = regexp.MustCompile(`\{[^}]*\}`)
+
+// underPrefix reports whether the pattern q (method and host optional)
+// matches paths under the API's prefix.
+func (h *handler) underPrefix(q string) bool {
+	if _, rest, ok := strings.Cut(q, " "); ok {
+		q = rest
+	}
+	if i := strings.IndexByte(q, '/'); i >= 0 {
+		q = q[i:]
+	}
+	return q == h.prefix || strings.HasPrefix(q, h.prefix+"/")
+}
+
+// routes builds every route on a mux of the API's own and returns it with
+// the patterns it holds: the node family under /node for the default node
+// and under /nodes/{node} for each node, GET /nodes, the operation routes
+// and the controller family.
+func (h *handler) routes() (api http.Handler, patterns []string) {
 	h.mountNodes()
-	read := func(pattern string, fn http.HandlerFunc) { mux.HandleFunc(pattern, fn) }
-	write := func(pattern string, fn http.HandlerFunc) { mux.HandleFunc(pattern, h.adminOnly(fn)) }
+	mux := http.NewServeMux()
+	handle := func(pattern string, fn http.Handler) {
+		mux.Handle(pattern, fn)
+		patterns = append(patterns, pattern)
+	}
+	read := func(pattern string, fn http.HandlerFunc) { handle(pattern, fn) }
+	write := func(pattern string, fn http.HandlerFunc) { handle(pattern, h.adminOnly(fn)) }
 
 	for _, rt := range nodeRoutes {
 		gate := read
@@ -345,22 +438,23 @@ func (h *handler) register(mux *http.ServeMux) {
 	}
 	read("GET "+h.prefix+"/nodes", h.listNodes)
 	for _, rt := range registryRoutes {
-		mux.HandleFunc(rt.method+" "+h.prefix+"/nodes"+rt.path, h.adminOnlyBecause(func(w http.ResponseWriter, r *http.Request) { rt.serve(h, w, r) },
+		handle(rt.method+" "+h.prefix+"/nodes"+rt.path, h.adminOnlyBecause(func(w http.ResponseWriter, r *http.Request) { rt.serve(h, w, r) },
 			"this route creates, renames or deletes a node"))
 	}
 	read("GET "+h.prefix+"/operation/info", h.operationInfo)
 	read("GET "+h.prefix+"/operation/log/level", h.logLevel)
-	mux.HandleFunc("PUT "+h.prefix+"/operation/log/level", h.adminOnlyBecause(h.setLogLevel, "this route changes the daemon's log level"))
+	handle("PUT "+h.prefix+"/operation/log/level", h.adminOnlyBecause(h.setLogLevel, "this route changes the daemon's log level"))
 	read("GET "+h.prefix+"/operation/log", h.logRecords)
 	read("GET "+h.prefix+"/operation/log/stream", h.logStream)
 	if h.ctrl != nil {
-		h.mountController(mux)
+		handle(h.prefix+"/controller/", h.controllerRoutes())
 	}
 	// Anything else under the prefix is an API 404, not the web
 	// interface's index.
-	mux.HandleFunc(h.prefix+"/", func(w http.ResponseWriter, r *http.Request) {
+	handle(h.prefix+"/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such route", r.Method+" "+r.URL.Path)
-	})
+	}))
+	return mux, patterns
 }
 
 // mountNodes builds the handler of each configured node: h itself for the

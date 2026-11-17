@@ -325,6 +325,12 @@ if err := fabricui.Mount(mux, fabricui.Options{Node: n, Admin: isAdmin, Prefix: 
 }
 ```
 
+`Mount` puts the API on the mux as the one pattern `Prefix + "/"`. It
+fails — and leaves the mux as it was — on invalid options, when the mux
+already serves one of the API's routes under the prefix, and when that
+pattern conflicts with one of the mux's. A route the host registers under
+the prefix after `Mount` is more specific and shadows the API's.
+
 ## A host with its own single-page app: the npm package
 
 ```sh
@@ -357,3 +363,41 @@ path prefix it chooses:
   `Options.Admin` admits a request when it came through the proxy (for
   example by the proxy's source address). Token mode is for a daemon that
   serves the page directly.
+- **Framing.** The page's policy says `frame-ancestors 'self'`, and the
+  Ingress parent is the same origin, so the Ingress panel needs no
+  setting. See the next section for another parent.
+
+## Response headers and framing
+
+What the handler sets on its responses, so a host does not have to:
+
+- **The page** (`index.html`, every deep path, and the 503 page while the
+  bundle is not built) carries `Content-Security-Policy`:
+  `default-src 'self'`; `script-src 'self'` and the hash of the inline
+  pre-paint script, derived from the embedded `index.html` when the handler
+  is built; `style-src 'self'`; `img-src 'self'`; `object-src 'none'`;
+  `base-uri 'none'`; `form-action 'self'`;
+  `frame-ancestors 'self'` and `Options.FrameAncestors`. The API, the
+  streams and the camera scan are the page's own origin and need nothing
+  more.
+- **Every response** of `Handler` and of `Mount` — page, bundle, JSON,
+  problem, stream — carries `X-Content-Type-Options: nosniff` and
+  `Referrer-Policy: no-referrer`; every API answer carries
+  `Cache-Control: no-store`, since answers hold pairing codes, the token
+  and the daemon's state.
+
+`Options.FrameAncestors` admits further parents that may frame the page —
+a dashboard on another origin that shows it in a frame:
+
+```go
+h := fabricui.Handler(fabricui.Options{Node: n, FrameAncestors: []string{"https://dash.example:8123"}})
+```
+
+Each entry is a CSP host-source (`https://dash.example:8123`,
+`https://*.example.com`); `Handler` panics and `Mount` fails on anything
+else, a quoted keyword such as `'none'` included, and on an entry that
+admits any parent (`*`, a scheme-source such as `https:`, `https://*`),
+which is what the default prevents: the framing page acts through the
+operator's browser with the page's admin rights. Under an Ingress the parent is the same
+origin and needs no entry. `Mount` serves no page; it checks the field
+and the host's own page sets its own policy.

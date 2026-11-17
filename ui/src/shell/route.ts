@@ -34,7 +34,15 @@ export function routeOf(hash: string): Route {
   let rest = parts.slice(1);
   let keyed: { nodeKey?: string } = {};
   if (rest[0] !== undefined && !NODE_PAGES.includes(rest[0])) {
-    keyed = { nodeKey: decodeURIComponent(rest[0]) };
+    // A malformed % sequence (#/node/%) is no key: the default node's
+    // first page, as for any other unreadable hash.
+    let key: string;
+    try {
+      key = decodeURIComponent(rest[0]);
+    } catch {
+      return { family: "node", page: "status" };
+    }
+    keyed = { nodeKey: key };
     rest = rest.slice(1);
   }
   if (rest[0] === "endpoint") {

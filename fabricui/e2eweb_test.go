@@ -65,7 +65,7 @@ func TestServeE2EWeb(t *testing.T) {
 		controller: ctrl, operations: ops, erase: erase,
 		exposureReason: "This host builds its endpoints without a selection.",
 	})
-	mux.Handle("/", spaHandler())
+	mux.Handle("/", spaHandler(nil))
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		t.Fatal(err)
