@@ -20,6 +20,13 @@ All notable changes to this project are documented here. The format follows
   node's status page instead of throwing `URIError` in the shell
   (UR-P0-ui-30).
 
+### Changed
+
+- `make licenses` fails on a Go dependency whose licence go-licenses
+  cannot classify (`unknown` is disallowed); the ones read by hand are
+  listed in `LICENSES_CHECKED` with their licence and where it was read —
+  today `modernc.org/mathutil` (BSD-3-Clause) (UR-P0-sup-02).
+
 ## [0.9.2] - 2026-11-12
 
 ### Changed

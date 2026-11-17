@@ -72,9 +72,19 @@ cover-check: cover ## fail when a package is below its floor (script/coverfloor)
 vuln: ## govulncheck ./...
 	govulncheck ./...
 
+# LICENSES_CHECKED are the dependencies whose licence go-licenses cannot
+# classify and that were read by hand; every other unclassified licence
+# fails the guard (`unknown` is disallowed). Per module the version, the
+# licence and where it was read:
+#   modernc.org/mathutil v1.7.1: BSD-3-Clause, read in the module's LICENSE
+#     (module cache, modernc.org/mathutil@v1.7.1/LICENSE); reached through
+#     go-fabric store -> modernc.org/sqlite -> modernc.org/libc.
+LICENSES_CHECKED := modernc.org/mathutil
+
 # GOROOT explicit: go-licenses tells the standard library by its GOROOT.
-licenses: ## fail on a forbidden, restricted or reciprocal Go dependency licence (go-licenses)
-	GOROOT=$$($(GO) env GOROOT) go-licenses check ./... --disallowed_types=forbidden,restricted,reciprocal
+licenses: ## fail on a forbidden, restricted, reciprocal or unclassified Go dependency licence (go-licenses)
+	GOROOT=$$($(GO) env GOROOT) go-licenses check ./... --disallowed_types=forbidden,restricted,reciprocal,unknown \
+		$(addprefix --ignore ,$(LICENSES_CHECKED))
 
 secrets: ## scan the tracked git history for committed secrets (gitleaks)
 	$(GO) run github.com/zricethezav/gitleaks/v8@$(GITLEAKS_VERSION) git --no-banner --redact .
