@@ -95,9 +95,10 @@ Facts the cut rests on, read at the baseline:
   describes token mode as a defence against a page of another origin
   (`docs/contract.md:370-374`). The handler has no user model of its own;
   authentication is the host's or its proxy's (`docs/embedding.md:356-359`).
-- **Bodies.** JSON with `DisallowUnknownFields` under a 1 MiB bound
-  (`fabricui/problem.go:33`, `:125-128`; the controller gate
-  `handlers_controller.go:137-139`).
+- **Bodies.** A 1 MiB bound everywhere (`fabricui/problem.go:33`; the
+  controller gate `handlers_controller.go:137-139`). The hand-written
+  routes decode with `DisallowUnknownFields` (`problem.go:125-128`); the
+  generated controller bodies do not (corrected in phase 0, UR-P0-ctr-28).
 - **Streams.** One SSE loop for the node stream, the controller stream and
   the log stream, a 64-event buffer per client that drops when full
   (`fabricui/stream.go:17`, `:34-39`, `fabricui/operations.go:274-284`).
