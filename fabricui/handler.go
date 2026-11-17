@@ -202,6 +202,9 @@ func newHandler(o Options) (*handler, error) {
 	if err := validPrefix(prefix); err != nil {
 		return nil, err
 	}
+	if err := validFrameAncestors(o.FrameAncestors); err != nil {
+		return nil, err
+	}
 	nodes, err := nodeEntries(&o)
 	if err != nil {
 		return nil, err

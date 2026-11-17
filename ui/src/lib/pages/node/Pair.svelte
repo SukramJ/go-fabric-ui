@@ -138,7 +138,7 @@
                 stroke-dashoffset={ringOffset}
                 stroke-linecap="round"
                 transform="rotate(-90 60 60)"
-                style="transition: stroke-dashoffset 1s linear;"
+                style:transition="stroke-dashoffset 1s linear"
               />
             </svg>
             <span class="absolute text-xl font-semibold text-[var(--ha-primary-text-color)]">{remaining}s</span>

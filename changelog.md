@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `Options.FrameAncestors` (UR-P0-web-23): further origins that may frame
+  the page, each a CSP host-source or scheme-source; `Handler` panics and
+  `Mount` fails on anything else. The default admits the page's own origin
+  only, which is the Ingress parent. See `docs/embedding.md`, "Response
+  headers and framing".
+
 ### Fixed
 
 - `theme/tokens.css` applies inside a shadow root (#72): each selector
@@ -34,6 +42,18 @@ All notable changes to this project are documented here. The format follows
   today `modernc.org/mathutil` (BSD-3-Clause) (UR-P0-sup-02).
 
 ### Security
+
+- The page carries a `Content-Security-Policy` (UR-P0-web-23,
+  UR-P0-web-24): `default-src 'self'`, the inline pre-paint script by its
+  hash (derived from the embedded `index.html` when the handler is built),
+  `style-src 'self'`, `img-src 'self'`, `object-src 'none'`,
+  `base-uri 'none'`, `form-action 'self'` and `frame-ancestors 'self'`;
+  the 503 page while the bundle is not built carries it too. The bundle's
+  responses carry `Referrer-Policy: no-referrer` beside `nosniff`. The
+  pairing ring's transition moved from a style attribute to
+  `style:transition`, so no inline style needs admitting. The Playwright
+  smoke fails on any policy violation and opens the pairing window and
+  the camera scan under the policy.
 
 - The event streams drop an event whose type is not `[a-z_]+` and log
   `fabricui.stream.invalid_type` without its payload: a type with a line

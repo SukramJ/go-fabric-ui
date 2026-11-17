@@ -264,6 +264,17 @@ type Options struct {
 	// with 503 and Retry-After: a controller that subscribes before the
 	// first endpoint appears caches an empty parts list.
 	AllowEmptyTopology bool
+	// FrameAncestors are the origins besides the page's own that may frame
+	// the web interface [Handler] serves: its Content-Security-Policy says
+	// frame-ancestors 'self' and these. Each is a CSP host-source
+	// ("https://dash.example:8123", "https://*.example.com") or
+	// scheme-source ("https:"); New and [Mount] refuse anything else, a
+	// quoted keyword included. "*" or "https:" admit any parent, which is
+	// what the default prevents: a page that frames the interface acts
+	// with the operator's admin rights. An Ingress parent is the same
+	// origin and needs no entry. [Mount] serves no page and only checks
+	// the field.
+	FrameAncestors []string
 	// Warnings reports what the host found half-valid in its own
 	// configuration — a label that resolves to nothing, a rule that
 	// matches no item — so the status and selection pages show it rather
@@ -324,7 +335,7 @@ func Handler(o Options) http.Handler {
 	}
 	mux := http.NewServeMux()
 	h.register(mux)
-	mux.Handle("/", spaHandler())
+	mux.Handle("/", spaHandler(o.FrameAncestors))
 	return mux
 }
 

@@ -4,9 +4,13 @@
 package fabricui
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/base64"
+	"fmt"
 	"io/fs"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -22,33 +26,35 @@ const hashedAssetDir = "assets/"
 // spaHandler serves the bundle: a file that exists as itself, anything else
 // as index.html (the shell routes by hash, so a deep path is a reload of
 // the shell). Mirrors loom internal/north/ui/spa.go:29-111 at b40b289a,
-// including the 503 page while the bundle is not built.
-func spaHandler() http.Handler {
+// including the 503 page while the bundle is not built. frameAncestors are
+// the parents admitted beside the page's own origin (Options.FrameAncestors).
+func spaHandler(frameAncestors []string) http.Handler {
 	sub, err := fs.Sub(distFS, "dist")
 	if err != nil {
 		panic(err)
 	}
-	return spaHandlerFS(sub)
+	return spaHandlerFS(sub, frameAncestors)
 }
 
-func spaHandlerFS(sub fs.FS) http.Handler {
+func spaHandlerFS(sub fs.FS, frameAncestors []string) http.Handler {
 	files := http.FileServer(http.FS(sub))
+	idx := readIndex(sub, frameAncestors)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Content-Type-Options", "nosniff")
+		setCommonHeaders(w.Header())
 		path := strings.TrimPrefix(r.URL.Path, "/")
 		if path == "" || path == "index.html" || strings.HasSuffix(path, "/") {
-			serveIndex(sub, w)
+			idx.serve(w)
 			return
 		}
 		f, err := sub.Open(path)
 		if err != nil {
-			serveIndex(sub, w)
+			idx.serve(w)
 			return
 		}
 		st, err := f.Stat()
 		_ = f.Close()
 		if err != nil || st.IsDir() {
-			serveIndex(sub, w)
+			idx.serve(w)
 			return
 		}
 		w.Header().Set("Cache-Control", cacheControlFor(path))
@@ -65,17 +71,99 @@ func cacheControlFor(path string) string {
 	return "public, max-age=3600, must-revalidate"
 }
 
-// serveIndex writes index.html uncached, or the not-built page with 503.
-func serveIndex(sub fs.FS, w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
+// index is the page served for the shell's paths: index.html, or the
+// not-built page with 503, with the policy derived from it.
+type index struct {
+	body   []byte
+	status int
+	csp    string
+}
+
+// readIndex reads index.html once, at start (the bundle is embedded), and
+// derives its policy from the bytes it serves.
+func readIndex(sub fs.FS, frameAncestors []string) index {
 	data, err := fs.ReadFile(sub, "index.html")
 	if err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write([]byte(notBuiltHTML))
-		return
+		data = []byte(notBuiltHTML)
+		return index{body: data, status: http.StatusServiceUnavailable, csp: contentSecurityPolicy(data, frameAncestors)}
 	}
-	_, _ = w.Write(data)
+	return index{body: data, status: http.StatusOK, csp: contentSecurityPolicy(data, frameAncestors)}
+}
+
+// serve writes the page uncached with its policy.
+func (i index) serve(w http.ResponseWriter) {
+	hdr := w.Header()
+	hdr.Set("Content-Type", "text/html; charset=utf-8")
+	hdr.Set("Cache-Control", "no-store")
+	hdr.Set("Content-Security-Policy", i.csp)
+	w.WriteHeader(i.status)
+	_, _ = w.Write(i.body)
+}
+
+// inlineScript and inlineStyle find a page's inline <script> (one without
+// src) and <style> blocks; the hash covers the bytes between the tags, as
+// the browser hashes them.
+var (
+	inlineScript = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script>`)
+	inlineStyle  = regexp.MustCompile(`(?is)<style\b[^>]*>(.*?)</style>`)
+	srcAttr      = regexp.MustCompile(`(?i)\ssrc\s*=`)
+)
+
+// contentSecurityPolicy is the page's policy (UR-P0-web-23, -24): its own
+// origin for everything, the inline pre-paint script admitted by its hash
+// (derived from the page served, so it cannot drift from it), no plugins,
+// no <base>, forms to the own origin, framing by the own origin and
+// frameAncestors. Nothing inline is admitted for styles but a <style>
+// element of the page itself, by its hash (the not-built page): the
+// Svelte pages set styles through the CSSOM (style: directives,
+// style.cssText), which the policy does not govern, and no template holds
+// a style attribute. The camera scan needs no source: the video's
+// srcObject is a MediaStream, not a URL.
+func contentSecurityPolicy(page []byte, frameAncestors []string) string {
+	scripts := []string{"'self'"}
+	for _, m := range inlineScript.FindAllSubmatch(page, -1) {
+		if !srcAttr.Match(m[1]) {
+			scripts = append(scripts, hashSource(m[2]))
+		}
+	}
+	styles := []string{"'self'"}
+	for _, m := range inlineStyle.FindAllSubmatch(page, -1) {
+		styles = append(styles, hashSource(m[1]))
+	}
+	return strings.Join([]string{
+		"default-src 'self'",
+		"script-src " + strings.Join(scripts, " "),
+		"style-src " + strings.Join(styles, " "),
+		"img-src 'self'",
+		"object-src 'none'",
+		"base-uri 'none'",
+		"form-action 'self'",
+		"frame-ancestors " + strings.Join(append([]string{"'self'"}, frameAncestors...), " "),
+	}, "; ")
+}
+
+// hashSource is the CSP hash-source of b.
+func hashSource(b []byte) string {
+	sum := sha256.Sum256(b)
+	return "'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
+}
+
+// cspSource is a CSP scheme-source ("https:") or host-source
+// ("https://*.example.com:8123/path"), CSP Level 3 section 2.3.1; an IPv6
+// literal is none.
+var cspSource = regexp.MustCompile(`^(?:[A-Za-z][A-Za-z0-9+.-]*:` +
+	`|(?:[A-Za-z][A-Za-z0-9+.-]*://)?(?:\*|(?:\*\.)?[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*)(?::(?:[0-9]+|\*))?(?:/[^\s;,']*)?)$`)
+
+// validFrameAncestors refuses an entry of Options.FrameAncestors that is
+// no host-source or scheme-source: a keyword ('self' is always there), a
+// separator or white space would change the policy's meaning.
+func validFrameAncestors(list []string) error {
+	for _, s := range list {
+		if !cspSource.MatchString(s) {
+			return fmt.Errorf("fabricui: Options.FrameAncestors: %q is not a CSP host-source or scheme-source", s)
+		}
+	}
+	return nil
 }
 
 const notBuiltHTML = `<!doctype html>

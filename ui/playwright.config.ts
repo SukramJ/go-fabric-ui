@@ -17,7 +17,13 @@ export default defineConfig({
   retries: 0,
   reporter: process.env.CI ? [["list"], ["github"]] : "list",
   use: { baseURL: `http://${addr}`, locale: "en-US", trace: "off" },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      // The fake camera lets the QR scan's smoke open a stream.
+      use: { ...devices["Desktop Chrome"], launchOptions: { args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] } },
+    },
+  ],
   webServer: {
     command: bin ? `"${bin}" -test.run "^TestServeE2EWeb$" -test.timeout 0` : `go test -count=1 -run "^TestServeE2EWeb$" -timeout 0 ./fabricui`,
     cwd: "..",

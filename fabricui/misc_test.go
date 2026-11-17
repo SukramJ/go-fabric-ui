@@ -282,7 +282,7 @@ func TestSPA_ServesTheBundleWithItsCacheHeaders(t *testing.T) {
 		"assets/app-1.js":  {Data: []byte("console.log(1)")},
 		"favicon.svg":      {Data: []byte("<svg/>")},
 		"assets/dir/x.css": {Data: []byte("a{}")},
-	})
+	}, nil)
 	get := func(p string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, p, nil))
@@ -304,7 +304,7 @@ func TestSPA_ServesTheBundleWithItsCacheHeaders(t *testing.T) {
 
 func TestSPA_NotBuiltAnswers503(t *testing.T) {
 	rec := httptest.NewRecorder()
-	spaHandlerFS(fstest.MapFS{"README": {Data: []byte("x")}}).ServeHTTP(rec,
+	spaHandlerFS(fstest.MapFS{"README": {Data: []byte("x")}}, nil).ServeHTTP(rec,
 		httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil))
 	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "Bundle not built") {
 		t.Fatalf("got %d %s", rec.Code, rec.Body)
