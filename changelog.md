@@ -27,6 +27,13 @@ All notable changes to this project are documented here. The format follows
   listed in `LICENSES_CHECKED` with their licence and where it was read —
   today `modernc.org/mathutil` (BSD-3-Clause) (UR-P0-sup-02).
 
+### Security
+
+- The event streams drop an event whose type is not `[a-z_]+` and log
+  `fabricui.stream.invalid_type` without its payload: a type with a line
+  break from a host's `Options.Events` could otherwise forge a frame
+  (UR-P0-web-33). Every type this module publishes passes.
+
 ## [0.9.2] - 2026-11-12
 
 ### Changed

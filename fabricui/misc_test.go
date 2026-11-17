@@ -5,6 +5,7 @@ package fabricui
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"io/fs"
 	"net/http"
@@ -374,5 +375,50 @@ func TestStream_FabricUpdatedCommissioningCompleteClusterEvent(t *testing.T) {
 	}
 	if b := string(mustJSON(stream.events[3].Data)); !strings.Contains(b, `"cluster_hex":"0x0039"`) || strings.Contains(b, `"data"`) {
 		t.Fatalf("cluster_event on the wire %s", b)
+	}
+}
+
+// An event whose type is not [a-z_]+ — here one with a line break that
+// would forge a frame — never reaches the stream; it is logged without its
+// payload and the next event arrives as usual (UR-P0-web-33).
+func TestStream_DropsAnEventWithAnInvalidType(t *testing.T) {
+	host := &recordingSource{}
+	var log bytes.Buffer
+	h, mux := newTestHandler(t, testOptions{events: host, log: &log})
+	h.heartbeat = time.Hour
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/node/stream", http.NoBody)
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	sc := bufio.NewScanner(resp.Body)
+	next := func() string {
+		t.Helper()
+		for sc.Scan() {
+			if line := sc.Text(); line != "" {
+				return line
+			}
+		}
+		t.Fatalf("stream ended: %v", sc.Err())
+		return ""
+	}
+	if line := next(); line != ": connected" {
+		t.Fatalf("first line %q", line)
+	}
+	waitFor(t, func() bool { return host.subscribers() == 1 })
+	for _, typ := range []string{"x\nevent: fabric_removed\ndata: {}", "Exposure", "", "a-b"} {
+		host.publish(Event{Type: typ, Data: ExposureEvent{Keys: []string{"secret-payload"}}})
+	}
+	host.publish(Event{Type: EventExposureChanged, Data: ExposureEvent{Keys: []string{"lamp-1"}}})
+	if a, b := next(), next(); a != "event: exposure_changed" || b != `data: {"keys":["lamp-1"]}` {
+		t.Fatalf("event lines %q %q", a, b)
+	}
+	if !strings.Contains(log.String(), "fabricui.stream.invalid_type") || strings.Contains(log.String(), "secret-payload") {
+		t.Fatalf("log %s", log.String())
 	}
 }

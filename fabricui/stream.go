@@ -62,6 +62,14 @@ func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, subscribe
 				return
 			}
 		case ev := <-ch:
+			// The type goes into the frame verbatim: one that is not
+			// [a-z_]+ (a line break from a host's Options.Events) would
+			// forge a frame, so it is dropped and logged without its
+			// payload. Every type this module publishes passes.
+			if !validEventType(ev.Type) {
+				h.log.WarnContext(ctx, "fabricui.stream.invalid_type", "type", ev.Type)
+				continue
+			}
 			data, err := json.Marshal(ev.Data)
 			if err != nil {
 				h.log.WarnContext(ctx, "fabricui.stream.encode_failed", "type", ev.Type, "error", err.Error())
@@ -75,4 +83,17 @@ func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, subscribe
 			return
 		}
 	}
+}
+
+// validEventType reports whether t is a non-empty [a-z_]+.
+func validEventType(t string) bool {
+	if t == "" {
+		return false
+	}
+	for _, c := range []byte(t) {
+		if (c < 'a' || c > 'z') && c != '_' {
+			return false
+		}
+	}
+	return true
 }
