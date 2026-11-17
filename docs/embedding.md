@@ -325,6 +325,12 @@ if err := fabricui.Mount(mux, fabricui.Options{Node: n, Admin: isAdmin, Prefix: 
 }
 ```
 
+`Mount` puts the API on the mux as the one pattern `Prefix + "/"`. It
+fails — and leaves the mux as it was — on invalid options, when the mux
+already serves one of the API's routes under the prefix, and when that
+pattern conflicts with one of the mux's. A route the host registers under
+the prefix after `Mount` is more specific and shadows the API's.
+
 ## A host with its own single-page app: the npm package
 
 ```sh

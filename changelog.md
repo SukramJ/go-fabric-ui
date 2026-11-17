@@ -19,6 +19,12 @@ All notable changes to this project are documented here. The format follows
 - A hash with a malformed `%` sequence (`#/node/%`) opens the default
   node's status page instead of throwing `URIError` in the shell
   (UR-P0-ui-30).
+- A failed `Mount` leaves the host's mux as it was (UR-P0-api-32): the API
+  is built on a mux of its own and registered as the one pattern
+  `Prefix + "/"`, after every route pattern was looked up on the host's
+  mux; before, a duplicate pattern failed the mount after part of the
+  routes were registered. A route the host registers under the prefix
+  afterwards shadows the API's.
 
 ### Changed
 

@@ -255,6 +255,27 @@ func TestMount_RegistersTheRoutesAndRefusesABadPrefix(t *testing.T) {
 	}
 }
 
+// A Mount that fails on a pattern the host's mux already serves leaves
+// that mux as it was: no route of the API answers afterwards, and the host's
+// own route still does (UR-P0-api-32).
+func TestMount_AFailedMountLeavesTheMuxUntouched(t *testing.T) {
+	for _, taken := range []string{"GET /ui-api/operation/info", "/ui-api/", "GET /ui-api/nodes/{x}/stream"} {
+		mux := http.NewServeMux()
+		mux.HandleFunc(taken, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) })
+		err := Mount(mux, Options{Prefix: "/ui-api"})
+		if err == nil || !strings.Contains(err.Error(), "nothing was registered") {
+			t.Fatalf("%s: err %v", taken, err)
+		}
+		for _, path := range []string{"/ui-api/node/status", "/ui-api/node/fabrics", "/ui-api/nodes"} {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil))
+			if rec.Code == http.StatusOK {
+				t.Fatalf("%s: %s answers %d after a failed mount", taken, path, rec.Code)
+			}
+		}
+	}
+}
+
 func TestSPA_ServesTheBundleWithItsCacheHeaders(t *testing.T) {
 	h := spaHandlerFS(fstest.MapFS{
 		"index.html":       {Data: []byte("<!doctype html><title>shell</title>")},

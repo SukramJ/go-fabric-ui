@@ -6,7 +6,6 @@ package fabricui
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -302,20 +301,17 @@ type Counter struct {
 	Message string `json:"message"`
 }
 
-// Mount registers the API routes on mux under o.Prefix. It fails on an
-// invalid prefix and when mux already holds one of the patterns.
-func Mount(mux *http.ServeMux, o Options) (err error) {
+// Mount registers the API on mux under o.Prefix, as the one pattern
+// o.Prefix + "/". It fails on invalid options, when mux already serves one
+// of the API's routes under the prefix, and when the pattern conflicts
+// with one of mux's; a failed Mount leaves mux as it was. A route the host
+// registers under the prefix afterwards shadows the API's.
+func Mount(mux *http.ServeMux, o Options) error {
 	h, err := newHandler(o)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("fabricui: mount: %v", r)
-		}
-	}()
-	h.register(mux)
-	return nil
+	return h.mount(mux)
 }
 
 // Handler returns the API routes and the embedded web interface: the API
