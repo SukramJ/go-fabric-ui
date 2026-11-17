@@ -411,10 +411,9 @@ func (h *handler) underPrefix(q string) bool {
 // the patterns it holds: the node family under /node for the default node
 // and under /nodes/{node} for each node, GET /nodes, the operation routes
 // and the controller family.
-func (h *handler) routes() (http.Handler, []string) {
+func (h *handler) routes() (api http.Handler, patterns []string) {
 	h.mountNodes()
 	mux := http.NewServeMux()
-	var patterns []string
 	handle := func(pattern string, fn http.Handler) {
 		mux.Handle(pattern, fn)
 		patterns = append(patterns, pattern)

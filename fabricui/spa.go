@@ -126,7 +126,7 @@ func contentSecurityPolicy(page []byte, frameAncestors []string) string {
 			scripts = append(scripts, hashSource(m[2]))
 		}
 	}
-	styles := []string{"'self'"}
+	styles := append(make([]string, 0, 2), "'self'")
 	for _, m := range inlineStyle.FindAllSubmatch(page, -1) {
 		styles = append(styles, hashSource(m[1]))
 	}
