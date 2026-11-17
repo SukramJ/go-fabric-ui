@@ -26,6 +26,11 @@ describe("routeOf", () => {
     expect(routeOf("#/operation")).toEqual({ family: "operation", page: "operation" });
   });
 
+  it("falls back to the default node's status for a malformed % sequence", () => {
+    expect(routeOf("#/node/%")).toEqual({ family: "node", page: "status" });
+    expect(routeOf("#/node/%E0%A4%A/pair")).toEqual({ family: "node", page: "status" });
+  });
+
   it("reads the controller family's pages and a node's page with its tab", () => {
     expect(routeOf("#/controller/commission")).toEqual({ family: "controller", page: "commission" });
     expect(routeOf("#/controller")).toEqual({ family: "controller", page: "nodes" });

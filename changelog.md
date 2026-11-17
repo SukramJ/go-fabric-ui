@@ -16,6 +16,9 @@ All notable changes to this project are documented here. The format follows
   that adopts the sheet in a shadow root sets `class="dark"` and
   `data-skin="ha"` on its custom element. The document-level values do not
   change.
+- A hash with a malformed `%` sequence (`#/node/%`) opens the default
+  node's status page instead of throwing `URIError` in the shell
+  (UR-P0-ui-30).
 
 ## [0.9.2] - 2026-11-12
 
