@@ -26,3 +26,15 @@ go-fabric's Review II are cited as "go-fabric decision n"
 | 15 | Tags (open question 9) | **One release after phase 3's pull request, one after convergence if it changed code**; a security fix that cannot wait gets its own patch release with the hosts' bump |
 | 16 | Phase 1 under the cap (open question 10) | **Two halves**: 1a Go and 1b web, each its own workflow of at most five agents, its own fresh session, its own branch (`review/p1a`, `review/p1b`) and pull request; G-go and G-web are each read by two Opus agents |
 | 17 | Verification of low and note | **The regression-test rule plus a sample**: a low or note is verified by its fix's regression test (red before the fix; one that cannot be made red is struck, a docs or style finding without a test is checked against the code by the implementer and struck with a reason if wrong), **and** the phase's Fable verifier re-reads a sample of the lows — about one in five per unit, at least two — so the false-positive rate of the Opus reviewers is measured |
+
+## 2026-11-17, after phase 0's verification
+
+Put as one wizard of four questions, the recommendation first. The two held
+rows are named by ID only until their fix merges (decisions 5 and 14).
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 18 | The held rows UR-P0-auth-20 and UR-P0-web-21, and the verifier's observation next to 20 | **Bundled in phase 3's pull request** with the other contract changes (decision 13), not a patch release of their own (the recommendation was a phase 0 patch under decision 15). The rows stay held until that pull request; UR-P0-doc-22 waits with them, because its text depends on their fix |
+| 19 | UR-P0-auth-26, the four ungated controller routes that make the controller read from a node | **All four gated** (`x-admin` on ACL, bindings, fabrics and `POST …/attributes`), as `refresh=true` already is; a non-admin no longer sees those tabs. Contract change, phase 3 |
+| 20 | UR-P0-leak-27, the daemon's log to everyone | **Gated**: `x-admin` on `GET /operation/log` and the log stream; the client reads the log stream through `fetch` with the token header instead of `EventSource`. Contract and web change, phase 3 |
+| 21 | UR-P0-web-23, framing | **`frame-ancestors 'self'` by default plus an `Options` field** for further parent origins of a host that frames the page from elsewhere. No contract field; lands in phase 0's fix wave |
