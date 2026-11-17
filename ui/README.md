@@ -114,6 +114,13 @@ mode in a pre-paint script (`src/shell/index.html`) so the first frame
 already wears them; a host that wants the same does it in its own
 `index.html`.
 
+The same stylesheet works adopted in a shadow root: every block also names
+its `:host` form. There the custom element is the anchor, because it cannot
+see `<html>` — the host sets `class="dark"` and `data-skin="ha"` on the
+element itself and mirrors them from the page. Tailwind's `dark:` variant
+(the `@custom-variant` above) does not cross the shadow boundary; a host in
+a shadow root adapts that selector itself.
+
 ### Event stream
 
 `ui.node.connect()` opens `GET /node/stream` with an `EventSource`. A host

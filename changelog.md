@@ -7,6 +7,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `theme/tokens.css` applies inside a shadow root (#72): each selector
+  anchored on the document element names its `:host` form beside it
+  (`:root, :host`, `html.dark, :host(.dark)`, `html[data-skin="ha"],
+  :host([data-skin="ha"])`, the HA dark block, `html, body, :host`). A host
+  that adopts the sheet in a shadow root sets `class="dark"` and
+  `data-skin="ha"` on its custom element. The document-level values do not
+  change.
+
 ## [0.9.2] - 2026-11-12
 
 ### Changed
