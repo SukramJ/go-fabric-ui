@@ -348,8 +348,28 @@ func (h *handler) mount(mux *http.ServeMux) (err error) {
 			err = fmt.Errorf("fabricui: mount: %v; nothing was registered", r)
 		}
 	}()
-	mux.Handle(h.prefix+"/", api)
+	mux.Handle(h.prefix+"/", apiHeaders(api))
 	return nil
+}
+
+// apiHeaders sets the headers every answer of the API carries before the
+// route writes: no-store, because answers carry pairing codes, a token or
+// the daemon's state, which no cache keeps (UR-P0-leak-25); nosniff and
+// no-referrer as on the bundle (UR-P0-web-24).
+func apiHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hdr := w.Header()
+		hdr.Set("Cache-Control", "no-store")
+		setCommonHeaders(hdr)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// setCommonHeaders sets what every response of the handler carries, the
+// API's and the bundle's: nosniff and no-referrer (UR-P0-web-24).
+func setCommonHeaders(hdr http.Header) {
+	hdr.Set("X-Content-Type-Options", "nosniff")
+	hdr.Set("Referrer-Policy", "no-referrer")
 }
 
 // servedPattern is the pattern mux serves a request for p with — p's

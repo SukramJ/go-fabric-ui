@@ -39,6 +39,11 @@ All notable changes to this project are documented here. The format follows
   `fabricui.stream.invalid_type` without its payload: a type with a line
   break from a host's `Options.Events` could otherwise forge a frame
   (UR-P0-web-33). Every type this module publishes passes.
+- Every answer of the API — JSON, problem, stream, the generated
+  controller routes — carries `Cache-Control: no-store`
+  (UR-P0-leak-25): pairing codes, the token and the daemon's state are
+  kept by no cache. It also carries `X-Content-Type-Options: nosniff` and
+  `Referrer-Policy: no-referrer`, as the bundle does (UR-P0-web-24).
 
 ## [0.9.2] - 2026-11-12
 
