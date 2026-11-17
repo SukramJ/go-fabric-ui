@@ -270,13 +270,13 @@ Issue #68 (owner): a commissioned device's QR or manual pairing code is on a sli
 ## Left out
 A file export (decision 12). A structured mismatch (H1). An event on the controller stream for a code stored or removed (the page refetches after its own write; a second browser sees it on its next load). Bulk attach. Editing NodeLabel from this page. A setting in the UI for `KeepOnboardingCodes` (host configuration).
 
-## Open questions for the owner
-- **Q1.** H1 — ask go-fabric for the typed mismatch error before its tag, or ship 0.10.0 with the English sentence in `detail`?
-- **Q2.** Token mode: is the opt-in of decision 5 plus the obligation of host point 1 enough, or shall the handler refuse the three routes outright (501) whenever `Options.Admin` is nil?
-- **Q3.** Shall the page say whether codes of newly paired devices are kept? The controller has no getter for `Config.KeepOnboardingCodes` (fact 10); it would need a second `ControllerOptions` field the host sets, or a getter in go-fabric.
-- **Q4.** Label format: the wrapping grid on the browser's paper size, or one label per page for a label printer (a `@page` size the user picks)?
-- **Q5.** `DELETE …/onboarding-code` and "Remove code" are beyond the issue's text (decision 1) — keep?
-- **Q6.** Codes behind "Show code" per row (decision 11) or always visible in the table, as the issue's row description can be read?
+## Owner decisions (2026-11-17)
+- **Q1 → H1 is asked.** go-fabric gets the typed mismatch error before its tag; decision 6 and the mismatch problem switch to its fields (`field`, `code_value`, `node_value`), and the page words the reason in the user's language. No cutting of error strings. If the tag comes without it, the wave stops at R3 and goes back to planning.
+- **Q2 → refuse without `Options.Admin`.** The three routes answer 501 when `Options.Admin` is nil, whatever the capability says; token mode never serves a passcode. A handler test holds it; `onboarding_codes` in the capabilities is false in that case.
+- **Q3 → no.** The page does not say whether newly paired codes are kept (no getter; host configuration).
+- **Q4 → wrapping grid** on the browser's paper size (A4), no label-printer mode.
+- **Q5 → keep** `DELETE …/onboarding-code` and "Remove code".
+- **Q6 → behind "Show code"** per row; the print carries every code.
 
 ## Report (fixed shape, short)
 Branch, commits, the result of the re-check at the tag (R1–R8, each "as designed" or the difference), guards with HEAD, differences from this brief, left out, questions. Close nothing; the session closes #68 with the PR.
