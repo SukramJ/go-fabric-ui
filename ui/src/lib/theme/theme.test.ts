@@ -174,14 +174,14 @@ describe("the pre-paint script (index.html)", () => {
 
 describe("tokens.css", () => {
   it("gives the label on a primary fill a token: white standalone, Home Assistant's text-primary-color in the skin", () => {
-    expect(css).toMatch(/:root\s*\{[^}]*--ha-on-primary-color: #ffffff;/);
+    expect(css).toMatch(/:root,\s*:host\s*\{[^}]*--ha-on-primary-color: #ffffff;/);
     expect(css).toContain("--ha-on-primary-color: var(--text-primary-color, #ffffff);");
-    expect(css).toMatch(/html\[data-skin="ha"\]\s*\{[^}]*accent-color: var\(--ha-primary-color\);/);
-    expect(css).toMatch(/html\[data-skin="ha"\]\.dark\s*\{[^}]*color-scheme: dark;/);
+    expect(css).toMatch(/html\[data-skin="ha"\],\s*:host\(\[data-skin="ha"\]\)\s*\{[^}]*accent-color: var\(--ha-primary-color\);/);
+    expect(css).toMatch(/html\[data-skin="ha"\]\.dark,\s*:host\(\[data-skin="ha"\]\.dark\)\s*\{[^}]*color-scheme: dark;/);
   });
   it("defines the --ha-* tokens, the dark block and the HA skin with Home Assistant fallbacks", () => {
-    expect(css).toMatch(/:root\s*\{[^}]*--ha-primary-color:/);
-    expect(css).toMatch(/html\.dark\s*\{[^}]*--ha-card-background-color:/);
+    expect(css).toMatch(/:root,\s*:host\s*\{[^}]*--ha-primary-color:/);
+    expect(css).toMatch(/html\.dark,\s*:host\(\.dark\)\s*\{[^}]*--ha-card-background-color:/);
     expect(css).toContain("--ha-primary-color: var(--primary-color, #009ac7);");
     expect(css).toContain("--ha-elevation-card: var(--ha-card-box-shadow, none);");
   });
@@ -191,6 +191,29 @@ describe("tokens.css", () => {
     expect(remap).toContain("--color-brand-500: #009ac7;");
     expect(css).not.toContain("--color-white");
     expect(css).not.toContain("--color-black");
+  });
+  it("names the :host form beside every selector anchored on the document element (#72)", () => {
+    // Every rule's selector list, comments stripped; @media bodies hold class selectors only.
+    const rules = [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{/g)]
+      .map((m) => m[1].trim())
+      .filter((sel) => !sel.startsWith("@"));
+    const hostForm: Record<string, string> = {
+      ":root": ":host",
+      "html.dark": ":host(.dark)",
+      'html[data-skin="ha"]': ':host([data-skin="ha"])',
+      'html[data-skin="ha"].dark': ':host([data-skin="ha"].dark)',
+      html: ":host",
+    };
+    let anchored = 0;
+    for (const rule of rules) {
+      const list = rule.split(",").map((s) => s.trim());
+      for (const sel of list) {
+        if (!(sel in hostForm)) continue;
+        anchored++;
+        expect(list, rule).toContain(hostForm[sel]);
+      }
+    }
+    expect(anchored).toBe(6);
   });
   it("carries the phone reflow of data tables", () => {
     expect(css).toContain(".table-reflow td::before");

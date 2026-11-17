@@ -14,6 +14,14 @@
  *    HA skin.
  *  - .table-reflow turns a data table into cards on a phone.
  *
+ * Every block that is anchored on the document element also names its
+ * :host form (:root, :host; html.dark, :host(.dark); …), so the same sheet
+ * works adopted in a shadow root (go-fabric-ui #72). A host that mounts the
+ * components in a shadow root carries `class="dark"` and `data-skin="ha"`
+ * on its custom element itself, since it cannot see <html>; :host-context()
+ * is not used because Firefox does not implement it. Tailwind's `dark:`
+ * variant is the host's own selector and is not covered here.
+ *
  * Ported from openccu-loom assets/ui/src/app.css at b40b289a: :56-104
  * (tokens, dark block), :106-142 (HA skin, HA dark), :144-152 (base
  * colours), :154-240 (palette remap), :339-423 (reflow, hide-narrow). The
@@ -24,7 +32,8 @@
 /* HA-style semantic CSS variables. Components prefer these tokens
  * over hard-coded slate utility classes so a future theme picker
  * can re-skin the SPA without touching component markup. */
-:root {
+:root,
+:host {
   /* Primary tracks brand-500/600. */
   --ha-primary-color: oklch(54.5% 0.11 184.7);
   --ha-primary-color-hover: oklch(51.1% 0.096 186.391);
@@ -51,7 +60,8 @@
   --ha-on-primary-color: #ffffff;
 }
 
-html.dark {
+html.dark,
+:host(.dark) {
   /* Dark surfaces need a lighter teal for AA text/icon contrast:
    * primary := teal-400, hover := teal-300. */
   --ha-primary-color: oklch(77.7% 0.152 181.912);
@@ -78,7 +88,8 @@ html.dark {
  * ha-bridge copies HA's real values onto :root when embedded so the live
  * theme wins, and the literals below are the standalone HA-default
  * fallback. The standalone values above are untouched. */
-html[data-skin="ha"] {
+html[data-skin="ha"],
+:host([data-skin="ha"]) {
   --ha-primary-color: var(--primary-color, #009ac7);
   --ha-primary-color-hover: color-mix(in srgb, var(--ha-primary-color) 88%, #000);
   --ha-primary-background-color: var(--primary-background-color, #fafafa);
@@ -103,7 +114,8 @@ html[data-skin="ha"] {
   color-scheme: light;
 }
 
-html[data-skin="ha"].dark {
+html[data-skin="ha"].dark,
+:host([data-skin="ha"].dark) {
   /* --ha-primary-color keeps inheriting HA's --primary-color — HA holds
    * its accent across light/dark, so only the neutrals/hover flip here. */
   --ha-primary-color-hover: color-mix(in srgb, var(--ha-primary-color) 88%, #fff);
@@ -122,7 +134,8 @@ html[data-skin="ha"].dark {
  * pre-paint script in index.html sets `.dark` before the first paint, so
  * these already resolve to the dark values on the very first frame. */
 html,
-body {
+body,
+:host {
   background-color: var(--ha-primary-background-color);
   color: var(--ha-primary-text-color);
 }
@@ -135,7 +148,8 @@ body {
  * .dark variant of this block is needed. The standalone skin keeps Tailwind's defaults
  *. Opacity-modified utilities are inlined by
  * Tailwind and do NOT follow this — those are rewritten to color-mix(). */
-html[data-skin="ha"] {
+html[data-skin="ha"],
+:host([data-skin="ha"]) {
   /* neutral ramp -> HA neutral greys (light steps light, dark steps dark;
      anchors: 900=#1c1c1c dark card, 950=#141414 HA neutral-05,
      500=#727272 HA secondary-text, 200=#e5e5e5 HA secondary-bg) */
