@@ -122,15 +122,17 @@ Facts the cut rests on, read at the baseline:
 
 | Phase | Content |
 | --- | --- |
-| 0 Basis | Pin the baseline (above). Mechanical evidence, each with HEAD and a summary line: `make ci`, `make race`, `make cover-check` plus an error-path coverage reading (which `writeProblem` / `controllerError` branches no test reaches), `make vuln licenses secrets`, `GOARCH=386 make build`, `make contract-check`, `make e2e`, `make e2e-web`, `npm audit` (all and `--omit=dev`), `svelte-check`, vitest; ad hoc fuzzing where input is parsed (open question 3). The threat model, new (`notes/review/2026-11-17/threat-model.md`): the HTTP handler, the admin and token paths, the three SSE streams, the SPA (XSS, CSRF, framing, caching), the embedding host boundary (`Options.Admin`, `Mount` beside a host's own routes, the Ingress theme bridge), secrets (passcodes, the onboarding codes, Wi-Fi and Thread credentials) |
-| 1 Package pass | Every hand-written Go package and the `ui/` source, unit by unit (table below) |
+| 0 Basis | Pin the baseline (above). Mechanical evidence, each with HEAD and a summary line: `make ci`, `make race`, `make cover-check` plus an error-path coverage reading (which `writeProblem` / `controllerError` branches no test reaches), `make vuln licenses secrets`, `GOARCH=386 make build`, `make contract-check`, `make e2e`, `make e2e-web`, `npm audit` (all and `--omit=dev`), `svelte-check`, vitest; ad hoc fuzzing where input is parsed (decision 9). The threat model, new (`notes/review/2026-11-17/threat-model.md`): the HTTP handler, the admin and token paths, the three SSE streams, the SPA (XSS, CSRF, framing, caching), the embedding host boundary (`Options.Admin`, `Mount` beside a host's own routes, the Ingress theme bridge), secrets (passcodes, the onboarding codes, Wi-Fi and Thread credentials) |
+| 1 Package pass | Every hand-written Go package and the `ui/` source, unit by unit (table below), in two halves (decision 16): **1a Go** and **1b web**, each its own workflow, session, branch and pull request |
 | 2 Flows and adversarial | End to end across handler → `gofabric` adapter → go-fabric's facade at `v0.22.2`, and page → client → handler; the attacker roles in two units, exploits written as failing tests (table below) |
 | 3 Architecture, tests, docs, supply chain | Contract and OpenAPI against handlers, client and fixtures; the exported `fabricui` API (`Options`, the ports) and the import cut; test quality on both halves; every behavioural claim in `docs/` and every citation against code and pins; workflows, release, npm publish, the committed bundle |
 | 4 Convergence | A full-cut run over the HEAD of the day, repeated until one yields no new high or medium. Includes the delta of what feature work landed and the delta when go-fabric's post-Review-II tag is pinned in `go.mod` |
 
 ### Phase 1 units
 
-Four reviewers and one verifier (decision 6). The security paths are cut
+Two halves (decision 16): 1a reads S-go and G-go, 1b reads S-web and
+G-web; G-go and G-web are each split between two Opus readers along file
+boundaries, so a half is four reviewers and one verifier. The security paths are cut
 out of the packages they sit in, so that Fable reads them whole and Opus
 reads the rest.
 
@@ -143,7 +145,7 @@ reads the rest.
 
 The adapter's behaviour against go-fabric's controller facade at `v0.22.2`
 and its go-fabric citations are read by Fable in phase 3's `cite` unit, not
-here. G-go and G-web are large for one reader each; open question 10.
+here.
 
 ### Phase 2 units
 
@@ -192,8 +194,10 @@ chain and release · docs and citations against code.
 3. **Verify.** One independent Fable verifier per phase re-reads every
    high and medium against the code and the pins, in batches by unit, and
    tries to refute each — struck with a reason, or confirmed. A low or a
-   note has no verifier of its own: the fix's regression test, red before
-   the fix, is its verification, and one that cannot be made red is struck.
+   note is verified by the fix's regression test, red before the fix; one
+   that cannot be made red is struck. On top, the verifier re-reads a
+   sample of the lows — about one in five per unit, at least two
+   (decision 17).
 4. **Fix.** Branch `review/p<N>`; the regression test first (red, then
    green); **at most two implementing agents, on disjoint paths** (the Go
    half and the web half; decision 6); one standing guard per defect class; the local guard set of
@@ -219,7 +223,8 @@ produce them; a Sonnet inventory counts as an agent.
 | Phase | Review and verification | Cut | Fix wave |
 | --- | --- | --- | --- |
 | 0 | 4 | 1 inventory (Sonnet: routes and gates, parse sites, render sinks, the hosts' `Options` call sites), 1 mechanical evidence with fuzzing and the error-path coverage reading (Opus), 1 threat model (Fable), 1 verifier (Fable) | ≤ 2 |
-| 1 | 5 | 2 Fable (S-go, S-web), 2 Opus (G-go, G-web), 1 Fable verifier | ≤ 2 |
+| 1a | 5 | 1 Fable (S-go), 2 Opus (G-go split), 1 Fable verifier, 1 Sonnet inventory | ≤ 2 |
+| 1b | 5 | 1 Fable (S-web), 2 Opus (G-web split), 1 Fable verifier, 1 Sonnet inventory | ≤ 2 |
 | 2 | 5 | 3 Fable (X1, X3, X4), 1 Opus (X2), 1 Fable verifier | ≤ 2 |
 | 3 | 5 | 3 Opus (contract and api, tests, docs and supply), 1 Fable (cite), 1 Fable verifier | ≤ 2 |
 | 4 | 4 per run | 1 Fable (the security paths of both halves), 2 Opus (the Go rest, the web rest, each with the delta of its half; the delta of a go-fabric tag on the adapter goes to the Fable reader), 1 Fable verifier | ≤ 2 |
@@ -262,58 +267,5 @@ rows are published with the pull request or release that carries their fix.
 
 ## Open questions for the owner
 
-Each with the recommendation first; none is decided here.
-
-1. **Is token mode meant to authenticate anybody?** The token is served by
-   an unguarded read (`handlers_node.go:138`, `handlers_controller.go:320`)
-   and the contract describes it as a cross-origin defence
-   (`docs/contract.md:370-374`). *Recommendation:* record "whoever reaches
-   the listener is an admin in token mode; restricting who reaches it is
-   the host's job" as an explicit assumption of the threat model, let unit
-   X3 measure what it exposes and whether `docs/embedding.md` says it
-   plainly, and bring anything beyond a docs fix to the wizard.
-   Alternative: treat it as a defect class from the start.
-2. **Is disclosure to a non-admin in scope (unit X3)?** Every read and all
-   three streams are unguarded in both modes (`handler.go:328`, `:346`,
-   `:351-355`). *Recommendation:* yes — X3 lists per route what a non-admin
-   learns, and the owner decides per class whether it is by design.
-3. **Fuzz budget.** No target exists (`ci.yml:9-11`). *Recommendation:*
-   phase 0 writes ad hoc targets for the hand-written parse sites
-   (`parseHex`, `parseHex32`, `parseNodeID` at
-   `handlers_controller.go:208-228`, `logWindow` at `operations.go:246`,
-   `decodeJSON` at `problem.go:125`) and one HTTP-level target over the
-   whole mux, five minutes each locally, committed only if one finds
-   something; a standing fuzz job is decided in phase 3.
-4. **Do Playwright runs count as evidence?** *Recommendation:* as the
-   baseline's mechanical evidence, yes (`e2e-web` is a required check); as
-   evidence of a security property, no — the smoke is seven tests. A role's
-   exploit that needs a real browser is written as its own Playwright test
-   and becomes a guard only when its fix lands.
-5. **`npm audit`.** *Recommendation:* run in phase 0 as evidence; an
-   advisory on a package in the bundle is a finding, one on a development
-   dependency a note; whether a workflow runs it is decided in phase 3.
-6. **The hosts as input.** How `Options.Admin` is really set decides how
-   much X3 and X4 matter (`go-fabric-server/internal/daemon/web.go:36`,
-   `go-ha2fabric/cmd/ha2fabric/main.go:112`). *Recommendation:* a read-only
-   Sonnet inventory of both call sites in phase 0, verified by the threat
-   model's author; what it finds in a host is noted for that host's review,
-   not fixed here.
-7. **A fix that changes the contract.** Gating a route that is open today
-   turns a 200 into a 403, which the rule "a route is never removed in a
-   minor version" does not cover. *Recommendation:* each goes to the
-   wizard; those accepted are bundled in phase 3's pull request with a
-   contract bump and a line in `docs/contract.md` for the hosts.
-8. **Where held-back reports live.** *Recommendation:* an untracked
-   directory of the review worktree listed in `.git/info/exclude` (no
-   change to `.gitignore`), named in the phase's hand-over.
-9. **Tags.** *Recommendation:* one release after phase 3's pull request
-   and one after convergence if it changed code; a security fix that
-   cannot wait gets a patch release of its own, the hosts' bump with it.
-10. **Phase 1 under the cap of five.** It leaves two Opus readers with
-    about 7 700 lines of Go and 7 300 lines of pages each, which costs
-    depth. *Recommendation:* run phase 1 as two halves, 1a Go and 1b web,
-    each a workflow of at most five agents in its own fresh session with
-    its own pull request (as go-fabric decision 120 halved its phase 6),
-    so that G-go and G-web are each read by two agents. Alternative: one
-    workflow as cut above, with a second pass over whatever a reader
-    reports unread.
+None open. Questions 1–10 of the plan and the verification of lows were
+decided on 2026-11-17 as decisions 7–17 (`decisions.md`).
