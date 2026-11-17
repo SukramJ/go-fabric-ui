@@ -271,7 +271,7 @@ Issue #68 (owner): a commissioned device's QR or manual pairing code is on a sli
 A file export (decision 12). A structured mismatch (H1). An event on the controller stream for a code stored or removed (the page refetches after its own write; a second browser sees it on its next load). Bulk attach. Editing NodeLabel from this page. A setting in the UI for `KeepOnboardingCodes` (host configuration).
 
 ## Owner decisions (2026-11-17)
-- **Q1 → H1 is asked.** go-fabric gets the typed mismatch error before its tag; decision 6 and the mismatch problem switch to its fields (`field`, `code_value`, `node_value`), and the page words the reason in the user's language. No cutting of error strings. If the tag comes without it, the wave stops at R3 and goes back to planning.
+- **Q1 → H1 is asked** (SukramJ/go-fabric#537). go-fabric gets the typed mismatch error before its tag; decision 6 and the mismatch problem switch to its fields (`field`, `code_value`, `node_value`), and the page words the reason in the user's language. No cutting of error strings. If the tag comes without it, the wave stops at R3 and goes back to planning.
 - **Q2 → refuse without `Options.Admin`.** The three routes answer 501 when `Options.Admin` is nil, whatever the capability says; token mode never serves a passcode. A handler test holds it; `onboarding_codes` in the capabilities is false in that case.
 - **Q3 → no.** The page does not say whether newly paired codes are kept (no getter; host configuration).
 - **Q4 → wrapping grid** on the browser's paper size (A4), no label-printer mode.
