@@ -267,11 +267,11 @@ type Options struct {
 	// FrameAncestors are the origins besides the page's own that may frame
 	// the web interface [Handler] serves: its Content-Security-Policy says
 	// frame-ancestors 'self' and these. Each is a CSP host-source
-	// ("https://dash.example:8123", "https://*.example.com") or
-	// scheme-source ("https:"); New and [Mount] refuse anything else, a
-	// quoted keyword included. "*" or "https:" admit any parent, which is
-	// what the default prevents: a page that frames the interface acts
-	// with the operator's admin rights. An Ingress parent is the same
+	// ("https://dash.example:8123", "https://*.example.com"); New and
+	// [Mount] refuse anything else, a quoted keyword included, and an entry
+	// that admits any parent ("*", "https:", "https://*"), which is what
+	// the default prevents: a page that frames the interface acts with the
+	// operator's admin rights. An Ingress parent is the same
 	// origin and needs no entry. [Mount] serves no page and only checks
 	// the field.
 	FrameAncestors []string

@@ -155,15 +155,33 @@ var cspSource = regexp.MustCompile(`^(?:[A-Za-z][A-Za-z0-9+.-]*:` +
 	`|(?:[A-Za-z][A-Za-z0-9+.-]*://)?(?:\*|(?:\*\.)?[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*)(?::(?:[0-9]+|\*))?(?:/[^\s;,']*)?)$`)
 
 // validFrameAncestors refuses an entry of Options.FrameAncestors that is
-// no host-source or scheme-source: a keyword ('self' is always there), a
-// separator or white space would change the policy's meaning.
+// no host-source: a keyword ('self' is always there), a separator or white
+// space would change the policy's meaning, and a scheme-source ("https:")
+// or a bare host wildcard ("*", "https://*:443") admits any parent, which
+// is what the default prevents (UR-P0-web-23, owner decision 22).
 func validFrameAncestors(list []string) error {
 	for _, s := range list {
 		if !cspSource.MatchString(s) {
-			return fmt.Errorf("fabricui: Options.FrameAncestors: %q is not a CSP host-source or scheme-source", s)
+			return fmt.Errorf("fabricui: Options.FrameAncestors: %q is not a CSP host-source", s)
+		}
+		if anyParent(s) {
+			return fmt.Errorf("fabricui: Options.FrameAncestors: %q admits any parent; name the parent's origin", s)
 		}
 	}
 	return nil
+}
+
+// anyParent reports whether the CSP source s, already matched by
+// cspSource, is a scheme-source or a host-source whose host is "*".
+func anyParent(s string) bool {
+	if _, rest, ok := strings.Cut(s, "://"); ok {
+		s = rest
+	} else if strings.HasSuffix(s, ":") {
+		return true // a scheme-source such as "https:"
+	}
+	host, _, _ := strings.Cut(s, "/")
+	host, _, _ = strings.Cut(host, ":")
+	return host == "*"
 }
 
 const notBuiltHTML = `<!doctype html>

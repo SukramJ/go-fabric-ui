@@ -10,8 +10,9 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - `Options.FrameAncestors` (UR-P0-web-23): further origins that may frame
-  the page, each a CSP host-source or scheme-source; `Handler` panics and
-  `Mount` fails on anything else. The default admits the page's own origin
+  the page, each a CSP host-source naming the parent's origin; `Handler`
+  panics and `Mount` fails on anything else, and on an entry that admits
+  any parent (`*`, `https:`, `https://*`). The default admits the page's own origin
   only, which is the Ingress parent. See `docs/embedding.md`, "Response
   headers and framing".
 

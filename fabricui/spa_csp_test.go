@@ -138,8 +138,8 @@ func TestSPA_EmbeddedIndexScriptHash(t *testing.T) {
 // (through Handler) and Mount refuse anything else (UR-P0-web-23).
 func TestOptions_FrameAncestorsValidated(t *testing.T) {
 	for _, ok := range []string{
-		"https:", "https://dash.example", "https://*.example.com", "http://10.0.0.2:8123",
-		"dash.example", "dash.example:*", "https://dash.example/panel/", "*",
+		"https://dash.example", "https://*.example.com", "http://10.0.0.2:8123",
+		"dash.example", "dash.example:*", "https://dash.example/panel/", "localhost:8123",
 	} {
 		if err := Mount(http.NewServeMux(), Options{FrameAncestors: []string{ok}}); err != nil {
 			t.Errorf("%q refused: %v", ok, err)
@@ -148,6 +148,8 @@ func TestOptions_FrameAncestorsValidated(t *testing.T) {
 	for _, bad := range []string{
 		"", "'self'", "'none'", "https://a b", "a;b", "https://x/;y", "a,b", "*.", "https://", "https://dash.example:x",
 		"https://[::1]", "javascript:alert(1)", "dash.example\n",
+		// any parent (owner decision 22)
+		"*", "*:8123", "https:", "http:", "https://*", "https://*:443", "https://*/panel/",
 	} {
 		if err := Mount(http.NewServeMux(), Options{FrameAncestors: []string{bad}}); err == nil {
 			t.Errorf("%q accepted", bad)

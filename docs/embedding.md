@@ -394,10 +394,10 @@ h := fabricui.Handler(fabricui.Options{Node: n, FrameAncestors: []string{"https:
 ```
 
 Each entry is a CSP host-source (`https://dash.example:8123`,
-`https://*.example.com`) or scheme-source (`https:`); `Handler` panics and
-`Mount` fails on anything else, a quoted keyword such as `'none'`
-included. A wildcard (`*`, `https:`) admits any parent, which is what the
-default prevents: the framing page acts through the operator's browser
-with the page's admin rights. Under an Ingress the parent is the same
+`https://*.example.com`); `Handler` panics and `Mount` fails on anything
+else, a quoted keyword such as `'none'` included, and on an entry that
+admits any parent (`*`, a scheme-source such as `https:`, `https://*`),
+which is what the default prevents: the framing page acts through the
+operator's browser with the page's admin rights. Under an Ingress the parent is the same
 origin and needs no entry. `Mount` serves no page; it checks the field
 and the host's own page sets its own policy.

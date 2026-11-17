@@ -38,3 +38,11 @@ rows are named by ID only until their fix merges (decisions 5 and 14).
 | 19 | UR-P0-auth-26, the four ungated controller routes that make the controller read from a node | **All four gated** (`x-admin` on ACL, bindings, fabrics and `POST …/attributes`), as `refresh=true` already is; a non-admin no longer sees those tabs. Contract change, phase 3 |
 | 20 | UR-P0-leak-27, the daemon's log to everyone | **Gated**: `x-admin` on `GET /operation/log` and the log stream; the client reads the log stream through `fetch` with the token header instead of `EventSource`. Contract and web change, phase 3 |
 | 21 | UR-P0-web-23, framing | **`frame-ancestors 'self'` by default plus an `Options` field** for further parent origins of a host that frames the page from elsewhere. No contract field; lands in phase 0's fix wave |
+
+## 2026-11-17, the fix wave's questions
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 22 | `Options.FrameAncestors` and an entry that admits any parent | **Refused**: `New` and `Mount` fail on `*`, a host of `*` with any scheme or port, and every scheme-source (`https:`); only a named origin (also `*.domain`) passes |
+| 23 | `Mount` as one pattern `Prefix/` (UR-P0-api-32): a host route registered under the prefix after `Mount` shadows the API's | **Accepted** as implemented and documented; both pinned hosts use `Handler`, not `Mount` |
+| 24 | Exporting the CSP builder for a host that serves the page itself beside `Mount` | **Not now**; phase 3's api unit takes it up if a host needs it |
