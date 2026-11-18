@@ -14,9 +14,13 @@
      keyed route whose node the list no longer holds goes to the default
      node. The API is "./api/v1" relative
      to the page, so the shell works under any base path (an Ingress among
-     them). -->
+     them). The probes repeat with a backoff while one is undecided (an
+     answer that is neither the family nor a 404); with nothing to show,
+     the shell says the server did not answer and offers a retry. A
+     family's stream is open only while its pages are shown (decision 29);
+     the stream helper closes it while the tab is hidden. -->
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
   import { ApiError, createClient } from "../lib/api/client";
   import { createFabricUI, provideFabricUI, routesForNode } from "../lib/context";
   import { createTranslator, detectLocale } from "../lib/i18n";
@@ -25,6 +29,7 @@
   import PageShell from "../lib/kit/PageShell.svelte";
   import LoadingState from "../lib/kit/LoadingState.svelte";
   import EmptyState from "../lib/kit/EmptyState.svelte";
+  import Button from "../lib/kit/Button.svelte";
   import Select from "../lib/kit/Select.svelte";
   import Tabs from "../lib/kit/Tabs.svelte";
   import Operation from "../lib/pages/operation/Operation.svelte";
@@ -151,15 +156,51 @@
 
   const controllerPage = $derived(route.family === "controller" && route.page in controllerPages ? (route.page as keyof typeof controllerPages) : "nodes");
 
+  // The last failure of a probe that stays undecided; shown when no
+  // family can be (UR-P1-err-107).
+  let probeError = $state<string | null>(null);
+  const PROBE_BACKOFF_MS = [1000, 2000, 5000, 10000, 30000];
+  let probeAttempt = 0;
+  let probeTimer: ReturnType<typeof setTimeout> | null = null;
+
   async function probeNode() {
     try {
       await ui.client.status();
       nodeServed = true;
     } catch (err) {
-      nodeServed = !(err instanceof ApiError && err.status === 404);
+      if (!(err instanceof ApiError && err.status === 404)) {
+        // Neither the family nor its absence: probe again.
+        probeError = err instanceof Error ? err.message : String(err);
+        return;
+      }
+      nodeServed = false;
     }
     if (nodeServed) void node.loadStatus();
     await ui.nodes.load();
+  }
+
+  async function probeController() {
+    await controller.loadStatus();
+    if (controller.present === null) probeError = controller.statusError;
+  }
+
+  // Probes what is still undecided, and again with a backoff while
+  // something is.
+  async function probe() {
+    if (probeTimer) clearTimeout(probeTimer);
+    probeTimer = null;
+    await Promise.all([nodeServed === null ? probeNode() : undefined, controller.present === null ? probeController() : undefined]);
+    if (nodeServed !== null && controller.present !== null) {
+      probeError = null;
+      return;
+    }
+    const wait = PROBE_BACKOFF_MS[Math.min(probeAttempt++, PROBE_BACKOFF_MS.length - 1)];
+    probeTimer = setTimeout(() => void probe(), wait);
+  }
+
+  function retryProbe() {
+    probeAttempt = 0;
+    void probe();
   }
 
   async function probeOperation() {
@@ -183,20 +224,25 @@
       media = window.matchMedia("(prefers-color-scheme: dark)");
       media.addEventListener("change", onScheme);
     }
-    void probeNode();
+    void probe();
     void probeOperation();
-    void controller.loadStatus();
   });
 
-  // Each family's stream opens once the family is known to be there.
+  // A family's stream is open only while its pages are shown: the default
+  // node's while the node family shows it (a keyed node's is NodeScope's),
+  // the controller's while the controller family shows (UR-P1-bound-103).
+  // Connecting again reloads what the stream missed.
   $effect(() => {
-    if (nodeFamily) node.connect();
+    const on = family === "node" && nodeKey === undefined;
+    untrack(() => (on ? node.connect() : node.disconnect()));
   });
   $effect(() => {
-    if (controllerFamily) controller.connect();
+    const on = family === "controller";
+    untrack(() => (on ? controller.connect() : controller.disconnect()));
   });
 
   onDestroy(() => {
+    if (probeTimer) clearTimeout(probeTimer);
     window.removeEventListener("hashchange", onHash);
     media?.removeEventListener("change", onScheme);
     stopBridge();
@@ -236,7 +282,13 @@
       />
     {/snippet}
   </PageHeader>
-  {#if !probed && family === null}
+  {#if !probed && family === null && probeError}
+    <EmptyState message={t("shell.probe_failed")} description={probeError}>
+      {#snippet action()}
+        <Button variant="outline" onclick={retryProbe}>{t("common.reload")}</Button>
+      {/snippet}
+    </EmptyState>
+  {:else if !probed && family === null}
     <LoadingState message={t("common.loading")} />
   {:else if family === null}
     <EmptyState message={t("shell.no_family")} />

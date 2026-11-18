@@ -749,5 +749,6 @@
   "shell.node_create.submit": "Anlegen",
   "shell.node_create.title": "Node anlegen",
   "shell.node_created": "Node „{label}“ angelegt. Wähle hier seine Geräte; den Pairing-Code zeigt die Seite Koppeln.",
-  "shell.node_disabled": "{label} (aus)"
+  "shell.node_disabled": "{label} (aus)",
+  "shell.probe_failed": "Der Server hat nicht geantwortet. Die Seite versucht es von selbst erneut."
 }

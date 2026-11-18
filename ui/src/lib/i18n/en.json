@@ -749,5 +749,6 @@
   "shell.node_create.submit": "Create",
   "shell.node_create.title": "Create a node",
   "shell.node_created": "Node \"{label}\" created. Select its devices here; its pairing code is on the Pair page.",
-  "shell.node_disabled": "{label} (off)"
+  "shell.node_disabled": "{label} (off)",
+  "shell.probe_failed": "The server did not answer. The page tries again by itself."
 }
