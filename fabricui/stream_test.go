@@ -4,9 +4,13 @@
 package fabricui
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -63,5 +67,48 @@ func TestStream_HEADDoesNotSubscribe(t *testing.T) {
 				time.Sleep(10 * time.Millisecond)
 			}
 		})
+	}
+}
+
+// plainWriter is a ResponseWriter that cannot flush: a host middleware
+// that wraps the writer without Unwrap.
+type plainWriter struct{ rec *httptest.ResponseRecorder }
+
+func (p plainWriter) Header() http.Header         { return p.rec.Header() }
+func (p plainWriter) Write(b []byte) (int, error) { return p.rec.Write(b) }
+func (p plainWriter) WriteHeader(code int)        { p.rec.WriteHeader(code) }
+
+// UR-P1-bound-14 (a): a writer that cannot flush ends the stream at its
+// first heartbeat; that is logged, not silent.
+func TestStream_UnflushableWriterIsLogged(t *testing.T) {
+	var log bytes.Buffer
+	h, _ := newTestHandler(t, testOptions{log: &log})
+	h.heartbeat = 5 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	h.serveSSE(ctx, plainWriter{httptest.NewRecorder()}, func(func(Event)) func() { return func() {} })
+	if !strings.Contains(log.String(), "level=WARN") || !strings.Contains(log.String(), "fabricui.stream.flush_failed") {
+		t.Fatalf("no warn record for a writer that cannot flush; log:\n%s", log.String())
+	}
+}
+
+// UR-P1-bound-14 (b): an invalid event type is logged bounded, not as
+// the host handed it.
+func TestStream_InvalidTypeIsLoggedBounded(t *testing.T) {
+	var log bytes.Buffer
+	h, _ := newTestHandler(t, testOptions{log: &log})
+	h.heartbeat = time.Hour
+	ctx, cancel := context.WithCancel(context.Background())
+	long := strings.Repeat("A", 10000)
+	h.serveSSE(ctx, httptest.NewRecorder(), func(fn func(Event)) func() {
+		fn(Event{Type: long})
+		go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+		return func() {}
+	})
+	if !strings.Contains(log.String(), "fabricui.stream.invalid_type") {
+		t.Fatalf("no invalid_type record; log:\n%s", log.String())
+	}
+	if n := log.Len(); n > 1000 {
+		t.Fatalf("the invalid_type record is %d bytes long, want the type truncated", n)
 	}
 }

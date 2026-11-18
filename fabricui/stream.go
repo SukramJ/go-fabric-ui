@@ -6,14 +6,17 @@ package fabricui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 )
 
-// streamBuffer is how many events a slow stream client may fall behind
-// before the oldest are dropped; a page reloads what an event names, so a
-// dropped event costs a stale view until the next one.
+// streamBuffer is how many events a slow stream client may fall behind;
+// once the buffer is full, every further event is dropped until the
+// client catches up (the buffered, older ones are kept). A page reloads
+// what an event names, so a dropped event costs a stale view until the
+// next one.
 const streamBuffer = 64
 
 // stream serves GET /node/stream: server-sent events from the handler's
@@ -71,7 +74,15 @@ func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, subscribe
 	if _, err := fmt.Fprint(w, ": connected\n\n"); err != nil {
 		return
 	}
-	_ = rc.Flush()
+	if err := rc.Flush(); err != nil {
+		// A writer that cannot flush (a host middleware without Unwrap)
+		// would hold every frame back; the page would reconnect at each
+		// heartbeat without a word in the log (UR-P1-bound-14).
+		if errors.Is(err, http.ErrNotSupported) {
+			h.log.WarnContext(ctx, "fabricui.stream.flush_failed", "error", err.Error())
+		}
+		return
+	}
 
 	tick := time.NewTicker(h.heartbeat)
 	defer tick.Stop()
@@ -89,7 +100,7 @@ func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, subscribe
 			// forge a frame, so it is dropped and logged without its
 			// payload. Every type this module publishes passes.
 			if !validEventType(ev.Type) {
-				h.log.WarnContext(ctx, "fabricui.stream.invalid_type", "type", ev.Type)
+				h.log.WarnContext(ctx, "fabricui.stream.invalid_type", "type", truncate(ev.Type, maxLoggedType))
 				continue
 			}
 			data, err := json.Marshal(ev.Data)
@@ -118,4 +129,16 @@ func validEventType(t string) bool {
 		}
 	}
 	return true
+}
+
+// maxLoggedType bounds the invalid event type a log record carries: the
+// host hands it in, and the log is itself served.
+const maxLoggedType = 64
+
+// truncate cuts s to at most n bytes.
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
