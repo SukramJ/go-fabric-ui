@@ -33,8 +33,8 @@ export interface CommissionProgress {
 export interface ControllerStoreDeps {
   t: Translate;
   toast: Toast;
-  /** Subscribes to the controller stream; the default opens an EventSource on the client's URL. */
-  subscribe?: (onEvent: (ev: ControllerStreamEvent) => void) => () => void;
+  /** Subscribes to the controller stream, as NodeStoreDeps.subscribe; the default opens an EventSource on the client's URL. */
+  subscribe?: (onEvent: (ev: ControllerStreamEvent) => void, onResync?: () => void) => () => void;
 }
 
 const IDLE: CommissionProgress = { phase: "idle", detail: null, nodeIdHex: null, steps: [], ble: null };
@@ -65,6 +65,8 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   let diagnosticEpoch = $state(0);
 
   let unsub: (() => void) | null = null;
+  // Whether the stream was connected before: connecting again resyncs.
+  let connectedBefore = false;
   let reload: ReturnType<typeof setTimeout> | null = null;
   let graphTimer: ReturnType<typeof setTimeout> | null = null;
   let diagnosticTimer: ReturnType<typeof setTimeout> | null = null;
@@ -203,10 +205,29 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     progress = { ...IDLE };
   }
 
+  // After a gap in the stream the state may be stale: reload what the
+  // events would have moved (UR-P1-conc-102).
+  function resync() {
+    void loadStatus();
+    void loadNodes();
+    if (updates !== null) void loadUpdates();
+    revision++;
+    graphEpoch++;
+    diagnosticEpoch++;
+  }
+
   function connect() {
     if (unsub) return;
-    const sub = deps.subscribe ?? ((fn) => subscribeControllerStream(client.controllerStreamUrl(), fn));
-    unsub = sub(applyEvent);
+    const sub = deps.subscribe ?? ((fn, onResync) => subscribeControllerStream(client.controllerStreamUrl(), fn, undefined, { onResync }));
+    unsub = sub(applyEvent, resync);
+    if (connectedBefore) resync();
+    connectedBefore = true;
+  }
+
+  /** Closes the stream only; connect() opens it again and reloads (the shell, while another family is shown). */
+  function disconnect() {
+    unsub?.();
+    unsub = null;
   }
 
   function close() {
@@ -242,6 +263,8 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     applyEvent,
     resetProgress,
     connect,
+    disconnect,
+    resync,
     close,
   };
 }

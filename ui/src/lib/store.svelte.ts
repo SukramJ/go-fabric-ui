@@ -38,8 +38,12 @@ export interface Commissioning {
 export interface NodeStoreDeps {
   t: Translate;
   toast: Toast;
-  /** Subscribes to the event stream; the default opens an EventSource on the client's stream URL. */
-  subscribe?: (onEvent: (ev: StreamEvent) => void) => () => void;
+  /**
+   * Subscribes to the event stream; the default opens an EventSource on
+   * the client's stream URL. A subscription that may have missed events
+   * (a reconnect) calls onResync, and the store reloads.
+   */
+  subscribe?: (onEvent: (ev: StreamEvent) => void, onResync?: () => void) => () => void;
   /** Called on the stream's nodes_changed (0.6.0) with the keys it names; the context reloads its node list. */
   onNodesChanged?: (keys: string[]) => void;
 }
@@ -96,6 +100,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   let clusterEvent = $state<EventRecord | null>(null);
 
   let unsub: (() => void) | null = null;
+  // Whether the stream was connected before: connecting again resyncs.
+  let connectedBefore = false;
   let countdown: ReturnType<typeof setInterval> | null = null;
   let exposureReload: ReturnType<typeof setTimeout> | null = null;
   let closedTimer: ReturnType<typeof setTimeout> | null = null;
@@ -359,10 +365,39 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     }
   }
 
+  // After a gap in the stream the state may be stale: reload what the
+  // events would have moved (UR-P1-conc-102).
+  function resync() {
+    void loadStatus().then(syncCommissioning);
+    void loadFabrics();
+    if (schema !== null) scheduleExposureReload();
+    topologyEpoch++;
+    graphEpoch++;
+    diagnosticEpoch++;
+    deps.onNodesChanged?.([]);
+  }
+
+  // An open flow whose window the reloaded status no longer shows open
+  // closed while the stream was away.
+  function syncCommissioning() {
+    if (commissioning.phase === "open" && status !== null && !status.commissioning_window_open) {
+      stopCountdown();
+      commissioning = { ...IDLE };
+    }
+  }
+
   function connect() {
     if (unsub) return;
-    const sub = deps.subscribe ?? ((fn) => subscribeStream(client.streamUrl(), fn));
-    unsub = sub(applyEvent);
+    const sub = deps.subscribe ?? ((fn, onResync) => subscribeStream(client.streamUrl(), fn, undefined, { onResync }));
+    unsub = sub(applyEvent, resync);
+    if (connectedBefore) resync();
+    connectedBefore = true;
+  }
+
+  /** Closes the stream only; connect() opens it again and reloads (the shell, while another family is shown). */
+  function disconnect() {
+    unsub?.();
+    unsub = null;
   }
 
   function close() {
@@ -409,6 +444,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     resetCommissioning,
     applyEvent,
     connect,
+    disconnect,
+    resync,
     close,
   };
 }

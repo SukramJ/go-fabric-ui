@@ -144,8 +144,33 @@ export function createFabricUI(opts: FabricUIOptions): FabricUI {
     nodes,
     controller: createControllerStore(opts.client, { t, toast, subscribe: opts.subscribeController }),
     routes: { ...defaultRoutes, ...opts.routes },
-    subscribeLog: opts.subscribeLog ?? ((fn) => subscribeLogStream(opts.client.logStreamUrl(), fn)),
+    subscribeLog: opts.subscribeLog ?? ((fn) => logSubscription(opts.client, fn)),
   };
+}
+
+/**
+ * The default log subscription: the stream, and after a gap in it (a
+ * reconnect, a hidden tab shown again) the records logged meanwhile, read
+ * from the ring (UR-P1-conc-102, -bound-103). The page merges by seq.
+ */
+function logSubscription(client: FabricClient, onRecord: (rec: LogRecord) => void): () => void {
+  let last: number | undefined;
+  const deliver = (rec: LogRecord) => {
+    last = last === undefined ? rec.seq : Math.max(last, rec.seq);
+    onRecord(rec);
+  };
+  return subscribeLogStream(client.logStreamUrl(), deliver, undefined, {
+    onResync: () => {
+      const since = last;
+      if (since === undefined) return;
+      client
+        .logRecords({ since: since + 1 })
+        .then((list) => list.records.forEach(deliver))
+        .catch(() => {
+          // the ring is unavailable; the stream goes on
+        });
+    },
+  });
 }
 
 /** Puts ui into the component context; call it in the component above the pages. */
