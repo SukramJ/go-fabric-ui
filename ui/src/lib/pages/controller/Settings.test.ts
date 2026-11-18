@@ -51,3 +51,29 @@ describe("Controller Settings", () => {
     await waitFor(() => expect(ui.sent.some((s) => s.method === "DELETE" && s.path.endsWith("kind=thread&id=mesh"))).toBe(true));
   });
 });
+
+describe("Controller Settings — capabilities and the credential form", () => {
+  it("shows the diagnostics capability (UR-P1-ui-174)", async () => {
+    render(Harness, { ui: testUI({ fixtures: ["controller-status.200", "controller-credentials.200"] }), page: Settings });
+    const info = await screen.findByTestId("controller-info");
+    expect(info).toHaveTextContent("controller.settings.cap.diagnostics");
+  });
+
+  it("clears the typed secret when the kind changes, and refuses a dataset that is not hex bytes (UR-P1-ui-175)", async () => {
+    const ui = testUI({ fixtures: ["controller-status.200", "controller-credentials.200", "controller-credentials-set.204"] });
+    render(Harness, { ui, page: Settings });
+    await screen.findByText("HomeNet");
+    await fireEvent.input(screen.getByLabelText("controller.settings.col_id"), { target: { value: "mesh2" } });
+    await fireEvent.input(screen.getByLabelText("controller.settings.passphrase"), { target: { value: "office-passphrase" } });
+    await fireEvent.change(screen.getByLabelText("controller.settings.col_kind"), { target: { value: "thread" } });
+    const dataset = (await screen.findByLabelText("controller.settings.dataset")) as HTMLInputElement;
+    expect(dataset.value).toBe("");
+    // Not hex, and an odd number of digits.
+    for (const bad of ["zz00", "0e08000"]) {
+      await fireEvent.input(dataset, { target: { value: bad } });
+      await fireEvent.click(screen.getByText("controller.settings.credential_add"));
+    }
+    expect(ui.toastSpy.error).toHaveBeenCalledWith("controller.settings.dataset_invalid");
+    expect(ui.sent.some((s) => s.method === "PUT")).toBe(false);
+  });
+});
