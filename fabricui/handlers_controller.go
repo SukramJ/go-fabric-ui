@@ -4,6 +4,7 @@
 package fabricui
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -815,7 +816,10 @@ func (s *controllerServer) InvokeNodeCommand(ctx context.Context, req api.Invoke
 }
 
 // readOne reads one attribute and answers its JSON; a status the node
-// answers for it is a node error.
+// answers for it is a node error, and so is null: every attribute read
+// through it (ACL, Fabrics, CurrentFabricIndex) is non-nullable, and
+// json.Unmarshal of null leaves the zero value without an error — no
+// ACL, no fabric, fabric index 0 (UR-P1-err-31).
 func readOne(ctx context.Context, n ControllerNode, path AttributePath, filtered bool) (json.RawMessage, error) {
 	values, err := n.Read(ctx, []AttributePath{path}, filtered)
 	if err != nil {
@@ -828,9 +832,18 @@ func readOne(ctx context.Context, n ControllerNode, path AttributePath, filtered
 		if v.Status != 0 {
 			return nil, fmt.Errorf("%w: status %#x for %s/%s/%s", ErrNodeFailed, v.Status, strconv.Itoa(int(path.Endpoint)), hexID(path.Cluster), hexID(path.Attribute))
 		}
+		if isNull(v.Value) {
+			return nil, fmt.Errorf("%w: null for the non-nullable %s/%s/%s", ErrNodeFailed, strconv.Itoa(int(path.Endpoint)), hexID(path.Cluster), hexID(path.Attribute))
+		}
 		return v.Value, nil
 	}
 	return nil, fmt.Errorf("%w: no value for %s/%s/%s", ErrNodeFailed, strconv.Itoa(int(path.Endpoint)), hexID(path.Cluster), hexID(path.Attribute))
+}
+
+// isNull reports whether raw is absent or JSON null.
+func isNull(raw json.RawMessage) bool {
+	t := bytes.TrimSpace(raw)
+	return len(t) == 0 || bytes.Equal(t, []byte("null"))
 }
 
 // --- ACL ---
@@ -1013,6 +1026,9 @@ func (s *controllerServer) GetNodeBindings(ctx context.Context, req api.GetNodeB
 		if v.Status != 0 {
 			continue
 		}
+		if isNull(v.Value) {
+			return nil, fmt.Errorf("%w: endpoint %d's bindings read as null", ErrNodeFailed, v.Path.Endpoint)
+		}
 		var targets []bindingJSON
 		if err := json.Unmarshal(v.Value, &targets); err != nil {
 			return nil, fmt.Errorf("%w: endpoint %d's bindings do not read as a list: %w", ErrNodeFailed, v.Path.Endpoint, err)
@@ -1172,6 +1188,10 @@ func (s *controllerServer) ownIndex(ctx context.Context, n ControllerNode) (uint
 	var idx uint8
 	if err := json.Unmarshal(raw, &idx); err != nil {
 		return 0, fmt.Errorf("%w: CurrentFabricIndex: %w", ErrNodeFailed, err)
+	}
+	if idx == 0 {
+		// 0 is no fabric index: the own-fabric guard would never match.
+		return 0, fmt.Errorf("%w: CurrentFabricIndex is 0 on a commissioned node", ErrNodeFailed)
 	}
 	return idx, nil
 }
