@@ -1030,13 +1030,21 @@ func (s *controllerServer) GetNodeBindings(ctx context.Context, req api.GetNodeB
 	if len(paths) == 0 {
 		return out, nil
 	}
-	values, err := n.Read(ctx, paths, true)
-	if err != nil {
-		return nil, err
+	// The read is chunked at maxReadPaths, as a targeted read is bounded
+	// (UR-P1-bound-37).
+	var values []AttributeValue
+	for chunk := range slices.Chunk(paths, maxReadPaths) {
+		vs, err := n.Read(ctx, chunk, true)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, vs...)
 	}
 	for _, v := range values {
 		if v.Status != 0 {
-			continue
+			// The answer holds every Binding endpoint; one the node
+			// refuses cannot be left out silently.
+			return nil, fmt.Errorf("%w: status %#x for endpoint %d's bindings", ErrNodeFailed, v.Status, v.Path.Endpoint)
 		}
 		if isNull(v.Value) {
 			return nil, fmt.Errorf("%w: endpoint %d's bindings read as null", ErrNodeFailed, v.Path.Endpoint)

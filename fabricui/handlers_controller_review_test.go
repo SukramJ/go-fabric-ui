@@ -151,3 +151,72 @@ func (n rawNode) Read(ctx context.Context, paths []AttributePath, filtered bool)
 	}
 	return vals, err
 }
+
+// bindingNode serves a Binding cluster on endpoints 1..count, answers a
+// status for the endpoints in refused and records the size of each read.
+type bindingNode struct {
+	ControllerNode
+	count   int
+	refused map[uint16]uint8
+	reads   *[]int
+}
+
+func (n bindingNode) Endpoints() []NodeEndpoint {
+	eps := make([]NodeEndpoint, 0, n.count)
+	for i := 1; i <= n.count; i++ {
+		eps = append(eps, NodeEndpoint{Number: uint16(i), Clusters: []NodeCluster{{ID: clusterBinding}}})
+	}
+	return eps
+}
+
+func (n bindingNode) Read(_ context.Context, paths []AttributePath, _ bool) ([]AttributeValue, error) {
+	*n.reads = append(*n.reads, len(paths))
+	out := make([]AttributeValue, 0, len(paths))
+	for _, p := range paths {
+		if st, ok := n.refused[p.Endpoint]; ok {
+			out = append(out, AttributeValue{Path: p, Status: st})
+			continue
+		}
+		out = append(out, AttributeValue{Path: p, Value: json.RawMessage("[]")})
+	}
+	return out, nil
+}
+
+type bindingSource struct {
+	*MemoryController
+	node bindingNode
+}
+
+func (s *bindingSource) Node(id uint64) (ControllerNode, bool) {
+	n, ok := s.MemoryController.Node(id)
+	if !ok {
+		return nil, false
+	}
+	b := s.node
+	b.ControllerNode = n
+	return b, true
+}
+
+// UR-P1-bound-37: the Binding read is chunked at maxReadPaths, and an
+// endpoint the node refuses is a node error, not left out of an answer
+// the contract says holds every Binding endpoint.
+func TestGetNodeBindings_ChunkedAndRefusedIs502(t *testing.T) {
+	var reads []int
+	src := &bindingSource{MemoryController: NewMemoryController(), node: bindingNode{count: 2*maxReadPaths + 1, reads: &reads}}
+	_, mux := newTestHandler(t, testOptions{noNode: true, controller: src})
+	r := do(t, mux, http.MethodGet, "/controller/nodes/0000000000000011/bindings", "")
+	if r.Code != http.StatusOK || strings.Count(r.Body.String(), `"endpoint":`) != 2*maxReadPaths+1 {
+		t.Fatalf("%d %s", r.Code, r.Body)
+	}
+	for _, n := range reads {
+		if n > maxReadPaths {
+			t.Fatalf("reads of %v paths, want at most %d each", reads, maxReadPaths)
+		}
+	}
+
+	src = &bindingSource{MemoryController: NewMemoryController(), node: bindingNode{count: 2, refused: map[uint16]uint8{2: 0x7E}, reads: &reads}}
+	_, mux = newTestHandler(t, testOptions{noNode: true, controller: src})
+	if r := do(t, mux, http.MethodGet, "/controller/nodes/0000000000000011/bindings", ""); r.Code != http.StatusBadGateway {
+		t.Fatalf("a refused endpoint: %d %s, want 502", r.Code, r.Body)
+	}
+}
