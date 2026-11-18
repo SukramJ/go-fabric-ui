@@ -102,6 +102,33 @@ func TestACLList(t *testing.T) {
 	}
 }
 
+// The discovered-device cache holds the last discovery's answers alone,
+// and only while they are fresh: an older entry is found again instead
+// (UR-P1-bound-64).
+func TestDiscoveredCache_LastAnswersWhileFresh(t *testing.T) {
+	now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+	s := &source{now: func() time.Time { return now }}
+	s.remember([]client.Device{{InstanceID: "a"}, {InstanceID: "b"}})
+	s.remember([]client.Device{{InstanceID: "c"}})
+	if _, ok := s.cached("a"); ok {
+		t.Fatal("an earlier discovery's answer is still cached")
+	}
+	if d, ok := s.cached("c"); !ok || d.InstanceID != "c" {
+		t.Fatalf("the last answer: %+v, %v", d, ok)
+	}
+	if len(s.discovered) != 1 {
+		t.Fatalf("%d cached devices, want 1", len(s.discovered))
+	}
+	now = now.Add(discoveredMaxAge + time.Second)
+	if _, ok := s.cached("c"); ok {
+		t.Fatal("a stale answer is used")
+	}
+	s.forget("c")
+	if len(s.discovered) != 0 {
+		t.Fatal("forget left the device")
+	}
+}
+
 func TestIdentifierOf(t *testing.T) {
 	for _, f := range []fabricui.DiscoverFilter{
 		{Kind: "any"},

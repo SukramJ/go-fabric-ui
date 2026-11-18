@@ -112,7 +112,7 @@ type Source interface {
 
 // ControllerOf is the controller family's source over ctrl.
 func ControllerOf(ctrl *controller.Controller, opts ControllerOptions) Source {
-	s := &source{ctrl: ctrl, opts: opts, events: fabricui.NewEvents(), discovered: map[string]client.Device{}, log: opts.Logger}
+	s := &source{ctrl: ctrl, opts: opts, events: fabricui.NewEvents(), log: opts.Logger, now: time.Now}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.push = s.pushCurrentLabel
 	if s.log == nil {
@@ -137,10 +137,13 @@ type source struct {
 	events *fabricui.Events
 	log    *slog.Logger
 
-	// mu guards discovered: the devices the last discoveries answered,
-	// by instance name, for CommissionDiscovered.
-	mu         sync.Mutex
-	discovered map[string]client.Device
+	// mu guards discovered and discoveredAt: the devices the last
+	// discovery answered, by instance name, for CommissionDiscovered, and
+	// when it answered. now is the clock; a test sets it.
+	mu           sync.Mutex
+	discovered   map[string]client.Device
+	discoveredAt time.Time
+	now          func() time.Time
 
 	// topoState holds the subscriptions to opts.Topology and to the
 	// controller's update manager, released by Close.
@@ -441,11 +444,7 @@ func (s *source) Discover(ctx context.Context, f fabricui.DiscoverFilter, timeou
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	for i := range found {
-		s.discovered[found[i].InstanceID] = found[i]
-	}
-	s.mu.Unlock()
+	s.remember(found)
 	out := make([]fabricui.Discovered, 0, len(found))
 	for i := range found {
 		out = append(out, discoveredOf(&found[i]))
@@ -501,6 +500,43 @@ func cutPlus(s string) (a, b string, ok bool) {
 // device the adapter no longer holds.
 const rediscoverWindow = 5 * time.Second
 
+// discoveredMaxAge is how long a discovery's answers stand in for the
+// device: an older one may have moved, so CommissionDiscovered finds it
+// again.
+const discoveredMaxAge = 2 * time.Minute
+
+// remember replaces the cached devices with a discovery's answers: only
+// the last discovery's are kept, so anything on the network that
+// advertises does not grow the cache.
+func (s *source) remember(found []client.Device) {
+	m := make(map[string]client.Device, len(found))
+	for i := range found {
+		m[found[i].InstanceID] = found[i]
+	}
+	s.mu.Lock()
+	s.discovered, s.discoveredAt = m, s.now()
+	s.mu.Unlock()
+}
+
+// cached is the device the last discovery answered by instance name,
+// false when it did not or the answer is older than discoveredMaxAge.
+func (s *source) cached(instance string) (client.Device, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.discovered[instance]
+	if !ok || s.now().Sub(s.discoveredAt) > discoveredMaxAge {
+		return client.Device{}, false
+	}
+	return d, true
+}
+
+// forget drops a commissioned device from the cache.
+func (s *source) forget(instance string) {
+	s.mu.Lock()
+	delete(s.discovered, instance)
+	s.mu.Unlock()
+}
+
 // CommissionDiscovered commissions a discovered device with its passcode
 // through the registry (client.Registry.ForDevice and Commission), as
 // go-fabric-server's commission_on_network does
@@ -508,9 +544,7 @@ const rediscoverWindow = 5 * time.Second
 // apply — the device came from a DNS-SD discovery — so it reports no
 // PairOptions.Transport.
 func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered, passcode uint32, o fabricui.PairOptions) (fabricui.ControllerNode, error) {
-	s.mu.Lock()
-	dev, ok := s.discovered[d.InstanceName]
-	s.mu.Unlock()
+	dev, ok := s.cached(d.InstanceName)
 	if !ok {
 		if d.LongDiscriminator == 0 {
 			return nil, fabricui.ErrNoDevice
@@ -553,9 +587,7 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 	if err := reg.Commission(ctx, n, copts); err != nil {
 		return nil, commissionError(err)
 	}
-	s.mu.Lock()
-	delete(s.discovered, d.InstanceName)
-	s.mu.Unlock()
+	s.forget(d.InstanceName)
 	w, ok := s.nodeOf(n)
 	if !ok {
 		return nil, fmt.Errorf("%w: the commissioned node has no peer address", fabricui.ErrNodeFailed)
