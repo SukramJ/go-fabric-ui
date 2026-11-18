@@ -349,7 +349,7 @@ func (s *source) Pair(ctx context.Context, code string, o fabricui.PairOptions) 
 	opts.Progress = progressFor(opts.Progress, o.Progress)
 	opts.TermsAndConditions = termsOf(o.TermsAndConditions, opts.TermsAndConditions)
 	n, err := s.ctrl.Pair(ctx, code, opts)
-	if err != nil {
+	if err != nil && !s.commissionedDespite(n, err) {
 		return nil, commissionError(err)
 	}
 	w, ok := s.nodeOf(n)
@@ -588,7 +588,7 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 	if po.Edit != nil {
 		po.Edit(&copts.Options)
 	}
-	if err := reg.Commission(ctx, n, copts); err != nil {
+	if err := reg.Commission(ctx, n, copts); err != nil && !s.commissionedDespite(n, err) {
 		return nil, commissionError(err)
 	}
 	s.forget(d.InstanceName)
@@ -744,4 +744,18 @@ func nodeError(err error) error {
 		return fmt.Errorf("%w: %w", fabricui.ErrConflict, err)
 	}
 	return fmt.Errorf("%w: %w", fabricui.ErrNodeFailed, err)
+}
+
+// commissionedDespite reports a commissioning that happened although it
+// returned err: go-fabric returns the node with the error of its start
+// after CommissioningComplete (the Subscribe step, already reported as
+// failed through the progress hook), and the node stays commissioned
+// (controller/client/fabricops.go:229-235 at v0.22.2). The commissioning
+// is answered as done and the failed start is logged (UR-P2-adpt-03).
+func (s *source) commissionedDespite(n *client.Node, err error) bool {
+	if n == nil || !n.IsCommissioned() {
+		return false
+	}
+	s.log.Warn("fabricui.pair.start_failed", slog.String("node", n.ID()), slog.String("error", err.Error()))
+	return true
 }
