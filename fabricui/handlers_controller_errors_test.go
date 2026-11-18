@@ -212,7 +212,7 @@ func TestController_BadRequests(t *testing.T) {
 		{http.MethodPost, "/controller/nodes/11/disable", ""},
 		{http.MethodPost, "/controller/nodes/11/enable", ""},
 		{http.MethodGet, "/controller/discovery?filter=vendor&value=65521&timeout=1", ""},
-		{http.MethodPost, "/controller/updates/consent", `{"node_id_hex":"11","vendor_id":65521,"product_id":1,"target_software_version":9}`},
+		{http.MethodPost, "/controller/updates/consent", `{"node_id_hex":"11","vendor_id":65521,"product_id":32769,"target_software_version":9}`},
 	} {
 		if rec := do(t, mux, c.method, c.path, c.body); rec.Code >= 400 {
 			t.Errorf("%s %s: %d %s", c.method, c.path, rec.Code, rec.Body)
