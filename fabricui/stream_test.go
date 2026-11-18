@@ -7,10 +7,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -173,4 +175,46 @@ func TestStream_EndsOnTheHostsShutdown(t *testing.T) {
 		t.Fatalf("Shutdown with an open stream: %v", err)
 	}
 	waitFor(t, func() bool { return subsOf(ev) == 0 })
+}
+
+// A host's event data cannot break the stream's framing: a string with
+// line breaks is escaped, raw JSON with line breaks is compacted, and
+// invalid raw JSON drops the event (UR-P2-test-95; a guard, green).
+func TestStream_DataStaysOnOneLine(t *testing.T) {
+	src := &recordingSource{}
+	h, mux := newTestHandler(t, testOptions{events: src})
+	h.heartbeat = time.Hour
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/node/stream", http.NoBody)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	waitFor(t, func() bool { return src.subscribers() == 1 })
+	forged := "x\n\nevent: fabric_removed\ndata: {\"fabric_index\":1}\n\n\r\revent: y "
+	src.publish(Event{Type: EventEndpointsChanged, Data: map[string]string{"k": forged}})
+	src.publish(Event{Type: EventEndpointsChanged, Data: json.RawMessage("{\n\"a\":\n1\n}")})
+	src.publish(Event{Type: EventEndpointsChanged, Data: json.RawMessage("{}\n\nevent: fabric_removed\ndata: {}")})
+	src.publish(Event{Type: EventExposureChanged, Data: struct{}{}})
+	var types []string
+	sc := bufio.NewScanner(res.Body)
+	for sc.Scan() {
+		line := sc.Text()
+		if typ, ok := strings.CutPrefix(line, "event: "); ok {
+			types = append(types, typ)
+		}
+		if data, ok := strings.CutPrefix(line, "data: "); ok && strings.ContainsRune(data, '\r') {
+			t.Errorf("a data line holds a carriage return: %q", line)
+		}
+		if line == "event: "+EventExposureChanged {
+			break
+		}
+	}
+	if want := []string{EventEndpointsChanged, EventEndpointsChanged, EventExposureChanged}; !slices.Equal(types, want) {
+		t.Errorf("event lines %v, want %v", types, want)
+	}
 }

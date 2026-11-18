@@ -70,3 +70,45 @@ func TestAPI_EveryRouteAnswersWithTheSecurityHeaders(t *testing.T) {
 		}
 	}
 }
+
+// A page of another origin reads no answer of the API: no route sends an
+// Access-Control-* header to a request that names another origin, and no
+// preflight is answered with success, so a request that needs one (the
+// token header, a JSON body) is not sent (UR-P2-test-95; a guard, green).
+func TestAPI_NoRouteAdmitsAnotherOrigin(t *testing.T) {
+	ops := contractOperations(t)
+	_, mux := newTestHandler(t, testOptions{
+		exposure: newMemoryProvider(), controller: NewMemoryController(), operations: sampleOperations(),
+		registry: newMemoryRegistry(0), nodeConfig: defaultNodeConfig(),
+	})
+	params := strings.NewReplacer("{node}", "default", "{ep}", "1", "{id}", "0000000000000011", "{index}", "1", "{cluster_hex}", "0006")
+	done, cancel := context.WithCancel(context.Background())
+	cancel()
+	const other = "https://other.example"
+	for _, op := range ops {
+		method, path, _ := strings.Cut(op, " ")
+		ctx := context.Background()
+		if strings.HasSuffix(path, "/stream") {
+			ctx = done
+		}
+		target := DefaultPrefix + params.Replace(path)
+		req := httptest.NewRequestWithContext(ctx, method, target, http.NoBody)
+		req.Header.Set("Origin", other)
+		pre := httptest.NewRequestWithContext(ctx, http.MethodOptions, target, http.NoBody)
+		pre.Header.Set("Origin", other)
+		pre.Header.Set("Access-Control-Request-Method", method)
+		pre.Header.Set("Access-Control-Request-Headers", TokenHeader+", content-type")
+		for _, r := range []*http.Request{req, pre} {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, r)
+			for k := range rec.Header() {
+				if strings.HasPrefix(http.CanonicalHeaderKey(k), "Access-Control-") {
+					t.Errorf("%s %s (%d): %s: %q", r.Method, path, rec.Code, k, rec.Header().Get(k))
+				}
+			}
+			if r == pre && rec.Code < 300 {
+				t.Errorf("preflight of %s: %d, want no success", op, rec.Code)
+			}
+		}
+	}
+}
