@@ -14,7 +14,7 @@
   import Input from "../../../kit/Input.svelte";
   import LoadingState from "../../../kit/LoadingState.svelte";
   import Select from "../../../kit/Select.svelte";
-  import { hexId, parseHexId } from "../format";
+  import { hexId, MAX_ENDPOINT, parseHexId, parseUint16 } from "../format";
 
   let { nodeId }: { nodeId: string } = $props();
   const { t, toast, confirm, client, controller } = useFabricUI();
@@ -59,7 +59,14 @@
       }
       target.cluster_hex = hexId(c);
     }
-    if (targetEndpoint.trim()) target.endpoint = Number(targetEndpoint);
+    if (targetEndpoint.trim()) {
+      const ep = parseUint16(targetEndpoint, MAX_ENDPOINT);
+      if (ep === null) {
+        toast.error(t("controller.acl.invalid_target"));
+        return;
+      }
+      target.endpoint = ep;
+    }
     const e: AclEntry = {
       privilege,
       auth_mode: authMode,

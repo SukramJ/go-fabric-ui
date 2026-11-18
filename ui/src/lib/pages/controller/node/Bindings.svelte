@@ -12,7 +12,7 @@
   import ErrorState from "../../../kit/ErrorState.svelte";
   import Input from "../../../kit/Input.svelte";
   import LoadingState from "../../../kit/LoadingState.svelte";
-  import { hexId, parseHexId } from "../format";
+  import { hexId, MAX_ENDPOINT, MAX_GROUP, parseHexId, parseUint16 } from "../format";
 
   let { nodeId, detail }: { nodeId: string; detail: ControllerNodeDetail } = $props();
   const { t, toast, client } = useFabricUI();
@@ -38,7 +38,14 @@
     return b.cluster_hex ? `${where} · ${b.cluster_hex}` : where;
   }
 
+  // A write sends the endpoint's whole list: while one runs (until the
+  // reload after it), add and remove are disabled, so two quick changes
+  // never undo each other.
+  let busy = $state(false);
+
   async function write(eb: EndpointBindings, bindings: BindingTarget[]) {
+    if (busy) return;
+    busy = true;
     try {
       const res = await client.setNodeBindings(nodeId, eb.endpoint, bindings.map(({ fabric_index: _f, ...b }) => b));
       if (res.status === 0) toast.success(t("controller.bindings.saved"));
@@ -46,6 +53,8 @@
       await load();
     } catch (err) {
       toast.error(errorText(err));
+    } finally {
+      busy = false;
     }
   }
 
@@ -53,10 +62,12 @@
     const d = drafts[eb.endpoint] ?? { target: "", endpoint: "", cluster: "" };
     const b: BindingTarget = {};
     const target = d.target.trim();
-    if (/^g:\d+$/i.test(target)) b.group = Number(target.slice(2));
-    else if (/^(0x)?[0-9a-f]{1,16}$/i.test(target) && d.endpoint.trim()) {
+    const group = /^g:/i.test(target) ? parseUint16(target.slice(2), MAX_GROUP) : null;
+    const endpoint = parseUint16(d.endpoint, MAX_ENDPOINT);
+    if (group !== null) b.group = group;
+    else if (/^(0x)?[0-9a-f]{1,16}$/i.test(target) && endpoint !== null) {
       b.node_id_hex = target.replace(/^0x/i, "").toUpperCase().padStart(16, "0");
-      b.endpoint = Number(d.endpoint);
+      b.endpoint = endpoint;
     } else {
       toast.error(t("controller.bindings.invalid"));
       return;
@@ -97,7 +108,7 @@
             {#each eb.bindings as b, i (i)}
               <li class="flex items-center gap-2 text-sm">
                 <span class="font-mono text-xs">{describe(b)}</span>
-                <Button size="sm" variant="ghost" class="ml-auto text-[var(--ha-error-color)]" onclick={() => void write(eb, eb.bindings.filter((_, j) => j !== i))}>{t("common.remove")}</Button>
+                <Button size="sm" variant="ghost" class="ml-auto text-[var(--ha-error-color)]" disabled={busy} onclick={() => void write(eb, eb.bindings.filter((_, j) => j !== i))}>{t("common.remove")}</Button>
               </li>
             {/each}
           </ul>
@@ -106,7 +117,7 @@
           <Input class="w-56 font-mono" placeholder={t("controller.bindings.target")} aria-label={t("controller.bindings.target")} value={drafts[eb.endpoint]?.target ?? ""} oninput={(e) => draft(eb.endpoint, "target", (e.currentTarget as HTMLInputElement).value)} />
           <Input class="w-24" placeholder={t("controller.bindings.endpoint")} aria-label={t("controller.bindings.endpoint")} inputmode="numeric" value={drafts[eb.endpoint]?.endpoint ?? ""} oninput={(e) => draft(eb.endpoint, "endpoint", (e.currentTarget as HTMLInputElement).value)} />
           <Input class="w-28 font-mono" placeholder={t("controller.bindings.cluster")} aria-label={t("controller.bindings.cluster")} value={drafts[eb.endpoint]?.cluster ?? ""} oninput={(e) => draft(eb.endpoint, "cluster", (e.currentTarget as HTMLInputElement).value)} />
-          <Button variant="outline" onclick={() => void add(eb)}>{t("controller.bindings.add")}</Button>
+          <Button variant="outline" disabled={busy} onclick={() => void add(eb)}>{t("controller.bindings.add")}</Button>
         </div>
       </Card>
     {/each}

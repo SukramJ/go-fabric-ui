@@ -285,3 +285,61 @@ describe("Controller Node — a new nodeId and overlapping loads", () => {
     expect(screen.getByTestId("node-title")).toHaveTextContent("New");
   });
 });
+
+describe("Controller Node — ACL and binding input", () => {
+  it("refuses an ACL target endpoint that is not a number in range (UR-P1-ui-164)", async () => {
+    const ui = renderNode(L, "acl", ["controller-node-acl.200", "controller-node-acl-set.200"]);
+    await screen.findByTestId("acl-entries");
+    for (const bad of ["abc", "1.5", "-1", "70000"]) {
+      await fireEvent.input(screen.getByLabelText("controller.acl.subjects"), { target: { value: "99" } });
+      await fireEvent.input(screen.getByLabelText("controller.acl.target_endpoint"), { target: { value: bad } });
+      await fireEvent.click(screen.getByText("controller.acl.add_entry"));
+    }
+    expect(ui.toastSpy.error).toHaveBeenCalledTimes(4);
+    expect(ui.toastSpy.error).toHaveBeenCalledWith("controller.acl.invalid_target");
+    expect(screen.getByTestId("acl-entries")).not.toHaveTextContent("0000000000000099");
+  });
+
+  it("refuses a binding endpoint or group out of range (UR-P1-ui-164)", async () => {
+    const ui = renderNode(L, "bindings", ["controller-node-bindings.200", "controller-node-bindings-set.200"]);
+    await screen.findByTestId("bindings-1");
+    const target = screen.getByLabelText("controller.bindings.target");
+    const endpoint = screen.getByLabelText("controller.bindings.endpoint");
+    for (const [tg, ep] of [["12", "abc"], ["12", "70000"], ["g:70000", ""]]) {
+      await fireEvent.input(target, { target: { value: tg } });
+      await fireEvent.input(endpoint, { target: { value: ep } });
+      await fireEvent.click(screen.getByText("controller.bindings.add"));
+    }
+    expect(ui.toastSpy.error).toHaveBeenCalledTimes(3);
+    expect(ui.sent.some((s) => s.method === "PUT")).toBe(false);
+  });
+
+  it("sends one binding write at a time (UR-P1-conc-165)", async () => {
+    const two = {
+      endpoints: [
+        {
+          endpoint: 1,
+          bindings: [
+            { cluster_hex: "0x0006", endpoint: 1, fabric_index: 1, node_id_hex: "0000000000000012" },
+            { cluster_hex: "0x0006", endpoint: 2, fabric_index: 1, node_id_hex: "0000000000000013" },
+          ],
+        },
+      ],
+    };
+    const ui = renderNode(L, "bindings", ["controller-node-bindings-set.200"], { answers: { [`GET /controller/nodes/${L}/bindings`]: { status: 200, body: two } } });
+    await screen.findByTestId("bindings-1");
+    const orig = ui.client.setNodeBindings.bind(ui.client);
+    let release: (() => void) | undefined;
+    let puts = 0;
+    ui.client.setNodeBindings = (...args) => {
+      puts++;
+      return new Promise((resolve) => (release = () => resolve(orig(...args))));
+    };
+    const removes = screen.getAllByRole("button", { name: "common.remove" });
+    await fireEvent.click(removes[0]);
+    await fireEvent.click(removes[1]);
+    expect(puts).toBe(1);
+    release!();
+    await waitFor(() => expect(ui.toastSpy.success).toHaveBeenCalledWith("controller.bindings.saved"));
+  });
+});
