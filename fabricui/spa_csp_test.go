@@ -162,3 +162,18 @@ func TestOptions_FrameAncestorsValidated(t *testing.T) {
 	}()
 	Handler(Options{FrameAncestors: []string{"'self'"}})
 }
+
+// UR-P1-web-16: a wildcard over a single top-level label admits nearly
+// any parent (decision 22); one over a named domain passes.
+func TestValidFrameAncestors_RefusesAWildcardOverATopLevelLabel(t *testing.T) {
+	for _, s := range []string{"https://*.com", "*.net", "https://*.local:8123", "*.com/path"} {
+		if err := validFrameAncestors([]string{s}); err == nil {
+			t.Errorf("%q accepted", s)
+		}
+	}
+	for _, s := range []string{"https://*.example.com", "*.home.arpa", "https://ha.local"} {
+		if err := validFrameAncestors([]string{s}); err != nil {
+			t.Errorf("%q refused: %v", s, err)
+		}
+	}
+}

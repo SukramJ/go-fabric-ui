@@ -172,7 +172,9 @@ func validFrameAncestors(list []string) error {
 }
 
 // anyParent reports whether the CSP source s, already matched by
-// cspSource, is a scheme-source or a host-source whose host is "*".
+// cspSource, is a scheme-source, a host-source whose host is "*", or one
+// whose wildcard spans a single label ("*.com", "*.local"), which admits
+// nearly any parent (UR-P1-web-16).
 func anyParent(s string) bool {
 	if _, rest, ok := strings.Cut(s, "://"); ok {
 		s = rest
@@ -181,6 +183,9 @@ func anyParent(s string) bool {
 	}
 	host, _, _ := strings.Cut(s, "/")
 	host, _, _ = strings.Cut(host, ":")
+	if rest, ok := strings.CutPrefix(host, "*."); ok {
+		return !strings.Contains(rest, ".")
+	}
 	return host == "*"
 }
 

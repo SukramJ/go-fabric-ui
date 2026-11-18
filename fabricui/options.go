@@ -271,7 +271,8 @@ type Options struct {
 	// frame-ancestors 'self' and these. Each is a CSP host-source
 	// ("https://dash.example:8123", "https://*.example.com"); New and
 	// [Mount] refuse anything else, a quoted keyword included, and an entry
-	// that admits any parent ("*", "https:", "https://*"), which is what
+	// that admits any parent ("*", "https:", "https://*", a wildcard over one label such as
+	// "https://*.com"), which is what
 	// the default prevents: a page that frames the interface acts with the
 	// operator's admin rights. An Ingress parent is the same
 	// origin and needs no entry. [Mount] serves no page and only checks
