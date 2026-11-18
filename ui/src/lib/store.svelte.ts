@@ -278,8 +278,22 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     flowGen++;
     const win = await client.openWindow(durationSeconds);
     flowGen++;
+    shown = { kind: "own", deadline: Date.now() + win.duration_seconds * 1000 };
     commissioning = { phase: "open", window: win, remaining: win.duration_seconds, addedFabricLabel: null, foreignWindow: false };
     startCountdown(win.duration_seconds);
+  }
+
+  // The window the open flow shows, as the status named it (kind,
+  // deadline in ms): a fresh status naming another one replaces it
+  // (UR-P1-err-198).
+  let shown: { kind?: string; deadline?: number } = {};
+  // How far a deadline may move and still be the same window (clock and
+  // round trip).
+  const DEADLINE_SLACK_MS = 5000;
+  function otherWindow(st: Status): boolean {
+    if (st.window_kind && shown.kind && st.window_kind !== shown.kind) return true;
+    const d = st.window_deadline ? Date.parse(st.window_deadline) : NaN;
+    return !Number.isNaN(d) && shown.deadline !== undefined && Math.abs(d - shown.deadline) > DEADLINE_SLACK_MS;
   }
 
   // Counts the changes of the pairing flow (an open, a close, a fabric
@@ -311,6 +325,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     // The deadline says what is left; without one (a server before 0.1.2)
     // the full duration is the upper bound.
     const left = secondsUntil(st.window_deadline) ?? (duration > 0 ? duration : null);
+    shown = { kind: st.window_kind, deadline: st.window_deadline ? Date.parse(st.window_deadline) : undefined };
     commissioning = {
       phase: "open",
       window: {
@@ -376,8 +391,14 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         // codes on an idle flow, as a mount of the Pair page would
         // (UR-P1-ui-132).
         flowGen++;
+        // A close just before belongs to the window this one replaced: its
+        // timer would end the flow on an open window (UR-P1-err-198).
+        if (closedTimer) {
+          clearTimeout(closedTimer);
+          closedTimer = null;
+        }
         if (commissioning.phase === "idle") void hydrateCommissioning().catch(() => undefined);
-        else void loadStatus();
+        else void loadStatus().then(syncCommissioning);
         break;
       case "endpoints_changed":
       case "surface_changed":
@@ -438,6 +459,13 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       flowGen++;
       stopCountdown();
       commissioning = { ...IDLE };
+    } else if (commissioning.phase === "open" && status !== null && otherWindow(status)) {
+      // Another window than the one shown: its codes and the notice are
+      // judged afresh.
+      flowGen++;
+      stopCountdown();
+      commissioning = { ...IDLE };
+      void hydrateCommissioning().catch(() => undefined);
     } else if (commissioning.phase === "idle" && status?.commissioning_window_open) {
       void hydrateCommissioning().catch(() => undefined);
     }

@@ -310,3 +310,44 @@ describe("UR-P1-conc-191: the log's resync without a streamed record, and after 
     vi.unstubAllGlobals();
   });
 });
+
+describe("UR-P1-err-198: a window replaced under an open flow is judged afresh", () => {
+  function ui198() {
+    let st: Status = { ...body<Status>("node-status.200"), commissioning_window_open: true, window_kind: "own" };
+    const ff = fixtureFetch(["node-pairing-window.200", "node-fabrics.200"]);
+    const client = createClient("/api/v1", async (url, init) => {
+      if (url.endsWith("/node/status")) return new Response(JSON.stringify(st), { status: 200 });
+      if (url.endsWith("/node/pairing")) {
+        return new Response(JSON.stringify({ ...body<Record<string, unknown>>("node-pairing.200"), source: "configured", window_open: true }), { status: 200 });
+      }
+      return ff.fetch(url, init);
+    });
+    const store = createNodeStore(client, { t, toast, subscribe: () => () => {} });
+    const replace = () => {
+      st = { ...st, window_kind: "enhanced", window_deadline: new Date(Date.now() + 900_000).toISOString() };
+    };
+    return { store, replace };
+  }
+
+  it("a resync that finds another window open replaces the shown codes, with the notice", async () => {
+    const { store, replace } = ui198();
+    await store.openWindow(300);
+    replace();
+    store.resync();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(store.commissioning).toMatchObject({ phase: "open", foreignWindow: true });
+    expect(store.commissioning.window?.manual_code).toBe("34970112332");
+  });
+
+  it("window_opened during the closed timer keeps the flow on the new window, without the closed toast", async () => {
+    const { store, replace } = ui198();
+    toast.info.mockClear();
+    await store.openWindow(300);
+    store.applyEvent({ type: "window_closed", data: {} });
+    replace();
+    store.applyEvent({ type: "window_opened", data: {} });
+    await vi.advanceTimersByTimeAsync(800);
+    expect(store.commissioning).toMatchObject({ phase: "open", foreignWindow: true });
+    expect(toast.info).not.toHaveBeenCalledWith("node.commissioning.closed");
+  });
+});
