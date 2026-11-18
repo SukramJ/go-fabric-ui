@@ -4,6 +4,7 @@
 package fabricui
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -296,7 +297,11 @@ func (h *handler) maintenanceReassemble(w http.ResponseWriter, r *http.Request) 
 		unready(w, r, "Reassembly not available", "the host wires no Options.Reassemble")
 		return
 	}
-	if err := reassemble(r.Context()); err != nil {
+	// Run to its end once started, as the exposure apply's rebuild
+	// (UR-P1-conc-39).
+	ctx, cancel := detached(r.Context())
+	defer cancel()
+	if err := reassemble(ctx); err != nil {
 		// A silent success would tell the operator the list is correct
 		// now, which is the one thing they came to check.
 		h.serverError(w, r, "Failed to reassemble the endpoints", err)
@@ -336,9 +341,14 @@ func (h *handler) factoryReset(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r, "Failed to list fabrics", err)
 		return
 	}
+	// Once the first fabric goes, the reset runs to its end: a client
+	// that leaves mid-loop would leave the node paired to some
+	// controllers (UR-P1-err-08).
+	ctx, cancel := detached(r.Context())
+	defer cancel()
 	removed := make([]uint8, 0, len(infos))
 	for _, f := range infos {
-		if err := h.node.removeFabric(r.Context(), f.FabricIndex); err != nil {
+		if err := h.node.removeFabric(ctx, f.FabricIndex); err != nil {
 			// Reported rather than skipped: a partial reset leaves the
 			// node paired to a controller the operator believes removed.
 			h.log.WarnContext(r.Context(), "fabricui.factory_reset.partial",
@@ -579,4 +589,14 @@ func (h *handler) nodeEndpointEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, eventRecords(h.node.eventLog(node.EventQuery{Endpoint: &ep, MinNumber: s, Limit: l})))
+}
+
+// detachedTimeout bounds work that outlives its request (detached).
+const detachedTimeout = 2 * time.Minute
+
+// detached is ctx without its cancellation, so the work runs on when the
+// client leaves, bounded by detachedTimeout; its values (the logger's
+// attributes) stay.
+func detached(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), detachedTimeout)
 }

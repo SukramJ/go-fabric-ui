@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
@@ -496,5 +497,23 @@ func TestErase_PerNode(t *testing.T) {
 	}
 	if !slices.Equal(got, []string{key}) {
 		t.Fatalf("erased %v, want the registry node %s", got, key)
+	}
+}
+
+// UR-P1-err-08: a client that leaves mid-reset does not cut the reset
+// short: every fabric is still removed.
+func TestFactoryReset_OutlivesTheRequest(t *testing.T) {
+	n := sampleNode()
+	n.fabricList = []node.FabricInfo{{FabricIndex: 1}, {FabricIndex: 2}, {FabricIndex: 3}}
+	_, mux := newTestHandler(t, testOptions{node: n})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	n.afterRemove = cancel
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, DefaultPrefix+"/node/maintenance/factory-reset",
+		strings.NewReader(`{"confirm":"`+factoryResetConfirmation+`"}`))
+	req.Header.Set(TokenHeader, testToken)
+	mux.ServeHTTP(httptest.NewRecorder(), req)
+	if !slices.Equal(n.removed, []uint8{1, 2, 3}) {
+		t.Fatalf("removed %v, want every fabric", n.removed)
 	}
 }

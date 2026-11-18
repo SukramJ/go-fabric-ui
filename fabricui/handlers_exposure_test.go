@@ -15,6 +15,7 @@ import (
 	"errors"
 	"maps"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
@@ -356,5 +357,25 @@ func TestMemoryProvider_LabelOptions(t *testing.T) {
 	got := slices.Sorted(maps.Keys(seen))
 	if want := []string{"Ceiling", "Evening", "Living, dining"}; !slices.Equal(got, want) {
 		t.Fatalf("options %q, want %q", got, want)
+	}
+}
+
+// UR-P1-conc-39: the change is persisted before the reassembly, so a
+// client that leaves does not cancel the reassembly.
+func TestExposureApply_ReassembleOutlivesTheRequest(t *testing.T) {
+	var ctxErr error
+	ran := false
+	_, mux := newTestHandler(t, testOptions{exposure: newMemoryProvider(), reassemble: func(ctx context.Context) error {
+		ran, ctxErr = true, ctx.Err()
+		return ctxErr
+	}})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodPut, DefaultPrefix+"/node/exposure",
+		strings.NewReader(`{"items":[{"key":"lamp-1","enabled":true}]}`))
+	req.Header.Set(TokenHeader, testToken)
+	mux.ServeHTTP(httptest.NewRecorder(), req)
+	if !ran || ctxErr != nil {
+		t.Fatalf("reassemble ran %v with context error %v, want a live context", ran, ctxErr)
 	}
 }
