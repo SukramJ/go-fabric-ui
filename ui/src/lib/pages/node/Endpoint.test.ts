@@ -116,4 +116,25 @@ describe("Node Endpoint", () => {
     const list = await screen.findByTestId("event-list");
     await waitFor(() => expect([...list.querySelectorAll("li")].map((li) => li.getAttribute("data-testid"))).toEqual(["event-12", "event-9", "event-7"]));
   });
+
+  it("lists a cluster_event that lands during an incremental read once (UR-P1-ui-131)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const ui = testUI({ fixtures: ["node-endpoint.200", "node-endpoint-events.200"] });
+    const ev = { number: 12, priority: "info" as const, endpoint: 2, cluster_hex: "0x0039", event_hex: "0x0003", name: "ReachableChanged" };
+    const orig = ui.client.nodeEndpointEvents.bind(ui.client);
+    let release: (() => void) | undefined;
+    ui.client.nodeEndpointEvents = (ep, q) =>
+      q?.since !== undefined ? new Promise((resolve) => (release = () => resolve({ events: [ev] }))) : orig(ep, q);
+    render(Harness, { ui, page: Endpoint, pageProps: { endpoint: 2 } });
+    await screen.findByTestId("event-9");
+    ui.node.applyEvent({ type: "attribute_changed", data: { endpoint: 2, cluster_hex: "0x0006", attributes: ["0x0000"] } });
+    await vi.advanceTimersByTimeAsync(300);
+    await waitFor(() => expect(release).toBeDefined());
+    ui.node.applyEvent({ type: "cluster_event", data: ev });
+    expect(await screen.findByTestId("event-12")).toBeInTheDocument();
+    release!();
+    await vi.advanceTimersByTimeAsync(50);
+    const list = screen.getByTestId("event-list");
+    expect([...list.querySelectorAll("li")].map((li) => li.getAttribute("data-testid"))).toEqual(["event-12", "event-9", "event-7"]);
+  });
 });
