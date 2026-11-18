@@ -43,15 +43,14 @@ function decodeFrame(video: HTMLVideoElement, canvas: HTMLCanvasElement): string
 /**
  * Starts the rear camera on video and scans until a payload is read, which
  * goes to onCode once; returns the function that stops the camera. It
- * throws when the camera cannot be opened (no permission, no camera).
+ * throws when the camera cannot be opened (no permission, no camera) or
+ * the video does not play, and when `signal` aborts before the scan runs;
+ * the camera is released on every such way out, and an abort after the
+ * start stops the scan (UR-P1-conc-105).
  */
-export async function startScan(video: HTMLVideoElement, onCode: (payload: string) => void): Promise<() => void> {
+export async function startScan(video: HTMLVideoElement, onCode: (payload: string) => void, signal?: AbortSignal): Promise<() => void> {
+  signal?.throwIfAborted();
   const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-  video.srcObject = stream;
-  video.setAttribute("playsinline", "true");
-  await video.play();
-  const detector = await nativeDetector();
-  const canvas = document.createElement("canvas");
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   const stop = () => {
@@ -60,6 +59,20 @@ export async function startScan(video: HTMLVideoElement, onCode: (payload: strin
     for (const track of stream.getTracks()) track.stop();
     video.srcObject = null;
   };
+  let detector: Detector | null;
+  try {
+    signal?.throwIfAborted();
+    video.srcObject = stream;
+    video.setAttribute("playsinline", "true");
+    await video.play();
+    detector = await nativeDetector();
+    signal?.throwIfAborted();
+  } catch (err) {
+    stop();
+    throw err;
+  }
+  signal?.addEventListener("abort", stop, { once: true });
+  const canvas = document.createElement("canvas");
   const tick = async () => {
     if (stopped) return;
     let text: string | null = null;
