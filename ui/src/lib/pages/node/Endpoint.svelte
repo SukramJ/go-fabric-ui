@@ -80,15 +80,30 @@
     void loadEvents(true);
   }
 
+  // The endpoint's attribute_changed and the node's structure changes move
+  // the store's epochs; each move after the page mounted (or after the
+  // endpoint prop changed) refetches.
+  let startAttr = untrack(() => node.attributeEpoch(endpoint));
+  let startTopo = untrack(() => node.topologyEpoch);
+
+  // A new endpoint on a mounted page: nothing of the previous one stays.
+  let shown = untrack(() => endpoint);
   $effect(() => {
-    void endpoint;
-    untrack(refresh);
+    const ep = endpoint;
+    untrack(() => {
+      if (ep !== shown) {
+        shown = ep;
+        detail = null;
+        error = null;
+        events = [];
+        eventsError = null;
+        startAttr = node.attributeEpoch(ep);
+        startTopo = node.topologyEpoch;
+      }
+      refresh();
+    });
   });
 
-  // The endpoint's attribute_changed and the node's structure changes move
-  // the store's epochs; each move after the page mounted refetches.
-  const startAttr = untrack(() => node.attributeEpoch(endpoint));
-  const startTopo = untrack(() => node.topologyEpoch);
   $effect(() => {
     const moved = node.attributeEpoch(endpoint) !== startAttr || node.topologyEpoch !== startTopo;
     if (moved) {
