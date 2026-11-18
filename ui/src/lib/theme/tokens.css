@@ -25,7 +25,10 @@
  * Ported from openccu-loom assets/ui/src/app.css at b40b289a: :56-104
  * (tokens, dark block), :106-142 (HA skin, HA dark), :144-152 (base
  * colours), :154-240 (palette remap), :339-423 (reflow, hide-narrow). The
- * values are verbatim. This file holds plain CSS: import it after Tailwind
+ * values are verbatim but for the standalone light warning, success and
+ * info, darkened for text contrast (see there). The HA skin's literals are
+ * Home Assistant's own defaults and stay as they are: inside a panel the
+ * host's theme rules. This file holds plain CSS: import it after Tailwind
  * (see ui/README.md).
  */
 
@@ -47,11 +50,15 @@
   --ha-secondary-text-color: #64748b;
   --ha-disabled-text-color: #9ca3af;
   --ha-error-color: #dc2626;
-  --ha-warning-color: #d97706;
-  --ha-success-color: #059669;
-  /* Info is deliberately blue (Tailwind sky-600) so it stays
+  /* Warning, success and info are one Tailwind step darker than the port
+   * (amber-600, emerald-600, sky-600 → -700): they colour small text, and
+   * the lighter ones stayed below WCAG AA's 4.5:1 on white (3.2, 3.8,
+   * 4.0; UR-P1-ui-172, tokens.test.ts). */
+  --ha-warning-color: #b45309;
+  --ha-success-color: #047857;
+  /* Info is deliberately blue (Tailwind sky-700) so it stays
    * distinguishable from the teal primary. */
-  --ha-info-color: oklch(58.8% 0.158 241.966);
+  --ha-info-color: oklch(50% 0.134 242.749);
   --ha-elevation-card: 0 1px 2px 0 rgb(0 0 0 / 0.04);
   --ha-elevation-modal: 0 10px 25px -5px rgb(0 0 0 / 0.15);
   --ha-radius-card: 12px;
