@@ -9,7 +9,9 @@ describe("makeTextMatcher (UR-P1-ui-142)", () => {
     const text = "a".repeat(25) + "b";
     const start = performance.now();
     expect(makeTextMatcher("(a+)+$")(text)).toBe(false);
-    expect(performance.now() - start).toBeLessThan(50);
+    // The regex form took seconds (8.9 s at the red run); a full parallel run
+    // slows even the literal match, so the bound is generous.
+    expect(performance.now() - start).toBeLessThan(1000);
   });
 
   it("treats | as OR between literal alternatives, case-insensitive", () => {

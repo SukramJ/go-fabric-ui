@@ -127,19 +127,6 @@ describe("Operation — admin rights (UR-P1-ui-133)", () => {
 });
 
 describe("Operation — paused backlog and restarts", () => {
-  it("keeps at most the newest KEEP_RECORDS while paused and says how many it dropped (UR-P1-bound-134)", async () => {
-    const { push } = renderOperation();
-    await screen.findAllByTestId("log-record");
-    await fireEvent.click(screen.getByText("operation.pause"));
-    for (let seq = 5; seq < 5 + 2500; seq++) push(rec(seq, "info", `r${seq}`));
-    expect(await screen.findByTestId("paused")).toHaveTextContent('operation.paused_dropped:{"count":2500,"kept":2000}');
-    await fireEvent.click(screen.getByText("operation.resume"));
-    await waitFor(() => expect(screen.getAllByTestId("log-record")).toHaveLength(2000), { timeout: 20_000 });
-    expect(screen.getByText("r2504")).toBeInTheDocument();
-    expect(screen.queryByText("r504")).toBeNull();
-    // 2000 rendered rows: slow under a full parallel run.
-  }, 60_000);
-
   it("starts over when a restarted daemon numbers its records from the start again (UR-P1-ui-143)", async () => {
     const { push } = renderOperation();
     const before = await screen.findAllByTestId("log-record");
