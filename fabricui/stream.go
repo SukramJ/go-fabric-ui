@@ -86,6 +86,13 @@ func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, swapped <
 	// open (node.Observe) and removed when it closes.
 	defer subscribe(push)()
 
+	// Every write gets two heartbeats to complete: a client that keeps
+	// the connection and stops reading would block the next write, the
+	// heartbeat's too, for the connection's life (UR-P2-bound-33). A
+	// writer without deadlines (ErrNotSupported) goes without.
+	writable := func() { _ = rc.SetWriteDeadline(time.Now().Add(2 * h.heartbeat)) }
+
+	writable()
 	writeStreamHeaders(w)
 	if _, err := fmt.Fprint(w, ": connected\n\n"); err != nil {
 		return
@@ -114,6 +121,7 @@ func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, swapped <
 			// it (UR-P2-conc-04).
 			return
 		case <-tick.C:
+			writable()
 			if _, err := fmt.Fprint(w, ": heartbeat\n\n"); err != nil {
 				return
 			}
@@ -131,6 +139,7 @@ func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, swapped <
 				h.log.WarnContext(ctx, "fabricui.stream.encode_failed", "type", ev.Type, "error", err.Error())
 				continue
 			}
+			writable()
 			if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev.Type, data); err != nil {
 				return
 			}

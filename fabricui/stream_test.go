@@ -4,6 +4,7 @@
 package fabricui
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -111,4 +112,35 @@ func TestStream_InvalidTypeIsLoggedBounded(t *testing.T) {
 	if n := log.Len(); n > 1000 {
 		t.Fatalf("the invalid_type record is %d bytes long, want the type truncated", n)
 	}
+}
+
+// A client that keeps its connection open and stops reading fills the
+// socket buffers; the stream's next write blocks, the heartbeat with it.
+// A write deadline per round ends such a stream, and its subscriptions
+// go (UR-P2-bound-33).
+func TestStream_StalledReaderIsReaped(t *testing.T) {
+	ev := NewEvents()
+	h, mux := newTestHandler(t, testOptions{events: ev})
+	h.heartbeat = 50 * time.Millisecond
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	conn, err := net.Dial("tcp", srv.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if tc, ok := conn.(*net.TCPConn); ok {
+		_ = tc.SetReadBuffer(4096)
+	}
+	fmt.Fprintf(conn, "GET %s/node/stream HTTP/1.1\r\nHost: x\r\n\r\n", DefaultPrefix)
+	if _, err := http.ReadResponse(bufio.NewReader(conn), nil); err != nil {
+		t.Fatal(err)
+	}
+	// From here on the client reads nothing.
+	big := strings.Repeat("x", 64<<10)
+	for stop := time.Now().Add(time.Second); time.Now().Before(stop); {
+		ev.Publish(Event{Type: "host_note", Data: big})
+		time.Sleep(time.Millisecond)
+	}
+	waitFor(t, func() bool { return subsOf(ev) == 0 })
 }
