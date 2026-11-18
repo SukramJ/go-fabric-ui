@@ -94,7 +94,7 @@ describe("UR-P1-conc-199: one probe chain, none after the shell is gone", () => 
     let calls = 0;
     serve([]);
     const fetchImpl = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
-    const inner = fetchImpl.getMockImplementation()!;
+    const inner = fetchImpl.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
     // The controller probe answers 502 after 100 ms.
     fetchImpl.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url.endsWith("/controller/status")) {
