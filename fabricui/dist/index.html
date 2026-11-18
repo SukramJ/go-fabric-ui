@@ -68,7 +68,22 @@
                 if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
                 if (hex.length >= 6) rgb = [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)];
               } else if (bg) {
+                // A name, hsl() or color-mix(): what the browser computes
+                // for it on a probe, which is rgb() or color(srgb …).
                 var m = bg.match(/rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
+                if (!m) {
+                  var probe = document.createElement("span");
+                  probe.style.color = bg;
+                  if (probe.style.color) {
+                    probe.style.display = "none";
+                    root.appendChild(probe);
+                    var c = window.getComputedStyle(probe).color;
+                    root.removeChild(probe);
+                    var s = c.match(/^color\(\s*srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/i);
+                    if (s) rgb = [Number(s[1]) * 255, Number(s[2]) * 255, Number(s[3]) * 255];
+                    else m = c.match(/rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
+                  }
+                }
                 if (m) rgb = [Number(m[1]), Number(m[2]), Number(m[3])];
               }
               if (rgb && !isNaN(rgb[0]) && !isNaN(rgb[1]) && !isNaN(rgb[2])) {
@@ -87,10 +102,10 @@
         root.classList.toggle("dark", dark);
       })();
     </script>
-    <script type="module" crossorigin src="./assets/index-BGfw3rVs.js"></script>
+    <script type="module" crossorigin src="./assets/index-BefL2B0r.js"></script>
     <link rel="modulepreload" crossorigin href="./assets/rolldown-runtime-WkwZ5CU-.js">
-    <link rel="modulepreload" crossorigin href="./assets/vendor-DsDM2gic.js">
-    <link rel="stylesheet" crossorigin href="./assets/index-BI1BwhxC.css">
+    <link rel="modulepreload" crossorigin href="./assets/vendor-vMc_eSiI.js">
+    <link rel="stylesheet" crossorigin href="./assets/index-jhH6MduN.css">
   </head>
   <body>
     <div id="app"></div>
