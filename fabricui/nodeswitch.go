@@ -5,6 +5,7 @@ package fabricui
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,13 +23,16 @@ import (
 // answers: its last health verdict (go-fabric node/health.go:74-84 at
 // v0.18.0) and the erased store's errors (node.go:1119-1121;
 // factory_reset.go:66-67 closes it); what the host says about the failure
-// is the host's. A stream open across Set keeps the node it was opened
-// on: its observers were registered on that node when the stream began
-// (events.go:152-166), so the new node's transitions reach the page when
-// it reconnects; the page's erase flow polls the status, which reads
-// through the switch, until the node answers. As a registry node's
+// is the host's. Set ends every node stream (GET /node/stream and its
+// per-node form) a handler serves while the switch is its Options.Node or
+// a NodeEntry.Source: a stream's observers were
+// registered on the node it was opened on (events.go:152-166), so the
+// browser's EventSource reconnects and its new stream observes the new
+// node, and the page reads the node again on that reconnection. The
+// page's erase flow polls the status, which reads through the switch,
+// until the node answers. As a registry node's
 // NodeEntry.Source the same *NodeSwitch is the same value across a Set,
-// so the node keeps its handler (registry.go:163-177); listing a new
+// so the node keeps its handler (registry.go:168-190); listing a new
 // *node.Node as Source instead gets a fresh handler and is the contract's
 // other path.
 //
@@ -40,6 +44,10 @@ type NodeSwitch struct {
 	// another concrete type than the first panics there, and a host may
 	// swap a *node.Node for a wrapper or a test double.
 	cur atomic.Pointer[NodeSource]
+	// mu orders Set against swapped: swap is closed by the Set that
+	// replaces the target a stream observes, and replaced by a new one.
+	mu   sync.Mutex
+	swap chan struct{}
 }
 
 var _ NodeSource = (*NodeSwitch)(nil)
@@ -52,7 +60,7 @@ func NewNodeSwitch(initial NodeSource) *NodeSwitch {
 	if initial == nil {
 		panic("fabricui: NewNodeSwitch: nil source")
 	}
-	s := &NodeSwitch{}
+	s := &NodeSwitch{swap: make(chan struct{})}
 	s.cur.Store(&initial)
 	return s
 }
@@ -64,7 +72,21 @@ func (s *NodeSwitch) Set(n NodeSource) {
 	if n == nil {
 		panic("fabricui: NodeSwitch.Set: nil source")
 	}
+	s.mu.Lock()
 	s.cur.Store(&n)
+	old := s.swap
+	s.swap = make(chan struct{})
+	s.mu.Unlock()
+	close(old)
+}
+
+// swapped is closed by the next Set. A stream reads it before it
+// registers its observers on Current: a Set in between closes the channel
+// it holds, so the stream ends instead of staying on the old target.
+func (s *NodeSwitch) swapped() <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.swap
 }
 
 // Current is the target calls reach now.

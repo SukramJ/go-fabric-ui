@@ -584,7 +584,15 @@ func (w *node) Write(ctx context.Context, p fabricui.AttributePath, value any, t
 	path := client.AttributeAt(p.Endpoint, p.Cluster, p.Attribute)
 	statuses, err := w.n.Write(ctx, []client.WriteRequest{{Path: path, Value: enc}}, opts)
 	if len(statuses) > 0 {
-		return fabricui.WriteStatus{Status: uint8(statuses[0].Status), ClusterStatus: statuses[0].ClusterStatus}, nil
+		// A list not ACL or Extension is written as REPLACE-ALL and one
+		// append per element, each with its status (go-fabric
+		// client/interaction/write.go:259-275 at v0.22.2): the answer is
+		// the first that failed, not the REPLACE-ALL's (UR-P2-adpt-30).
+		st := statuses[0]
+		if i := slices.IndexFunc(statuses, func(s client.WriteStatus) bool { return s.Status != 0 }); i >= 0 {
+			st = statuses[i]
+		}
+		return fabricui.WriteStatus{Status: uint8(st.Status), ClusterStatus: st.ClusterStatus}, nil
 	}
 	if se, ok := errors.AsType[*client.StatusError](err); ok {
 		return fabricui.WriteStatus{Status: uint8(se.Status), ClusterStatus: se.ClusterStatus}, nil
@@ -592,7 +600,7 @@ func (w *node) Write(ctx context.Context, p fabricui.AttributePath, value any, t
 	if err != nil {
 		return fabricui.WriteStatus{}, nodeError(err)
 	}
-	return fabricui.WriteStatus{}, nil
+	return fabricui.WriteStatus{}, fmt.Errorf("%w: the node answered the write with no status", fabricui.ErrNodeFailed)
 }
 
 // attributeTimed reports an attribute whose write must be timed by its

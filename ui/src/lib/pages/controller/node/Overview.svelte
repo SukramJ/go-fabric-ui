@@ -95,7 +95,7 @@
         </p>
         {#if ping.addresses.length > 0}
           <ul class="mt-1 space-y-0.5 font-mono text-xs">
-            {#each ping.addresses as a (a.ip)}
+            {#each ping.addresses as a, i (i)}
               <li data-testid="ping-address">
                 <Badge variant={a.reachable ? "success" : "danger"}>{a.reachable ? t("controller.ping.reachable") : t("controller.ping.unreachable")}</Badge>
                 <span class="ml-1">{a.ip}</span>{#if a.rtt_ms !== undefined}&nbsp;· {t("controller.ping.rtt", { ms: a.rtt_ms })}{/if}{#if a.error}&nbsp;· <span class="text-[var(--fui-error-text)]" data-testid="ping-address-error">{a.error}</span>{/if}

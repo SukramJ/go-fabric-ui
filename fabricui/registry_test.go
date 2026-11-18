@@ -667,3 +667,37 @@ func TestRegistry_SwappedSourceEndsTheOldStreams(t *testing.T) {
 		t.Fatal("the replaced handler's stream is still open")
 	}
 }
+
+// slowDeleteRegistry is the memory registry whose Delete takes a while
+// and stops when its context ends.
+type slowDeleteRegistry struct {
+	*memoryRegistry
+	started chan struct{}
+	got     error
+}
+
+func (r *slowDeleteRegistry) Delete(ctx context.Context, key string) error {
+	close(r.started)
+	select {
+	case <-ctx.Done():
+		r.got = ctx.Err()
+		return r.got
+	case <-time.After(200 * time.Millisecond):
+		return r.memoryRegistry.Delete(ctx, key)
+	}
+}
+
+// DELETE /nodes/{node} runs the registry's Delete detached from its
+// request: a client that leaves does not stop the node's leave of its
+// fabrics half-way (UR-P2-err-31).
+func TestRegistry_DeleteOutlivesTheRequest(t *testing.T) {
+	reg := &slowDeleteRegistry{memoryRegistry: newMemoryRegistry(0), started: make(chan struct{})}
+	_, mux := newTestHandler(t, testOptions{registry: reg})
+	if rec := do(t, mux, http.MethodPost, "/nodes", `{"label":"Garden"}`); rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body)
+	}
+	leaving(t, mux, http.MethodDelete, "/nodes/garden", "", reg.started)
+	if reg.got != nil || len(reg.List()) != 0 {
+		t.Fatalf("the registry's Delete ended with the request: %v; listed %d", reg.got, len(reg.List()))
+	}
+}

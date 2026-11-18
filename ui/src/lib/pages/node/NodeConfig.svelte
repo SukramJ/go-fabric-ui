@@ -39,7 +39,7 @@
   <h2 class="mb-1 text-base font-semibold text-[var(--ha-primary-text-color)]">{t("node.config.title")}</h2>
   <p class="mb-3 text-sm text-[var(--ha-secondary-text-color)]" data-testid="node-config-source">{note}</p>
   <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
-    {#each rows as [name, value] (name)}
+    {#each rows as [name, value], i (i)}
       <dt class="text-[var(--ha-secondary-text-color)]">{name}</dt>
       <dd class="break-all text-[var(--ha-primary-text-color)]">{value}</dd>
     {/each}

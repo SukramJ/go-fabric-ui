@@ -218,7 +218,10 @@ Details the fixtures pin:
   [Node registry](#node-registry-060)). A comment line arrives every 15 s.
   The fabric, window and surface events come from
   the node (`Node.Observe`, registered per stream), once per transition,
-  whoever caused it. A commissioning is `fabric_added` — the AddNOC that
+  whoever caused it. A `window_opened` may follow a `window_opened`
+  without a `window_closed` between them: a window replaced by another
+  without closing (an administrator's window over the node's own) is
+  opened again. A commissioning is `fabric_added` — the AddNOC that
   installs the fabric — then `commissioning_complete`, go-fabric's
   `Observers.OnCommissioningComplete` after a successful
   CommissioningComplete, with `fabric_index` alone. `fabric_updated` is

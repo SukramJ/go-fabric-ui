@@ -96,7 +96,7 @@
     <ErrorState class="mt-3" message={error} onRetry={() => void load()} />
   {:else}
     <ul class="mt-3 flex flex-wrap gap-2" data-testid="structural-endpoints">
-      {#each structural as s (s.number)}
+      {#each structural as s, i (i)}
         <li>
           <a class="rounded border border-[var(--ha-divider-color)] px-3 py-1 text-sm text-[var(--fui-primary-text)] hover:underline" href={routes.endpoint + s.number}>
             <span class="font-mono text-[var(--ha-secondary-text-color)]">#{s.number}</span> {s.label}
@@ -109,7 +109,7 @@
     <EmptyState class="mt-3" message={t("node.endpoints.empty")} />
   {:else if !loading && !error}
     <ul class="mt-3 space-y-2">
-      {#each endpoints as ep (ep.endpoint_id)}
+      {#each endpoints as ep, ei (ei)}
         <li class="rounded border border-[var(--ha-divider-color)] p-3" data-testid="endpoint">
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-mono text-sm text-[var(--ha-secondary-text-color)]">#{ep.endpoint_id}</span>
@@ -129,7 +129,7 @@
           </div>
           {#if ep.clusters.length > 0}
             <div class="mt-2 flex flex-wrap gap-1">
-              {#each ep.clusters as cluster (cluster.id)}
+              {#each ep.clusters as cluster, ci (ci)}
                 <span class="rounded bg-[var(--ha-secondary-background-color)] px-2 py-0.5 text-xs text-[var(--ha-secondary-text-color)]">
                   {cluster.name || hex(cluster.id)}
                 </span>

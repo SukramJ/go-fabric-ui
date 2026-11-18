@@ -196,7 +196,7 @@
           {/each}
         </ul>
         <div class="mt-3 space-y-1 text-xs text-[var(--ha-secondary-text-color)]">
-          {#each mdns.services as svc (svc.service_type + svc.instance_name)}
+          {#each mdns.services as svc, i (i)}
             <div>
               <span class="font-mono">{svc.service_type}</span>
               · {t("node.diag.port")}&nbsp;{svc.port} · {svc.addresses.join(", ")}
@@ -233,7 +233,7 @@
           <summary class="cursor-pointer text-[var(--ha-secondary-text-color)]">{t("node.diag.params.title")}</summary>
           <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("node.diag.params.hint")}</p>
           <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-            {#each parameterRows as [label, value] (label)}
+            {#each parameterRows as [label, value], i (i)}
               <dt class="text-[var(--ha-secondary-text-color)]">{label}</dt>
               <dd class="font-mono text-[var(--ha-primary-text-color)]">{value}</dd>
             {/each}
@@ -246,7 +246,7 @@
       <Card class="p-4">
         <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.diag.compatibility")}</h3>
         <div class="mt-2 flex flex-wrap gap-2">
-          {#each compat.ecosystems as eco (eco.fabric_index)}
+          {#each compat.ecosystems as eco, ei (ei)}
             <Badge variant="muted">{ecosystemName(eco.ecosystem)}</Badge>
           {/each}
         </div>

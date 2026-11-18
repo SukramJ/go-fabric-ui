@@ -326,7 +326,7 @@
   <div class="mb-3 flex flex-col gap-2">
     <div class="flex flex-wrap items-center gap-2">
       <Input placeholder={t("node.selection.search_placeholder")} bind:value={search} class="w-full sm:w-64" />
-      {#each valueFilters as f (f.field)}
+      {#each valueFilters as f, fi (fi)}
         <Select
           class="w-auto"
           value={filterValues[f.field] ?? ALL}
@@ -367,7 +367,7 @@
       <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.selection.preview_title")}</h3>
       <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("node.selection.preview_hint")}</p>
       <ul class="mt-3 space-y-2">
-        {#each previewItems as after (after.key)}
+        {#each previewItems as after, pi (pi)}
           {@const was = before(after.key)}
           <li class="flex flex-wrap items-center gap-2 text-sm">
             <span class="font-medium text-[var(--ha-primary-text-color)]">{after.name}</span>
@@ -397,7 +397,7 @@
     <Card class="p-4">
       <div class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--ha-secondary-text-color)]">
         <span class="font-semibold">{t("node.selection.legend")}:</span>
-        {#each legend as li (li.label)}
+        {#each legend as li, i (i)}
           <span class="inline-flex items-center gap-1"><Icon name={li.icon} size={14} class={li.color} /><span>{li.label}</span></span>
         {/each}
       </div>

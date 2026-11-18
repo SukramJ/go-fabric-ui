@@ -28,12 +28,12 @@
   <EmptyState message={t("controller.endpoints.empty")} />
 {:else}
   <div class="space-y-3">
-    {#each ordered as { ep, depth } (ep.endpoint)}
+    {#each ordered as { ep, depth }, i (i)}
       <Card class="p-4" style={`margin-left: ${depth * 1.5}rem`} data-testid={`endpoint-${ep.endpoint}`}>
         <div class="flex flex-wrap items-center gap-2">
           <span class="font-medium text-[var(--ha-primary-text-color)]">{t("controller.endpoints.endpoint", { number: ep.endpoint })}</span>
           {#if ep.name}<span class="text-sm text-[var(--ha-secondary-text-color)]">{ep.name}</span>{/if}
-          {#each ep.device_types as dt (dt.id)}
+          {#each ep.device_types as dt, i (i)}
             <Badge title={dt.id_hex}>{dt.name || dt.id_hex}{dt.revision ? ` r${dt.revision}` : ""}</Badge>
           {/each}
           {#if ep.reachable !== undefined}
@@ -50,7 +50,7 @@
         </div>
         {#if ep.clusters.length > 0}
           <ul class="mt-2 flex flex-wrap gap-1">
-            {#each ep.clusters as c (c.id)}
+            {#each ep.clusters as c, i (i)}
               <li><Badge variant="muted" title={`${c.id_hex} r${c.revision}${c.features.length ? " · " + c.features.join(", ") : ""}`}>{c.name || c.id_hex}</Badge></li>
             {/each}
           </ul>

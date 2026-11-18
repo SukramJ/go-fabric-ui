@@ -18,6 +18,8 @@
   import ClusterView from "../../kit/ClusterView.svelte";
   import ErrorState from "../../kit/ErrorState.svelte";
   import EventList from "../../kit/EventList.svelte";
+  import { keyedRows } from "../../kit/data-table";
+  import { lastNumber, mergeEvents } from "../../kit/events";
   import LoadingState from "../../kit/LoadingState.svelte";
   import TagChips from "../../kit/TagChips.svelte";
   import { hexId } from "./surface";
@@ -31,6 +33,11 @@
   const MAX_EVENTS = 500;
   // An endpoint with more clusters than this starts with them collapsed.
   const OPEN_CLUSTERS = 6;
+  // A cluster panel's open state is set once, when it is created: a reload
+  // leaves what the operator opened or closed (UR-P2-ui-191).
+  function initiallyOpen(el: HTMLDetailsElement) {
+    el.open = untrack(() => (detail?.clusters.length ?? 0) <= OPEN_CLUSTERS);
+  }
 
   let detail = $state<EndpointDetail | null>(null);
   let error = $state<string | null>(null);
@@ -53,22 +60,17 @@
     }
   }
 
-  // A cluster_event the stream added while the read was in flight comes
-  // again in the answer: merge by number, in order.
-  function mergeEvents(have: EventRecord[], more: EventRecord[]): EventRecord[] {
-    const seen = new Set(have.map((e) => e.number));
-    return [...have, ...more.filter((e) => !seen.has(e.number))].sort((a, b) => a.number - b.number);
-  }
-
   // fresh reads the log from its start; otherwise only the events after
   // the last one shown (since = its number + 1).
   async function loadEvents(fresh: boolean) {
     const mine = ++eventSeq;
-    const last = fresh ? undefined : events.at(-1)?.number;
+    const last = fresh ? undefined : lastNumber(events);
     try {
       const l = await client.nodeEndpointEvents(endpoint, last === undefined ? {} : { since: last + 1 });
       if (mine !== eventSeq) return;
-      events = (last === undefined ? l.events : mergeEvents(events, l.events)).slice(-MAX_EVENTS);
+      // A cluster_event the stream added while the read was in flight
+      // comes again in the answer: merge by number, in order.
+      events = mergeEvents(last === undefined ? [] : events, l.events).slice(-MAX_EVENTS);
       eventsError = null;
     } catch (err) {
       if (mine === eventSeq) eventsError = errorText(err);
@@ -177,7 +179,7 @@
         {#if d.parts.length > 0}
           <span data-testid="endpoint-parts">
             {t("node.endpoint.parts")}
-            {#each d.parts as p (p)}
+            {#each d.parts as p, pi (pi)}
               <a class="ml-1 text-[var(--fui-primary-text)] hover:underline" href={routes.endpoint + p}>#{p}</a>
             {/each}
           </span>
@@ -197,9 +199,11 @@
       <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.endpoint.clusters")}</h3>
       <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("node.endpoint.clusters_hint")}</p>
       <ul class="mt-3 divide-y divide-[var(--ha-divider-color)]">
-        {#each d.clusters as c (c.id)}
+        <!-- Keyed by cluster, so a panel keeps its open state when a reload
+             adds a cluster before it; a repeated id gets a suffix (UR-P2-ui-191). -->
+        {#each keyedRows(d.clusters, (x) => x.id_hex) as { row: c, key } (key)}
           <li class="py-1">
-            <details open={d.clusters.length <= OPEN_CLUSTERS} data-testid={`endpoint-cluster-${c.id_hex}`}>
+            <details {@attach initiallyOpen} data-testid={`endpoint-cluster-${c.id_hex}`}>
               <summary class="flex cursor-pointer flex-wrap items-center gap-2 py-1 text-sm">
                 <span class="font-medium">{c.name ?? c.id_hex}</span>
                 <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">{c.id_hex} r{c.revision}</span>

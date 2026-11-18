@@ -17,8 +17,11 @@ mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Exposure: provider}))
 `Handler` serves the API under `/api/v1` and the standalone shell at `/`
 from the bundle embedded in the module (`fabricui/dist/`, built and
 committed here): no Node.js toolchain in the daemon's build, no second
-image. Any path that is not a file of the bundle answers the shell's index;
-an unknown path under the API prefix answers a 404 problem.
+image. The root (`/`, `/index.html`) answers the shell's index, a file of
+the bundle answers itself, and any other path answers 404 — the shell
+routes by hash (`/#/node/status`), and its relative asset paths would not
+load under a deeper path; an unknown path under the API prefix answers a
+404 problem.
 
 `Options`:
 
@@ -69,6 +72,13 @@ status (a health verdict, a fabric, a window, an endpoint change) reloads
 the counters with it, as it does the warnings — a counter alone sends no
 event.
 
+`GET /node/status` is not an admin route and the page polls it, so any
+client that reaches the listener calls four host ports per request, on
+the request's goroutine: `Warnings`, `Counters`, the node's
+`FabricInfos` and the exposure provider's `List` (to count the enabled
+items). Nothing bounds the rate; keep them cheap — answers from memory,
+no network round trip, no store scan.
+
 The node's transitions need no wiring: each open stream registers an
 observer with `Node.Observe` and removes it when the connection closes, so
 a handler built after `Node.Start` reports a controller commissioning the
@@ -89,6 +99,18 @@ events over a channel of its own registers them with
 `fabricui.ObserveNode(n, push)` — `NodeObservers` through `Node.Observe`
 plus the two callbacks `node.Observers` does not hold; publishing them
 into `Options.Events` instead would hand every stream each one twice.
+
+The streams are long requests: `http.Server.Shutdown` does not cancel a
+running request, so an open page holds the host's shutdown for its whole
+budget, and the stream's observers outlive it while the host stops its
+node. A handler stream ends when its request's context does, so the host
+serves with a base context it cancels when the shutdown begins:
+
+```go
+base, stopStreams := context.WithCancel(context.Background())
+srv := &http.Server{Handler: mux, BaseContext: func(net.Listener) context.Context { return base }}
+srv.RegisterOnShutdown(stopStreams)
+```
 
 Everything the handlers read is on the node facade: the window from
 `Node.Window` (its kind, discriminator and deadline on the node's clock),
@@ -135,7 +157,11 @@ func (w wrapped) TriggerReannounce(ctx context.Context)     { w.n.TriggerReannou
 store and endpoint records, and a Go node is single-use, so the host has
 to bring a node back. That is a lifecycle action the handlers cannot take
 on a `NodeSource`; the host wires it as `Options.Erase` (the default
-node) or `NodeEntry.Erase` (0.7.0), as it wires `Reassemble`.
+node) or `NodeEntry.Erase` (0.7.0), as it wires `Reassemble`. The
+handler runs it detached from the request, bounded by two minutes, so a
+client that leaves does not stop it half-way, and logs a failure at
+error; the same holds for `NodeRegistry.Delete` and the controller
+port's `Decommission`.
 `fabrictest.Device.FactoryReset` is the pattern: `node.FactoryReset`,
 then a new node on the erased store and the same address, started — or
 the daemon's exit for a supervisor to restart it. The handler keeps the
@@ -154,10 +180,12 @@ hands the switch to `Options.Node` or `NodeEntry.Source` (0.7.1). Its
 target, swapped atomically. A failed restart calls nothing: the pages
 keep reading the stopped node — its last health verdict and its erased
 store's errors — and what the host shows about the failure is the
-host's. A stream open across `Set` keeps the node it was opened on (its
-observers were registered when it began) until the page reconnects; the
-erase flow polls `GET /node/status`, which reads through the switch,
-until the new node answers. As a registry node's `Source` the same
+host's. `Set` ends every node stream a handler serves while the switch is
+its `Options.Node` or a `NodeEntry.Source` (a stream's observers are
+registered on the node it was opened on), so the
+browser's `EventSource` reconnects and the new stream observes the new
+node; the erase flow polls `GET /node/status`, which reads through the
+switch, until the new node answers. As a registry node's `Source` the same
 `*NodeSwitch` stays the same value across `Set`, so the node keeps its
 handler. `NewNodeSwitch(nil)` and `Set(nil)` panic: a nil target would
 fail inside the first request, where a nil `Options.Node` answers 503.
@@ -371,8 +399,8 @@ path prefix it chooses:
 
 What the handler sets on its responses, so a host does not have to:
 
-- **The page** (`index.html`, every deep path, and the 503 page while the
-  bundle is not built) carries `Content-Security-Policy`:
+- **The page** (`index.html`, served for the prefix root alone, and the
+  503 page while the bundle is not built) carries `Content-Security-Policy`:
   `default-src 'self'`; `script-src 'self'` and the hash of the inline
   pre-paint script, derived from the embedded `index.html` when the handler
   is built; `style-src 'self'`; `img-src 'self'`; `object-src 'none'`;

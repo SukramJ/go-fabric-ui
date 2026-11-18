@@ -556,7 +556,12 @@ func (s *controllerServer) DecommissionNode(ctx context.Context, req api.Decommi
 	if err != nil {
 		return nil, err
 	}
-	if err := s.src.Decommission(ctx, n.ID()); err != nil {
+	// Detached, as the registry's Delete: a client that leaves between the
+	// node's RemoveFabric and its deletion would leave a record of a node
+	// that is no longer on the fabric (UR-P2-err-31).
+	dctx, cancel := detached(ctx)
+	defer cancel()
+	if err := s.src.Decommission(dctx, n.ID()); err != nil {
 		return nil, err
 	}
 	return api.DecommissionNode204Response{}, nil
@@ -1273,8 +1278,15 @@ func (s *controllerServer) RemoveNodeFabric(ctx context.Context, req api.RemoveN
 	if res.Status != 0 {
 		return nil, fmt.Errorf("%w: RemoveFabric answered status %#x", ErrNodeFailed, res.Status)
 	}
-	if res.HasResponse && json.Unmarshal(res.Response, &noc) == nil && noc.StatusCode != 0 {
-		return nil, fmt.Errorf("%w: RemoveFabric answered NOCResponse status %d", ErrNodeFailed, noc.StatusCode)
+	if res.HasResponse {
+		// A NOCResponse the adapter could not decode (Response nil) has
+		// no status to judge: no success (UR-P2-adpt-36).
+		if err := json.Unmarshal(res.Response, &noc); err != nil {
+			return nil, fmt.Errorf("%w: RemoveFabric answered a NOCResponse that does not decode", ErrNodeFailed)
+		}
+		if noc.StatusCode != 0 {
+			return nil, fmt.Errorf("%w: RemoveFabric answered NOCResponse status %d", ErrNodeFailed, noc.StatusCode)
+		}
 	}
 	return api.RemoveNodeFabric204Response{}, nil
 }
@@ -1677,7 +1689,7 @@ type controllerStream struct {
 }
 
 func (c controllerStream) VisitControllerStreamResponse(w http.ResponseWriter) error {
-	c.h.serveSSE(c.ctx, w, c.h.subscribeController)
+	c.h.serveSSE(c.ctx, w, nil, c.h.subscribeController)
 	return nil
 }
 

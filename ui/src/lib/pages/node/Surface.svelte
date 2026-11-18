@@ -139,7 +139,7 @@
     <summary class="flex cursor-pointer flex-wrap items-center gap-2">
       {#if ep.number}<span class="font-mono text-sm text-[var(--ha-secondary-text-color)]">#{ep.number}</span>{/if}
       <span class="font-medium text-[var(--ha-primary-text-color)]">{endpointLabel(ep.key)}</span>
-      {#each ep.deviceTypes as dt (dt.id)}
+      {#each ep.deviceTypes as dt, di (di)}
         <span class="text-xs text-[var(--ha-secondary-text-color)]">{deviceTypeLabel(dt.id)} ({t("node.surface.col_revision")} {dt.revision})</span>
       {/each}
     </summary>
@@ -155,7 +155,7 @@
         <details class="mt-2">
           <summary class="cursor-pointer text-xs text-[var(--ha-secondary-text-color)]">{t("node.surface.lists")}</summary>
           <dl class="mt-2 space-y-2 text-xs">
-            {#each ep.clusters as c (c.id)}
+            {#each ep.clusters as c, ci (ci)}
               <div>
                 <dt class="font-medium text-[var(--ha-primary-text-color)]">{clusterLabel(c.id)}</dt>
                 {#each [["col_attributes", c.attributes], ["col_accepted", c.accepted], ["col_generated", c.generated], ["col_events", c.events]] as [label, ids] (label)}
@@ -219,7 +219,7 @@
         <EmptyState class="mt-3" message={t("node.surface.endpoints_empty")} />
       {:else}
         <div class="mt-2 space-y-2">
-          {#each r.effective.endpoints as ep (ep.key)}
+          {#each r.effective.endpoints as ep, ei (ei)}
             {@render endpointCard(ep, "surface-endpoint")}
           {/each}
         </div>

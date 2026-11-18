@@ -97,6 +97,15 @@ func writeTermsRequired(w http.ResponseWriter, r *http.Request, e *ErrTermsRequi
 	writeProblemBody(w, http.StatusConflict, codeTermsRequired, p)
 }
 
+// detachedError is serverError for work that ran detached from its
+// request (detached): it failed on its own, whether or not the client is
+// still there, so it is logged at error, never as an abandoned request.
+func (h *handler) detachedError(w http.ResponseWriter, r *http.Request, title string, err error) {
+	h.log.ErrorContext(r.Context(), title, slog.String("error", err.Error()),
+		slog.String("method", r.Method), slog.String("path", r.URL.Path))
+	writeProblem(w, r, http.StatusInternalServerError, codeInternal, title, "")
+}
+
 // serverError logs err and answers 500 internal with an empty detail: an
 // error's text can carry store paths or socket detail, which is for the
 // operator's log, not for a caller. Mirrors loom

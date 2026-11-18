@@ -9,7 +9,7 @@
 <script lang="ts" generics="Row">
   import type { Snippet } from "svelte";
   import type { IconName } from "./icons";
-  import type { DataColumn, DataTableSort } from "./data-table";
+  import { keyedRows, type DataColumn, type DataTableSort } from "./data-table";
   import { makeTextMatcher } from "./utils";
   import { useT } from "../context";
   import Input from "./Input.svelte";
@@ -231,15 +231,15 @@
                 {#if groupHeader}{@render groupHeader(group.key, group.rows)}{:else}{group.key}{/if}
               </th>
             </tr>
-            {#each group.rows as row (rowKey(row))}
-              {@render bodyRow(row)}
+            {#each keyedRows(group.rows, rowKey) as r (r.key)}
+              {@render bodyRow(r.row)}
             {/each}
           </tbody>
         {/each}
       {:else}
         <tbody>
-          {#each processed as row (rowKey(row))}
-            {@render bodyRow(row)}
+          {#each keyedRows(processed, rowKey) as r (r.key)}
+            {@render bodyRow(r.row)}
           {/each}
         </tbody>
       {/if}

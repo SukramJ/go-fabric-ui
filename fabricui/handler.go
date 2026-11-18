@@ -94,6 +94,9 @@ type handler struct {
 	// opened, served by GET /node/pairing while that window is open.
 	mu        sync.Mutex
 	ephemeral *ephemeralWindow
+	// openMu serialises POST /node/pairing/window from its check of the
+	// node's window to the stored credentials.
+	openMu sync.Mutex
 }
 
 // nodeEntry is one node of the family in the handler's terms.

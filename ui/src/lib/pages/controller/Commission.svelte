@@ -16,9 +16,10 @@
      block opens with the device's version filled in, the acknowledgements
      field focused and the deadline as a date, and one click sends the
      same commissioning again with the acknowledgement (contract 0.8.0);
-     the code or passcode is held for that retry only. -->
+     the code or passcode is held for that retry only, and dropped when
+     the block is closed. -->
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
   import { ApiError, type CommissionRequest, type ControllerNodeDetail, type Discovered } from "../../api/client";
@@ -47,6 +48,11 @@
   // request it refused, held for the one retry with the acknowledgement.
   let termsRequired = $state<{ version: number; deadline: number | null } | null>(null);
   let retry = $state<CommissionRequest | null>(null);
+  // Closing the terms block ends the retry: the code it holds goes
+  // (UR-P2-leak-08).
+  $effect(() => {
+    if (!termsOpen) untrack(() => (retry = null));
+  });
   let running = $state(false);
   let result = $state<ControllerNodeDetail | null>(null);
   let failure = $state<string | null>(null);
@@ -169,6 +175,10 @@
     searching = true;
     try {
       devices = (await client.discover({ timeout: 5 })).devices;
+      // A passcode typed for a device this search no longer lists goes
+      // with it (UR-P2-leak-08).
+      const listed = new Set(devices.map((d) => d.instance_name));
+      passcodes = Object.fromEntries(Object.entries(passcodes).filter(([name]) => listed.has(name)));
       searched = true;
     } catch (err) {
       toast.error(errorText(err));

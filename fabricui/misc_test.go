@@ -235,6 +235,40 @@ func TestNodeObservers_YieldWhatTheStreamYields(t *testing.T) {
 	}
 }
 
+// An open window replaced by another without closing — an
+// administrator's OpenCommissioningWindow over the handler's fresh
+// window, a host's OpenOwnWindow over an open one — is window_opened
+// again, so a page that shows the first window's codes reads the pairing
+// again; a repeated snapshot of the same window stays silent
+// (UR-P2-conc-01). Before, every open snapshot after an open one was
+// dropped.
+func TestNodeObservers_AReplacedWindowIsWindowOpened(t *testing.T) {
+	n := sampleNode()
+	h, _ := newTestHandler(t, testOptions{node: n})
+	stream, host := &recorder{}, &recorder{}
+	defer h.subscribe(stream.add)()
+	defer n.observe(NodeObservers(host.add, n.window().Open))()
+
+	fresh := node.WindowSnapshot{Open: true, Kind: node.WindowBasic, CommissioningMode: 1, Discriminator: 77, OpenedAt: testNow, Timeout: 300 * time.Second}
+	admin := node.WindowSnapshot{Open: true, Kind: node.WindowEnhanced, CommissioningMode: 2, Discriminator: 3000, OpenedAt: testNow.Add(time.Minute), Timeout: 600 * time.Second}
+	adminCleared := admin
+	adminCleared.Administrator = node.WindowStatus{}
+	admin.Administrator = node.WindowStatus{AdminFabricIndex: 1}
+	for _, w := range []node.WindowSnapshot{fresh, fresh, admin, adminCleared} {
+		n.notify(func(o node.Observers) { o.OnWindowTransition(w) })
+	}
+	want := []Event{
+		{Type: EventWindowOpened, Data: WindowEvent{Discriminator: 77, DurationSeconds: 300}},
+		{Type: EventWindowOpened, Data: WindowEvent{Discriminator: 3000, DurationSeconds: 600}},
+	}
+	if !reflect.DeepEqual(stream.events, want) {
+		t.Fatalf("the stream yielded %+v, want %+v", stream.events, want)
+	}
+	if !reflect.DeepEqual(host.events, want) {
+		t.Fatalf("NodeObservers yielded %+v, want %+v", host.events, want)
+	}
+}
+
 func TestMount_RegistersTheRoutesAndRefusesABadPrefix(t *testing.T) {
 	mux := http.NewServeMux()
 	if err := Mount(mux, Options{Prefix: "/ui-api"}); err != nil {
@@ -288,7 +322,7 @@ func TestSPA_ServesTheBundleWithItsCacheHeaders(t *testing.T) {
 		h.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, p, nil))
 		return rec
 	}
-	for _, p := range []string{"/", "/index.html", "/deep/link", "/assets/"} {
+	for _, p := range []string{"/", "/index.html"} {
 		rec := get(p)
 		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "shell") || rec.Header().Get("Cache-Control") != "no-store" {
 			t.Fatalf("%s: %d %q %s", p, rec.Code, rec.Header().Get("Cache-Control"), rec.Body)

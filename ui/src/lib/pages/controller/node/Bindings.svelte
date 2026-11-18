@@ -98,7 +98,7 @@
   <LoadingState message={t("common.loading")} />
 {:else}
   <div class="space-y-4">
-    {#each lists as eb (eb.endpoint)}
+    {#each lists as eb, n (n)}
       <Card class="p-4" data-testid={`bindings-${eb.endpoint}`}>
         <h3 class="mb-2 font-medium text-[var(--ha-primary-text-color)]">{t("controller.endpoints.endpoint", { number: eb.endpoint })}</h3>
         {#if eb.bindings.length === 0}

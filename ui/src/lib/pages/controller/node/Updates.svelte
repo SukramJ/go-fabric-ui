@@ -63,7 +63,7 @@
       <p class="text-sm text-[var(--ha-secondary-text-color)]">{t("controller.updates.queue_empty")}</p>
     {:else}
       <ul class="space-y-1 text-sm">
-        {#each queue as u (u.target_software_version)}
+        {#each queue as u, i (i)}
           <li class="flex flex-wrap items-center gap-2">
             <span>{t("controller.updates.version", { version: u.target_software_version })}</span>
             <Badge>{t(`controller.updates.status.${u.status}`)}</Badge>
@@ -75,7 +75,7 @@
     {/if}
     <div class="mt-3 flex flex-wrap items-center gap-2">
       <Button variant="outline" disabled={busy} onclick={() => void check()}>{t("controller.updates.check")}</Button>
-      {#each available as u (u.software_version)}
+      {#each available as u, i (i)}
         <Button disabled={busy} onclick={() => void consent(u)}>{t("controller.updates.consent", { version: u.software_version_string || String(u.software_version) })}</Button>
       {/each}
     </div>

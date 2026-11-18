@@ -38,6 +38,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/SukramJ/go-fabric/client/discovery"
@@ -346,10 +347,11 @@ func (s *source) Pair(ctx context.Context, code string, o fabricui.PairOptions) 
 	if o.Transport != nil {
 		o.Transport(d)
 	}
-	opts.Progress = progressFor(opts.Progress, o.Progress)
+	var started atomic.Bool
+	opts.Progress = markSubscribe(progressFor(opts.Progress, o.Progress), &started)
 	opts.TermsAndConditions = termsOf(o.TermsAndConditions, opts.TermsAndConditions)
 	n, err := s.ctrl.Pair(ctx, code, opts)
-	if err != nil {
+	if err != nil && !s.commissionedDespite(n, err, &started) {
 		return nil, commissionError(err)
 	}
 	w, ok := s.nodeOf(n)
@@ -374,6 +376,21 @@ func progressFor(host func(controller.PairingStep), port func(fabricui.PairingSt
 			host(st)
 		}
 		port(fabricui.PairingStep{Number: st.Number, Sub: st.Sub, Name: st.Name, Phase: st.Phase.String()})
+	}
+}
+
+// markSubscribe wraps progress so that started is set when this
+// commissioning reports step Subscribe 21.1 started: go-fabric reports it
+// once the commissioning completed and the node starts
+// (commissioner.ReportSubscribe).
+func markSubscribe(progress func(controller.PairingStep), started *atomic.Bool) func(controller.PairingStep) {
+	return func(st controller.PairingStep) {
+		if st.Number == 21 && st.Sub == 1 && st.Phase == commissioner.StepStarted {
+			started.Store(true)
+		}
+		if progress != nil {
+			progress(st)
+		}
 	}
 }
 
@@ -588,7 +605,9 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 	if po.Edit != nil {
 		po.Edit(&copts.Options)
 	}
-	if err := reg.Commission(ctx, n, copts); err != nil {
+	var started atomic.Bool
+	copts.Progress = markSubscribe(copts.Progress, &started)
+	if err := reg.Commission(ctx, n, copts); err != nil && !s.commissionedDespite(n, err, &started) {
 		return nil, commissionError(err)
 	}
 	s.forget(d.InstanceName)
@@ -744,4 +763,22 @@ func nodeError(err error) error {
 		return fmt.Errorf("%w: %w", fabricui.ErrConflict, err)
 	}
 	return fmt.Errorf("%w: %w", fabricui.ErrNodeFailed, err)
+}
+
+// commissionedDespite reports a commissioning that happened although it
+// returned err: go-fabric returns the node with the error of its start
+// after CommissioningComplete (the Subscribe step, already reported as
+// failed through the progress hook), and the node stays commissioned
+// (controller/client/fabricops.go:229-235 at v0.22.2). The commissioning
+// is answered as done and the failed start is logged (UR-P2-adpt-03).
+// started is this call's mark of step Subscribe 21.1 (markSubscribe):
+// a node commissioned before the call is returned with its refusal too
+// (ErrAlreadyCommissioned), and that call commissioned nothing
+// (UR-P2-adpt-190).
+func (s *source) commissionedDespite(n *client.Node, err error, started *atomic.Bool) bool {
+	if !started.Load() || n == nil || !n.IsCommissioned() {
+		return false
+	}
+	s.log.Warn("fabricui.pair.start_failed", slog.String("node", n.ID()), slog.String("error", err.Error()))
+	return true
 }

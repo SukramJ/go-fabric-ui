@@ -165,6 +165,13 @@ type fakeNode struct {
 	// afterClose, when set, runs once the window is closed, before
 	// closeWindow returns: a request that lands in that gap.
 	afterClose func()
+	// unannounced reports an open basic window with discriminator 0: the
+	// node opened it but could not publish its record (go-fabric records
+	// the discriminator once published).
+	unannounced bool
+	// beforeBasic, when set, runs at the start of openBasicWindow, outside
+	// the lock: a second request that lands while the first opens.
+	beforeBasic func()
 
 	qr, manual string
 	codesErr   error
@@ -387,12 +394,21 @@ func (f *fakeNode) window() node.WindowSnapshot {
 	if w.Kind == node.WindowNone {
 		w.Kind, w.Discriminator = node.WindowOwn, fakeDiscriminator
 	}
+	if w.Kind == node.WindowBasic && f.unannounced {
+		w.Discriminator = 0
+	}
 	w.OpenedAt = testNow
 	w.Deadline = testNow.Add(w.Timeout)
 	return w
 }
 
 func (f *fakeNode) openBasicWindow(_ context.Context, creds node.WindowCredentials) error {
+	f.mu.Lock()
+	before := f.beforeBasic
+	f.mu.Unlock()
+	if before != nil {
+		before()
+	}
 	f.mu.Lock()
 	if f.openErr != nil {
 		defer f.mu.Unlock()

@@ -64,3 +64,16 @@ rows are named by ID only until their fix merges (decisions 5 and 14).
 | 30 | go-fabric v0.22.2 reports an administrator's basic window as `WindowEnhanced` | **A go-fabric issue after the 1b pull request merges**; not held back |
 | 31 | UR-P1-ui-172: under the HA skin, which the standalone shell uses too, Home Assistant's warning, success and primary colours fail AA as small text | **Text-safe variants**: the HA colours stay for areas and icons; status text uses `--fui-*-text` variants of at least 4.5:1, which a host's theme under an Ingress panel still overrides. No contract change, in 1b |
 | 32 | UR-P1-ui-142: the kit's search ran the user's term as a regular expression | **Kept as fixed**: literal text, `\|` separates alternatives; a `changelog.md` line tells the hosts |
+
+## 2026-11-18, after phase 2's verification
+
+Put as one wizard of four questions, the recommendation first. Rows 33–35
+answer decision 8 per class (classes as in `phase-2-X3.md` section 6); every
+gate is a contract change and lands in phase 3's pull request (decision 13).
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 33 | Decision 8, classes I-b, L and C (part): the controller's cached ACL, bindings, fabrics and NOCs of every node (UR-P2-auth-60), the credential names of `GET /controller/credentials`, endpoint 0's NOCs and ACL events on the node | **All three gated** (`x-admin`), as decision 19 did for the live reads. Phase 3 |
+| 34 | Decision 8, class A-b: `status.config.store` and the text of the host's warnings | **Withheld from a non-admin**: the status leaves out `config.store` and gives each warning's kind only. Phase 3 |
+| 35 | Decision 8, classes B, F, H, J, D and K: fabrics and sessions, the exposure item list, the controller inventory, diagnostics and topology, the node and controller traces | **Gated, everything but the status** (the recommendation was open and documented, the traces with decision 20): a non-admin keeps the node status, the node list and the operation info; the read-only page shows little else. Phase 3, with rows 19, 20 and 33 |
+| 36 | UR-P2-web-91: every unknown path is answered with the index, whose relative asset paths then fail | **404 for an unknown path**: only the prefix root serves the index (the page routes by hash); a `changelog.md` line for the hosts, `docs/embedding.md` drops "every deep path". In phase 2 |

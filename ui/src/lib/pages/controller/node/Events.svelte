@@ -13,6 +13,7 @@
   import Button from "../../../kit/Button.svelte";
   import ErrorState from "../../../kit/ErrorState.svelte";
   import EventList from "../../../kit/EventList.svelte";
+  import { lastNumber, mergeEvents } from "../../../kit/events";
   import LoadingState from "../../../kit/LoadingState.svelte";
 
   let { nodeId, detail }: { nodeId: string; detail: ControllerNodeDetail } = $props();
@@ -28,14 +29,16 @@
   let seq = 0;
 
   // fresh reads the whole history; otherwise only the events after the
-  // last one shown (since = its number + 1).
+  // highest number shown (since = it + 1). The history is in delivery
+  // order and a node's numbers need not rise: the answer is merged by
+  // number, so an event read again is listed once (UR-P2-ui-90).
   async function load(fresh: boolean) {
     const mine = ++seq;
-    const last = fresh ? undefined : events.at(-1)?.number;
+    const last = fresh ? undefined : lastNumber(events);
     try {
       const l = await client.controllerNodeEvents(nodeId, last === undefined ? {} : { since: last + 1 });
       if (mine !== seq) return;
-      events = (last === undefined ? l.events : [...events, ...l.events]).slice(-MAX_EVENTS);
+      events = mergeEvents(last === undefined ? [] : events, l.events).slice(-MAX_EVENTS);
       error = null;
       loaded = true;
     } catch (err) {

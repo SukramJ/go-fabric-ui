@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -1125,4 +1126,98 @@ func TestEndToEnd_BLEDecision(t *testing.T) {
 			t.Fatal("the code reached the log")
 		}
 	})
+}
+
+// A list write is REPLACE-ALL and one append per element (go-fabric
+// client/interaction/write.go:259-275 at v0.22.2, one status per path).
+// An element the node refuses — the root's UserLabel holds at most 255
+// labels — is the write's answer, not the REPLACE-ALL's success
+// (UR-P2-adpt-30).
+func TestEndToEnd_ChunkedListWriteAnswersTheRefusedElement(t *testing.T) {
+	s := newCtrlSite(t)
+	sp, err := s.dev.Node().SetupPayload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var added nodeDetail
+	s.json(http.MethodPost, "/controller/commission", fmt.Sprintf(`{"code":%q}`, sp.Manual), http.StatusOK, &added)
+	labels := make([]string, 0, 256)
+	for i := range 256 {
+		labels = append(labels, fmt.Sprintf(`{"label":"l%d","value":"v"}`, i))
+	}
+	body := `{"endpoint":0,"cluster_hex":"0x0041","attribute_hex":"0x0000","value":[` + strings.Join(labels, ",") + `]}`
+	var wr struct {
+		Status int `json:"status"`
+	}
+	s.json(http.MethodPut, "/controller/nodes/"+added.Node.NodeIDHex+"/attributes", body, http.StatusOK, &wr)
+	if wr.Status == 0 {
+		t.Fatal("a list write whose last element the node refused answered success")
+	}
+}
+
+// The request's context ends after the commissioner finished, while the
+// registry starts the node (step Subscribe 21.1): go-fabric's Pair returns
+// the commissioned node with the error, and the node stays on the fabric.
+// The adapter answers the node, not a failure (UR-P2-adpt-03).
+func TestPair_ACommissioningThatHappenedIsNoFailure(t *testing.T) {
+	s := newCtrlSite(t)
+	sp, err := s.dev.Node().SetupPayload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+	var n fabricui.ControllerNode
+	var perr error
+	_ = s.site.Run(ctx, func(ctx context.Context) error {
+		ctx, abort := context.WithCancel(ctx)
+		defer abort()
+		n, perr = s.src.Pair(ctx, sp.Manual, fabricui.PairOptions{Progress: func(st fabricui.PairingStep) {
+			if st.Number == 21 && st.Sub == 1 && st.Phase == "started" {
+				abort() // the request ends here
+			}
+		}})
+		return nil
+	})
+	if len(s.src.Nodes()) != 1 {
+		t.Fatalf("the source lists %d nodes, want the commissioned one", len(s.src.Nodes()))
+	}
+	if perr != nil || n == nil {
+		t.Fatalf("Pair answered %v for a commissioning that happened", perr)
+	}
+}
+
+// A device already commissioned that is commissioned again through its
+// discovered entry: go-fabric finds the existing node and refuses it
+// (ErrAlreadyCommissioned) with the node beside the error. Nothing was
+// commissioned by this call, so it is no success (UR-P2-adpt-190).
+func TestCommissionDiscovered_ACommissionedNodeAgainIsNoSuccess(t *testing.T) {
+	s := newCtrlSite(t)
+	sp, err := s.dev.Node().SetupPayload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	var err2 error
+	var found []fabricui.Discovered
+	if err := s.site.Run(ctx, func(ctx context.Context) error {
+		var err error
+		if found, err = s.src.Discover(ctx, fabricui.DiscoverFilter{}, 5*time.Second); err != nil {
+			return err
+		}
+		if len(found) == 0 {
+			return errors.New("no device discovered")
+		}
+		if _, err = s.src.CommissionDiscovered(ctx, found[0], sp.Passcode, fabricui.PairOptions{}); err != nil {
+			return err
+		}
+		_, err2 = s.src.CommissionDiscovered(ctx, found[0], sp.Passcode, fabricui.PairOptions{})
+		return nil
+	}); err != nil {
+		t.Fatalf("first commissioning: %v", err)
+	}
+	if err2 == nil {
+		t.Fatal("a second commissioning of a node already commissioned answered success")
+	}
 }

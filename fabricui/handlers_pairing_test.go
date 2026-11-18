@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -352,4 +353,81 @@ func TestPairing_CloseKeepsTheCredentialsOfAWindowOpenedMeanwhile(t *testing.T) 
 	if p.Source != sourceWindow {
 		t.Fatalf("pairing source %q, want %q: the open window's credentials were dropped", p.Source, sourceWindow)
 	}
+}
+
+// The node opened the fresh window but could not publish its record, so
+// its snapshot names no discriminator (go-fabric records it once
+// published); the window is still the one this handler opened, and GET
+// /node/pairing serves its codes (UR-P2-err-02). Before, the handler
+// forgot them and answered the configured codes for the open window.
+func TestPairing_KeepsTheFreshWindowWhoseRecordWasNotPublished(t *testing.T) {
+	n := sampleNode()
+	n.unannounced = true
+	_, mux := newTestHandler(t, testOptions{node: n})
+	var w windowResponse
+	if err := json.Unmarshal(do(t, mux, http.MethodPost, "/node/pairing/window", `{"duration_seconds":300}`).Body.Bytes(), &w); err != nil {
+		t.Fatal(err)
+	}
+	var p pairingResponse
+	if err := json.Unmarshal(do(t, mux, http.MethodGet, "/node/pairing", "").Body.Bytes(), &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Source != sourceWindow || p.Passcode == nil || *p.Passcode != *w.Passcode || p.QRCode != w.QRCode {
+		t.Fatalf("pairing %+v, want the fresh window's codes %+v", p, w)
+	}
+}
+
+// Two opens that land together: the second waits for the first and finds
+// its window open, 409, instead of replacing it with codes of its own and
+// leaving the first caller's codes dead (UR-P2-conc-07).
+func TestOpenWindow_ConcurrentOpensOneWins(t *testing.T) {
+	n := sampleNode()
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	n.beforeBasic = func() {
+		first := false
+		once.Do(func() { first = true })
+		if first {
+			close(entered)
+			<-release
+		}
+	}
+	_, mux := newTestHandler(t, testOptions{node: n})
+	codes := make(chan int, 2)
+	open := func() { codes <- do(t, mux, http.MethodPost, "/node/pairing/window", `{"duration_seconds":300}`).Code }
+	go open()
+	<-entered
+	second := make(chan struct{})
+	go func() { open(); close(second) }()
+	select {
+	case <-second: // the second did not wait
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(release)
+	got := []int{<-codes, <-codes}
+	slices.Sort(got)
+	if want := []int{http.StatusOK, http.StatusConflict}; !slices.Equal(got, want) {
+		t.Fatalf("two concurrent opens answered %v, want %v", got, want)
+	}
+	if len(n.basic) != 1 {
+		t.Fatalf("the node opened %d windows, want 1", len(n.basic))
+	}
+}
+
+// The fresh window's credentials are forgotten when the node closes the
+// window, not held until the next GET /node/pairing (UR-P2-leak-08).
+func TestPairing_ForgetsTheFreshCredentialsWhenTheWindowCloses(t *testing.T) {
+	n := sampleNode()
+	h, mux := newTestHandler(t, testOptions{node: n})
+	if rec := do(t, mux, http.MethodPost, "/node/pairing/window", `{"duration_seconds":300}`); rec.Code != http.StatusOK {
+		t.Fatalf("open: %d %s", rec.Code, rec.Body)
+	}
+	if err := n.closeWindow(t.Context()); err != nil { // the node closes it: commissioned, timed out
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		return h.ephemeral == nil
+	})
 }

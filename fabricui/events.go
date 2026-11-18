@@ -151,7 +151,7 @@ func ObserveNode(n NodeSource, push func(Event)) (unsubscribe func()) {
 // observeNode is ObserveNode on the handler's port.
 func observeNode(p nodePort, push func(Event)) (unsubscribe func()) {
 	unsubs := []func(){
-		p.observe(NodeObservers(push, p.window().Open)),
+		p.observe(nodeObservers(push, p.window())),
 		p.onHealthSample(func(s node.HealthSample) {
 			push(Event{Type: EventHealthSample, Data: healthSampleEvent(s, p.now())})
 		}),
@@ -240,8 +240,12 @@ func (e *Events) Publish(ev Event) {
 // carries. go-fabric reports CASE sessions only (node/observers.go
 // OnSessionOpened), so a commissioning's PASE session raises none of the
 // three. open is the window state the subscriber last saw, so a repeated
-// snapshot of the same state (an administrator's AdminFabricIndex cleared)
-// is not a transition. A commissioning is fabric_added, then
+// snapshot of the same window (an administrator's AdminFabricIndex
+// cleared) is not a transition; an open window replaced by another
+// without closing — another kind or another OpenedAt — is window_opened
+// again (UR-P2-conc-01). A window already open when NodeObservers is
+// called is known by open alone: its first open snapshot is taken as that
+// window. A commissioning is fabric_added, then
 // commissioning_complete: fabric_added is the AddNOC that installs the
 // fabric, commissioning_complete the CommissioningComplete that ends the
 // commissioning (go-fabric node/observers.go:63-71 at v0.18.0).
@@ -261,7 +265,24 @@ func (e *Events) Publish(ev Event) {
 // Publishing the transitions into the [Events] the handler reads instead
 // would hand every stream each one twice.
 func NodeObservers(push func(Event), open bool) node.Observers {
+	return nodeObservers(push, node.WindowSnapshot{Open: open})
+}
+
+// windowID is what tells one open window from another: who opened it with
+// which credentials and when. A zero OpenedAt on an open window is a
+// window known by its open state alone (NodeObservers).
+type windowID struct {
+	kind     node.WindowKind
+	openedAt time.Time
+}
+
+// nodeObservers is NodeObservers from the window the subscriber last saw;
+// the handler's streams pass the node's snapshot (observeNode), so a
+// replacement of the window open at the subscription is seen too.
+func nodeObservers(push func(Event), last node.WindowSnapshot) node.Observers {
 	var mu sync.Mutex
+	open := last.Open
+	id := windowID{last.Kind, last.OpenedAt}
 	return node.Observers{
 		OnFabricAdded: func(f node.FabricInfo) {
 			push(Event{Type: EventFabricAdded, Data: fabricEvent(f)})
@@ -280,8 +301,12 @@ func NodeObservers(push func(Event), open bool) node.Observers {
 		},
 		OnWindowTransition: func(w node.WindowSnapshot) {
 			mu.Lock()
+			next := windowID{w.Kind, w.OpenedAt}
 			changed := open != w.Open
-			open = w.Open
+			if !changed && w.Open && !id.openedAt.IsZero() && next != id {
+				changed = true // replaced without closing
+			}
+			open, id = w.Open, next
 			mu.Unlock()
 			switch {
 			case !changed:

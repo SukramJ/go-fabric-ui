@@ -32,7 +32,7 @@
   </div>
   {#if cluster.features.length > 0}
     <ul class="flex flex-wrap gap-1" data-testid="feature-chips">
-      {#each cluster.features as f (f.bit)}
+      {#each cluster.features as f, i (i)}
         <li><Badge title={t("inventory.feature_bit", { bit: f.bit })}>{f.title ? `${f.code} · ${f.title}` : f.code}</Badge></li>
       {/each}
     </ul>
@@ -44,7 +44,7 @@
       {#if items.length === 0}
         <span class="text-xs text-[var(--ha-secondary-text-color)]">{t("inventory.none")}</span>
       {:else}
-        {#each items as e (e.id)}
+        {#each items as e, i (i)}
           <Badge variant="muted" class="mr-1" title={e.id_hex}>{e.name ?? e.id_hex}</Badge>
         {/each}
       {/if}

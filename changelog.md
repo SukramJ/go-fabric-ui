@@ -49,9 +49,46 @@ All notable changes to this project are documented here. The format follows
   mux; before, a duplicate pattern failed the mount after part of the
   routes were registered. A route the host registers under the prefix
   afterwards shadows the API's.
+- `NodeSwitch.Set` ends every stream a handler serves over the switch,
+  so the page reconnects and observes the new node; before, a stream open
+  across an erase stayed on the erased node (UR-P2-conc-04).
+- A commissioning window replaced by another without closing (an
+  administrator's window over the node's own) raises `window_opened`
+  again; a `window_opened` may follow a `window_opened` (UR-P2-conc-01).
+- `GET /node/pairing` keeps serving the handler's fresh window when the
+  node could not publish its record (UR-P2-err-02); two concurrent
+  `POST /node/pairing/window` answer 200 and 409 instead of both 200
+  (UR-P2-conc-07); the fresh credentials are dropped when the window ends
+  (UR-P2-leak-08).
+- The controller adapter answers the first failed status of a chunked
+  list write, not the REPLACE-ALL's success (UR-P2-adpt-30), and a
+  commissioning whose node start failed after CommissioningComplete as
+  done (UR-P2-adpt-03). A RemoveFabric whose NOCResponse does not decode
+  answers 502, not 204 (UR-P2-adpt-36).
+- The erase, `DELETE /nodes/{node}` and `DELETE /controller/nodes/{id}`
+  run detached from the request, bounded by two minutes, and log a
+  failure at error (UR-P1-err-22, UR-P2-err-31).
+- A stream whose client stopped reading ends after two heartbeats
+  instead of holding its subscriptions for the connection's life
+  (UR-P2-bound-33).
+- The pages no longer go blank when a node repeats an id (an event
+  number, a device type, an attribute, command or event id): every keyed
+  list keys by position or by a key that cannot repeat, held by a test over
+  every keyed list (UR-P2-ui-90); an endpoint's cluster panels keep their
+  open state across a reload (UR-P2-ui-191).
+- The Pair page keeps its own window's codes through that window's
+  `window_opened` and a resync (UR-P2-ui-05), drops them once the flow
+  ends (UR-P2-leak-08), and follows the new node after an erase
+  (UR-P2-conc-04).
 
 ### Changed
 
+- The bundle's handler serves the index for the root (`/`,
+  `/index.html`) only; any other path that is no file of the bundle
+  answers 404 (UR-P2-web-91). The page routes by hash and loads its assets
+  relatively, so under a deeper path it loaded nothing and stayed blank.
+  A host that linked to a path under the prefix (`…/node/status`) links
+  to the root with the hash instead (`…/#/node/status`).
 - The kit's search takes its text literally; `|` separates alternatives.
   It no longer runs the term as a regular expression (UR-P1-ui-142,
   decision 32).
