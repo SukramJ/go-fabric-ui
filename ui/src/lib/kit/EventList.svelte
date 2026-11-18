@@ -2,7 +2,8 @@
      the event number, its time, the priority as a badge, the endpoint, the
      cluster and the event's name, and its data as formatted JSON. The
      routes answer oldest first; the list turns them round. Written for
-     both families (the node's endpoint page, the controller's events tab). -->
+     both families (the node's endpoint page, the controller's events tab).
+     Rows are keyed by position: a node may repeat a number (UR-P2-ui-90). -->
 <script lang="ts">
   import { cn, formatJson } from "./utils";
   import type { EventRecord } from "../api/client";
@@ -25,7 +26,7 @@
   <p class={cn("text-xs text-[var(--ha-secondary-text-color)]", className)} data-testid="event-list-empty">{empty}</p>
 {:else}
   <ul class={cn("divide-y divide-[var(--ha-divider-color)]", className)} data-testid="event-list">
-    {#each newestFirst as e (e.number)}
+    {#each newestFirst as e, i (i)}
       <li class="py-2 text-sm" data-testid={`event-${e.number}`}>
         <div class="flex flex-wrap items-center gap-2">
           <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">#{e.number}</span>

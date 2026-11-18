@@ -28,7 +28,7 @@
       </tr>
     </thead>
     <tbody>
-      {#each attributes as a (a.id)}
+      {#each attributes as a, i (i)}
         <tr class="border-t border-[var(--ha-divider-color)] align-top" data-testid={`attribute-${a.id_hex}`}>
           <td class="py-1 pr-3 font-mono text-xs">{a.id_hex}</td>
           <td class="py-1 pr-3">{a.name ?? ""}</td>

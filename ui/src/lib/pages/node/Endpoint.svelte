@@ -18,6 +18,7 @@
   import ClusterView from "../../kit/ClusterView.svelte";
   import ErrorState from "../../kit/ErrorState.svelte";
   import EventList from "../../kit/EventList.svelte";
+  import { lastNumber, mergeEvents } from "../../kit/events";
   import LoadingState from "../../kit/LoadingState.svelte";
   import TagChips from "../../kit/TagChips.svelte";
   import { hexId } from "./surface";
@@ -53,22 +54,17 @@
     }
   }
 
-  // A cluster_event the stream added while the read was in flight comes
-  // again in the answer: merge by number, in order.
-  function mergeEvents(have: EventRecord[], more: EventRecord[]): EventRecord[] {
-    const seen = new Set(have.map((e) => e.number));
-    return [...have, ...more.filter((e) => !seen.has(e.number))].sort((a, b) => a.number - b.number);
-  }
-
   // fresh reads the log from its start; otherwise only the events after
   // the last one shown (since = its number + 1).
   async function loadEvents(fresh: boolean) {
     const mine = ++eventSeq;
-    const last = fresh ? undefined : events.at(-1)?.number;
+    const last = fresh ? undefined : lastNumber(events);
     try {
       const l = await client.nodeEndpointEvents(endpoint, last === undefined ? {} : { since: last + 1 });
       if (mine !== eventSeq) return;
-      events = (last === undefined ? l.events : mergeEvents(events, l.events)).slice(-MAX_EVENTS);
+      // A cluster_event the stream added while the read was in flight
+      // comes again in the answer: merge by number, in order.
+      events = mergeEvents(last === undefined ? [] : events, l.events).slice(-MAX_EVENTS);
       eventsError = null;
     } catch (err) {
       if (mine === eventSeq) eventsError = errorText(err);

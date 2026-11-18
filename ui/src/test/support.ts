@@ -93,3 +93,35 @@ export function testUI(
   });
   return Object.assign(ui, { toastSpy, confirmSpy, sent: ff.sent });
 }
+
+/**
+ * Collects what Svelte throws while it renders or updates (an
+ * each_key_duplicate, say), from the window and from the process; stop()
+ * removes the listeners.
+ */
+export function uncaught(): { errors: string[]; stop: () => void } {
+  const errors: string[] = [];
+  const first = (v: unknown) => String((v as Error)?.message ?? v).split("\n")[0];
+  const onErr = (e: ErrorEvent) => {
+    errors.push(first(e.error ?? e.message));
+    e.preventDefault();
+  };
+  const onRej = (e: PromiseRejectionEvent) => {
+    errors.push(first(e.reason));
+    e.preventDefault();
+  };
+  const onProc = (e: unknown) => errors.push(first(e));
+  window.addEventListener("error", onErr);
+  window.addEventListener("unhandledrejection", onRej);
+  process.on("uncaughtException", onProc);
+  process.on("unhandledRejection", onProc);
+  return {
+    errors,
+    stop: () => {
+      window.removeEventListener("error", onErr);
+      window.removeEventListener("unhandledrejection", onRej);
+      process.off("uncaughtException", onProc);
+      process.off("unhandledRejection", onProc);
+    },
+  };
+}

@@ -44,7 +44,7 @@
       {#if items.length === 0}
         <span class="text-xs text-[var(--ha-secondary-text-color)]">{t("inventory.none")}</span>
       {:else}
-        {#each items as e (e.id)}
+        {#each items as e, i (i)}
           <Badge variant="muted" class="mr-1" title={e.id_hex}>{e.name ?? e.id_hex}</Badge>
         {/each}
       {/if}
