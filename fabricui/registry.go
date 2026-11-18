@@ -153,10 +153,10 @@ func (h *handler) registryEntries() []NodeEntry {
 		out = append(out, e)
 	}
 	h.regMu.Lock()
-	for k, c := range h.regCache {
+	for k := range h.regCache {
 		if !seen[k] {
+			h.regCache[k].h.stop()
 			delete(h.regCache, k)
-			c.h.stop()
 		}
 	}
 	h.regMu.Unlock()

@@ -611,13 +611,14 @@ func TestRegistry_DeleteEndsTheNodesStreams(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/nodes/"+key+"/stream", http.NoBody)
-	resp, err := srv.Client().Do(req)
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // closed below; the reader goroutine drains it
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	body := resp.Body
+	defer body.Close()
 	done := make(chan error, 1)
-	go func() { _, err := io.Copy(io.Discard, resp.Body); done <- err }()
+	go func() { _, err := io.Copy(io.Discard, body); done <- err }()
 	if rec := do(t, mux, http.MethodDelete, "/nodes/"+key, ""); rec.Code != http.StatusNoContent {
 		t.Fatalf("delete: %d %s", rec.Code, rec.Body)
 	}

@@ -739,7 +739,7 @@ func TestControllerEvents_ServesThePortsOrderNewestFirst(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("%d %s: %v", rec.Code, rec.Body, err)
 	}
-	var got []string
+	got := make([]string, 0, len(body.Events))
 	for _, e := range body.Events {
 		got = append(got, e.Message)
 	}
