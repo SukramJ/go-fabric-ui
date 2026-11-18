@@ -114,7 +114,7 @@ describe("Controller Nodes tabs", () => {
     const ui = testUI({ fixtures: ["controller-nodes.200", "controller-topology.200"] });
     render(Harness, { ui, page: Nodes });
     await screen.findByText("Kitchen");
-    const tabs = screen.getAllByRole("tab");
+    const tabs = within(screen.getByRole("navigation", { name: "controller.nodes.tabs" })).getAllByRole("link");
     expect(tabs.map((t) => [t.textContent?.trim(), t.getAttribute("href")])).toEqual([
       ["controller.nodes.tab.list", "#/controller/nodes"],
       ["controller.nodes.tab.network", "#/controller/nodes?tab=network"],
@@ -122,7 +122,7 @@ describe("Controller Nodes tabs", () => {
     await fireEvent.click(tabs[1]);
     await screen.findByTestId("graph");
     expect(screen.queryByText("Kitchen")).toBeNull();
-    await fireEvent.click(screen.getAllByRole("tab")[0]);
+    await fireEvent.click(within(screen.getByRole("navigation", { name: "controller.nodes.tabs" })).getAllByRole("link")[0]);
     expect(await screen.findByText("Kitchen")).toBeInTheDocument();
   });
 });
