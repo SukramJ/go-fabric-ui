@@ -219,3 +219,40 @@ describe("tokens.css", () => {
     expect(css).toContain(".table-reflow td::before");
   });
 });
+
+describe("UR-P1-ui-118: light or dark from any colour syntax", () => {
+  // happy-dom computes no colours: the probe's computed colour is the browser's rgb() for the names used here.
+  function computeNames() {
+    const real = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((el: Element) => {
+      const c = (el as HTMLElement).style?.color;
+      if (c === "black") return { color: "rgb(0, 0, 0)" } as CSSStyleDeclaration;
+      if (c === "white") return { color: "color(srgb 1 1 1)" } as CSSStyleDeclaration;
+      return real(el);
+    });
+  }
+
+  it("parseRgb refuses NaN in rgb() and reads color(srgb …)", () => {
+    expect(parseRgb("rgb(1.2.3, 4, 5)")).toBeNull();
+    expect(parseRgb("color(srgb 1 0.5 0)")).toEqual([255, 127.5, 0]);
+  });
+
+  it("the bridge sets .dark for a parent whose background is a colour name", () => {
+    computeNames();
+    frame({ parent: haParent({ "--primary-background-color": "black" }) });
+    const stop = startHaBridge();
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    stop();
+  });
+
+  it("the prepaint script does too, and stays light for white", () => {
+    computeNames();
+    frame({ parent: haParent({ "--primary-background-color": "black" }) });
+    runPrepaint();
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    document.documentElement.className = "";
+    frame({ parent: haParent({ "--primary-background-color": "white" }) });
+    runPrepaint();
+    expect(document.documentElement.style.colorScheme).toBe("light");
+  });
+});
