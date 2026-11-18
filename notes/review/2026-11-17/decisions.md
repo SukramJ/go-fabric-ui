@@ -96,3 +96,24 @@ held rows are named by ID only until their fix merges (decisions 5, 14,
 | 42 | UR-P0-bound-29 | **A per-handler cap on open streams**, answered 503 with `Retry-After`, the cap an `Options` field with a default |
 | 43 | UR-P0-ctr-28, UR-P1-ctr-17, -ctr-13, -err-33, -err-36, -adpt-35, -ctr-32 | **All land**: strict bodies everywhere (unknown fields and trailing data are 400; factory reset and erase stop discarding the decode error); 405 with `Allow`; an unknown fabric index 404 on the node route (the controller route after go-fabric exports the error); compatibility 500 on a store error; endpoint `maximum: 65534`; `unknown` in the ACL enums |
 | 44 | Additive fields | **All four groups land**: the pairing window's own/other answer (decision 28, UR-P2-ui-05) and the seconds left (UR-P2-ui-06); 64-bit values as strings (UR-P1-ctr-113, -177, UR-P2-ctr-64) and a hex pattern on `NodeID` (UR-P1-web-115); `admin` on the controller status (UR-P1-ui-133, -196), `auto_subscribe` (UR-P1-ctr-168), a commissioning id on progress events (UR-P1-api-18); `fabric_count` absent on a failed read (UR-P1-err-07), a per-endpoint status on bindings (UR-P1-bound-37), a failed rebuild on exposure apply (UR-P2-ui-35) |
+
+## 2026-11-18, after phase 3's verification
+
+Put as one wizard of twelve questions in three steps, the recommendation
+first; the owner took every recommendation. Sources: the four unit reports
+and the verification of phase 3 (published with phase 3's pull request).
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 45 | UR-P3-ctr-04: the streams and the admin test | **One admin test for every route, the streams included; the client reads all three streams through `fetch`**; the npm package gains an additive `fetch`-based stream factory, `EventSourceFactory` stays |
+| 46 | UR-P3-test-03: shapes the contract guard cannot see as breaking | **Additive twins, optional fields**: a 64-bit value gets a string field beside the old number (the number deprecated until a major); `Warning.message` stays required and is empty for a non-admin; `fabric_count` becomes optional with a changelog line; the guard learns required→optional, type changes and tighter patterns and maximums |
+| 47 | UR-P3-ctr-01: undeclared statuses | **Every status per operation, through shared response components**, and a Go guard that every status a route answers is declared (extending the routes-and-contract test of unit A) |
+| 48 | UR-P3-api-05: panicking constructors | **`NewHandler(o) (http.Handler, error)`** and an error-returning `Mount` variant; the panicking ones stay, documented; the godocs corrected |
+| 49 | UR-P3-doc-72: `Prefix` with `Handler` | **`Handler` refuses a non-default `Prefix`**; `Prefix` stays for `Mount`; `docs/embedding.md` says so |
+| 50 | UR-P1-web-20: a wildcard over a public suffix | **A docs and godoc warning only**; decision 22 stands, no public-suffix list |
+| 51 | UR-P2-conc-34: the host's shutdown | **`Options.Done <-chan struct{}`** ends every stream and its observers; the documented base-context pattern stays as an alternative |
+| 52 | Handler corrections (decision 13): UR-P1-adpt-40, -ui-178, -ui-179, UR-P3-adpt-91 | **All land**: the fabric label is refused over 32 bytes (400; a go-fabric question, its controller counts runes); a discovered device's invalid passcode is 400 in the handler and refused by the page; the client-state errors of the controller facade are 409 (declared where missing); the ACL add form drops `pase`, display and enum keep it |
+| 53 | Decision 9: a standing fuzz job | **Seeds and a nightly job**: the eight phase 0 targets as `Fuzz*` functions with seed corpora, run by every `go test`, extended to the shapes of decisions 37, 38, 43, 44; `make fuzz` uses `FUZZTIME`; a nightly job at about three minutes per target |
+| 54 | Decision 11, UR-P3-sup-70: `npm audit` | **A failing `npm audit --omit=dev --audit-level=low` in the web job**, a full audit in the nightly job that reports without failing |
+| 55 | UR-P3-sup-69: the generator's requirements | **A separate tools module** for oapi-codegen; the module's `go.mod` keeps only runtime dependencies |
+| 56 | Repository settings (UR-P3-sup-61, -63, -64, -66) | **All four set**: the six unbound required checks bound to GitHub Actions; a ruleset on `v*` tags (and the release checks the tag is on `main`); an `npm` environment for the publish job; CodeQL for the web half as a required context. Settings, not code: applied by the owner's session with the owner's confirmation |
