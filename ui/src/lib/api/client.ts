@@ -4,6 +4,7 @@
 // Mirrors the matter* functions of openccu-loom
 // assets/ui/src/lib/api/client.ts:1806-1875 at b40b289a, on the node routes.
 import type { components } from "./schema.gen";
+import { parseJson, stringifyJson } from "./json";
 
 type S = components["schemas"];
 export type Problem = S["Problem"];
@@ -245,8 +246,11 @@ export interface FabricClient {
   setNodeAutoSubscribe(id: string, enabled: boolean): Promise<void>;
   openNodeWindow(id: string, timeoutSeconds?: number): Promise<NodeWindow>;
   closeNodeWindow(id: string): Promise<void>;
+  /** The values as JSON; an integer beyond 2^53 in them is kept as its source text (json.ts), not rounded. */
   readAttributes(id: string, paths: AttributePath[], fabricFiltered?: boolean): Promise<AttributeValueList>;
+  /** The value is written as given: a kept integer or a jsonText verbatim; a JS number beyond 2^53 is refused (RangeError). */
   writeAttribute(id: string, req: WriteRequest): Promise<WriteResult>;
+  /** The payload as writeAttribute's value; the response's integers as readAttributes'. */
   invokeCommand(id: string, req: InvokeRequest): Promise<InvokeResult>;
   nodeAcl(id: string): Promise<{ entries: AclEntry[] }>;
   setNodeAcl(id: string, entries: AclEntry[]): Promise<WriteResult>;
@@ -290,14 +294,18 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
   // One token for every node's client: the handler issues one per process.
   const auth: { token?: string } = {};
 
-  async function call<T>(method: string, path: string, opts: { body?: unknown; admin?: boolean } = {}): Promise<T> {
+  // keep names the members whose integers beyond 2^53 are kept exact
+  // (json.ts): the generic values of attributes, events and commands.
+  async function call<T>(method: string, path: string, opts: { body?: unknown; admin?: boolean; keep?: readonly string[] } = {}): Promise<T> {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
     if (opts.admin && auth.token) headers[TOKEN_HEADER] = auth.token;
+    // Serialised before the request: a rounded integer is refused unsent.
+    const body = opts.body === undefined ? undefined : stringifyJson(opts.body);
     const res = await fetchImpl(base + path, {
       method,
       headers,
-      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+      body,
       credentials: "same-origin",
     });
     if (res.status === 204) return undefined as T;
@@ -308,7 +316,7 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
     let parsed = text !== "";
     if (parsed) {
       try {
-        data = JSON.parse(text);
+        data = parseJson(text, opts.keep);
       } catch {
         parsed = false;
       }
@@ -353,8 +361,8 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       openWindow: (d) => call("POST", np + "/pairing/window", { admin: true, body: { duration_seconds: d } }),
       closeWindow: () => call("POST", np + "/pairing/window/close", { admin: true }),
       endpoints: () => call("GET", np + "/endpoints"),
-      nodeEndpointDetail: (endpoint) => call("GET", `${np}/endpoints/${endpoint}`),
-      nodeEndpointEvents: (endpoint, w) => call("GET", `${np}/endpoints/${endpoint}/events${eventQuery(w)}`),
+      nodeEndpointDetail: (endpoint) => call("GET", `${np}/endpoints/${endpoint}`, { keep: VALUE_KEYS }),
+      nodeEndpointEvents: (endpoint, w) => call("GET", `${np}/endpoints/${endpoint}/events${eventQuery(w)}`, { keep: VALUE_KEYS }),
       surface: () => call("GET", np + "/surface"),
       sessions: () => call("GET", np + "/sessions"),
       topology: () => call("GET", np + "/topology"),
@@ -391,10 +399,10 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       },
       controllerNodes: () => call("GET", "/controller/nodes"),
       controllerNode: (id) => call("GET", node(id)),
-      controllerEndpointDetail: (id, endpoint) => call("GET", `${node(id)}/endpoints/${endpoint}`),
+      controllerEndpointDetail: (id, endpoint) => call("GET", `${node(id)}/endpoints/${endpoint}`, { keep: VALUE_KEYS }),
       controllerClusterDetail: (id, endpoint, clusterHex) =>
-        call("GET", `${node(id)}/endpoints/${endpoint}/clusters/${encodeURIComponent(clusterHex)}`),
-      controllerNodeEvents: (id, w) => call("GET", `${node(id)}/events${eventQuery(w)}`),
+        call("GET", `${node(id)}/endpoints/${endpoint}/clusters/${encodeURIComponent(clusterHex)}`, { keep: VALUE_KEYS }),
+      controllerNodeEvents: (id, w) => call("GET", `${node(id)}/events${eventQuery(w)}`, { keep: VALUE_KEYS }),
       decommissionNode: (id) => call("DELETE", node(id), { admin: true }),
       interviewNode: (id) => call("POST", node(id) + "/interview", { admin: true }),
       pingNode: (id) => call("POST", node(id) + "/ping", { admin: true }),
@@ -405,9 +413,12 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
         call("POST", node(id) + "/window", { admin: true, body: timeoutSeconds === undefined ? {} : { timeout_seconds: timeoutSeconds } }),
       closeNodeWindow: (id) => call("POST", node(id) + "/window/close", { admin: true }),
       readAttributes: (id, paths, fabricFiltered) =>
-        call("POST", node(id) + "/attributes", { body: fabricFiltered === undefined ? { paths } : { paths, fabric_filtered: fabricFiltered } }),
+        call("POST", node(id) + "/attributes", {
+          body: fabricFiltered === undefined ? { paths } : { paths, fabric_filtered: fabricFiltered },
+          keep: VALUE_KEYS,
+        }),
       writeAttribute: (id, req) => call("PUT", node(id) + "/attributes", { admin: true, body: req }),
-      invokeCommand: (id, req) => call("POST", node(id) + "/commands", { admin: true, body: req }),
+      invokeCommand: (id, req) => call("POST", node(id) + "/commands", { admin: true, body: req, keep: VALUE_KEYS }),
       nodeAcl: (id) => call("GET", node(id) + "/acl"),
       setNodeAcl: (id, entries) => call("PUT", node(id) + "/acl", { admin: true, body: { entries } }),
       nodeBindings: (id) => call("GET", node(id) + "/bindings"),
@@ -447,6 +458,14 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
 
   return forNode();
 }
+
+/**
+ * The members of the contract's generic values (AttributeValue.value,
+ * ClusterAttribute.value, EventRecord.data, InvokeResult.response): their
+ * integers beyond 2^53 are kept as source text, so a node or fabric id in
+ * them stays exact (json.ts).
+ */
+const VALUE_KEYS = ["value", "data", "response"] as const;
 
 /** The query of an event route; empty without since and limit. */
 function eventQuery(w: EventWindow | LogWindow = {}): string {

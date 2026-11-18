@@ -14,6 +14,7 @@ import type {
   SurfaceChangedEvent,
   WindowEvent,
 } from "./client";
+import { parseJson } from "./json";
 
 /** The event types of the stream, as the contract names them. */
 export const STREAM_EVENTS = [
@@ -74,7 +75,9 @@ export function subscribeStream(
     es.addEventListener(type, (msg: MessageEvent) => {
       let data: unknown;
       try {
-        data = JSON.parse(String(msg.data));
+        // An event's data keeps its integers beyond 2^53 exact, as the
+        // client's event routes do.
+        data = parseJson(String(msg.data), type === "cluster_event" ? ["data"] : undefined);
       } catch {
         return;
       }

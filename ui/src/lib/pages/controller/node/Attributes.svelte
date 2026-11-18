@@ -5,6 +5,7 @@
   import { useFabricUI } from "../../../context";
   import { errorText } from "../../../store.svelte";
   import type { AttributeValue, ControllerNodeDetail } from "../../../api/client";
+  import { jsonText, stringifyJson, type JsonText } from "../../../api/json";
   import Button from "../../../kit/Button.svelte";
   import Card from "../../../kit/Card.svelte";
   import Input from "../../../kit/Input.svelte";
@@ -44,7 +45,9 @@
     try {
       const res = await client.readAttributes(nodeId, [p]);
       result = res.values[0] ?? null;
-      edit = result && result.status === undefined ? JSON.stringify(result.value) : "";
+      // The value's integers beyond 2^53 are kept exact (a node id in an
+      // ACL subject): shown and seeded as the node sent them.
+      edit = result && result.status === undefined ? stringifyJson(result.value) : "";
     } catch (err) {
       toast.error(errorText(err));
     } finally {
@@ -55,9 +58,11 @@
   async function write() {
     const p = path();
     if (!p) return;
-    let value: unknown;
+    // The text is sent as typed, once it is JSON: parsing it to a JS
+    // value would round an integer beyond 2^53.
+    let value: JsonText;
     try {
-      value = JSON.parse(edit);
+      value = jsonText(edit);
     } catch {
       toast.error(t("controller.attributes.invalid_json"));
       return;
@@ -89,7 +94,7 @@
       {#if result.status !== undefined}
         <p class="text-sm text-[var(--ha-error-color)]">{t("controller.attributes.status", { status: hexId(result.status) })}</p>
       {:else}
-        <pre class="overflow-x-auto rounded bg-[var(--ha-secondary-background-color)] p-2 font-mono text-xs">{JSON.stringify(result.value, null, 2)}</pre>
+        <pre class="overflow-x-auto rounded bg-[var(--ha-secondary-background-color)] p-2 font-mono text-xs">{stringifyJson(result.value, 2)}</pre>
         <div class="mt-2 flex flex-wrap items-center gap-2">
           <Input class="max-w-md font-mono" bind:value={edit} aria-label={t("controller.attributes.value")} />
           <Button variant="outline" disabled={busy} onclick={() => void write()}>{t("controller.attributes.write")}</Button>
