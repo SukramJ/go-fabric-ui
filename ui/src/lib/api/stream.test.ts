@@ -4,6 +4,7 @@ import { STREAM_EVENTS, subscribeStream, type EventSourceLike, type StreamEvent 
 class FakeSource implements EventSourceLike {
   listeners = new Map<string, (ev: MessageEvent) => void>();
   closed = false;
+  readyState = 0;
   addEventListener(type: string, fn: (ev: MessageEvent) => void) {
     this.listeners.set(type, fn);
   }
@@ -22,7 +23,7 @@ describe("subscribeStream", () => {
     const open = vi.fn(() => src);
     const close = subscribeStream("/api/v1/node/stream", (ev) => got.push(ev), open);
     expect(open).toHaveBeenCalledWith("/api/v1/node/stream");
-    expect([...src.listeners.keys()]).toEqual([...STREAM_EVENTS]);
+    expect([...src.listeners.keys()]).toEqual([...STREAM_EVENTS, "open", "error"]);
     src.emit("fabric_added", '{"fabric_index":3,"label":"Home"}');
     src.emit("exposure_changed", "not json");
     src.emit("window_closed", "{}");
@@ -53,7 +54,7 @@ describe("subscribeControllerStream", () => {
     const src = new FakeSource();
     const got: unknown[] = [];
     const close = subscribeControllerStream("/api/v1/controller/stream", (ev) => got.push(ev), () => src);
-    expect([...src.listeners.keys()]).toEqual([...CONTROLLER_STREAM_EVENTS]);
+    expect([...src.listeners.keys()]).toEqual([...CONTROLLER_STREAM_EVENTS, "open", "error"]);
     src.emit("connection", '{"node_id_hex":"0000000000000011","connection":"disconnected"}');
     src.emit("node_added", "broken");
     src.emit("topology_changed", "{}");
@@ -72,7 +73,7 @@ describe("subscribeLogStream", () => {
     const src = new FakeSource();
     const got: unknown[] = [];
     const close = subscribeLogStream("/api/v1/operation/log/stream", (r) => got.push(r), () => src);
-    expect([...src.listeners.keys()]).toEqual(["log_record"]);
+    expect([...src.listeners.keys()]).toEqual(["log_record", "open", "error"]);
     src.emit("log_record", '{"seq":5,"level":"warn","msg":"m","attrs":{},"time":"2026-10-25T12:00:00Z"}');
     src.emit("log_record", "broken");
     expect(got).toEqual([{ seq: 5, level: "warn", msg: "m", attrs: {}, time: "2026-10-25T12:00:00Z" }]);
