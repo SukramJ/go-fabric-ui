@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -261,5 +262,56 @@ func TestController_AbandonedRequestIsNotLoggedAsError(t *testing.T) {
 	mux.ServeHTTP(httptest.NewRecorder(), req)
 	if strings.Contains(log.String(), "level=ERROR") {
 		t.Fatalf("an abandoned request logged at error level:\n%s", log.String())
+	}
+}
+
+// undecodedSource hands out the memory controller's nodes wrapped in
+// undecodedNode.
+type undecodedSource struct{ *MemoryController }
+
+func (s undecodedSource) Node(id uint64) (ControllerNode, bool) {
+	n, ok := s.MemoryController.Node(id)
+	if !ok {
+		return nil, false
+	}
+	return undecodedNode{n}, true
+}
+
+// undecodedNode answers RemoveFabric with a NOCResponse the adapter could
+// not decode: HasResponse with no fields (gofabric/node.go Invoke).
+type undecodedNode struct{ ControllerNode }
+
+func (n undecodedNode) Invoke(ctx context.Context, path CommandPath, payload json.RawMessage, timed time.Duration) (InvokeResult, error) {
+	if path.Cluster == clusterOperationalCredentials && path.Command == commandRemoveFabric {
+		return InvokeResult{HasResponse: true, Command: 0x08}, nil
+	}
+	return n.ControllerNode.Invoke(ctx, path, payload, timed)
+}
+
+// A RemoveFabric whose NOCResponse does not decode is no success: its
+// status is unknown, so the answer is 502, not 204 (UR-P2-adpt-36).
+func TestRemoveNodeFabric_UndecodedNOCResponseIs502(t *testing.T) {
+	_, mux := newTestHandler(t, testOptions{noNode: true, controller: undecodedSource{NewMemoryController()}})
+	rec := do(t, mux, http.MethodGet, "/controller/nodes/0000000000000011/fabrics", "")
+	var fl struct {
+		Fabrics []struct {
+			FabricIndex int  `json:"fabric_index"`
+			Own         bool `json:"own"`
+		} `json:"fabrics"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &fl); err != nil {
+		t.Fatal(err)
+	}
+	other := 0
+	for _, f := range fl.Fabrics {
+		if !f.Own {
+			other = f.FabricIndex
+		}
+	}
+	if other == 0 {
+		t.Fatalf("no fabric but the controller's own: %s", rec.Body)
+	}
+	if rec := do(t, mux, http.MethodDelete, "/controller/nodes/0000000000000011/fabrics/"+strconv.Itoa(other), ""); rec.Code != http.StatusBadGateway {
+		t.Fatalf("remove: %d %s, want 502", rec.Code, rec.Body)
 	}
 }

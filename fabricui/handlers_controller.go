@@ -1273,8 +1273,15 @@ func (s *controllerServer) RemoveNodeFabric(ctx context.Context, req api.RemoveN
 	if res.Status != 0 {
 		return nil, fmt.Errorf("%w: RemoveFabric answered status %#x", ErrNodeFailed, res.Status)
 	}
-	if res.HasResponse && json.Unmarshal(res.Response, &noc) == nil && noc.StatusCode != 0 {
-		return nil, fmt.Errorf("%w: RemoveFabric answered NOCResponse status %d", ErrNodeFailed, noc.StatusCode)
+	if res.HasResponse {
+		// A NOCResponse the adapter could not decode (Response nil) has
+		// no status to judge: no success (UR-P2-adpt-36).
+		if err := json.Unmarshal(res.Response, &noc); err != nil {
+			return nil, fmt.Errorf("%w: RemoveFabric answered a NOCResponse that does not decode", ErrNodeFailed)
+		}
+		if noc.StatusCode != 0 {
+			return nil, fmt.Errorf("%w: RemoveFabric answered NOCResponse status %d", ErrNodeFailed, noc.StatusCode)
+		}
 	}
 	return api.RemoveNodeFabric204Response{}, nil
 }
