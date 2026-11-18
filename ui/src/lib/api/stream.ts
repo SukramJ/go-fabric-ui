@@ -99,8 +99,10 @@ function openStream(
 ): () => void {
   const doc = opts.pauseWhenHidden !== false && typeof document !== "undefined" ? document : null;
   let es: EventSourceLike | null = null;
-  // Whether an open has been seen or a gap made one due: the next open resyncs.
-  let resyncDue = false;
+  // Whether an open has been seen or a gap made one due: the next open
+  // resyncs. A page loaded hidden opens its first stream late, after its
+  // loads, so that open resyncs too (UR-P1-conc-190).
+  let resyncDue = !!doc?.hidden;
   let attempt = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let done = false;

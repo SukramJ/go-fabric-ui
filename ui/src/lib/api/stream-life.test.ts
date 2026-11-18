@@ -124,3 +124,16 @@ describe("UR-P1-web-116: the streams send credentials as the calls do", () => {
     close();
   });
 });
+
+describe("UR-P1-conc-190: a page loaded hidden resyncs on its first open", () => {
+  it("opens no stream while hidden, and the open when shown resyncs", () => {
+    hidden = true;
+    const onResync = vi.fn();
+    const close = subscribeStream("/s", () => {}, open, { onResync });
+    expect(FakeSource.all).toHaveLength(0);
+    setHidden(false);
+    FakeSource.all[0].emit("open");
+    expect(onResync).toHaveBeenCalledTimes(1);
+    close();
+  });
+});
