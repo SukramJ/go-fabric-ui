@@ -40,3 +40,46 @@ describe("UR-P1-err-106: answers that are not JSON", () => {
     expect(ok.message).toBe("a window is open");
   });
 });
+
+describe("UR-P1-err-108: a rotated token", () => {
+  function server() {
+    let token = "a";
+    const seen: string[] = [];
+    const fetchImpl = async (url: string, init?: RequestInit) => {
+      const h = (init?.headers ?? {}) as Record<string, string>;
+      seen.push(`${init?.method ?? "GET"} ${url.replace("/api/v1", "")} ${h["X-Fabric-UI-Token"] ?? "-"}`);
+      if (url.endsWith("/node/status")) return new Response(JSON.stringify({ enabled: true, csrf_token: token }), { status: 200 });
+      if (h["X-Fabric-UI-Token"] !== token) {
+        return new Response(JSON.stringify({ code: "forbidden", title: "Admin rights required", status: 403, type: "x" }), { status: 403 });
+      }
+      return new Response(null, { status: 204 });
+    };
+    return { fetchImpl, seen, restart: () => (token = "b") };
+  }
+
+  it("reloads the status once on a 403 forbidden and repeats the call with the new token", async () => {
+    const s = server();
+    const client = createClient("/api/v1", s.fetchImpl);
+    await client.status();
+    s.restart();
+    await expect(client.closeWindow()).resolves.toBeUndefined();
+    expect(s.seen).toEqual([
+      "GET /node/status -",
+      "POST /node/pairing/window/close a",
+      "GET /node/status -",
+      "POST /node/pairing/window/close b",
+    ]);
+  });
+
+  it("does not repeat when the status brings no other token", async () => {
+    const seen: string[] = [];
+    const client = createClient("/api/v1", async (url, init) => {
+      seen.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.endsWith("/node/status")) return new Response(JSON.stringify({ enabled: true, csrf_token: "a" }), { status: 200 });
+      return new Response(JSON.stringify({ code: "forbidden", title: "Admin rights required", status: 403, type: "x" }), { status: 403 });
+    });
+    client.setToken("a");
+    await expect(client.closeWindow()).rejects.toMatchObject({ status: 403 });
+    expect(seen.filter((l) => l.startsWith("POST"))).toHaveLength(1);
+  });
+});

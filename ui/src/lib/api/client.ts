@@ -296,10 +296,12 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
 
   // keep names the members whose integers beyond 2^53 are kept exact
   // (json.ts): the generic values of attributes, events and commands.
-  async function call<T>(method: string, path: string, opts: { body?: unknown; admin?: boolean; keep?: readonly string[] } = {}): Promise<T> {
+  type CallOpts = { body?: unknown; admin?: boolean; keep?: readonly string[]; retried?: boolean };
+  async function call<T>(method: string, path: string, opts: CallOpts = {}): Promise<T> {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
-    if (opts.admin && auth.token) headers[TOKEN_HEADER] = auth.token;
+    const token = opts.admin ? auth.token : undefined;
+    if (token) headers[TOKEN_HEADER] = token;
     // Serialised before the request: a rounded integer is refused unsent.
     const body = opts.body === undefined ? undefined : stringifyJson(opts.body);
     const res = await fetchImpl(base + path, {
@@ -323,10 +325,37 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
     }
     if (!res.ok) {
       const p = parsed && isProblem(data) ? data : undefined;
+      // The handler draws a new token per process: after a restart the
+      // page holds a stale one. Reload it once and repeat the call once.
+      if (res.status === 403 && token && !opts.retried && p?.code === "forbidden" && (await refreshToken(token))) {
+        return call<T>(method, path, { ...opts, retried: true });
+      }
       throw new ApiError(res.status, p ? p.detail || p.title : `${method} ${path}: ${res.status}`, p);
     }
     if (!parsed) throw new ApiError(res.status, `${method} ${path}: ${res.status}, ${text ? "not JSON" : "no body"}`);
     return data as T;
+  }
+
+  // One reload of the token at a time, shared by the calls a restart
+  // refused together. It answers whether the token changed.
+  let refreshing: Promise<boolean> | null = null;
+  function refreshToken(stale: string): Promise<boolean> {
+    refreshing ??= (async () => {
+      // The token is the process's: the default node's status carries it,
+      // or the controller's on a host without the node family.
+      for (const p of ["/node/status", "/controller/status"]) {
+        try {
+          const s = await call<{ csrf_token?: string }>("GET", p);
+          if (s.csrf_token) auth.token = s.csrf_token;
+          break;
+        } catch {
+          // the next source
+        }
+      }
+      refreshing = null;
+      return auth.token !== undefined && auth.token !== stale;
+    })();
+    return refreshing;
   }
 
   const clients = new Map<string, FabricClient>();
