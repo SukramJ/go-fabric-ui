@@ -43,13 +43,17 @@ responses are recorded from the handlers with
   same fixtures under `contract/fixtures/`. A route is never removed in a
   minor version.
 - **Go imports only go-fabric's facade** (`node`, `eligibility`,
-  `contract`), never a package below it (`bridge`, `secure`, `im`, …). A
+  `contract`, `clock`, `surface`, `schema`), never a package below it
+  (`bridge`, `secure`, `im`, …). A
   facade gap is reported to go-fabric (wave CK), not worked around through
   a seam. The one wider place is `fabricui/gofabric`, the controller
   adapter: go-fabric's controller facade (`controller`, `controller/client`,
-  `controller/softwareupdate`, …), the Thread dataset codec (`thread`) and
-  the generated cluster definitions it encodes ACL and Binding with. An import guard
-  (`internal/arch`) holds both.
+  `controller/commissioner`, `controller/softwareupdate`,
+  `controller/topology`), `diag`, `client/discovery`, the Thread dataset
+  codec (`thread`) and the generated cluster definitions it encodes ACL and
+  Binding with (`cluster/spec` and its `accesscontrol`,
+  `basicinformation`, `binding`, `icdmanagement`, `operationalcredentials`).
+  An import guard (`internal/arch/arch_test.go`) holds both.
 - **Controller handlers are generated.** `internal/api` is oapi-codegen's
   strict server for the contract's `controller` tag; regenerate with
   `make generate` after a contract change, never hand-edit it. The handler
