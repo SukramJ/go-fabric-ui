@@ -19,7 +19,8 @@
       .map((p) => ({ key: p, label: t(`node.tab.${p}`), href: routes[p as keyof typeof routes] })),
   );
   // An endpoint's page sits under the endpoints tab.
-  const page = $derived(route.page === "endpoint" ? "endpoints" : route.page in pages ? route.page : "status");
+  // Object.hasOwn, not in: an inherited name (…/constructor) is no page (UR-P1-ui-112).
+  const page = $derived(route.page === "endpoint" ? "endpoints" : Object.hasOwn(pages, route.page) ? route.page : "status");
   const Current = $derived(pages[page]);
 </script>
 

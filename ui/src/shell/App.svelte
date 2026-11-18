@@ -154,7 +154,8 @@
       : []),
   ]);
 
-  const controllerPage = $derived(route.family === "controller" && route.page in controllerPages ? (route.page as keyof typeof controllerPages) : "nodes");
+  // Object.hasOwn, not in: an inherited name (#/controller/__proto__) is no page (UR-P1-ui-112).
+  const controllerPage = $derived(route.family === "controller" && Object.hasOwn(controllerPages, route.page) ? (route.page as keyof typeof controllerPages) : "nodes");
 
   // The last failure of a probe that stays undecided; shown when no
   // family can be (UR-P1-err-107).

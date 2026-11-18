@@ -69,3 +69,22 @@ describe("UR-P1-bound-103: a family's stream only while its pages are shown", ()
     expect(open("/node/stream")).toHaveLength(0);
   });
 });
+
+describe("UR-P1-ui-112: an inherited name is no page", () => {
+  it("#/controller/__proto__ shows the nodes page", async () => {
+    serve(["controller-status.200", "controller-nodes.200"]);
+    location.hash = "#/controller/__proto__";
+    render(App);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Controller" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Nodes", selected: true })).toBeInTheDocument());
+    // The nodes page itself renders (its node list).
+    expect(await screen.findByText("Kitchen")).toBeInTheDocument();
+  });
+
+  it("#/node/<default key>/constructor shows the status page", async () => {
+    serve(["node-status.200", "nodes.200"]);
+    location.hash = "#/node/default/constructor";
+    render(App);
+    expect(await screen.findByTestId("node-status")).toBeInTheDocument();
+  });
+});
