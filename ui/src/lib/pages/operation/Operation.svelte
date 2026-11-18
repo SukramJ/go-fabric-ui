@@ -74,8 +74,15 @@
     // and mergeRecords drops the one both deliver.
     const close = subscribeLog(append);
     void load();
-    // A host page that mounts the operation alone has read no status.
-    if (node.status === null && controller.status === null && !node.statusLoading) void node.loadStatus();
+    // A host page that mounts the operation alone has read no status: the
+    // node's first, and on a host without the node family (or a node
+    // status that fails) the controller's, whose token says admin
+    // (UR-P1-ui-196; a host-mode admin field on it is phase 3's).
+    if (node.status === null && controller.status === null && !node.statusLoading) {
+      void node.loadStatus().then(() => {
+        if (node.status === null && controller.status === null) void controller.loadStatus();
+      });
+    }
     return close;
   });
 

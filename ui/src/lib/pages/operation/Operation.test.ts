@@ -149,3 +149,15 @@ describe("Operation — paused backlog and restarts", () => {
     expect(screen.getByText("new process")).toBeInTheDocument();
   });
 });
+
+describe("Operation — mounted alone on a controller-only host (UR-P1-ui-196)", () => {
+  it("learns the token from the controller's status when the node family answers 404", async () => {
+    const ui = testUI({
+      fixtures: ["operation-info.200", "operation-log-level.200", "operation-log.200", "controller-status.200"],
+      answers: { "GET /operation/log?limit=2000": { status: 200, body: body("operation-log.200") } },
+    });
+    render(Harness, { ui, page: Operation });
+    expect(await screen.findByLabelText("operation.level_label")).toBeInTheDocument();
+    expect(ui.sent.some((s) => s.path === "/api/v1/controller/status")).toBe(true);
+  });
+});
