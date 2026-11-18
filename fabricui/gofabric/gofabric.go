@@ -635,7 +635,7 @@ func (s *source) SetFabricLabel(_ context.Context, label string) error {
 		}
 		return err
 	}
-	s.pushLabel()
+	s.pushLabel() //nolint:contextcheck // the push outlives the request by design
 	return nil
 }
 
