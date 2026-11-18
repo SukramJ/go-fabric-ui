@@ -302,11 +302,22 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
     });
     if (res.status === 204) return undefined as T;
     const text = await res.text();
-    const data: unknown = text ? JSON.parse(text) : undefined;
+    // An answer that is not JSON (a proxy's error page) or is empty where
+    // a body is due keeps its status: the callers test it (404, 503).
+    let data: unknown;
+    let parsed = text !== "";
+    if (parsed) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        parsed = false;
+      }
+    }
     if (!res.ok) {
-      const p = isProblem(data) ? data : undefined;
+      const p = parsed && isProblem(data) ? data : undefined;
       throw new ApiError(res.status, p ? p.detail || p.title : `${method} ${path}: ${res.status}`, p);
     }
+    if (!parsed) throw new ApiError(res.status, `${method} ${path}: ${res.status}, ${text ? "not JSON" : "no body"}`);
     return data as T;
   }
 
@@ -451,6 +462,9 @@ function node(id: string): string {
   return `/controller/nodes/${encodeURIComponent(id)}`;
 }
 
+/** A problem as the contract has it: code and title strings, detail a string when present. */
 function isProblem(v: unknown): v is Problem {
-  return typeof v === "object" && v !== null && "code" in v && "title" in v;
+  if (typeof v !== "object" || v === null) return false;
+  const p = v as Record<string, unknown>;
+  return typeof p.code === "string" && typeof p.title === "string" && (p.detail === undefined || typeof p.detail === "string");
 }
