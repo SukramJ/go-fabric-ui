@@ -7,7 +7,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
-import { body, testUI } from "../../../test/support";
+import { body, fixtureFetch, testUI } from "../../../test/support";
+import { createClient } from "../../api/client";
 import Endpoint from "./Endpoint.svelte";
 
 afterEach(() => {
@@ -162,5 +163,27 @@ describe("Node Endpoint", () => {
     release!();
     await vi.advanceTimersByTimeAsync(50);
     expect(await screen.findByTestId("endpoint-head")).toBeInTheDocument();
+  });
+});
+
+describe("Node Endpoint — a cluster panel keeps its state across a reload (UR-P2-ui-191)", () => {
+  it("keeps a closed panel closed when a cluster is added in front", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const ff = fixtureFetch(["node-endpoint.200", "node-endpoint-events.200"]);
+    const ui = testUI({ client: createClient("/api/v1", ff.fetch) });
+    render(Harness, { ui, page: Endpoint, pageProps: { endpoint: 2 } });
+    const panel = (hex: string) => screen.getByTestId(`endpoint-cluster-${hex}`) as HTMLDetailsElement;
+    await screen.findByTestId("endpoint-cluster-0x0006");
+    expect(panel("0x0006").open).toBe(true);
+    panel("0x0006").open = false;
+    await fireEvent(panel("0x0006"), new Event("toggle"));
+    // The reload answers one more cluster, in front of the others.
+    const detail = body<{ clusters: Record<string, unknown>[] }>("node-endpoint.200");
+    detail.clusters = [{ ...detail.clusters[1], id: 3, id_hex: "0x0003", name: "Identify" }, ...detail.clusters];
+    ff.routes.set("GET /api/v1/node/endpoints/2", { route: "", request: { method: "GET", path: "" }, response: { status: 200, body: detail } });
+    ui.node.applyEvent({ type: "attribute_changed", data: { endpoint: 2, cluster_hex: "0x0006", attributes: ["0x0000"] } });
+    await vi.advanceTimersByTimeAsync(300);
+    await screen.findByTestId("endpoint-cluster-0x0003");
+    expect({ onOff: panel("0x0006").open, added: panel("0x0003").open }).toEqual({ onOff: false, added: true });
   });
 });

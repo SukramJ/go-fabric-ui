@@ -27,6 +27,7 @@ const UNIQUE: Record<string, string> = {
   "lib/kit/DataTable.svelte :: col.key": "the columns the page defines",
   "lib/kit/DataTable.svelte :: group.key": "the keys of a Map",
   "lib/kit/DataTable.svelte :: r.key": "keyedRows suffixes a repeated row key",
+  "lib/pages/node/Endpoint.svelte :: key": "keyedRows suffixes a repeated cluster id",
   "lib/kit/Tabs.svelte :: item.key": "the tabs the page defines",
   "lib/kit/Graph.svelte :: e.index": "the edge's position in the input",
   "lib/kit/Graph.svelte :: ln.id": "the layout's nodes, a Map by id",

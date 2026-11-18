@@ -18,6 +18,7 @@
   import ClusterView from "../../kit/ClusterView.svelte";
   import ErrorState from "../../kit/ErrorState.svelte";
   import EventList from "../../kit/EventList.svelte";
+  import { keyedRows } from "../../kit/data-table";
   import { lastNumber, mergeEvents } from "../../kit/events";
   import LoadingState from "../../kit/LoadingState.svelte";
   import TagChips from "../../kit/TagChips.svelte";
@@ -32,6 +33,11 @@
   const MAX_EVENTS = 500;
   // An endpoint with more clusters than this starts with them collapsed.
   const OPEN_CLUSTERS = 6;
+  // A cluster panel's open state is set once, when it is created: a reload
+  // leaves what the operator opened or closed (UR-P2-ui-191).
+  function initiallyOpen(el: HTMLDetailsElement) {
+    el.open = untrack(() => (detail?.clusters.length ?? 0) <= OPEN_CLUSTERS);
+  }
 
   let detail = $state<EndpointDetail | null>(null);
   let error = $state<string | null>(null);
@@ -193,9 +199,11 @@
       <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.endpoint.clusters")}</h3>
       <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("node.endpoint.clusters_hint")}</p>
       <ul class="mt-3 divide-y divide-[var(--ha-divider-color)]">
-        {#each d.clusters as c, ci (ci)}
+        <!-- Keyed by cluster, so a panel keeps its open state when a reload
+             adds a cluster before it; a repeated id gets a suffix (UR-P2-ui-191). -->
+        {#each keyedRows(d.clusters, (x) => x.id_hex) as { row: c, key } (key)}
           <li class="py-1">
-            <details open={d.clusters.length <= OPEN_CLUSTERS} data-testid={`endpoint-cluster-${c.id_hex}`}>
+            <details {@attach initiallyOpen} data-testid={`endpoint-cluster-${c.id_hex}`}>
               <summary class="flex cursor-pointer flex-wrap items-center gap-2 py-1 text-sm">
                 <span class="font-medium">{c.name ?? c.id_hex}</span>
                 <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">{c.id_hex} r{c.revision}</span>
