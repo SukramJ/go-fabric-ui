@@ -15,7 +15,7 @@ const SUBJECT = "18364758544493064721";
 /** A client whose read answers `answer` as raw text; it records every request body as sent. */
 function rawClient(answer: (path: { endpoint: number; cluster_hex: string; attribute_hex: string }) => string) {
   const sent: { method: string; body: string }[] = [];
-  const client = createClient("/api/v1", async (url, init) => {
+  const client = createClient("/api/v1", async (_url, init) => {
     const text = String(init?.body ?? "");
     sent.push({ method: init?.method ?? "GET", body: text });
     if (init?.method === "PUT") return new Response('{"status":0}', { status: 200 });

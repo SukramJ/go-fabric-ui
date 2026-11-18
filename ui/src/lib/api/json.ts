@@ -49,7 +49,6 @@ const MAYBE_UNSAFE = /\d{16}|\d[eE][+-]?\d/;
 
 const WS = /[ \t\n\r]*/y;
 const NUM = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
-// eslint-disable-next-line no-control-regex
 const STR = /"(?:[^"\\\u0000-\u001f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*"/y;
 const LIT = /true|false|null/y;
 
