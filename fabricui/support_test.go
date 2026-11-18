@@ -159,6 +159,9 @@ type fakeNode struct {
 	own      []time.Duration
 	closeErr error
 	closed   int
+	// afterClose, when set, runs once the window is closed, before
+	// closeWindow returns: a request that lands in that gap.
+	afterClose func()
 
 	qr, manual string
 	codesErr   error
@@ -414,8 +417,13 @@ func (f *fakeNode) closeWindow(context.Context) error {
 	}
 	f.closed++
 	f.open, f.duration, f.kind, f.disc = false, 0, node.WindowNone, 0
+	after := f.afterClose
+	f.afterClose = nil
 	f.mu.Unlock()
 	f.transition()
+	if after != nil {
+		after()
+	}
 	return nil
 }
 
