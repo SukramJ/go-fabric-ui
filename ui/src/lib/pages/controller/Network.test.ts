@@ -126,3 +126,50 @@ describe("Controller Nodes tabs", () => {
     expect(await screen.findByText("Kitchen")).toBeInTheDocument();
   });
 });
+
+describe("Controller Network — reloads", () => {
+  it("keeps the drawn graph and toasts when a stream reload fails (UR-P1-ui-181)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const ui = testUI({ fixtures: ["controller-topology.200"] });
+    const g = body<TopologyGraph>("controller-topology.200");
+    let calls = 0;
+    ui.client.controllerTopology = async () => {
+      if (++calls === 1) return g;
+      throw new Error("boom");
+    };
+    render(Harness, { ui, page: Network });
+    await vi.waitFor(() => expect(screen.getByTestId("graph")).toBeInTheDocument());
+    ui.controller.applyEvent({ type: "topology_changed", data: {} });
+    await vi.advanceTimersByTimeAsync(400);
+    await vi.waitFor(() => expect(calls).toBe(2));
+    await vi.waitFor(() => expect(ui.toastSpy.error).toHaveBeenCalled());
+    expect(screen.getByTestId("graph")).toBeInTheDocument();
+  });
+
+  it("shows the newer graph when an older reload answers last (UR-P1-conc-180)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const ui = testUI({ fixtures: ["controller-topology.200"] });
+    const full = body<TopologyGraph>("controller-topology.200");
+    const gone = full.nodes.at(-1)!.id;
+    const small: TopologyGraph = { ...full, nodes: full.nodes.slice(0, -1), edges: full.edges.filter((e) => e.source !== gone && e.target !== gone) };
+    let calls = 0;
+    let release: (() => void) | undefined;
+    ui.client.controllerTopology = async () => {
+      calls++;
+      if (calls === 1) return full;
+      if (calls === 2) return new Promise((resolve) => (release = () => resolve(full)));
+      return small;
+    };
+    render(Harness, { ui, page: Network });
+    await vi.waitFor(() => expect(screen.getByTestId("graph")).toBeInTheDocument());
+    ui.controller.applyEvent({ type: "topology_changed", data: {} });
+    await vi.advanceTimersByTimeAsync(400);
+    await vi.waitFor(() => expect(release).toBeDefined());
+    ui.controller.applyEvent({ type: "topology_changed", data: {} });
+    await vi.advanceTimersByTimeAsync(400);
+    await vi.waitFor(() => expect(nodeIds()).toHaveLength(small.nodes.length));
+    release!();
+    await vi.advanceTimersByTimeAsync(20);
+    expect(nodeIds()).toHaveLength(small.nodes.length);
+  });
+});
