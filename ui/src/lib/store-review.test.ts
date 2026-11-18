@@ -195,3 +195,61 @@ describe("UR-P1-conc-110: hydrateCommissioning looks again after its awaits", ()
     expect(store.commissioning.phase).toBe("success");
   });
 });
+
+describe("UR-P1-conc-192: connecting again reloads on the new stream's open, not before it", () => {
+  function stubSources() {
+    const sources: { listeners: Map<string, ((ev: MessageEvent) => void)[]>; readyState: number; emit: (t: string) => void }[] = [];
+    vi.stubGlobal(
+      "EventSource",
+      vi.fn(function () {
+        const src = {
+          listeners: new Map<string, ((ev: MessageEvent) => void)[]>(),
+          readyState: 0,
+          addEventListener(type: string, fn: (ev: MessageEvent) => void) {
+            this.listeners.set(type, [...(this.listeners.get(type) ?? []), fn]);
+          },
+          close() {},
+          emit(type: string) {
+            this.listeners.get(type)?.forEach((fn) => fn({ data: "{}" } as MessageEvent));
+          },
+        };
+        sources.push(src);
+        return src;
+      }),
+    );
+    return sources;
+  }
+
+  it("node store", async () => {
+    const sources = stubSources();
+    const ff = fixtureFetch(["node-status.200", "node-fabrics.200"]);
+    const store = createNodeStore(createClient("/api/v1", ff.fetch), { t, toast });
+    store.connect();
+    sources[0].emit("open");
+    store.disconnect();
+    store.connect();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(ff.sent).toHaveLength(0);
+    sources[1].emit("open");
+    await vi.advanceTimersByTimeAsync(10);
+    expect(paths(ff.sent)).toContain("GET /node/status");
+    store.close();
+    vi.unstubAllGlobals();
+  });
+
+  it("controller store", async () => {
+    const sources = stubSources();
+    const ff = fixtureFetch(["controller-status.200", "controller-nodes.200"]);
+    const store = createControllerStore(createClient("/api/v1", ff.fetch), { t, toast });
+    store.connect();
+    store.disconnect();
+    store.connect();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(ff.sent).toHaveLength(0);
+    sources[1].emit("open");
+    await vi.advanceTimersByTimeAsync(10);
+    expect(paths(ff.sent)).toContain("GET /controller/status");
+    store.close();
+    vi.unstubAllGlobals();
+  });
+});

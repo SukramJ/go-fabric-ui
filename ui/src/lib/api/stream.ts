@@ -73,6 +73,12 @@ export interface StreamOptions {
   onResync?: () => void;
   /** Whether the stream closes while the page is hidden; true by default where there is a document. */
   pauseWhenHidden?: boolean;
+  /**
+   * Whether the first open resyncs too: the caller was subscribed before
+   * and may have missed events in between (a store connecting again). The
+   * reload then follows the server-side subscription, not precedes it.
+   */
+  resyncOnFirstOpen?: boolean;
 }
 
 /** onResync runs at most once per this many ms; opens within it share one trailing call (UR-P1-bound-195). */
@@ -106,7 +112,7 @@ function openStream(
   // Whether an open has been seen or a gap made one due: the next open
   // resyncs. A page loaded hidden opens its first stream late, after its
   // loads, so that open resyncs too (UR-P1-conc-190).
-  let resyncDue = !!doc?.hidden;
+  let resyncDue = !!doc?.hidden || !!opts.resyncOnFirstOpen;
   let attempt = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let done = false;

@@ -445,9 +445,16 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
 
   function connect() {
     if (unsub) return;
-    const sub = deps.subscribe ?? ((fn, onResync) => subscribeStream(client.streamUrl(), fn, undefined, { onResync }));
-    unsub = sub(applyEvent, resync);
-    if (connectedBefore) resync();
+    if (deps.subscribe) {
+      // A host's own subscription: reload now when connecting again.
+      unsub = deps.subscribe(applyEvent, resync);
+      if (connectedBefore) resync();
+    } else {
+      // Connecting again, the reload waits for the new stream's open, so
+      // no event falls between the reload and the subscription
+      // (UR-P1-conc-192).
+      unsub = subscribeStream(client.streamUrl(), applyEvent, undefined, { onResync: resync, resyncOnFirstOpen: connectedBefore });
+    }
     connectedBefore = true;
   }
 
