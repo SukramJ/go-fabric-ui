@@ -76,7 +76,7 @@ describe("UR-P1-ui-112: an inherited name is no page", () => {
     location.hash = "#/controller/__proto__";
     render(App);
     await waitFor(() => expect(screen.getByRole("heading", { name: "Controller" })).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Nodes", selected: true })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("link", { name: "Nodes", current: "page" })).toBeInTheDocument());
     // The nodes page itself renders (its node list).
     expect(await screen.findByText("Kitchen")).toBeInTheDocument();
   });
