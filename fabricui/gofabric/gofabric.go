@@ -4,11 +4,15 @@
 // Package gofabric binds the controller page family to go-fabric's
 // controller: [ControllerOf] is a [fabricui.ControllerSource] over a
 // *controller.Controller, the one place in this module that knows the
-// controller facade (controller, controller/client,
-// controller/softwareupdate, the network graph controller/topology, the
-// diagnostic shapes diag, the Thread dataset codec thread and the
-// generated cluster definitions it encodes ACL and Binding entries with).
-// A host passes it in
+// controller facade. Beside the facade every package may import, the
+// import guard (internal/arch, its adapter list) allows it exactly: the
+// controller facade controller, controller/client,
+// controller/commissioner and controller/softwareupdate, the network
+// graph controller/topology, the diagnostic shapes diag, the DNS-SD
+// identifiers client/discovery, the Thread dataset codec thread, and the
+// generated cluster definitions it encodes ACL and Binding entries with
+// (cluster/spec and its accesscontrol, basicinformation, binding,
+// icdmanagement and operationalcredentials). A host passes it in
 // fabricui.Options.Controller:
 //
 //	hooks := gofabric.NewHooks()
