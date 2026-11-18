@@ -24,6 +24,13 @@
 
   const { t, toast, client, node } = useFabricUI();
   const isAdmin = $derived(!!node.status?.csrf_token || node.status?.admin === true);
+  // The contract gives the ecosystem no enum: one the catalogue does not
+  // name shows as written.
+  function ecosystemName(eco: string): string {
+    const k = `node.diag.ecosystem.${eco}`;
+    const s = t(k);
+    return s === k ? eco : s;
+  }
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -239,7 +246,7 @@
         <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.diag.compatibility")}</h3>
         <div class="mt-2 flex flex-wrap gap-2">
           {#each compat.ecosystems as eco (eco.fabric_index)}
-            <Badge variant="muted">{t(`node.diag.ecosystem.${eco.ecosystem}`)}</Badge>
+            <Badge variant="muted">{ecosystemName(eco.ecosystem)}</Badge>
           {/each}
         </div>
         {#if compat.findings.length === 0}
@@ -248,7 +255,7 @@
           <ul class="mt-3 space-y-2">
             {#each compat.findings as finding, i (i)}
               <li class="flex flex-wrap items-start gap-2 text-sm">
-                <Badge variant="warning">{t(`node.diag.ecosystem.${finding.ecosystem}`)}</Badge>
+                <Badge variant="warning">{ecosystemName(finding.ecosystem)}</Badge>
                 <span class="min-w-[16rem] flex-1 text-[var(--ha-primary-text-color)]">{finding.message}</span>
               </li>
             {/each}

@@ -9,6 +9,7 @@ import { body, testUI } from "../../../test/support";
 import type { Compatibility, DiagnosticEventList, EndpointList, Mdns, SessionList, Status as StatusT } from "../../api/client";
 import Diagnostics from "./Diagnostics.svelte";
 import Endpoints from "./Endpoints.svelte";
+import { defaultT } from "../../i18n";
 
 afterEach(cleanup);
 
@@ -57,7 +58,8 @@ describe("Diagnostics", () => {
     c.findings = [{ ecosystem: "amazon", code: "endpoint_ceiling", message: "Alexa drops a bridge above 90 endpoints." }];
     renderDiag({ "GET /node/compatibility": { status: 200, body: c } });
     expect(await screen.findByText("Alexa drops a bridge above 90 endpoints.")).toBeInTheDocument();
-    expect(screen.getByText("node.diag.ecosystem.apple")).toBeInTheDocument();
+    // Under the echoing translator no ecosystem key resolves: it shows as written.
+    expect(screen.getByText("apple")).toBeInTheDocument();
   });
 
   it("shows a recorded pairing failure", async () => {
@@ -209,5 +211,19 @@ describe("Endpoints — overlapping loads (UR-P1-ui-137)", () => {
     release!();
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.getAllByTestId("endpoint")).toHaveLength(1);
+  });
+});
+
+describe("Diagnostics — ecosystems the catalogue does not name (UR-P1-ui-140)", () => {
+  it("shows an unknown ecosystem as its value, a known one by its label", async () => {
+    const c = body<Compatibility>("node-compatibility.200");
+    c.ecosystems = [{ ...c.ecosystems[0], fabric_index: 1, ecosystem: "apple" }, { ...c.ecosystems[0], fabric_index: 2, ecosystem: "tuya" }];
+    c.findings = [{ ecosystem: "tuya", code: "x", message: "Tuya finding." }];
+    const ui = testUI({ fixtures: ALL, answers: { "GET /node/compatibility": { status: 200, body: c } }, t: defaultT });
+    render(Harness, { ui, page: Diagnostics });
+    expect(await screen.findByText("Tuya finding.")).toBeInTheDocument();
+    expect(screen.getByText("Apple")).toBeInTheDocument();
+    expect(screen.getAllByText("tuya")).toHaveLength(2);
+    expect(screen.queryByText("node.diag.ecosystem.tuya")).toBeNull();
   });
 });
