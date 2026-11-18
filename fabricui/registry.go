@@ -45,7 +45,8 @@ type NodeRegistry interface {
 	// called on every GET /nodes and on every request under
 	// /nodes/{key}/…, so it answers from memory. The handler of a node
 	// keeps its state (a window's credentials, its stream's subscribers)
-	// while its entry's Source, Exposure and Events stay the same values.
+	// while its entry's Source, Exposure and Events stay the same values;
+	// its Config, Reassemble and Erase are taken from every List.
 	List() []NodeEntry
 	// Create allocates, persists and starts a node and returns its entry.
 	// An error wrapping [ErrNodeLimit] answers 409 node_limit; any other
@@ -169,6 +170,7 @@ func (h *handler) managedHandler(e *NodeEntry) *handler {
 	ne := entryOf(e, true)
 	if c, ok := h.regCache[e.Key]; ok && sameEntry(&c.entry, e) {
 		c.h.config.Store(ne.config)
+		c.h.hooks.Store(&nodeHooks{reassemble: ne.reassemble, erase: ne.erase})
 		return c.h
 	}
 	n := h.sibling(ne)

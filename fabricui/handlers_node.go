@@ -135,7 +135,7 @@ func summariseSurface(r *surface.Report) *surfaceSummary {
 // 200 and enabled false, not 503: the status is what tells a page the
 // family is off (loom matter_exposures.go:363-372).
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
-	res := statusResponse{Exposure: h.exposure != nil, CSRFToken: h.token, NodeRegistry: h.registry != nil, Erase: h.erase != nil}
+	res := statusResponse{Exposure: h.exposure != nil, CSRFToken: h.token, NodeRegistry: h.registry != nil, Erase: h.eraseFn() != nil}
 	if h.admin != nil {
 		admin := h.admin(r)
 		res.Admin = &admin
@@ -291,11 +291,12 @@ func (h *handler) removeFabric(w http.ResponseWriter, r *http.Request) {
 // touching a pairing. Mirrors loom matter_maintenance.go:27-48
 // (MatterForceSync).
 func (h *handler) maintenanceReassemble(w http.ResponseWriter, r *http.Request) {
-	if h.reassemble == nil {
+	reassemble := h.reassembleFn()
+	if reassemble == nil {
 		unready(w, r, "Reassembly not available", "the host wires no Options.Reassemble")
 		return
 	}
-	if err := h.reassemble(r.Context()); err != nil {
+	if err := reassemble(r.Context()); err != nil {
 		// A silent success would tell the operator the list is correct
 		// now, which is the one thing they came to check.
 		h.serverError(w, r, "Failed to reassemble the endpoints", err)
@@ -366,7 +367,8 @@ func (h *handler) eraseNode(w http.ResponseWriter, r *http.Request) {
 		nodeUnready(w, r)
 		return
 	}
-	if h.erase == nil {
+	erase := h.eraseFn()
+	if erase == nil {
 		writeProblem(w, r, http.StatusNotImplemented, codeNotImplemented, "Erase not available", "the host wires no Erase")
 		return
 	}
@@ -381,7 +383,7 @@ func (h *handler) eraseNode(w http.ResponseWriter, r *http.Request) {
 				`and ends the node; every paired controller has to commission it again`)
 		return
 	}
-	if err := h.erase(r.Context()); err != nil {
+	if err := erase(r.Context()); err != nil {
 		h.serverError(w, r, "Failed to erase the node", err)
 		return
 	}

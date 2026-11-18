@@ -38,11 +38,11 @@ type handler struct {
 	admin   func(*http.Request) bool
 	// token is the admin token of token mode; empty when Options.Admin is
 	// set.
-	token      string
-	reassemble func(context.Context) error
-	// erase is the host's erase of this node (Options.Erase,
-	// NodeEntry.Erase); nil answers 501.
-	erase    func(context.Context) error
+	token string
+	// hooks are the host's rebuild and erase of this node (Options.
+	// Reassemble and Erase, NodeEntry's); a registry node's are replaced
+	// on every lookup, as config is (UR-P1-conc-06).
+	hooks    atomic.Pointer[nodeHooks]
 	warnings func(context.Context) []Warning
 	counters func(context.Context) []Counter
 	// hub carries the handler's own events; extra is the host's source
@@ -248,8 +248,6 @@ func newHandler(o Options) (*handler, error) {
 		ctrl:           o.Controller,
 		ctrlHub:        NewEvents(),
 		admin:          o.Admin,
-		reassemble:     o.Reassemble,
-		erase:          o.Erase,
 		warnings:       o.Warnings,
 		counters:       o.Counters,
 		prefix:         prefix,
@@ -259,6 +257,7 @@ func newHandler(o Options) (*handler, error) {
 		heartbeat:      15 * time.Second,
 		fresh:          node.NewWindowCredentials,
 	}
+	h.hooks.Store(&nodeHooks{reassemble: o.Reassemble, erase: o.Erase})
 	if h.log == nil {
 		h.log = slog.Default()
 	}
@@ -495,8 +494,6 @@ func (h *handler) sibling(e nodeEntry) *handler {
 	s := &handler{
 		node:           e.port,
 		exposure:       e.exposure,
-		reassemble:     e.reassemble,
-		erase:          e.erase,
 		registry:       h.registry,
 		nodesHub:       h.nodesHub,
 		admin:          h.admin,
@@ -515,7 +512,31 @@ func (h *handler) sibling(e nodeEntry) *handler {
 	}
 	s.hub, s.extra = hubOf(e.events)
 	s.config.Store(e.config)
+	s.hooks.Store(&nodeHooks{reassemble: e.reassemble, erase: e.erase})
 	return s
+}
+
+// nodeHooks are a node's rebuild and erase; either may be nil.
+type nodeHooks struct {
+	reassemble func(context.Context) error
+	// erase is the host's erase of this node; nil answers 501.
+	erase func(context.Context) error
+}
+
+// reassembleFn is the node's rebuild; nil without one.
+func (h *handler) reassembleFn() func(context.Context) error {
+	if k := h.hooks.Load(); k != nil {
+		return k.reassemble
+	}
+	return nil
+}
+
+// eraseFn is the node's erase; nil without one.
+func (h *handler) eraseFn() func(context.Context) error {
+	if k := h.hooks.Load(); k != nil {
+		return k.erase
+	}
+	return nil
 }
 
 // deviceNodeSummary is one entry of GET /nodes and the answer of POST

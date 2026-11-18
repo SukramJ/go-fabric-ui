@@ -209,8 +209,8 @@ func (h *handler) exposureApply(w http.ResponseWriter, r *http.Request) {
 		keys = append(keys, updates[i].Key)
 	}
 	h.publish(Event{Type: EventExposureChanged, Data: ExposureEvent{Keys: keys}})
-	if h.reassemble != nil {
-		if err := h.reassemble(r.Context()); err != nil {
+	if reassemble := h.reassembleFn(); reassemble != nil {
+		if err := reassemble(r.Context()); err != nil {
 			h.log.WarnContext(r.Context(), "fabricui.exposure.reassemble_failed", slog.String("error", err.Error()))
 		} else {
 			h.publish(Event{Type: EventEndpointsChanged, Data: struct{}{}})

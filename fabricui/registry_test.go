@@ -523,3 +523,37 @@ func TestStatus_ConfigBlock(t *testing.T) {
 		t.Fatalf("without a view: %v", c)
 	}
 }
+
+// UR-P1-conc-06: a registry node's cached handler follows its entry's
+// Erase and Reassemble, which the host may set or clear while the Source
+// stays the same.
+func TestRegistry_CachedHandlerFollowsEraseAndReassemble(t *testing.T) {
+	_, mux, reg := registryHandler(t, 0)
+	reg.mu.Lock()
+	key := reg.nodes[0].Key
+	reg.mu.Unlock()
+	status := func() statusResponse {
+		var s statusResponse
+		if err := json.Unmarshal(do(t, mux, http.MethodGet, "/nodes/"+key+"/status", "").Body.Bytes(), &s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	if status().Erase {
+		t.Fatal("erase before the entry has one")
+	}
+	var erased, rebuilt int
+	reg.mu.Lock()
+	reg.nodes[0].Erase = func(context.Context) error { erased++; return nil }
+	reg.nodes[0].Reassemble = func(context.Context) error { rebuilt++; return nil }
+	reg.mu.Unlock()
+	if !status().Erase {
+		t.Fatal("Status.erase does not follow the entry's new Erase")
+	}
+	if rec := do(t, mux, http.MethodPost, "/nodes/"+key+"/maintenance/reassemble", ""); rec.Code >= 400 || rebuilt != 1 {
+		t.Fatalf("reassemble: %d %s, %d rebuild(s) by the new function", rec.Code, rec.Body, rebuilt)
+	}
+	if rec := do(t, mux, http.MethodPost, "/nodes/"+key+"/maintenance/erase", `{"confirm":"erase-node"}`); rec.Code != http.StatusNoContent || erased != 1 {
+		t.Fatalf("erase: %d %s, %d erase(s) by the new function", rec.Code, rec.Body, erased)
+	}
+}
