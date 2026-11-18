@@ -178,4 +178,15 @@ describe("Endpoints", () => {
     expect(params).toHaveTextContent("node.diag.params.tcp_no");
     expect(screen.queryByTestId("node-reannounce")).toBeNull();
   });
+
+  it("renders two interface findings with the same code and no service (UR-P1-ui-130)", async () => {
+    const m = body<Mdns>("node-mdns.200");
+    m.findings = [
+      { severity: "error", code: "interface_not_found", message: "Interface eth9 not found." },
+      { severity: "error", code: "interface_not_found", message: "Interface wlan9 not found." },
+    ];
+    renderDiag({ "GET /node/mdns": { status: 200, body: m } });
+    expect(await screen.findByText("Interface eth9 not found.")).toBeInTheDocument();
+    expect(screen.getByText("Interface wlan9 not found.")).toBeInTheDocument();
+  });
 });

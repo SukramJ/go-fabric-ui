@@ -68,4 +68,15 @@ describe("Controller Diagnostics", () => {
     expect(await screen.findByText("controller.diag.not_served")).toBeInTheDocument();
     expect(diagCalls(ui)).toHaveLength(0);
   });
+
+  it("renders two findings with the same code and no service (UR-P1-ui-130)", async () => {
+    const findings = [
+      { severity: "warning", code: "interface_not_found", message: "Interface eth9 not found." },
+      { severity: "warning", code: "interface_not_found", message: "Interface wlan9 not found." },
+    ];
+    const ui = testUI({ fixtures: FIXTURES, answers: { "GET /controller/mdns": { status: 200, body: { findings } } } });
+    render(Harness, { ui, page: Diagnostics });
+    expect(await screen.findByText("Interface eth9 not found.")).toBeInTheDocument();
+    expect(screen.getByText("Interface wlan9 not found.")).toBeInTheDocument();
+  });
 });

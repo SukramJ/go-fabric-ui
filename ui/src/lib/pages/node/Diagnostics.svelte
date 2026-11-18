@@ -180,7 +180,7 @@
           <p class="mt-2 text-sm text-[var(--ha-success-color)]">{t("node.diag.discovery_ok")}</p>
         {/if}
         <ul class="mt-2 space-y-2">
-          {#each [...errorFindings, ...warningFindings] as finding (finding.code + (finding.service ?? ""))}
+          {#each [...errorFindings, ...warningFindings] as finding, i (i)}
             <li class="flex flex-wrap items-start gap-2 text-sm">
               <Badge variant={finding.severity === "error" ? "danger" : "warning"}>{t(`node.diag.severity.${finding.severity}`)}</Badge>
               <span class="min-w-[16rem] flex-1 text-[var(--ha-primary-text-color)]">{finding.message}</span>
@@ -246,7 +246,7 @@
           <p class="mt-3 text-sm text-[var(--ha-success-color)]">{t("node.diag.compat_ok")}</p>
         {:else}
           <ul class="mt-3 space-y-2">
-            {#each compat.findings as finding (finding.ecosystem + finding.code)}
+            {#each compat.findings as finding, i (i)}
               <li class="flex flex-wrap items-start gap-2 text-sm">
                 <Badge variant="warning">{t(`node.diag.ecosystem.${finding.ecosystem}`)}</Badge>
                 <span class="min-w-[16rem] flex-1 text-[var(--ha-primary-text-color)]">{finding.message}</span>
