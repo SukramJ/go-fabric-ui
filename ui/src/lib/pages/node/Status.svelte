@@ -95,7 +95,7 @@
         <Badge variant="warning">
           {t("node.pair.window_open")}
           {#if windowLeft !== null}
-            <span data-testid="window-left">({windowLeft}s)</span>
+            <span data-testid="window-left">({t("common.seconds_short", { n: windowLeft })})</span>
           {/if}
         </Badge>
       {/if}

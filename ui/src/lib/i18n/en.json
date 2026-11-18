@@ -408,6 +408,8 @@
   "inventory.status.unsupported_cluster": "Unsupported cluster",
   "inventory.status.unsupported_endpoint": "Unsupported endpoint",
   "inventory.status.unsupported_read": "Not readable",
+  "kit.tag_title": "namespace {namespace} · tag {tag}",
+  "kit.tag_title_mfg": "namespace {namespace} · tag {tag} · mfg {mfg}",
   "node.commissioning.closed": "Commissioning window closed",
   "node.commissioning.complete": "A controller completed the commissioning (fabric {index}).",
   "node.config.discriminator": "Discriminator",

@@ -38,16 +38,17 @@ describe("Status", () => {
     vi.setSystemTime(new Date("2026-10-25T12:01:00Z"));
     render(Harness, { ui: testUI({ fixtures: ["node-status.200"] }), page: Status });
     const left = await screen.findByTestId("window-left");
-    expect(left).toHaveTextContent("(240s)");
+    // The unit comes from the catalogue (UR-P1-ui-141).
+    expect(left).toHaveTextContent('(common.seconds_short:{"n":240})');
     await vi.advanceTimersByTimeAsync(5000);
-    expect(left).toHaveTextContent(/\((23[45])s\)/);
+    expect(left).toHaveTextContent(/\(common\.seconds_short:\{"n":23[45]\}\)/);
   });
 
   it("shows the duration when the server reports no deadline", async () => {
     const s = body<StatusT>("node-status.200");
     delete s.window_deadline;
     render(Harness, { ui: testUI({ answers: { "GET /node/status": { status: 200, body: s } } }), page: Status });
-    expect(await screen.findByTestId("window-left")).toHaveTextContent("(300s)");
+    expect(await screen.findByTestId("window-left")).toHaveTextContent('(common.seconds_short:{"n":300})');
   });
 
   it("shows the host's warnings in a card above the status, code as a chip", async () => {

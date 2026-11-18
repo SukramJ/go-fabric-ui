@@ -408,6 +408,8 @@
   "inventory.status.unsupported_cluster": "Cluster nicht unterstützt",
   "inventory.status.unsupported_endpoint": "Endpunkt nicht unterstützt",
   "inventory.status.unsupported_read": "Nicht lesbar",
+  "kit.tag_title": "Namensraum {namespace} · Tag {tag}",
+  "kit.tag_title_mfg": "Namensraum {namespace} · Tag {tag} · Hersteller {mfg}",
   "node.commissioning.closed": "Kopplungsfenster geschlossen",
   "node.commissioning.complete": "Ein Controller hat die Inbetriebnahme abgeschlossen (Fabric {index}).",
   "node.config.discriminator": "Diskriminator",
