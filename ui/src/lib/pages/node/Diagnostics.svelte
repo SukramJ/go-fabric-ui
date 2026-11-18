@@ -139,9 +139,9 @@
 
   const eventClass = (sev: string) =>
     sev === "error"
-      ? "bg-[color-mix(in_srgb,var(--ha-error-color)_15%,transparent)] text-[var(--ha-error-color)]"
+      ? "bg-[color-mix(in_srgb,var(--ha-error-color)_15%,transparent)] text-[var(--fui-error-text)]"
       : sev === "warning"
-        ? "bg-[color-mix(in_srgb,var(--ha-warning-color)_15%,transparent)] text-[var(--ha-warning-color)]"
+        ? "bg-[color-mix(in_srgb,var(--ha-warning-color)_15%,transparent)] text-[var(--fui-warning-text)]"
         : "bg-[var(--ha-secondary-background-color)] text-[var(--ha-secondary-text-color)]";
 </script>
 
@@ -156,7 +156,7 @@
   {:else if col.key === "subscriptions"}
     {s.subscriptions}
     {#if s.subscriptions === 0 && !s.is_pase}
-      <span class="ml-2 text-xs text-[var(--ha-warning-color)]">{t("node.diag.no_subscriptions")}</span>
+      <span class="ml-2 text-xs text-[var(--fui-warning-text)]">{t("node.diag.no_subscriptions")}</span>
     {/if}
   {/if}
 {/snippet}
@@ -185,7 +185,7 @@
         <p class="mt-2 text-sm text-[var(--ha-secondary-text-color)]">{t("node.diag.not_advertising")}</p>
       {:else}
         {#if errorFindings.length === 0 && warningFindings.length === 0}
-          <p class="mt-2 text-sm text-[var(--ha-success-color)]">{t("node.diag.discovery_ok")}</p>
+          <p class="mt-2 text-sm text-[var(--fui-success-text)]">{t("node.diag.discovery_ok")}</p>
         {/if}
         <ul class="mt-2 space-y-2">
           {#each [...errorFindings, ...warningFindings] as finding, i (i)}
@@ -251,7 +251,7 @@
           {/each}
         </div>
         {#if compat.findings.length === 0}
-          <p class="mt-3 text-sm text-[var(--ha-success-color)]">{t("node.diag.compat_ok")}</p>
+          <p class="mt-3 text-sm text-[var(--fui-success-text)]">{t("node.diag.compat_ok")}</p>
         {:else}
           <ul class="mt-3 space-y-2">
             {#each compat.findings as finding, i (i)}

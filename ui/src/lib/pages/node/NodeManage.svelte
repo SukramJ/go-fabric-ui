@@ -103,7 +103,7 @@
     <div class="mt-4 rounded border border-[var(--ha-divider-color)] px-3 py-2" data-testid="node-manage-hint">
       <p class="text-sm font-medium text-[var(--ha-primary-text-color)]">{t("node.manage.hint.title")}</p>
       <p class="mt-1 text-sm text-[var(--ha-secondary-text-color)]">{t("node.manage.hint.alexa")}</p>
-      <a class="mt-1 inline-block text-sm text-[var(--ha-primary-color)] underline" href={HINT_SOURCE} target="_blank" rel="noopener noreferrer">
+      <a class="mt-1 inline-block text-sm text-[var(--fui-primary-text)] underline" href={HINT_SOURCE} target="_blank" rel="noopener noreferrer">
         {t("node.manage.hint.source")}
       </a>
     </div>

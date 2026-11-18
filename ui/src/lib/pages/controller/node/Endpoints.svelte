@@ -42,7 +42,7 @@
           {#if onInventory}
             <button
               type="button"
-              class="ml-auto text-sm text-[var(--ha-primary-color)] hover:underline"
+              class="ml-auto text-sm text-[var(--fui-primary-text)] hover:underline"
               data-testid={`inventory-link-${ep.endpoint}`}
               onclick={() => onInventory(ep.endpoint)}>{t("controller.endpoints.inventory")}</button
             >

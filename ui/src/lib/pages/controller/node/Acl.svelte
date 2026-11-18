@@ -133,7 +133,7 @@
                   ? e.targets.map((x) => [x.endpoint !== undefined ? t("controller.endpoints.endpoint", { number: x.endpoint }) : "", x.cluster_hex ?? "", x.device_type_hex ?? ""].filter(Boolean).join(" ")).join("; ")
                   : t("controller.acl.whole_node")}
               </span>
-              <Button size="sm" variant="ghost" class="ml-auto text-[var(--ha-error-color)]" onclick={() => remove(i)}>{t("common.remove")}</Button>
+              <Button size="sm" variant="ghost" class="ml-auto text-[var(--fui-error-text)]" onclick={() => remove(i)}>{t("common.remove")}</Button>
             </li>
           {/each}
         </ul>

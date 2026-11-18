@@ -108,7 +108,7 @@
             {#each eb.bindings as b, i (i)}
               <li class="flex items-center gap-2 text-sm">
                 <span class="font-mono text-xs">{describe(b)}</span>
-                <Button size="sm" variant="ghost" class="ml-auto text-[var(--ha-error-color)]" disabled={busy} onclick={() => void write(eb, eb.bindings.filter((_, j) => j !== i))}>{t("common.remove")}</Button>
+                <Button size="sm" variant="ghost" class="ml-auto text-[var(--fui-error-text)]" disabled={busy} onclick={() => void write(eb, eb.bindings.filter((_, j) => j !== i))}>{t("common.remove")}</Button>
               </li>
             {/each}
           </ul>

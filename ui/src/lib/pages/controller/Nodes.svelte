@@ -121,7 +121,7 @@
       <Select class="w-auto" ariaLabel={t("controller.nodes.filter_connection")} value={connection} onValueChange={(v) => (connection = v as typeof connection)} options={connectionOptions} />
       <Select class="w-auto" ariaLabel={t("controller.nodes.filter_vendor")} value={vendor} onValueChange={(v) => (vendor = v as typeof vendor)} options={vendorOptions} />
       <Select class="w-auto" ariaLabel={t("controller.nodes.filter_icd")} value={icd} onValueChange={(v) => (icd = v as typeof icd)} options={icdOptions} />
-      <a href={routes.controllerCommission} class="ml-auto text-sm font-medium text-[var(--ha-primary-color)] hover:underline">{t("controller.nodes.commission")}</a>
+      <a href={routes.controllerCommission} class="ml-auto text-sm font-medium text-[var(--fui-primary-text)] hover:underline">{t("controller.nodes.commission")}</a>
     </div>
     {#if controller.nodesLoading && controller.nodes.length === 0}
       <LoadingState message={t("common.loading")} />
@@ -163,7 +163,7 @@
                 <Button size="sm" variant="ghost" disabled={busy.has(n.node_id_hex)} onclick={() => void act(n, () => client.interviewNode(n.node_id_hex), "controller.nodes.interviewed")}>
                   {t("controller.nodes.interview")}
                 </Button>
-                <a class="inline-flex items-center px-2 text-sm text-[var(--ha-primary-color)] hover:underline" href={`${routes.controllerNode}${n.node_id_hex}?tab=window`}>{t("controller.nodes.window")}</a>
+                <a class="inline-flex items-center px-2 text-sm text-[var(--fui-primary-text)] hover:underline" href={`${routes.controllerNode}${n.node_id_hex}?tab=window`}>{t("controller.nodes.window")}</a>
                 {#if n.disabled}
                   <Button size="sm" variant="ghost" disabled={busy.has(n.node_id_hex)} onclick={() => void act(n, () => client.enableNode(n.node_id_hex), "controller.nodes.enabled")}>
                     {t("controller.nodes.enable")}
@@ -173,7 +173,7 @@
                     {t("controller.nodes.disable")}
                   </Button>
                 {/if}
-                <Button size="sm" variant="ghost" class="text-[var(--ha-error-color)]" disabled={busy.has(n.node_id_hex)} onclick={() => void decommission(n)}>
+                <Button size="sm" variant="ghost" class="text-[var(--fui-error-text)]" disabled={busy.has(n.node_id_hex)} onclick={() => void decommission(n)}>
                   {t("common.remove")}
                 </Button>
               </span>

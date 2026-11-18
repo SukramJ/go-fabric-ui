@@ -45,7 +45,7 @@
           <ul class="mt-1 flex flex-wrap gap-x-4 text-sm">
             {#each hint.links as link (link.key)}
               <li>
-                <a class="text-[var(--ha-primary-color)] underline" href={link.href} target="_blank" rel="noopener noreferrer">{t(`node.pair.hints.${hint.ecosystem}.${link.key}`)}</a>
+                <a class="text-[var(--fui-primary-text)] underline" href={link.href} target="_blank" rel="noopener noreferrer">{t(`node.pair.hints.${hint.ecosystem}.${link.key}`)}</a>
               </li>
             {/each}
           </ul>

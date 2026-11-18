@@ -119,9 +119,9 @@
 
   const eventClass = (sev: string) =>
     sev === "error"
-      ? "bg-[color-mix(in_srgb,var(--ha-error-color)_15%,transparent)] text-[var(--ha-error-color)]"
+      ? "bg-[color-mix(in_srgb,var(--ha-error-color)_15%,transparent)] text-[var(--fui-error-text)]"
       : sev === "warning"
-        ? "bg-[color-mix(in_srgb,var(--ha-warning-color)_15%,transparent)] text-[var(--ha-warning-color)]"
+        ? "bg-[color-mix(in_srgb,var(--ha-warning-color)_15%,transparent)] text-[var(--fui-warning-text)]"
         : "bg-[var(--ha-secondary-background-color)] text-[var(--ha-secondary-text-color)]";
 </script>
 
@@ -130,7 +130,7 @@
     {s.session_id}
     {#if s.is_pase}<Badge variant="muted">{t("node.diag.pase")}</Badge>{/if}
   {:else if col.key === "peer"}
-    <a class="font-mono text-[var(--ha-primary-color)] hover:underline" href={routes.controllerNode + s.peer_node_id_hex}>0x{s.peer_node_id_hex}</a>
+    <a class="font-mono text-[var(--fui-primary-text)] hover:underline" href={routes.controllerNode + s.peer_node_id_hex}>0x{s.peer_node_id_hex}</a>
   {:else if col.key === "transport"}
     {s.transport ? s.transport.toUpperCase() : "—"}
   {:else if col.key === "created"}
@@ -146,13 +146,13 @@
 {#snippet peerCell(p: ControllerPeer, col: DataColumn<ControllerPeer>)}
   {#if col.key === "node"}
     {#if p.registered}
-      <a class="text-[var(--ha-primary-color)] hover:underline" href={routes.controllerNode + p.node_id_hex} data-testid="peer-link">{peerName(p)}</a>
+      <a class="text-[var(--fui-primary-text)] hover:underline" href={routes.controllerNode + p.node_id_hex} data-testid="peer-link">{peerName(p)}</a>
     {:else}
       <span class="font-mono">0x{p.node_id_hex}</span>
       <Badge variant="muted">{t("controller.diag.unregistered")}</Badge>
     {/if}
     {#if p.load_error}
-      <div class="text-xs text-[var(--ha-error-color)]">{p.load_error}</div>
+      <div class="text-xs text-[var(--fui-error-text)]">{p.load_error}</div>
     {/if}
   {:else if col.key === "state"}
     {#if p.state}<Badge variant={connectionVariant(p.state)}>{connectionLabel(t, p.state)}</Badge>{:else}—{/if}
@@ -193,7 +193,7 @@
     <Card class="p-4">
       <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.diag.discovery")}</h3>
       {#if errorFindings.length === 0 && warningFindings.length === 0}
-        <p class="mt-2 text-sm text-[var(--ha-success-color)]">{t("controller.diag.discovery_ok")}</p>
+        <p class="mt-2 text-sm text-[var(--fui-success-text)]">{t("controller.diag.discovery_ok")}</p>
       {/if}
       <ul class="mt-2 space-y-2">
         {#each [...errorFindings, ...warningFindings] as finding, i (i)}

@@ -30,7 +30,7 @@
 {#if warnings.length > 0}
   {#if collapsed}
     <details class="mb-3 rounded-md border border-[var(--ha-divider-color)] px-3 py-2" data-testid="host-warnings">
-      <summary class="cursor-pointer text-sm font-medium text-[var(--ha-warning-color)]">{t("node.warnings.summary", { count: warnings.length })}</summary>
+      <summary class="cursor-pointer text-sm font-medium text-[var(--fui-warning-text)]">{t("node.warnings.summary", { count: warnings.length })}</summary>
       <div class="mt-2">{@render list()}</div>
     </details>
   {:else}

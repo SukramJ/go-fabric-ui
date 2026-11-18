@@ -64,3 +64,83 @@ describe("the standalone palette's text contrast (UR-P1-ui-172)", () => {
     });
   }
 });
+
+// The status text tokens (owner decision 31): --fui-*-text reach 4.5:1 on
+// the card, and on a badge's 15% tint of the status colour, in all four
+// palettes — standalone light and dark, and the HA skin's fallbacks (Home
+// Assistant's defaults) light and dark. The HA colours stay for areas,
+// borders and icons.
+type RGB = [number, number, number];
+
+/** Splits s at its top-level commas. */
+function args(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let cur = "";
+  for (const ch of s) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (ch === "," && depth === 0) {
+      out.push(cur.trim());
+      cur = "";
+    } else cur += ch;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+/** Evaluates a colour expression against the declarations in env: var() with fallbacks, color-mix(in srgb, …), hex and oklch literals. */
+function evalColor(expr: string, env: Record<string, string>): RGB {
+  const e = expr.trim();
+  const fn = /^([\w-]+)\((.*)\)$/s.exec(e);
+  if (fn && fn[1] === "var") {
+    const [name, ...rest] = args(fn[2]);
+    if (name in env) return evalColor(env[name], env);
+    if (rest.length === 0) throw new Error("unset " + name);
+    return evalColor(rest.join(", "), env);
+  }
+  if (fn && fn[1] === "color-mix") {
+    const [space, a, b] = args(fn[2]);
+    expect(space).toBe("in srgb");
+    const pa = /^(.*)\s+([\d.]+)%$/s.exec(a);
+    const p = pa ? Number(pa[2]) / 100 : 0.5;
+    const ca = evalColor(pa ? pa[1] : a, env);
+    const cb = evalColor(b, env);
+    return [0, 1, 2].map((i) => ca[i] * p + cb[i] * (1 - p)) as RGB;
+  }
+  return srgb(e);
+}
+
+function ratio(a: RGB, b: RGB): number {
+  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+
+const ROOT = ":root,\n:host";
+const DARK = "html.dark,\n:host(.dark)";
+const HA = 'html[data-skin="ha"],\n:host([data-skin="ha"])';
+const HA_DARK = 'html[data-skin="ha"].dark,\n:host([data-skin="ha"].dark)';
+const STATUS = ["primary", "error", "warning", "success", "info"] as const;
+
+describe("the status text tokens (UR-P1-ui-172, decision 31)", () => {
+  for (const [name, sels] of [
+    ["standalone light", [ROOT]],
+    ["standalone dark", [ROOT, DARK]],
+    ["HA skin light", [ROOT, HA]],
+    ["HA skin dark", [ROOT, DARK, HA, HA_DARK]],
+  ] as const) {
+    it(`reach 4.5:1 on the card and on a badge's tint, ${name}`, () => {
+      const env: Record<string, string> = Object.assign({}, ...sels.map(block));
+      const card = evalColor("var(--ha-card-background-color)", env);
+      const low: string[] = [];
+      for (const s of STATUS) {
+        const text = evalColor(`var(--fui-${s}-text)`, env);
+        const tint = evalColor(`color-mix(in srgb, var(--ha-${s}-color) 15%, var(--ha-card-background-color))`, env);
+        const onCard = ratio(text, card);
+        const onTint = ratio(text, tint);
+        if (onCard < 4.5 || onTint < 4.5) low.push(`${s}: ${onCard.toFixed(2)} / ${onTint.toFixed(2)}`);
+      }
+      expect(low).toEqual([]);
+    });
+  }
+});

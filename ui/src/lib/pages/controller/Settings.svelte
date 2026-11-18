@@ -127,7 +127,7 @@
             {:else if col.key === "id"}
               <span class="font-mono text-xs">{c.id}</span>
             {:else if col.key === "action"}
-              <Button size="sm" variant="ghost" class="text-[var(--ha-error-color)]" onclick={() => void removeCredential(c)}>{t("common.remove")}</Button>
+              <Button size="sm" variant="ghost" class="text-[var(--fui-error-text)]" onclick={() => void removeCredential(c)}>{t("common.remove")}</Button>
             {/if}
           {/snippet}
         </DataTable>

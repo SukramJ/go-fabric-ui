@@ -81,7 +81,7 @@
 </script>
 
 <div class="space-y-4">
-  <a href={routes.controllerNodes} class="text-sm text-[var(--ha-primary-color)] hover:underline">← {t("controller.node.back")}</a>
+  <a href={routes.controllerNodes} class="text-sm text-[var(--fui-primary-text)] hover:underline">← {t("controller.node.back")}</a>
   {#if error}
     <ErrorState message={error} onRetry={() => void load()} />
   {:else if !detail}

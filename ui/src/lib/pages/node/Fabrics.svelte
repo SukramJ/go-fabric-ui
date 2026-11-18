@@ -217,7 +217,7 @@
               {/if}
             </span>
           {:else if col.key === "action"}
-            <Button size="sm" variant="ghost" class="text-[var(--ha-error-color)]" disabled={removing.has(fabric.fabric_index)} onclick={() => void unpair(fabric)}>
+            <Button size="sm" variant="ghost" class="text-[var(--fui-error-text)]" disabled={removing.has(fabric.fabric_index)} onclick={() => void unpair(fabric)}>
               {t("common.remove")}
             </Button>
           {/if}
@@ -244,7 +244,7 @@
       </div>
     {/if}
     {#if erased}
-      <p class="mt-3 text-sm text-[var(--ha-warning-color)]" data-testid="node-erased" role="status">{t("node.maint.erase_waiting")}</p>
+      <p class="mt-3 text-sm text-[var(--fui-warning-text)]" data-testid="node-erased" role="status">{t("node.maint.erase_waiting")}</p>
     {/if}
   </Card>
   {/if}
@@ -252,7 +252,7 @@
   <div class="rounded-[var(--ha-radius-card)] border border-[var(--ha-divider-color)] bg-[var(--ha-secondary-background-color)] p-4">
     <h3 class="mb-2 font-medium text-[var(--ha-primary-text-color)]">{t("node.fabric.share")}</h3>
     <p class="text-sm text-[var(--ha-secondary-text-color)]">{t("node.fabric.share_hint")}</p>
-    <a href={routes.pair} data-testid="share-link" class="mt-3 inline-flex items-center text-sm font-medium text-[var(--ha-primary-color)] hover:underline">
+    <a href={routes.pair} data-testid="share-link" class="mt-3 inline-flex items-center text-sm font-medium text-[var(--fui-primary-text)] hover:underline">
       {t("node.fabric.share_go")}
     </a>
   </div>

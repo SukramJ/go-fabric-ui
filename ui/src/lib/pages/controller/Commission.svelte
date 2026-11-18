@@ -251,7 +251,7 @@
         </p>
       {/if}
       {#if termsInvalid}
-        <p class="mt-1 text-xs text-[var(--ha-error-color)]">{t("controller.commission.terms_invalid")}</p>
+        <p class="mt-1 text-xs text-[var(--fui-error-text)]">{t("controller.commission.terms_invalid")}</p>
       {/if}
     </details>
   </Card>
@@ -263,12 +263,12 @@
       {:else if result}
         <p class="text-sm text-[var(--ha-primary-text-color)]">
           <Badge variant="success">{t("controller.commission.succeeded")}</Badge>
-          <a class="ml-2 font-medium text-[var(--ha-primary-color)] hover:underline" href={routes.controllerNode + result.node.node_id_hex}>{nodeName(result.node)}</a>
+          <a class="ml-2 font-medium text-[var(--fui-primary-text)] hover:underline" href={routes.controllerNode + result.node.node_id_hex}>{nodeName(result.node)}</a>
         </p>
       {:else if failure}
-        <p class="text-sm text-[var(--ha-error-color)]"><Badge variant="danger">{t("controller.commission.failed")}</Badge> {failure}</p>
+        <p class="text-sm text-[var(--fui-error-text)]"><Badge variant="danger">{t("controller.commission.failed")}</Badge> {failure}</p>
       {:else if phase === "failed"}
-        <p class="text-sm text-[var(--ha-error-color)]">{t("controller.commission.failed")}</p>
+        <p class="text-sm text-[var(--fui-error-text)]">{t("controller.commission.failed")}</p>
       {/if}
       {#if ble}
         <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]" data-testid="commission-ble">

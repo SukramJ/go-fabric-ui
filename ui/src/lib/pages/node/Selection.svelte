@@ -289,7 +289,7 @@
       <button type="button" class="text-left hover:underline" onclick={() => openDrawer(item)}>
         <span class="text-[var(--ha-primary-text-color)]">{current(item).name}</span>
         {#if node.pending.has(item.key)}
-          <span class="ml-1 text-xs text-[var(--ha-primary-color)]">{t("common.modified")}</span>
+          <span class="ml-1 text-xs text-[var(--fui-primary-text)]">{t("common.modified")}</span>
         {/if}
       </button>
     {:else}

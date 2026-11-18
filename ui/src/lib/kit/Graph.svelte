@@ -263,7 +263,7 @@
         </dl>
       {/if}
       {#if href}
-        <a class="mt-3 inline-block text-[var(--ha-primary-color)] underline" {href}>{t("graph.open")}</a>
+        <a class="mt-3 inline-block text-[var(--fui-primary-text)] underline" {href}>{t("graph.open")}</a>
       {/if}
     {:else}
       <p class="text-[var(--ha-secondary-text-color)]">{t("graph.select_hint")}</p>

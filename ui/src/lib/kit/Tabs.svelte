@@ -48,7 +48,7 @@
         "inline-flex items-center justify-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-center text-sm font-medium transition",
         fill && "flex-1",
         isActive
-          ? "border-[var(--ha-primary-color)] text-[var(--ha-primary-color)]"
+          ? "border-[var(--ha-primary-color)] text-[var(--fui-primary-text)]"
           : "border-transparent text-[var(--ha-secondary-text-color)] hover:text-[var(--ha-primary-text-color)]",
       );
     }

@@ -161,7 +161,7 @@
         <Button variant="outline" size="sm" onclick={() => void copy()} disabled={shown.length === 0}>{t("common.copy")}</Button>
       </div>
       {#if paused}
-        <p class="mt-2 text-xs text-[var(--ha-warning-color)]" data-testid="paused">
+        <p class="mt-2 text-xs text-[var(--fui-warning-text)]" data-testid="paused">
           {heldCount > KEEP_RECORDS ? t("operation.paused_dropped", { count: heldCount, kept: KEEP_RECORDS }) : t("operation.paused", { count: heldCount })}
         </p>
       {/if}

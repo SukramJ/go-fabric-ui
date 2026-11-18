@@ -147,7 +147,7 @@
 
 <div class="space-y-4">
   <div class="flex items-center justify-between gap-2">
-    <a href={routes.endpoints} class="text-sm text-[var(--ha-primary-color)] hover:underline">← {t("node.endpoint.back")}</a>
+    <a href={routes.endpoints} class="text-sm text-[var(--fui-primary-text)] hover:underline">← {t("node.endpoint.back")}</a>
     <Button variant="outline" size="sm" onclick={refresh}>{t("common.refresh")}</Button>
   </div>
   {#if error}
@@ -172,13 +172,13 @@
       </div>
       <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--ha-secondary-text-color)]">
         {#if d.parent_endpoint_id !== undefined}
-          <span>{t("node.endpoint.parent")} <a class="text-[var(--ha-primary-color)] hover:underline" href={routes.endpoint + d.parent_endpoint_id}>#{d.parent_endpoint_id}</a></span>
+          <span>{t("node.endpoint.parent")} <a class="text-[var(--fui-primary-text)] hover:underline" href={routes.endpoint + d.parent_endpoint_id}>#{d.parent_endpoint_id}</a></span>
         {/if}
         {#if d.parts.length > 0}
           <span data-testid="endpoint-parts">
             {t("node.endpoint.parts")}
             {#each d.parts as p (p)}
-              <a class="ml-1 text-[var(--ha-primary-color)] hover:underline" href={routes.endpoint + p}>#{p}</a>
+              <a class="ml-1 text-[var(--fui-primary-text)] hover:underline" href={routes.endpoint + p}>#{p}</a>
             {/each}
           </span>
         {/if}
