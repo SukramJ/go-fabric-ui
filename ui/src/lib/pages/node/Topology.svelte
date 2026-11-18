@@ -26,16 +26,21 @@
   let error = $state<string | null>(null);
   let graph = $state<TopologyGraph | null>(null);
 
+  // A newer load wins: an older answer that arrives last is dropped.
+  let seq = 0;
+
   async function load() {
+    const mine = ++seq;
     // A reload keeps the drawn graph until the new one arrives.
     if (!graph) loading = true;
     error = null;
     try {
-      graph = await client.topology();
+      const g = await client.topology();
+      if (mine === seq) graph = g;
     } catch (err) {
-      error = errorText(err);
+      if (mine === seq) error = errorText(err);
     } finally {
-      loading = false;
+      if (mine === seq) loading = false;
     }
   }
 

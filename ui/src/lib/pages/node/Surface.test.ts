@@ -136,3 +136,24 @@ describe("Surface", () => {
     await vi.waitFor(() => expect(count()).toBe(2));
   });
 });
+
+describe("Surface — overlapping loads (UR-P1-ui-137)", () => {
+  it("shows the newer answer when the older one arrives last", async () => {
+    const ui = testUI({ fixtures: ["node-surface.200", "node-endpoints.200"] });
+    const orig = ui.client.surface.bind(ui.client);
+    let release: (() => void) | undefined;
+    let calls = 0;
+    ui.client.surface = async () => {
+      const r = await orig();
+      if (++calls === 1) return new Promise((resolve) => (release = () => resolve(r)));
+      return { ...r, level: "9.9.9" };
+    };
+    render(Harness, { ui, page: Surface });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    ui.node.applyEvent({ type: "endpoints_changed", data: {} });
+    expect(await screen.findByText(/"level":"9\.9\.9"/)).toBeInTheDocument();
+    release!();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByTestId("surface-head")).toHaveTextContent('"level":"9.9.9"');
+  });
+});

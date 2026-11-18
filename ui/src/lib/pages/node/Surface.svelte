@@ -27,7 +27,11 @@
   let report = $state<SurfaceReport | null>(null);
   let endpoints = $state<Endpoint[]>([]);
 
+  // A newer load wins: an older answer that arrives last is dropped.
+  let seq = 0;
+
   async function load() {
+    const mine = ++seq;
     loading = true;
     error = null;
     try {
@@ -39,12 +43,13 @@
           () => [] as Endpoint[],
         ),
       ]);
+      if (mine !== seq) return;
       report = r;
       endpoints = eps;
     } catch (err) {
-      error = errorText(err);
+      if (mine === seq) error = errorText(err);
     } finally {
-      loading = false;
+      if (mine === seq) loading = false;
     }
   }
 

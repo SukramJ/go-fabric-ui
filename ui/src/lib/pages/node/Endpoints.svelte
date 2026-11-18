@@ -27,20 +27,25 @@
   let structuralList = $state<NonNullable<EndpointList["structural"]>>([]);
   let surface = $state<SurfaceReport | null>(null);
 
+  // A newer load wins: an older answer that arrives last is dropped.
+  let seq = 0;
+
   async function load() {
+    const mine = ++seq;
     loading = true;
     error = null;
     try {
       // The surface report only marks endpoints: its failure (an older
       // server, a report that does not encode) does not fail the page.
       const [eps, rep] = await Promise.all([client.endpoints(), client.surface().catch(() => null)]);
+      if (mine !== seq) return;
       endpoints = eps.endpoints;
       structuralList = eps.structural ?? [];
       surface = rep;
     } catch (err) {
-      error = errorText(err);
+      if (mine === seq) error = errorText(err);
     } finally {
-      loading = false;
+      if (mine === seq) loading = false;
     }
   }
 

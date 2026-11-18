@@ -93,3 +93,28 @@ describe("Topology", () => {
     await waitFor(() => expect(ui.sent.filter((x) => x.path === "/api/v1/node/topology")).toHaveLength(2));
   });
 });
+
+describe("Topology — overlapping loads (UR-P1-ui-137)", () => {
+  it("shows the newer graph when the older answer arrives last", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const ui = testUI({ fixtures: ["node-topology.200"] });
+    const full = body<TopologyGraph>("node-topology.200");
+    const gone = full.nodes.at(-1)!.id;
+    const small: TopologyGraph = { ...full, nodes: full.nodes.slice(0, -1), edges: full.edges.filter((e) => e.source !== gone && e.target !== gone) };
+    let release: (() => void) | undefined;
+    let calls = 0;
+    ui.client.topology = async () => {
+      if (++calls === 1) return new Promise((resolve) => (release = () => resolve(full)));
+      return small;
+    };
+    render(Harness, { ui, page: Topology });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    ui.node.applyEvent({ type: "endpoints_changed", data: {} });
+    await vi.advanceTimersByTimeAsync(400);
+    await vi.waitFor(() => expect(screen.getByTestId("graph")).toBeInTheDocument());
+    expect(nodeIds()).toHaveLength(small.nodes.length);
+    release!();
+    await vi.advanceTimersByTimeAsync(20);
+    expect(nodeIds()).toHaveLength(small.nodes.length);
+  });
+});

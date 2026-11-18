@@ -190,3 +190,24 @@ describe("Endpoints", () => {
     expect(screen.getByText("Interface wlan9 not found.")).toBeInTheDocument();
   });
 });
+
+describe("Endpoints — overlapping loads (UR-P1-ui-137)", () => {
+  it("shows the newer list when the older answer arrives last", async () => {
+    const ui = testUI({ fixtures: ["node-endpoints.200", "node-surface.200"] });
+    const full = body<EndpointList>("node-endpoints.200");
+    const one: EndpointList = { ...full, endpoints: full.endpoints.slice(0, 1) };
+    let release: (() => void) | undefined;
+    let calls = 0;
+    ui.client.endpoints = async () => {
+      if (++calls === 1) return new Promise((resolve) => (release = () => resolve(full)));
+      return one;
+    };
+    render(Harness, { ui, page: Endpoints });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    ui.node.applyEvent({ type: "endpoints_changed", data: {} });
+    await vi.waitFor(() => expect(screen.getAllByTestId("endpoint")).toHaveLength(1));
+    release!();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getAllByTestId("endpoint")).toHaveLength(1);
+  });
+});
