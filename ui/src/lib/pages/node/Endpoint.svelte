@@ -173,7 +173,7 @@
         {#if d.parts.length > 0}
           <span data-testid="endpoint-parts">
             {t("node.endpoint.parts")}
-            {#each d.parts as p (p)}
+            {#each d.parts as p, pi (pi)}
               <a class="ml-1 text-[var(--fui-primary-text)] hover:underline" href={routes.endpoint + p}>#{p}</a>
             {/each}
           </span>
@@ -193,7 +193,7 @@
       <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.endpoint.clusters")}</h3>
       <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("node.endpoint.clusters_hint")}</p>
       <ul class="mt-3 divide-y divide-[var(--ha-divider-color)]">
-        {#each d.clusters as c (c.id)}
+        {#each d.clusters as c, ci (ci)}
           <li class="py-1">
             <details open={d.clusters.length <= OPEN_CLUSTERS} data-testid={`endpoint-cluster-${c.id_hex}`}>
               <summary class="flex cursor-pointer flex-wrap items-center gap-2 py-1 text-sm">

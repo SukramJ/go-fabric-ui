@@ -44,3 +44,19 @@ describe("UR-P1-web-114: stored table preferences of the wrong shape", () => {
     expect(JSON.parse(localStorage.getItem("fabric-ui.table:t1") ?? "{}")).toMatchObject({ sortKey: "" });
   });
 });
+
+describe("UR-P2-ui-90: rows whose key repeats", () => {
+  // A controller's fabric list, a discovery answer: the rows come from a
+  // node or the network, and the contract makes their keys unique nowhere.
+  it("renders both rows, flat and grouped", () => {
+    const twins: Row[] = [
+      { id: "1", name: "first" },
+      { id: "1", name: "second" },
+    ];
+    const flat = render(DataTable, { rows: twins, columns, rowKey: (r: Row) => r.id, emptyMessage: "none" });
+    expect(names(flat.container)).toEqual(["first", "second"]);
+    cleanup();
+    const grouped = render(DataTable, { rows: twins, columns, rowKey: (r: Row) => r.id, emptyMessage: "none", groupBy: () => "g" });
+    expect(names(grouped.container)).toEqual(["first", "second"]);
+  });
+});

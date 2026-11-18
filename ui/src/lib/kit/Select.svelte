@@ -43,7 +43,7 @@
   {#if !options.some((o) => o.value === value)}
     <option value="" disabled>{placeholder}</option>
   {/if}
-  {#each options as option (option.value)}
+  {#each options as option, i (i)}
     <option value={option.value}>{option.label}</option>
   {/each}
 </select>

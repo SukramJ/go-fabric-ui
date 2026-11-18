@@ -50,7 +50,7 @@
             {/each}
           </ul>
         {/if}
-        {#each findings(hint.ecosystem) as finding (finding.code + (finding.device_type ?? ""))}
+        {#each findings(hint.ecosystem) as finding, fi (fi)}
           <p class="mt-2 flex flex-wrap items-start gap-2 text-sm">
             <Badge variant="warning">{t("node.pair.hints.finding")}</Badge>
             <span class="min-w-[12rem] flex-1 text-[var(--ha-primary-text-color)]">{finding.message}</span>

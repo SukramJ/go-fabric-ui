@@ -32,7 +32,7 @@
   </div>
   {#if cluster.features.length > 0}
     <ul class="flex flex-wrap gap-1" data-testid="feature-chips">
-      {#each cluster.features as f (f.bit)}
+      {#each cluster.features as f, i (i)}
         <li><Badge title={t("inventory.feature_bit", { bit: f.bit })}>{f.title ? `${f.code} · ${f.title}` : f.code}</Badge></li>
       {/each}
     </ul>

@@ -95,7 +95,7 @@
   <EmptyState message={t("controller.endpoints.empty")} />
 {:else}
   <div class="space-y-3">
-    {#each detail.endpoints as ne (ne.endpoint)}
+    {#each detail.endpoints as ne, n (n)}
       {@const loaded = endpoints[ne.endpoint]}
       <Card class={["p-4", focus === ne.endpoint ? "ring-2 ring-[var(--ha-primary-color)]" : ""].join(" ")} data-testid={`inventory-endpoint-${ne.endpoint}`}>
         <div class="flex flex-wrap items-center gap-2">
@@ -144,7 +144,7 @@
             <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]">{t("controller.inventory.no_clusters")}</p>
           {:else}
             <ul class="mt-3 divide-y divide-[var(--ha-divider-color)]">
-              {#each ep.clusters as c (c.id)}
+              {#each ep.clusters as c, ci (ci)}
                 {@const key = keyOf(ne.endpoint, c.id_hex)}
                 {@const open = clusters[key]}
                 <li class="py-1">
@@ -158,7 +158,7 @@
                     <span aria-hidden="true">{open !== undefined ? "▾" : "▸"}</span>
                     <span class="font-medium">{c.name ?? c.id_hex}</span>
                     <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">{c.id_hex} r{c.revision}</span>
-                    {#each c.features as f (f.bit)}
+                    {#each c.features as f, fi (fi)}
                       <Badge variant="muted" title={t("inventory.feature_bit", { bit: f.bit })}>{f.code}</Badge>
                     {/each}
                   </button>
