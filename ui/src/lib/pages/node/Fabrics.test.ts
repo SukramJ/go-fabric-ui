@@ -172,3 +172,19 @@ describe("Fabrics — admin rights (UR-P1-ui-133)", () => {
     expect(screen.queryByTestId("node-erase")).toBeNull();
   });
 });
+
+describe("Fabrics — Remove busy state (UR-P1-ui-145)", () => {
+  it("sends one DELETE for two clicks on Remove", async () => {
+    const ui = testUI({ fixtures: ["node-fabrics.200", "node-status.200"], answers: { "DELETE /node/fabrics/1": { status: 204 } } });
+    await ui.node.loadStatus();
+    render(Harness, { ui, page: Fabrics });
+    await screen.findByText("0xB2C3D4E5F6071829");
+    const button = screen.getAllByRole("button", { name: "common.remove" })[0];
+    await fireEvent.click(button);
+    await fireEvent.click(button);
+    await waitFor(() => expect(ui.toastSpy.success).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(ui.sent.filter((s) => s.method === "DELETE")).toHaveLength(1);
+    expect(ui.confirmSpy).toHaveBeenCalledTimes(1);
+  });
+});

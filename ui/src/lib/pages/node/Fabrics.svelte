@@ -146,21 +146,31 @@
     }
   }
 
+  // The fabrics whose removal is being asked or sent: their Remove is
+  // disabled, so a double click asks once and deletes once.
+  let removing = $state<Set<number>>(new Set());
+
   async function unpair(f: Fabric) {
-    const ok = await confirm({
-      title: t("node.fabric.unpair_confirm"),
-      body: f.label || t("node.fabric.label_unknown"),
-      destructive: true,
-      confirmLabel: t("common.remove"),
-    });
-    if (!ok) return;
+    if (removing.has(f.fabric_index)) return;
+    removing = new Set([...removing, f.fabric_index]);
     try {
+      const ok = await confirm({
+        title: t("node.fabric.unpair_confirm"),
+        body: f.label || t("node.fabric.label_unknown"),
+        destructive: true,
+        confirmLabel: t("common.remove"),
+      });
+      if (!ok) return;
       await client.removeFabric(f.fabric_index);
       toast.success(t("node.fabric.unpaired"));
       await node.loadFabrics();
       await node.loadStatus();
     } catch (err) {
       toast.error(errorText(err));
+    } finally {
+      const next = new Set(removing);
+      next.delete(f.fabric_index);
+      removing = next;
     }
   }
 
@@ -207,7 +217,7 @@
               {/if}
             </span>
           {:else if col.key === "action"}
-            <Button size="sm" variant="ghost" class="text-[var(--ha-error-color)]" onclick={() => void unpair(fabric)}>
+            <Button size="sm" variant="ghost" class="text-[var(--ha-error-color)]" disabled={removing.has(fabric.fabric_index)} onclick={() => void unpair(fabric)}>
               {t("common.remove")}
             </Button>
           {/if}
