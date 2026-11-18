@@ -42,6 +42,9 @@ const (
 	commandRemoveFabric           uint32 = 0x000A
 )
 
+// maxLongDiscriminator is the largest 12-bit long discriminator.
+const maxLongDiscriminator = 0x0FFF
+
 // maxReadPaths bounds a targeted read (decision 0.4: no full inventory).
 const maxReadPaths = 32
 
@@ -1314,6 +1317,9 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 	case b.TermsAndConditions != nil && (b.TermsAndConditions.Version < 0 || b.TermsAndConditions.Version > 0xFFFF ||
 		b.TermsAndConditions.Acknowledgements < 0 || b.TermsAndConditions.Acknowledgements > 0xFFFF):
 		return nil, badRequest("terms_and_conditions: version and acknowledgements are 0 to 65535")
+	case b.Discovered != nil && b.Discovered.LongDiscriminator != nil &&
+		(*b.Discovered.LongDiscriminator < 0 || *b.Discovered.LongDiscriminator > maxLongDiscriminator):
+		return nil, badRequest("discovered.long_discriminator: %d is not 0 to %d", *b.Discovered.LongDiscriminator, maxLongDiscriminator)
 	}
 	if b.TimeoutSeconds != nil {
 		if *b.TimeoutSeconds < 1 || *b.TimeoutSeconds > 600 {
@@ -1343,7 +1349,9 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 	} else {
 		d := Discovered{InstanceName: b.Discovered.InstanceName}
 		if b.Discovered.LongDiscriminator != nil {
-			d.LongDiscriminator = uint16(*b.Discovered.LongDiscriminator) //nolint:gosec // a 12-bit discriminator
+			// 0 is a valid discriminator; the port cannot yet tell it from
+			// "not sent" (UR-P1-adpt-65, the adapter's half).
+			d.LongDiscriminator = uint16(*b.Discovered.LongDiscriminator) //nolint:gosec // range-checked above
 		}
 		n, err = s.src.CommissionDiscovered(ctx, d, uint32(*b.Passcode), opts) //nolint:gosec // bounded above
 	}

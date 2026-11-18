@@ -220,3 +220,15 @@ func TestGetNodeBindings_ChunkedAndRefusedIs502(t *testing.T) {
 		t.Fatalf("a refused endpoint: %d %s, want 502", r.Code, r.Body)
 	}
 }
+
+// UR-P1-err-10: a long discriminator is 12 bits; a value outside 0..4095
+// is refused, not narrowed to another discriminator.
+func TestCommission_LongDiscriminatorOutOfRangeIs400(t *testing.T) {
+	_, mux, _ := controllerHandler(t, nil)
+	for _, v := range []string{"69632", "4096", "-1"} {
+		body := `{"discovered":{"instance_name":"x","long_discriminator":` + v + `},"passcode":20202021}`
+		if r := do(t, mux, http.MethodPost, "/controller/commission", body); r.Code != http.StatusBadRequest {
+			t.Fatalf("long_discriminator %s: %d %s, want 400", v, r.Code, r.Body)
+		}
+	}
+}
