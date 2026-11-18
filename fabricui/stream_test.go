@@ -135,9 +135,11 @@ func TestStream_StalledReaderIsReaped(t *testing.T) {
 		_ = tc.SetReadBuffer(4096)
 	}
 	fmt.Fprintf(conn, "GET %s/node/stream HTTP/1.1\r\nHost: x\r\n\r\n", DefaultPrefix)
-	if _, err := http.ReadResponse(bufio.NewReader(conn), nil); err != nil {
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() { _ = conn.Close(); _ = resp.Body.Close() }() // the conn first: Close drains the body
 	// From here on the client reads nothing.
 	big := strings.Repeat("x", 64<<10)
 	for stop := time.Now().Add(time.Second); time.Now().Before(stop); {
