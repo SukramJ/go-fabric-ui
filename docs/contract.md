@@ -451,9 +451,14 @@ paths, methods, responses, fields and optional request fields; it never
 removes or renames one and never makes an optional request field required.
 A patch may add the optional field or event field a fix needs to state
 its behaviour; it adds no route and no problem code.
-`contract/previous/openapi.yaml` is the copy of the last release, and the
-contract guard (`make contract-check`, CI job `contract`) fails on a
-removal against it. The guard also fails on a schema a response is decoded
+`contract/previous/openapi.yaml` is the contract of the newest release
+tag, byte for byte, and the contract guard (`make contract-check`, CI job
+`contract`) fails on a removal against it, on a response field that stops
+being required, on a changed type, and on a request parameter or field
+that gets narrower (pattern, maximum, minimum, length, enum). A break a
+release makes on purpose is listed, in the guard's own sentence, in the
+contract's `info.x-accepted-breaks` and named in this file; an entry the
+guard no longer reports fails as well. The guard also fails on a schema a response is decoded
 through that sets `additionalProperties: false` — a generated client turns
 it into a strict model, and the next added field, a minor here, breaks
 every installed client (issue #27); only a request body, which the handler
@@ -461,8 +466,11 @@ decodes and whose unknown fields it rejects, may be closed. Its tests check
 every fixture's response against the route's schema, so a field an encoder
 writes and the contract does not name fails there. An operation marked
 `x-status: planned` promises no answer: when it is served its placeholder responses may go, its path and
-method may not. The release commit that tags a version copies the
-contract to `contract/previous/`.
+method may not. The first contract change after a release copies that
+release's contract to `contract/previous/` (`git show
+<tag>:contract/openapi.yaml`) and empties `info.x-accepted-breaks`; the
+guard fails while `previous/` is not the newest tag's contract and the
+contract has moved past it.
 
 Contract 0.7.0 (wave U7) is additive over 0.6.0, which
 `contract/previous/` holds as release 0.6.1 shipped it: two admin routes
