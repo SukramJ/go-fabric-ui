@@ -22,7 +22,33 @@ const streamBuffer = 64
 // open. It replaces loom's WebSocket topics
 // (internal/north/rest/handlers/matter_events.go:62-82 at b40b289a).
 func (h *handler) stream(w http.ResponseWriter, r *http.Request) {
+	if streamHead(w, r) {
+		return
+	}
 	h.serveSSE(r.Context(), w, h.subscribe)
+}
+
+// streamHead answers a stream request that is not a GET — a HEAD, which
+// the mux matches on a GET pattern — with the stream's headers and no
+// body, and reports whether it did. net/http discards a HEAD answer's
+// body without an error, so a stream served for HEAD would notice a
+// client's leaving only through the request's context, which a client
+// that sent one more byte never cancels (UR-P1-conc-01).
+func streamHead(w http.ResponseWriter, r *http.Request) bool {
+	if r.Method == http.MethodGet {
+		return false
+	}
+	writeStreamHeaders(w)
+	return true
+}
+
+// writeStreamHeaders writes the header of a server-sent event stream.
+func writeStreamHeaders(w http.ResponseWriter) {
+	hdr := w.Header()
+	hdr.Set("Content-Type", "text/event-stream")
+	hdr.Set("Cache-Control", "no-store")
+	hdr.Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
 }
 
 // serveSSE serves server-sent events from subscribe until ctx ends, with
@@ -41,11 +67,7 @@ func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, subscribe
 	// open (node.Observe) and removed when it closes.
 	defer subscribe(push)()
 
-	hdr := w.Header()
-	hdr.Set("Content-Type", "text/event-stream")
-	hdr.Set("Cache-Control", "no-store")
-	hdr.Set("X-Accel-Buffering", "no")
-	w.WriteHeader(http.StatusOK)
+	writeStreamHeaders(w)
 	if _, err := fmt.Fprint(w, ": connected\n\n"); err != nil {
 		return
 	}

@@ -276,6 +276,9 @@ func (h *handler) logStream(w http.ResponseWriter, r *http.Request) {
 		opsUnready(w, r)
 		return
 	}
+	if streamHead(w, r) {
+		return
+	}
 	h.serveSSE(r.Context(), w, func(fn func(Event)) func() {
 		return h.ops.ObserveLog(func(rec LogRecord) {
 			fn(Event{Type: EventLogRecord, Data: logRecordOf(&rec)})

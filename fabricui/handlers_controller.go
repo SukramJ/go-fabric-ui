@@ -97,7 +97,7 @@ var _ api.StrictServerInterface = (*controllerServer)(nil)
 // problem for any other /controller path.
 func (h *handler) controllerRoutes() http.Handler {
 	srv := &controllerServer{h: h, src: h.ctrl}
-	strict := api.NewStrictHandlerWithOptions(srv, nil, api.StrictHTTPServerOptions{
+	strict := api.NewStrictHandlerWithOptions(srv, []api.StrictMiddlewareFunc{streamHeadOnly}, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  func(w http.ResponseWriter, r *http.Request, err error) { badBody(w, r, err) },
 		ResponseErrorHandlerFunc: h.controllerError,
 	})
@@ -1630,6 +1630,29 @@ type controllerStream struct {
 
 func (c controllerStream) VisitControllerStreamResponse(w http.ResponseWriter) error {
 	c.h.serveSSE(c.ctx, w, c.h.subscribeController)
+	return nil
+}
+
+// streamHeadOnly answers a HEAD on the controller stream with the
+// stream's headers only, as streamHead does for the node and log streams
+// (UR-P1-conc-01).
+func streamHeadOnly(f api.StrictHandlerFunc, operationID string) api.StrictHandlerFunc {
+	if operationID != "ControllerStream" {
+		return f
+	}
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, req any) (any, error) {
+		if r.Method != http.MethodGet {
+			return controllerStreamHead{}, nil
+		}
+		return f(ctx, w, r, req)
+	}
+}
+
+// controllerStreamHead is the controller stream's answer to a HEAD.
+type controllerStreamHead struct{}
+
+func (controllerStreamHead) VisitControllerStreamResponse(w http.ResponseWriter) error {
+	writeStreamHeaders(w)
 	return nil
 }
 
