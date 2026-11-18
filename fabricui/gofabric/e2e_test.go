@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -1183,5 +1184,40 @@ func TestPair_ACommissioningThatHappenedIsNoFailure(t *testing.T) {
 	}
 	if perr != nil || n == nil {
 		t.Fatalf("Pair answered %v for a commissioning that happened", perr)
+	}
+}
+
+// A device already commissioned that is commissioned again through its
+// discovered entry: go-fabric finds the existing node and refuses it
+// (ErrAlreadyCommissioned) with the node beside the error. Nothing was
+// commissioned by this call, so it is no success (UR-P2-adpt-190).
+func TestCommissionDiscovered_ACommissionedNodeAgainIsNoSuccess(t *testing.T) {
+	s := newCtrlSite(t)
+	sp, err := s.dev.Node().SetupPayload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	var err2 error
+	var found []fabricui.Discovered
+	if err := s.site.Run(ctx, func(ctx context.Context) error {
+		var err error
+		if found, err = s.src.Discover(ctx, fabricui.DiscoverFilter{}, 5*time.Second); err != nil {
+			return err
+		}
+		if len(found) == 0 {
+			return errors.New("no device discovered")
+		}
+		if _, err = s.src.CommissionDiscovered(ctx, found[0], sp.Passcode, fabricui.PairOptions{}); err != nil {
+			return err
+		}
+		_, err2 = s.src.CommissionDiscovered(ctx, found[0], sp.Passcode, fabricui.PairOptions{})
+		return nil
+	}); err != nil {
+		t.Fatalf("first commissioning: %v", err)
+	}
+	if err2 == nil {
+		t.Fatal("a second commissioning of a node already commissioned answered success")
 	}
 }

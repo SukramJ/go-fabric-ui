@@ -180,8 +180,9 @@ hands the switch to `Options.Node` or `NodeEntry.Source` (0.7.1). Its
 target, swapped atomically. A failed restart calls nothing: the pages
 keep reading the stopped node — its last health verdict and its erased
 store's errors — and what the host shows about the failure is the
-host's. `Set` ends every stream a handler serves over the switch (a
-stream's observers are registered on the node it was opened on), so the
+host's. `Set` ends every node stream a handler serves while the switch is
+its `Options.Node` or a `NodeEntry.Source` (a stream's observers are
+registered on the node it was opened on), so the
 browser's `EventSource` reconnects and the new stream observes the new
 node; the erase flow polls `GET /node/status`, which reads through the
 switch, until the new node answers. As a registry node's `Source` the same

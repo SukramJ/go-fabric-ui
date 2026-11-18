@@ -73,8 +73,7 @@ func TestAPI_EveryRouteAnswersWithTheSecurityHeaders(t *testing.T) {
 
 // A page of another origin reads no answer of the API: no route sends an
 // Access-Control-* header to a request that names another origin, and no
-// preflight is answered with success, so a request that needs one (the
-// token header, a JSON body) is not sent (UR-P2-test-95; a guard, green).
+// preflight is answered with success (UR-P2-test-95; a guard, green).
 func TestAPI_NoRouteAdmitsAnotherOrigin(t *testing.T) {
 	ops := contractOperations(t)
 	_, mux := newTestHandler(t, testOptions{
