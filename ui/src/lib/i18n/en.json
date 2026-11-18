@@ -730,6 +730,7 @@
   "operation.log_hint": "The newest records in memory, then each new one as it is logged; a restart empties it. The level applies until the next restart.",
   "operation.pause": "Pause",
   "operation.paused": "Paused — {count} new records held back.",
+  "operation.paused_dropped": "Paused — {count} new records received, the newest {kept} held back.",
   "operation.resume": "Resume",
   "operation.subtitle": "Log level, log and version of the daemon",
   "operation.title": "Operation",

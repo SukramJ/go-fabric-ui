@@ -730,6 +730,7 @@
   "operation.log_hint": "Die neuesten Einträge im Speicher, danach jeder neue, sobald er geloggt wird; ein Neustart leert es. Das Level gilt bis zum nächsten Neustart.",
   "operation.pause": "Anhalten",
   "operation.paused": "Angehalten — {count} neue Einträge zurückgehalten.",
+  "operation.paused_dropped": "Angehalten — {count} neue Einträge empfangen, die neuesten {kept} zurückgehalten.",
   "operation.resume": "Fortsetzen",
   "operation.subtitle": "Log-Level, Log und Version des Daemons",
   "operation.title": "Betrieb",

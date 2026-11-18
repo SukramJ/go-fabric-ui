@@ -18,7 +18,7 @@
   import Input from "../../kit/Input.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
   import Select from "../../kit/Select.svelte";
-  import { formatUptime, KEEP_RECORDS, LEVELS, mergeRecords, recordLine, visibleRecords } from "./log";
+  import { appendRecord, formatUptime, KEEP_RECORDS, LEVELS, mergeRecords, recordLine, visibleRecords } from "./log";
 
   const { t, toast, client, subscribeLog, node, controller } = useFabricUI();
   // Setting the level is an admin route: admin rights are the token of
@@ -33,7 +33,8 @@
   let levels = $state<LogLevelName[]>([...LEVELS]);
   let records = $state<LogRecord[]>([]);
   let paused = $state(false);
-  // held are the records the stream delivered while paused.
+  // held are the newest KEEP_RECORDS the stream delivered while paused;
+  // heldCount counts every one delivered.
   let held: LogRecord[] = [];
   let heldCount = $state(0);
   let minLevel = $state<LogLevelName>("debug");
@@ -43,10 +44,11 @@
   function append(rec: LogRecord) {
     if (paused) {
       held.push(rec);
-      heldCount = held.length;
+      if (held.length > KEEP_RECORDS) held.shift();
+      heldCount++;
       return;
     }
-    records = mergeRecords(records, [rec]);
+    records = appendRecord(records, rec);
   }
 
   async function load() {
@@ -158,7 +160,9 @@
         <Button variant="outline" size="sm" onclick={() => void copy()} disabled={shown.length === 0}>{t("common.copy")}</Button>
       </div>
       {#if paused}
-        <p class="mt-2 text-xs text-[var(--ha-warning-color)]" data-testid="paused">{t("operation.paused", { count: heldCount })}</p>
+        <p class="mt-2 text-xs text-[var(--ha-warning-color)]" data-testid="paused">
+          {heldCount > KEEP_RECORDS ? t("operation.paused_dropped", { count: heldCount, kept: KEEP_RECORDS }) : t("operation.paused", { count: heldCount })}
+        </p>
       {/if}
       {#if shown.length === 0}
         <EmptyState class="mt-3" message={records.length === 0 ? t("operation.log_empty") : t("operation.log_filtered")} />
