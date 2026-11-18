@@ -1,7 +1,11 @@
 <!-- A commissioning window on the node for another administrator: the
-     codes, the QR code (renderQrSvg) and the timeout; closing it. The
-     passcode stays on this page; it is not stored. -->
+     codes, the QR code (renderQrSvg) and the time left; closing it. The
+     passcode stays on this page; it is not stored. The codes leave the
+     page when the window's time is up, and Close is offered also when the
+     page does not know of an open window (one opened before the tab was
+     left, or elsewhere): there is no route that reads the window. -->
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import { useFabricUI } from "../../../context";
   import { errorText } from "../../../store.svelte";
   import { renderQrSvg } from "../../../qr";
@@ -16,6 +20,30 @@
   let win = $state<NodeWindow | null>(null);
   let timeout = $state("900");
   let busy = $state(false);
+  // Seconds until the open window's timeout, counted on this page.
+  let left = $state(0);
+  let expired = $state(false);
+  let timer: ReturnType<typeof setInterval> | undefined;
+
+  function stopTimer() {
+    if (timer !== undefined) clearInterval(timer);
+    timer = undefined;
+  }
+  onDestroy(stopTimer);
+
+  function startTimer(seconds: number) {
+    stopTimer();
+    const until = Date.now() + seconds * 1000;
+    left = seconds;
+    timer = setInterval(() => {
+      left = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+      if (left === 0) {
+        stopTimer();
+        win = null;
+        expired = true;
+      }
+    }, 1000);
+  }
 
   const options = $derived(["180", "300", "600", "900"].map((s) => ({ value: s, label: t("controller.window.minutes", { minutes: Number(s) / 60 }) })));
   const qrSvg = $derived(win ? renderQrSvg(win.qr_code) : null);
@@ -24,6 +52,8 @@
     busy = true;
     try {
       win = await client.openNodeWindow(nodeId, Number(timeout));
+      expired = false;
+      startTimer(win.timeout_seconds);
     } catch (err) {
       toast.error(errorText(err));
     } finally {
@@ -35,6 +65,7 @@
     busy = true;
     try {
       await client.closeNodeWindow(nodeId);
+      stopTimer();
       win = null;
       toast.success(t("controller.window.closed"));
     } catch (err) {
@@ -57,10 +88,15 @@
 <Card class="p-4">
   <p class="mb-3 text-sm text-[var(--ha-secondary-text-color)]">{t("controller.window.hint")}</p>
   {#if !win}
+    {#if expired}
+      <p class="mb-3 text-sm text-[var(--ha-secondary-text-color)]" role="status">{t("controller.window.expired")}</p>
+    {/if}
     <div class="flex flex-wrap items-center gap-2">
       <Select class="w-auto" ariaLabel={t("controller.window.timeout")} value={timeout} onValueChange={(v) => (timeout = v as typeof timeout)} {options} />
       <Button disabled={busy} onclick={() => void open()}>{t("controller.window.open")}</Button>
+      <Button variant="outline-destructive" disabled={busy} onclick={() => void close()}>{t("controller.window.close")}</Button>
     </div>
+    <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]">{t("controller.window.close_hint")}</p>
   {:else}
     <div class="flex flex-wrap gap-6" data-testid="node-window">
       <div class="w-48">{@html qrSvg}</div>
@@ -71,8 +107,8 @@
         <dd class="font-mono text-xs">{win.qr_code}</dd>
         <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.window.discriminator")}</dt>
         <dd>{win.discriminator}</dd>
-        <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.window.timeout")}</dt>
-        <dd>{t("controller.window.seconds", { seconds: win.timeout_seconds })}</dd>
+        <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.window.left")}</dt>
+        <dd data-testid="window-left">{t("controller.window.seconds", { seconds: left })}</dd>
       </dl>
     </div>
     <Button class="mt-4" variant="outline-destructive" disabled={busy} onclick={() => void close()}>{t("controller.window.close")}</Button>

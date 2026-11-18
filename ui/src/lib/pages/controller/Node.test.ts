@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import NodeHarness from "../../../test/NodeHarness.svelte";
 import { body, fixtureFetch, testUI } from "../../../test/support";
@@ -341,5 +341,31 @@ describe("Controller Node — ACL and binding input", () => {
     expect(puts).toBe(1);
     release!();
     await waitFor(() => expect(ui.toastSpy.success).toHaveBeenCalledWith("controller.bindings.saved"));
+  });
+});
+
+describe("Controller Node — the window tab (UR-P1-ui-166)", () => {
+  it("offers Close after the tab was left and shown again", async () => {
+    const ui = renderNode(L, "window", ["controller-node-window.200", "controller-node-window-close.204"]);
+    await screen.findByTestId("node-title");
+    await fireEvent.click(screen.getByText("controller.window.open"));
+    await screen.findByTestId("node-window");
+    await fireEvent.click(screen.getByText("controller.node.tab.overview"));
+    await fireEvent.click(screen.getByText("controller.node.tab.window"));
+    await fireEvent.click(await screen.findByText("controller.window.close"));
+    await waitFor(() => expect(ui.toastSpy.success).toHaveBeenCalledWith("controller.window.closed"));
+    expect(ui.sent.some((s) => s.method === "POST" && s.path.endsWith("/window/close"))).toBe(true);
+  });
+
+  it("takes the codes off the page when the window's time is up", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderNode(L, "window", ["controller-node-window.200"]);
+    await screen.findByTestId("node-title");
+    await fireEvent.click(screen.getByText("controller.window.open"));
+    expect(await screen.findByTestId("node-window")).toHaveTextContent("34970112332");
+    await vi.advanceTimersByTimeAsync(301_000);
+    await waitFor(() => expect(screen.queryByTestId("node-window")).toBeNull());
+    expect(screen.getByText("controller.window.expired")).toBeInTheDocument();
+    vi.useRealTimers();
   });
 });
