@@ -71,6 +71,15 @@ All notable changes to this project are documented here. The format follows
 - A stream whose client stopped reading ends after two heartbeats
   instead of holding its subscriptions for the connection's life
   (UR-P2-bound-33).
+- The pages no longer go blank when a node repeats an id (an event
+  number, a device type, an attribute, command or event id): every keyed
+  list keys by position or by a key that cannot repeat, held by a test over
+  every keyed list (UR-P2-ui-90); an endpoint's cluster panels keep their
+  open state across a reload (UR-P2-ui-191).
+- The Pair page keeps its own window's codes through that window's
+  `window_opened` and a resync (UR-P2-ui-05), drops them once the flow
+  ends (UR-P2-leak-08), and follows the new node after an erase
+  (UR-P2-conc-04).
 
 ### Changed
 
