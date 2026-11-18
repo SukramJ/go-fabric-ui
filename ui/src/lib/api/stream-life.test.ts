@@ -137,3 +137,23 @@ describe("UR-P1-conc-190: a page loaded hidden resyncs on its first open", () =>
     close();
   });
 });
+
+describe("UR-P1-bound-195: a stream that opens and drops repeatedly reloads at a bounded rate", () => {
+  it("coalesces the resyncs of opens within RESYNC_MIN_MS into one trailing call", async () => {
+    const { RESYNC_MIN_MS } = await import("./stream");
+    const onResync = vi.fn();
+    const close = subscribeStream("/s", () => {}, open, { onResync });
+    const src = FakeSource.all[0];
+    src.emit("open");
+    for (let i = 0; i < 5; i++) {
+      src.readyState = 0;
+      src.emit("error");
+      src.emit("open");
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    expect(onResync).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(RESYNC_MIN_MS);
+    expect(onResync).toHaveBeenCalledTimes(2);
+    close();
+  });
+});

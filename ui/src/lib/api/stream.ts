@@ -75,6 +75,9 @@ export interface StreamOptions {
   pauseWhenHidden?: boolean;
 }
 
+/** onResync runs at most once per this many ms; opens within it share one trailing call (UR-P1-bound-195). */
+export const RESYNC_MIN_MS = 5000;
+
 /** The waits before reopening a stream that failed for good, the last repeated. */
 const BACKOFF_MS = [1000, 2000, 5000, 10000, 30000];
 const CLOSED = 2;
@@ -87,8 +90,9 @@ const defaultOpen: EventSourceFactory = (u) => new EventSource(u);
  * Opens the stream at url and hands each event of types with its parsed
  * data to deliver. It reopens a stream that failed for good with a
  * backoff, closes it while the page is hidden and reopens it when shown,
- * and calls onResync on every open but the first. Returns the close
- * function.
+ * and calls onResync on every open but the first (the first too when
+ * the page was hidden), at most once per RESYNC_MIN_MS. Returns the
+ * close function.
  */
 function openStream(
   url: string,
@@ -106,6 +110,22 @@ function openStream(
   let attempt = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let done = false;
+  // A stream that opens and drops repeatedly (a proxy cutting idle
+  // connections) reloads once per RESYNC_MIN_MS, not on every open.
+  let lastResync = -Infinity;
+  let resyncTimer: ReturnType<typeof setTimeout> | null = null;
+  const resync = () => {
+    if (!opts.onResync || resyncTimer) return;
+    const run = () => {
+      resyncTimer = null;
+      if (done) return;
+      lastResync = Date.now();
+      opts.onResync?.();
+    };
+    const wait = lastResync + RESYNC_MIN_MS - Date.now();
+    if (wait <= 0) run();
+    else resyncTimer = setTimeout(run, wait);
+  };
 
   const stop = () => {
     es?.close();
@@ -118,7 +138,7 @@ function openStream(
     src.addEventListener("open", () => {
       if (es !== src) return;
       attempt = 0;
-      if (resyncDue) opts.onResync?.();
+      if (resyncDue) resync();
       resyncDue = true;
     });
     src.addEventListener("error", () => {
@@ -151,6 +171,7 @@ function openStream(
   return () => {
     done = true;
     if (timer) clearTimeout(timer);
+    if (resyncTimer) clearTimeout(resyncTimer);
     doc?.removeEventListener("visibilitychange", onVisibility);
     stop();
   };
