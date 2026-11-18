@@ -36,6 +36,8 @@ type site struct {
 	srv    *httptest.Server
 	token  string
 	events chan string
+	// ended is closed when the stream openStream opened last ends.
+	ended chan struct{}
 	// seen holds every event type waitEvent read off the stream.
 	seen map[string]bool
 }
@@ -98,16 +100,27 @@ func newSiteWith(t *testing.T, configured, erase bool) *site {
 	}
 	s.token = st.CSRFToken
 
+	s.openStream()
+	return s
+}
+
+// openStream opens GET /node/stream and reads its event types into
+// s.events until it ends; s.ended is closed then. A page's EventSource
+// reconnects after an end, which a test does by calling it again.
+func (s *site) openStream() {
+	s.t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	s.t.Cleanup(cancel)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, s.srv.URL+"/api/v1/node/stream", http.NoBody)
 	resp, err := s.srv.Client().Do(req)
 	if err != nil {
-		t.Fatal(err)
+		s.t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = resp.Body.Close() })
-	connected := make(chan struct{})
+	s.t.Cleanup(func() { _ = resp.Body.Close() })
+	connected, ended := make(chan struct{}), make(chan struct{})
+	s.ended = ended
 	go func() {
+		defer close(ended)
 		defer resp.Body.Close()
 		sc := bufio.NewScanner(resp.Body)
 		for sc.Scan() {
@@ -120,8 +133,11 @@ func newSiteWith(t *testing.T, configured, erase bool) *site {
 			}
 		}
 	}()
-	<-connected
-	return s
+	select {
+	case <-connected:
+	case <-ended:
+		s.t.Fatal("the stream ended before it connected")
+	}
 }
 
 func (s *site) do(method, path, body string) (status int, respBody []byte) {
@@ -475,4 +491,27 @@ func TestEndToEnd_EraseBringsAFreshNode(t *testing.T) {
 	if len(fl.Fabrics) != 0 {
 		t.Fatalf("fabrics after the erase %+v", fl)
 	}
+}
+
+// A stream open across an erase ends when the host sets the new node, so
+// the page's EventSource reconnects and its resync reads the new node; the
+// reconnected stream carries the new node's transitions (UR-P2-conc-04).
+// Before, the stream stayed on the erased node's observers and the new
+// node's commissioning never reached it.
+func TestEndToEnd_EraseEndsTheStreamAndTheNextFollowsTheNewNode(t *testing.T) {
+	s := newSiteWith(t, false, true)
+	s.expect(http.StatusNoContent, http.MethodPost, "/node/maintenance/erase", `{"confirm":"erase-node"}`)
+	select {
+	case <-s.ended:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the stream opened before the erase is still open on the erased node")
+	}
+	s.openStream()
+	c := s.site.AddController(fabrictest.ControllerOptions{Label: "Controller"})
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if _, err := c.Commission(ctx, s.device, fabrictest.CommissionOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	s.waitEvent(fabricui.EventFabricAdded)
 }

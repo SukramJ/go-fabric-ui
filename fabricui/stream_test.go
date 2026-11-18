@@ -86,7 +86,7 @@ func TestStream_UnflushableWriterIsLogged(t *testing.T) {
 	h.heartbeat = 5 * time.Millisecond
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	h.serveSSE(ctx, plainWriter{httptest.NewRecorder()}, func(func(Event)) func() { return func() {} })
+	h.serveSSE(ctx, plainWriter{httptest.NewRecorder()}, nil, func(func(Event)) func() { return func() {} })
 	if !strings.Contains(log.String(), "level=WARN") || !strings.Contains(log.String(), "fabricui.stream.flush_failed") {
 		t.Fatalf("no warn record for a writer that cannot flush; log:\n%s", log.String())
 	}
@@ -100,7 +100,7 @@ func TestStream_InvalidTypeIsLoggedBounded(t *testing.T) {
 	h.heartbeat = time.Hour
 	ctx, cancel := context.WithCancel(context.Background())
 	long := strings.Repeat("A", 10000)
-	h.serveSSE(ctx, httptest.NewRecorder(), func(fn func(Event)) func() {
+	h.serveSSE(ctx, httptest.NewRecorder(), nil, func(fn func(Event)) func() {
 		fn(Event{Type: long})
 		go func() { time.Sleep(50 * time.Millisecond); cancel() }()
 		return func() {}

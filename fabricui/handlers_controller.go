@@ -1677,7 +1677,7 @@ type controllerStream struct {
 }
 
 func (c controllerStream) VisitControllerStreamResponse(w http.ResponseWriter) error {
-	c.h.serveSSE(c.ctx, w, c.h.subscribeController)
+	c.h.serveSSE(c.ctx, w, nil, c.h.subscribeController)
 	return nil
 }
 

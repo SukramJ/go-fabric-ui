@@ -154,10 +154,11 @@ hands the switch to `Options.Node` or `NodeEntry.Source` (0.7.1). Its
 target, swapped atomically. A failed restart calls nothing: the pages
 keep reading the stopped node — its last health verdict and its erased
 store's errors — and what the host shows about the failure is the
-host's. A stream open across `Set` keeps the node it was opened on (its
-observers were registered when it began) until the page reconnects; the
-erase flow polls `GET /node/status`, which reads through the switch,
-until the new node answers. As a registry node's `Source` the same
+host's. `Set` ends every stream a handler serves over the switch (a
+stream's observers are registered on the node it was opened on), so the
+browser's `EventSource` reconnects and the new stream observes the new
+node; the erase flow polls `GET /node/status`, which reads through the
+switch, until the new node answers. As a registry node's `Source` the same
 `*NodeSwitch` stays the same value across `Set`, so the node keeps its
 handler. `NewNodeSwitch(nil)` and `Set(nil)` panic: a nil target would
 fail inside the first request, where a nil `Options.Node` answers 503.

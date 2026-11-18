@@ -28,7 +28,22 @@ func (h *handler) stream(w http.ResponseWriter, r *http.Request) {
 	if streamHead(w, r) {
 		return
 	}
-	h.serveSSE(r.Context(), w, h.subscribe)
+	// Read before serveSSE subscribes: a Set after this read ends the
+	// stream (NodeSwitch.swapped).
+	swapped := h.nodeSwapped()
+	h.serveSSE(r.Context(), w, swapped, h.subscribe)
+}
+
+// nodeSwapped is closed when the host sets another node into the
+// [NodeSwitch] this handler serves (UR-P2-conc-04); nil, never closed,
+// for any other source.
+func (h *handler) nodeSwapped() <-chan struct{} {
+	if a, ok := h.node.(nodeAdapter); ok {
+		if sw, ok := a.n.(*NodeSwitch); ok {
+			return sw.swapped()
+		}
+	}
+	return nil
 }
 
 // streamHead answers a stream request that is not a GET — a HEAD, which
@@ -54,10 +69,11 @@ func writeStreamHeaders(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// serveSSE serves server-sent events from subscribe until ctx ends, with
-// a comment line every heartbeat: the node stream and the controller
-// stream (GET /controller/stream) alike.
-func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, subscribe func(func(Event)) func()) {
+// serveSSE serves server-sent events from subscribe until ctx ends or
+// swapped is closed, with a comment line every heartbeat: the node stream
+// and the controller stream (GET /controller/stream) alike. swapped is
+// the node stream's NodeSwitch.Set (nodeSwapped); nil for the others.
+func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, swapped <-chan struct{}, subscribe func(func(Event)) func()) {
 	rc := http.NewResponseController(w)
 	ch := make(chan Event, streamBuffer)
 	push := func(ev Event) {
@@ -92,6 +108,10 @@ func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, subscribe
 			return
 		case <-h.done:
 			// The registry deleted this node (UR-P1-conc-11).
+			return
+		case <-swapped:
+			// The host set a new node: the page reconnects and observes
+			// it (UR-P2-conc-04).
 			return
 		case <-tick.C:
 			if _, err := fmt.Fprint(w, ": heartbeat\n\n"); err != nil {
