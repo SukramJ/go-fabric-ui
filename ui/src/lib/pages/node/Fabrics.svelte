@@ -6,7 +6,8 @@
      an erase (Status.erase, contract 0.7.0) offers it beside the reset:
      two confirmations naming the node and its fabric count, then a notice
      while the status is polled until the node answers again — the erase
-     ends the node and the host brings a new one or restarts. -->
+     ends the node and the host brings a new one or restarts; the page
+     then reads everything again, as after a gap in its stream. -->
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { useFabricUI } from "../../context";
@@ -111,8 +112,10 @@
         return;
       }
       erased = false;
-      await node.loadStatus();
-      await node.loadFabrics();
+      // A new node: everything the page holds of the old one is read
+      // again, as after a gap in the stream. The host ends the old node's
+      // stream, and its reconnect resyncs too (UR-P2-conc-04).
+      node.resync();
     }, ERASE_POLL_MS);
   }
 
@@ -136,6 +139,8 @@
     busy = true;
     try {
       await client.erase();
+      // The erased node's window and its codes are gone with it.
+      node.resetCommissioning();
       toast.success(t("node.maint.erase_done", { label: name }));
       erased = true;
       waitForNode();

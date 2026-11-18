@@ -102,3 +102,59 @@ describe("UR-P2-ui-05: the page's own window on fresh credentials", () => {
     expect(h.store.commissioning.window?.qr_code).not.toBe(fresh.qr_code);
   });
 });
+
+describe("UR-P2-conc-04: an erase under an open Pair flow", () => {
+  // The erase ends the node; the new node opens its own window on the
+  // configured credentials. The page resyncs once the node answers.
+  it("a resync after the erase replaces the erased node's codes", async () => {
+    const h = harness({ pairing: configured });
+    h.set(basic());
+    await h.store.openWindow(300);
+    expect(h.store.commissioning.window?.qr_code).toBe(fresh.qr_code);
+    h.set({ commissioning_window_open: true, window_kind: "own", fabric_count: 0, window_deadline: new Date(Date.now() + 48 * 3600_000).toISOString() });
+    h.store.resync();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(h.store.commissioning.window?.qr_code ?? null).not.toBe(fresh.qr_code);
+  });
+
+  // The host ends the erased node's stream (NodeSwitch.Set): the browser
+  // reopens it and the open resyncs the store.
+  it("a stream the server ends is reopened, and its open resyncs", async () => {
+    const sources: { emit: (type: string) => void; readyState: number }[] = [];
+    class Source {
+      readyState = 0;
+      listeners = new Map<string, (() => void)[]>();
+      constructor() {
+        sources.push(this);
+      }
+      addEventListener(type: string, fn: () => void) {
+        this.listeners.set(type, [...(this.listeners.get(type) ?? []), fn]);
+      }
+      close() {
+        this.readyState = 2;
+      }
+      emit(type: string) {
+        if (type === "open") this.readyState = 1;
+        for (const fn of this.listeners.get(type) ?? []) fn();
+      }
+    }
+    vi.stubGlobal("EventSource", Source);
+    try {
+      const ff = fixtureFetch(["node-status.200", "node-fabrics.200"]);
+      const store = createNodeStore(createClient("/api/v1", ff.fetch), { t, toast });
+      store.connect();
+      sources[0].emit("open");
+      expect(ff.sent).toHaveLength(0);
+      // The response ends: EventSource reports an error while it connects again.
+      sources[0].readyState = 0;
+      sources[0].emit("error");
+      sources[0].emit("open");
+      await vi.advanceTimersByTimeAsync(10);
+      expect(ff.sent.map((s) => `${s.method} ${s.path}`)).toEqual(expect.arrayContaining(["GET /api/v1/node/status", "GET /api/v1/node/fabrics"]));
+      store.close();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+

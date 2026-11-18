@@ -159,6 +159,25 @@ describe("Fabrics — erasing the node (0.7.0)", () => {
   });
 });
 
+describe("Fabrics — an erase under an open Pair flow (UR-P2-conc-04, UR-P2-leak-08)", () => {
+  // The erase ends the node the stream and the pairing flow were about:
+  // the flow's codes go at the erase's answer, and once the new node
+  // answers the page resyncs as after a gap in the stream.
+  it("drops the erased node's codes at once and resyncs when the node answers", async () => {
+    const ui = testUI({ fixtures: ["node-fabrics.200", "node-status.200-attestation", "node-maintenance-erase.204", "node-pairing-window.200"] });
+    await ui.node.loadStatus();
+    await ui.node.openWindow(300);
+    expect(ui.node.commissioning.window).not.toBeNull();
+    render(Harness, { ui, page: Fabrics });
+    const epoch = ui.node.graphEpoch;
+    await fireEvent.click(await screen.findByTestId("node-erase"));
+    await screen.findByTestId("node-erased");
+    expect(ui.node.commissioning).toMatchObject({ phase: "idle", window: null });
+    await waitFor(() => expect(screen.queryByTestId("node-erased")).toBeNull(), { timeout: 4000 });
+    await waitFor(() => expect(ui.node.graphEpoch).toBe(epoch + 1));
+  });
+});
+
 describe("Fabrics — admin rights (UR-P1-ui-133)", () => {
   it("shows no remove or maintenance control without admin rights", async () => {
     const st = body<Record<string, unknown>>("node-status.200");
