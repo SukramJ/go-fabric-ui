@@ -9,24 +9,22 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /**
- * A case-insensitive predicate over a free-text search term. The literal
- * substring always matches; when the term is also a valid regular
- * expression it matches by that too, so `lamp|light` finds both while a
- * pasted name with parentheses still finds itself.
+ * A case-insensitive predicate over a free-text search term: `|` separates
+ * alternatives, each matched as a literal substring, so `lamp|light` finds
+ * both and a pasted name with parentheses finds itself. The term is never
+ * run as a regular expression: a backtracking pattern typed one character
+ * at a time against host-supplied text froze the tab (UR-P1-ui-142).
+ * Diverges from the port's source, which also tried the term as a regex.
  */
 export function makeTextMatcher(term: string): (text: string) => boolean {
-  const q = term.trim();
-  if (!q) return () => true;
-  let re: RegExp | null = null;
-  try {
-    re = new RegExp(q, "i");
-  } catch {
-    re = null;
-  }
-  const lower = q.toLowerCase();
+  const alternatives = term
+    .split("|")
+    .map((a) => a.trim().toLowerCase())
+    .filter((a) => a !== "");
+  if (alternatives.length === 0) return () => true;
   return (text: string) => {
-    if (text.toLowerCase().includes(lower)) return true;
-    return re ? re.test(text) : false;
+    const lower = text.toLowerCase();
+    return alternatives.some((a) => lower.includes(a));
   };
 }
 
