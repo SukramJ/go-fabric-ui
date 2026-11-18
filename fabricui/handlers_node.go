@@ -588,8 +588,19 @@ func (h *handler) nodeEndpointEvents(w http.ResponseWriter, r *http.Request) {
 		h.writeAPIError(w, r, "", err)
 		return
 	}
+	if ep == endpointWildcard {
+		// 0xFFFF is no endpoint, and go-fabric reads it as "any
+		// endpoint": answered as the contract answers an unknown
+		// endpoint, not with every endpoint's events (UR-P1-adpt-35).
+		writeJSON(w, eventRecords(nil))
+		return
+	}
 	writeJSON(w, eventRecords(h.node.eventLog(node.EventQuery{Endpoint: &ep, MinNumber: s, Limit: l})))
 }
+
+// endpointWildcard is the endpoint number go-fabric's event log reads as
+// any endpoint (im/eventlog.go:443 at v0.22.2).
+const endpointWildcard = 0xFFFF
 
 // detachedTimeout bounds work that outlives its request (detached).
 const detachedTimeout = 2 * time.Minute

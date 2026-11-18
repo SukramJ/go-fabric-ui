@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/SukramJ/go-fabric/contract"
@@ -320,5 +321,18 @@ func TestNodeEndpoint_FailedAttributeStatus(t *testing.T) {
 	}
 	if seen != 1 {
 		t.Fatalf("%d failed attributes, want 1", seen)
+	}
+}
+
+// UR-P1-adpt-35: endpoint 65535 is no endpoint but go-fabric's wildcard;
+// the route answers it as the contract answers an unknown endpoint, an
+// empty list, not every endpoint's events.
+func TestEndpointEvents_WildcardEndpointIsEmpty(t *testing.T) {
+	n := sampleNode()
+	n.logged = sampleEventLog()
+	_, mux := newTestHandler(t, testOptions{node: n})
+	rec := do(t, mux, http.MethodGet, "/node/endpoints/65535/events", "")
+	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"events":[]}` {
+		t.Fatalf("%d %s, want an empty list", rec.Code, rec.Body)
 	}
 }

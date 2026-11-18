@@ -479,7 +479,9 @@ func (f *fakeNode) eventLog(q node.EventQuery) []EventRecord {
 	f.mu.Unlock()
 	out := []EventRecord{}
 	for _, e := range f.logged {
-		if (q.Endpoint == nil || *q.Endpoint == e.Endpoint) && e.Number >= q.MinNumber {
+		// 0xFFFF is go-fabric's endpoint wildcard (im/eventlog.go:443 at
+		// v0.22.2), as nil is.
+		if (q.Endpoint == nil || *q.Endpoint == 0xFFFF || *q.Endpoint == e.Endpoint) && e.Number >= q.MinNumber {
 			out = append(out, e)
 		}
 	}
