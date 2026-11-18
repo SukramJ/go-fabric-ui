@@ -631,3 +631,39 @@ func TestRegistry_DeleteEndsTheNodesStreams(t *testing.T) {
 		t.Fatal("the deleted node's stream is still open")
 	}
 }
+
+// UR-P1-conc-19: a registry entry whose Source is swapped under the same
+// key gets a new handler; the replaced one's streams end with it.
+func TestRegistry_SwappedSourceEndsTheOldStreams(t *testing.T) {
+	_, mux, reg := registryHandler(t, 0)
+	reg.mu.Lock()
+	key := reg.nodes[0].Key
+	reg.mu.Unlock()
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/nodes/"+key+"/stream", http.NoBody)
+	resp, err := srv.Client().Do(req) //nolint:bodyclose // closed below; the reader goroutine drains it
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := resp.Body
+	defer body.Close()
+	done := make(chan error, 1)
+	go func() { _, err := io.Copy(io.Discard, body); done <- err }()
+	reg.mu.Lock()
+	reg.nodes[0].Source = portSource{fakeNode: secondNode()}
+	reg.mu.Unlock()
+	if rec := do(t, mux, http.MethodGet, "/nodes/"+key+"/status", ""); rec.Code != http.StatusOK {
+		t.Fatalf("status: %d %s", rec.Code, rec.Body)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("stream ended with %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the replaced handler's stream is still open")
+	}
+}

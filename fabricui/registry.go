@@ -185,6 +185,9 @@ func (h *handler) managedHandler(e *NodeEntry, gen uint64) *handler {
 		c.h.hooks.Store(&nodeHooks{reassemble: ne.reassemble, erase: ne.erase})
 		return c.h
 	}
+	if ok {
+		c.h.stop() // the entry changed under its key: the old handler's streams end
+	}
 	n := h.sibling(ne)
 	h.regCache[e.Key] = managedNode{entry: *e, h: n}
 	return n
