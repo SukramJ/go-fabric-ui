@@ -1861,15 +1861,15 @@ func (s *controllerServer) GetControllerMdns(context.Context, api.GetControllerM
 }
 
 // ListControllerDiagnosticEvents serves GET /controller/events: the
-// port's trace newest first, as GET /node/events; 501 when the source
-// serves no diagnostics.
+// port's trace in the port's order, newest first, as GET /node/events;
+// 501 when the source serves no diagnostics.
 func (s *controllerServer) ListControllerDiagnosticEvents(context.Context, api.ListControllerDiagnosticEventsRequestObject) (api.ListControllerDiagnosticEventsResponseObject, error) {
 	if !s.diagnosticsServed() {
 		return nil, ErrNotImplemented
 	}
 	events := s.src.DiagnosticEvents()
 	out := api.ListControllerDiagnosticEvents200JSONResponse{Events: make([]api.DiagnosticEvent, 0, len(events))}
-	for i := len(events) - 1; i >= 0; i-- {
+	for i := range events {
 		e := &events[i]
 		ev := api.DiagnosticEvent{
 			At: wireTime(e.At), Kind: api.DiagnosticEventKind(e.Kind),
