@@ -4,6 +4,7 @@
 package gofabric
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -103,5 +104,100 @@ func TestHooks_EventChainsAndSchedulesAnUpdate(t *testing.T) {
 	}
 	if bothEvent(nil, nil) != nil {
 		t.Fatal("two absent hooks chain to one")
+	}
+}
+
+// Decommissioned forgets the node: its id leaves ids and its pending
+// node_updated timer is stopped, so no node_updated follows node_removed
+// (UR-P1-bound-68).
+func TestHooks_DecommissionedForgetsTheNode(t *testing.T) {
+	h, _ := hooksOnClosedController(t)
+	defer h.Close()
+	h.delay = time.Hour
+	h.mu.Lock()
+	h.ids["n1"] = 0x11
+	h.mu.Unlock()
+	hooks := h.For("n1")
+	hooks.Changed()
+	hooks.Decommissioned()
+	h.mu.Lock()
+	ids, pending := len(h.ids), len(h.pending)
+	h.mu.Unlock()
+	if ids != 0 || pending != 0 {
+		t.Fatalf("after Decommissioned: %d ids, %d timers pending", ids, pending)
+	}
+}
+
+// A source without hooks releases its subscriptions through its own
+// Close (UR-P1-api-67); Close is idempotent.
+func TestSource_CloseWithoutHooks(t *testing.T) {
+	src := ControllerOf(&controller.Controller{}, ControllerOptions{})
+	s := src.(*source)
+	released := 0
+	s.topoMu.Lock()
+	s.unwatch = func() { released++ }
+	s.unobserve = func() { released++ }
+	s.topoMu.Unlock()
+	src.Close()
+	src.Close()
+	if released != 2 {
+		t.Fatalf("released %d subscriptions, want 2", released)
+	}
+}
+
+// Close cancels a running label push and returns only once it ended; a
+// label set after Close starts none (UR-P1-conc-62).
+func TestSource_CloseEndsTheLabelPush(t *testing.T) {
+	s := ControllerOf(&controller.Controller{}, ControllerOptions{}).(*source)
+	started := make(chan struct{})
+	var ended, pushes atomic.Int32
+	s.push = func(ctx context.Context) error {
+		if pushes.Add(1) == 1 {
+			close(started)
+		}
+		<-ctx.Done()
+		ended.Add(1)
+		return ctx.Err()
+	}
+	s.pushLabel()
+	<-started
+	s.pushLabel() // a second label during the push: one more round, not a second worker
+	s.Close()
+	if ended.Load() != pushes.Load() || pushes.Load() == 0 {
+		t.Fatalf("Close returned with %d of %d pushes ended", ended.Load(), pushes.Load())
+	}
+	s.pushLabel()
+	time.Sleep(10 * time.Millisecond)
+	if n := pushes.Load(); n > 2 {
+		t.Fatalf("%d pushes, one after Close", n)
+	}
+}
+
+// Close waits for a node_updated callback that is already running: when
+// it returns, nothing of the hooks touches the controller any more
+// (UR-P1-conc-62).
+func TestHooks_CloseWaitsForARunningTimer(t *testing.T) {
+	h, _ := hooksOnClosedController(t)
+	h.delay = time.Millisecond
+	entered, release := make(chan struct{}), make(chan struct{})
+	var done atomic.Bool
+	h.fired = func() {
+		close(entered)
+		<-release
+		done.Store(true)
+	}
+	h.For("n1").Changed()
+	<-entered
+	closed := make(chan struct{})
+	go func() { h.Close(); close(closed) }()
+	select {
+	case <-closed:
+		t.Fatal("Close returned while a timer callback runs")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(release)
+	<-closed
+	if !done.Load() {
+		t.Fatal("Close returned before the callback ended")
 	}
 }

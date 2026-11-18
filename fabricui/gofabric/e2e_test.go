@@ -235,6 +235,32 @@ type nodeDetail struct {
 	} `json:"endpoints"`
 }
 
+// Two label writes in a row end at the second: the background push never
+// sets an older label again (UR-P1-conc-61).
+func TestEndToEnd_FabricLabelLastWriteWins(t *testing.T) {
+	s := newCtrlSite(t)
+	for i := range 100 {
+		a, b := fmt.Sprintf("a%d", i), fmt.Sprintf("b%d", i)
+		if err := s.src.SetFabricLabel(t.Context(), a); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.src.SetFabricLabel(t.Context(), b); err != nil {
+			t.Fatal(err)
+		}
+		// The pushes settle within a few milliseconds on the site; the
+		// label then stays.
+		time.Sleep(2 * time.Millisecond)
+		deadline := time.Now().Add(time.Second)
+		for s.src.Fabric().Label != b && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		time.Sleep(2 * time.Millisecond)
+		if got := s.src.Fabric().Label; got != b {
+			t.Fatalf("round %d: label %q, want %q", i, got, b)
+		}
+	}
+}
+
 // TestEndToEnd_Controller: the controller family on a real go-fabric
 // controller — commission a fabrictest device by its manual code, list
 // and read the node, open and close a window, write and read back the

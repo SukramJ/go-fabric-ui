@@ -19,7 +19,8 @@
 //	svc := topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})
 //	src := gofabric.ControllerOf(ctrl, gofabric.ControllerOptions{Hooks: hooks, Credentials: store, Topology: svc})
 //	mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Controller: src}))
-//	// … on shutdown: svc.Close() and hooks.Close() before ctrl.Close(ctx)
+//	// … on shutdown: svc.Close() and hooks.Close() (or src.Close()
+//	// without hooks) before ctrl.Close(ctx)
 //
 // The facade calls are those go-fabric-server's controllerapi makes per
 // WebSocket command (cmd_node.go, cmd_commission.go, cmd_interact.go,
@@ -60,7 +61,9 @@ type ControllerOptions struct {
 	// host wires them into controller.Config.HooksFor before
 	// controller.New. Nil leaves the stream with the handler's own
 	// events (commissioning progress) and the update events the source
-	// observes on the controller's update manager.
+	// observes on the controller's update manager; the host then closes
+	// the source itself ([Source.Close]), which Hooks.Close does
+	// otherwise.
 	Hooks *Hooks
 	// Credentials is the host's Wi-Fi and Thread credential store; nil
 	// serves none (the credential routes answer 503).
@@ -96,9 +99,22 @@ func ThreadDatasetName(dataset []byte) (string, error) {
 	return *ds.NetworkName, nil
 }
 
+// Source is the controller family's source over a controller, with what
+// ends the work it runs beside the requests.
+type Source interface {
+	fabricui.ControllerSource
+	// Close releases the source's subscriptions to the topology service
+	// and the update manager, cancels a running label push and waits for
+	// it. [Hooks.Close] calls it; a host without hooks calls it before it
+	// closes the controller. It is idempotent.
+	Close()
+}
+
 // ControllerOf is the controller family's source over ctrl.
-func ControllerOf(ctrl *controller.Controller, opts ControllerOptions) fabricui.ControllerSource {
+func ControllerOf(ctrl *controller.Controller, opts ControllerOptions) Source {
 	s := &source{ctrl: ctrl, opts: opts, events: fabricui.NewEvents(), discovered: map[string]client.Device{}, log: opts.Logger}
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	s.push = s.pushCurrentLabel
 	if s.log == nil {
 		s.log = slog.Default()
 	}
@@ -127,9 +143,23 @@ type source struct {
 	discovered map[string]client.Device
 
 	// topoState holds the subscriptions to opts.Topology and to the
-	// controller's update manager, released by Hooks.Close (or
-	// closeTopology without hooks).
+	// controller's update manager, released by Close.
 	topoState
+
+	// ctx is the source's life: Close cancels it, and the label push
+	// derives from it.
+	ctx    context.Context //nolint:containedctx // the source's own lifetime, not a request's
+	cancel context.CancelFunc
+	// labelMu guards the label push's state: closed after Close, pushing
+	// while the push worker runs, again when a label was set during a
+	// push. pushes counts the running worker; Close waits for it.
+	labelMu        sync.Mutex
+	closed         bool
+	pushing, again bool
+	pushes         sync.WaitGroup
+	// push sends the fabric's current label to the nodes; a test
+	// replaces it.
+	push func(ctx context.Context) error
 }
 
 func (s *source) publish(e fabricui.ControllerEvent) {
@@ -569,19 +599,74 @@ func (s *source) SetFabricLabel(_ context.Context, label string) error {
 		}
 		return err
 	}
-	// The push outlives the request on purpose: the answer does not wait.
-	go func() { //nolint:gosec,contextcheck // G118: the push outlives the request by design
-		ctx, cancel := context.WithTimeout(context.Background(), labelPushTimeout)
-		defer cancel()
-		reg := s.ctrl.Registry()
-		if reg == nil {
-			return
-		}
-		if err := reg.SetFabricLabel(ctx, label); err != nil {
+	s.pushLabel()
+	return nil
+}
+
+// pushLabel starts the label push worker, or asks the running one for
+// another round. The push outlives the request on purpose: the answer
+// does not wait. One worker at a time sends the label as it stands when
+// a round starts, so the pushes end at the last label set, never at an
+// older one a late goroutine still held.
+func (s *source) pushLabel() {
+	s.labelMu.Lock()
+	defer s.labelMu.Unlock()
+	switch {
+	case s.closed:
+		return
+	case s.pushing:
+		s.again = true
+		return
+	}
+	s.pushing = true
+	s.pushes.Add(1)
+	go s.pushRounds() //nolint:contextcheck // the push outlives the request by design
+}
+
+// pushRounds is the worker: a round per label set while it runs, each
+// bounded by labelPushTimeout and cancelled by Close.
+func (s *source) pushRounds() {
+	defer s.pushes.Done()
+	for {
+		s.labelMu.Lock()
+		s.again = false
+		s.labelMu.Unlock()
+		ctx, cancel := context.WithTimeout(s.ctx, labelPushTimeout)
+		if err := s.push(ctx); err != nil {
 			s.log.Warn("fabricui.gofabric.label_push_failed", slog.String("error", err.Error()))
 		}
-	}()
-	return nil
+		cancel()
+		s.labelMu.Lock()
+		if !s.again || s.closed {
+			s.pushing = false
+			s.labelMu.Unlock()
+			return
+		}
+		s.labelMu.Unlock()
+	}
+}
+
+// pushCurrentLabel sends the fabric's current label to the connected
+// nodes (client.Registry.SetFabricLabel, which sets that label on the
+// fabrics again: the current one, so nothing older returns).
+func (s *source) pushCurrentLabel(ctx context.Context) error {
+	f, reg := s.ctrl.Fabric(), s.ctrl.Registry()
+	if f == nil || reg == nil {
+		return nil
+	}
+	return reg.SetFabricLabel(ctx, f.CurrentLabel())
+}
+
+// Close implements [Source].
+func (s *source) Close() {
+	s.labelMu.Lock()
+	s.closed = true
+	s.labelMu.Unlock()
+	if s.cancel != nil {
+		s.cancel()
+	}
+	s.pushes.Wait()
+	s.closeTopology()
 }
 
 func (s *source) Credentials() fabricui.CredentialStore {
