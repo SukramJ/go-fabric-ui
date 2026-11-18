@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -533,5 +534,52 @@ func TestFailedFabricReadIsLogged(t *testing.T) {
 		if !strings.Contains(log.String(), "level=WARN") || !strings.Contains(log.String(), "store: closed") {
 			t.Fatalf("%s: the failed fabric read is not logged at warn:\n%s", path, log.String())
 		}
+	}
+}
+
+// leaving serves a request whose client leaves once started is closed —
+// a closed tab, a proxy's timeout — and returns when the handler is done.
+func leaving(t *testing.T, mux http.Handler, method, path, body string, started <-chan struct{}) *httptest.ResponseRecorder {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequestWithContext(ctx, method, DefaultPrefix+path, strings.NewReader(body))
+	req.Header.Set(TokenHeader, testToken)
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		mux.ServeHTTP(rec, req)
+	}()
+	<-started
+	cancel()
+	<-done
+	return rec
+}
+
+// The erase runs detached from its request, as the factory reset does: a
+// client that leaves does not stop the host's erase half-way (UR-P1-err-22).
+// A failed erase is logged at error, not as an abandoned request.
+func TestErase_OutlivesTheRequest(t *testing.T) {
+	started := make(chan struct{})
+	var got error
+	erase := func(ctx context.Context) error {
+		close(started)
+		select {
+		case <-ctx.Done():
+			got = ctx.Err()
+			return got
+		case <-time.After(200 * time.Millisecond):
+			return fmt.Errorf("erase: store: %w", context.Canceled) // the host's own failure
+		}
+	}
+	var log bytes.Buffer
+	_, mux := newTestHandler(t, testOptions{erase: erase, log: &log})
+	leaving(t, mux, http.MethodPost, "/node/maintenance/erase", `{"confirm":"erase-node"}`, started)
+	if got != nil {
+		t.Fatalf("the erase's context ended with the request: %v", got)
+	}
+	if !strings.Contains(log.String(), "level=ERROR") {
+		t.Fatalf("the failed erase is not logged at error:\n%s", log.String())
 	}
 }

@@ -556,7 +556,12 @@ func (s *controllerServer) DecommissionNode(ctx context.Context, req api.Decommi
 	if err != nil {
 		return nil, err
 	}
-	if err := s.src.Decommission(ctx, n.ID()); err != nil {
+	// Detached, as the registry's Delete: a client that leaves between the
+	// node's RemoveFabric and its deletion would leave a record of a node
+	// that is no longer on the fabric (UR-P2-err-31).
+	dctx, cancel := detached(ctx)
+	defer cancel()
+	if err := s.src.Decommission(dctx, n.ID()); err != nil {
 		return nil, err
 	}
 	return api.DecommissionNode204Response{}, nil

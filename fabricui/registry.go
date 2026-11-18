@@ -57,7 +57,9 @@ type NodeRegistry interface {
 	// [ErrDefaultNode] answers 409 node_is_default; any other 500.
 	Rename(ctx context.Context, key, label string) error
 	// Delete stops the node key and removes its fabrics, store and
-	// selection. An error wrapping [ErrDefaultNode] answers 409
+	// selection. The handler runs it detached from the request, bounded
+	// by two minutes: a client that leaves does not stop it. An error
+	// wrapping [ErrDefaultNode] answers 409
 	// node_is_default; any other 500.
 	Delete(ctx context.Context, key string) error
 }
@@ -331,8 +333,16 @@ func (h *handler) deleteNode(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := h.registry.Delete(r.Context(), key); err != nil {
-		h.registryError(w, r, "Failed to delete the node", err)
+	// Detached: a client that leaves would stop the node's leave of its
+	// fabrics half-way (UR-P2-err-31).
+	ctx, cancel := detached(r.Context())
+	defer cancel()
+	if err := h.registry.Delete(ctx, key); err != nil {
+		if errors.Is(err, ErrDefaultNode) || errors.Is(err, ErrNodeLimit) {
+			h.registryError(w, r, "Failed to delete the node", err)
+		} else {
+			h.detachedError(w, r, "Failed to delete the node", err)
+		}
 		return
 	}
 	h.regMu.Lock()

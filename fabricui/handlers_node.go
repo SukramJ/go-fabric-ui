@@ -397,8 +397,12 @@ func (h *handler) eraseNode(w http.ResponseWriter, r *http.Request) {
 				`and ends the node; every paired controller has to commission it again`)
 		return
 	}
-	if err := erase(r.Context()); err != nil {
-		h.serverError(w, r, "Failed to erase the node", err)
+	// Detached, as the factory reset: a client that leaves would stop the
+	// host's erase half-way (UR-P1-err-22).
+	ctx, cancel := detached(r.Context())
+	defer cancel()
+	if err := erase(ctx); err != nil {
+		h.detachedError(w, r, "Failed to erase the node", err)
 		return
 	}
 	h.log.InfoContext(r.Context(), "fabricui.erase.done")

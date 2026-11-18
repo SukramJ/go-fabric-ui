@@ -135,7 +135,11 @@ func (w wrapped) TriggerReannounce(ctx context.Context)     { w.n.TriggerReannou
 store and endpoint records, and a Go node is single-use, so the host has
 to bring a node back. That is a lifecycle action the handlers cannot take
 on a `NodeSource`; the host wires it as `Options.Erase` (the default
-node) or `NodeEntry.Erase` (0.7.0), as it wires `Reassemble`.
+node) or `NodeEntry.Erase` (0.7.0), as it wires `Reassemble`. The
+handler runs it detached from the request, bounded by two minutes, so a
+client that leaves does not stop it half-way, and logs a failure at
+error; the same holds for `NodeRegistry.Delete` and the controller
+port's `Decommission`.
 `fabrictest.Device.FactoryReset` is the pattern: `node.FactoryReset`,
 then a new node on the erased store and the same address, started — or
 the daemon's exit for a supervisor to restart it. The handler keeps the

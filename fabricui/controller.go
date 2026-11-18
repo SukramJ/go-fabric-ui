@@ -40,7 +40,8 @@ type ControllerSource interface {
 	// CommissionDiscovered commissions a device a Discover answered with
 	// its passcode.
 	CommissionDiscovered(ctx context.Context, d Discovered, passcode uint32, opts PairOptions) (ControllerNode, error)
-	// Decommission removes our fabric from the node and forgets it.
+	// Decommission removes our fabric from the node and forgets it. The
+	// handler runs it detached from the request, bounded by two minutes.
 	Decommission(ctx context.Context, id uint64) error
 	// SetFabricLabel sets the fabric label; the nodes get it in the
 	// background.

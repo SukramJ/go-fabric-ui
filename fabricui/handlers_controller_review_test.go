@@ -315,3 +315,34 @@ func TestRemoveNodeFabric_UndecodedNOCResponseIs502(t *testing.T) {
 		t.Fatalf("remove: %d %s, want 502", rec.Code, rec.Body)
 	}
 }
+
+// slowDecommission is the memory controller whose Decommission takes a
+// while and stops when its context ends.
+type slowDecommission struct {
+	*MemoryController
+	started chan struct{}
+	got     error
+}
+
+func (s *slowDecommission) Decommission(ctx context.Context, id uint64) error {
+	close(s.started)
+	select {
+	case <-ctx.Done():
+		s.got = ctx.Err()
+		return s.got
+	case <-time.After(200 * time.Millisecond):
+		return s.MemoryController.Decommission(ctx, id)
+	}
+}
+
+// A decommission runs detached from its request, as the registry's
+// Delete: a client that leaves between the node's RemoveFabric and its
+// deletion would leave an uncommissioned record (UR-P2-err-31).
+func TestDecommissionNode_OutlivesTheRequest(t *testing.T) {
+	src := &slowDecommission{MemoryController: NewMemoryController(), started: make(chan struct{})}
+	_, mux := newTestHandler(t, testOptions{noNode: true, controller: src})
+	leaving(t, mux, http.MethodDelete, "/controller/nodes/0000000000000011", "", src.started)
+	if src.got != nil {
+		t.Fatalf("the decommission's context ended with the request: %v", src.got)
+	}
+}
