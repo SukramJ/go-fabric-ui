@@ -90,6 +90,9 @@ func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, subscribe
 		select {
 		case <-ctx.Done():
 			return
+		case <-h.done:
+			// The registry deleted this node (UR-P1-conc-11).
+			return
 		case <-tick.C:
 			if _, err := fmt.Fprint(w, ": heartbeat\n\n"); err != nil {
 				return

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -152,9 +153,10 @@ func (h *handler) registryEntries() []NodeEntry {
 		out = append(out, e)
 	}
 	h.regMu.Lock()
-	for k := range h.regCache {
+	for k, c := range h.regCache {
 		if !seen[k] {
 			delete(h.regCache, k)
+			c.h.stop()
 		}
 	}
 	h.regMu.Unlock()
@@ -164,11 +166,21 @@ func (h *handler) registryEntries() []NodeEntry {
 // managedHandler is the handler of the registry node e: the one built for
 // the key while e's Source, Exposure and Events are the same values, a new
 // sibling otherwise.
-func (h *handler) managedHandler(e *NodeEntry) *handler {
+//
+// gen is regGen before the lookup listed e: when a deletion completed
+// since and the registry no longer lists e, the handler built serves
+// this request alone, uncached and with its streams already stopped.
+func (h *handler) managedHandler(e *NodeEntry, gen uint64) *handler {
 	h.regMu.Lock()
 	defer h.regMu.Unlock()
 	ne := entryOf(e, true)
-	if c, ok := h.regCache[e.Key]; ok && sameEntry(&c.entry, e) {
+	if h.regGen != gen && !slices.ContainsFunc(h.registry.List(), func(x NodeEntry) bool { return x.Key == e.Key }) {
+		n := h.sibling(ne)
+		n.stop()
+		return n
+	}
+	c, ok := h.regCache[e.Key]
+	if ok && sameEntry(&c.entry, e) {
 		c.h.config.Store(ne.config)
 		c.h.hooks.Store(&nodeHooks{reassemble: ne.reassemble, erase: ne.erase})
 		return c.h
@@ -184,9 +196,12 @@ func (h *handler) nodeHandler(key string) (*handler, bool) {
 	if n, ok := h.keyed[key]; ok {
 		return n, true
 	}
+	h.regMu.Lock()
+	gen := h.regGen
+	h.regMu.Unlock()
 	for _, e := range h.registryEntries() {
 		if e.Key == key {
-			return h.managedHandler(&e), true
+			return h.managedHandler(&e, gen), true
 		}
 	}
 	return nil, false
@@ -318,7 +333,11 @@ func (h *handler) deleteNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.regMu.Lock()
-	delete(h.regCache, key)
+	h.regGen++
+	if c, ok := h.regCache[key]; ok {
+		delete(h.regCache, key)
+		c.h.stop()
+	}
 	h.regMu.Unlock()
 	h.log.InfoContext(r.Context(), "fabricui.registry.deleted", slog.String("key", key))
 	h.publishNodesChanged(key)

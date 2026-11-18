@@ -81,6 +81,14 @@ type handler struct {
 	// with the entry it was built on (the default node's handler only).
 	regMu    sync.Mutex
 	regCache map[string]managedNode
+	// regGen counts the registry deletions (under regMu): a lookup that a
+	// deletion overtook caches nothing (UR-P1-conc-11).
+	regGen uint64
+	// done is closed by stop when the registry deletes this node: its
+	// open streams end (UR-P1-conc-11). Nil, never closed, on every other
+	// handler.
+	done chan struct{}
+	stop func()
 
 	// mu guards ephemeral: the credentials of the window this handler
 	// opened, served by GET /node/pairing while that window is open.
@@ -513,6 +521,10 @@ func (h *handler) sibling(e nodeEntry) *handler {
 	s.hub, s.extra = hubOf(e.events)
 	s.config.Store(e.config)
 	s.hooks.Store(&nodeHooks{reassemble: e.reassemble, erase: e.erase})
+	if e.managed {
+		s.done = make(chan struct{})
+		s.stop = sync.OnceFunc(func() { close(s.done) })
+	}
 	return s
 }
 
