@@ -277,20 +277,43 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   async function openWindow(durationSeconds: number) {
     flowGen++;
     const win = await client.openWindow(durationSeconds);
-    flowGen++;
-    shown = { kind: "own", deadline: Date.now() + win.duration_seconds * 1000 };
+    const mine = ++flowGen;
+    // Which kind the window is (basic on fresh credentials, the node's
+    // own on configured ones) and its deadline on the node's clock are the
+    // status's to say: the first open status after the POST names it
+    // (UR-P2-ui-05).
+    shown = { adopt: true };
     commissioning = { phase: "open", window: win, remaining: win.duration_seconds, addedFabricLabel: null, foreignWindow: false };
     startCountdown(win.duration_seconds);
+    // Read it now, so a later status is judged against it. A failed read
+    // leaves the adoption to the next status.
+    const g = statusGen;
+    let st: Status;
+    try {
+      st = await client.status();
+    } catch {
+      return;
+    }
+    if (g === statusGen) status = st;
+    if (mine === flowGen && commissioning.phase === "open") otherWindow(st);
   }
 
   // The window the open flow shows, as the status named it (kind,
-  // deadline in ms): a fresh status naming another one replaces it
-  // (UR-P1-err-198).
-  let shown: { kind?: string; deadline?: number } = {};
+  // deadline in ms on the node's clock): a fresh status naming another
+  // one replaces it (UR-P1-err-198). adopt: the flow's own window, not
+  // yet named by a status.
+  let shown: { kind?: string; deadline?: number; adopt?: boolean } = {};
   // How far a deadline may move and still be the same window (clock and
   // round trip).
   const DEADLINE_SLACK_MS = 5000;
+  function windowOf(st: Status): { kind?: string; deadline?: number } {
+    return { kind: st.window_kind, deadline: st.window_deadline ? Date.parse(st.window_deadline) : undefined };
+  }
   function otherWindow(st: Status): boolean {
+    if (shown.adopt) {
+      if (st.commissioning_window_open) shown = windowOf(st);
+      return false;
+    }
     if (st.window_kind && shown.kind && st.window_kind !== shown.kind) return true;
     const d = st.window_deadline ? Date.parse(st.window_deadline) : NaN;
     return !Number.isNaN(d) && shown.deadline !== undefined && Math.abs(d - shown.deadline) > DEADLINE_SLACK_MS;
@@ -325,7 +348,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     // The deadline says what is left; without one (a server before 0.1.2)
     // the full duration is the upper bound.
     const left = secondsUntil(st.window_deadline) ?? (duration > 0 ? duration : null);
-    shown = { kind: st.window_kind, deadline: st.window_deadline ? Date.parse(st.window_deadline) : undefined };
+    shown = windowOf(st);
     commissioning = {
       phase: "open",
       window: {
