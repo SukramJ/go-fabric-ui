@@ -68,8 +68,9 @@ type ControllerSource interface {
 	// errors first (GET /controller/mdns). It is called from a request
 	// handler only, never from a callback of the source.
 	DiagnoseMDNS() []MDNSFinding
-	// DiagnosticEvents is the controller's diagnostic trace, oldest first
-	// (GET /controller/events serves it newest first).
+	// DiagnosticEvents is the controller's diagnostic trace, newest
+	// first, as go-fabric's ring returns it (GET /controller/events
+	// serves it in this order).
 	DiagnosticEvents() []DiagnosticEvent
 	// OnDiagnosticEvent registers fn for every entry the trace records
 	// from now on (the stream's controller_diagnostic_event) and returns
