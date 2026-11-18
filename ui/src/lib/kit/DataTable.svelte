@@ -1,6 +1,8 @@
 <!-- Ported from openccu-loom assets/ui/src/lib/components/ui/DataTable.svelte:1-469
-     at b40b289a: sortable headers, an optional search box, sort and search
-     persisted under persistKey, the phone reflow (table-reflow in
+     at b40b289a: sortable headers, an optional search box, the sort
+     persisted under persistKey (the search is not: it stays with the page;
+     the stored value is read with a shape check, since localStorage is
+     shared by everything of the origin), the phone reflow (table-reflow in
      tokens.css), groupBy sections and activatable rows. The column filter
      row, column groups and row expansion are left out; the node pages use
      none of them. -->
@@ -36,7 +38,7 @@
     search?: boolean;
     searchPlaceholder?: string;
     initialSort?: DataTableSort | null;
-    /** When set, sort and search persist under this localStorage key. */
+    /** When set, the sort persists under this localStorage key. */
     persistKey?: string;
     emptyMessage: string;
     emptyDescription?: string;
@@ -52,30 +54,37 @@
 
   const t = useT();
 
-  type Persisted = { sortKey: string; sortAsc: boolean; query: string };
+  type Persisted = { sortKey: string; sortAsc: boolean };
 
-  // Read initialSort once; a persisted state wins.
+  // Read initialSort once; a persisted state wins, field by field, when it
+  // has the right type and names a sortable column (UR-P1-web-114).
   function initialState(): Persisted {
-    let base: Persisted = { sortKey: initialSort?.key ?? "", sortAsc: initialSort?.asc ?? true, query: "" };
+    const base: Persisted = { sortKey: initialSort?.key ?? "", sortAsc: initialSort?.asc ?? true };
     if (persistKey) {
       try {
         const raw = localStorage.getItem("fabric-ui.table:" + persistKey);
-        if (raw) base = { ...base, ...(JSON.parse(raw) as Partial<Persisted>) };
+        const stored: unknown = raw ? JSON.parse(raw) : null;
+        if (stored && typeof stored === "object") {
+          const s = stored as Record<string, unknown>;
+          if (typeof s.sortKey === "string" && (s.sortKey === "" || columns.some((c) => c.key === s.sortKey && c.sortable))) base.sortKey = s.sortKey;
+          if (typeof s.sortAsc === "boolean") base.sortAsc = s.sortAsc;
+        }
       } catch {
-        // storage unavailable — the initial sort stands.
+        // storage unavailable or not JSON — the initial sort stands.
       }
     }
+    if (base.sortKey && !columns.some((c) => c.key === base.sortKey)) base.sortKey = "";
     return base;
   }
 
   const init0 = initialState();
   let sortKey = $state(init0.sortKey);
   let sortAsc = $state(init0.sortAsc);
-  let query = $state(init0.query);
+  let query = $state("");
 
   $effect(() => {
     if (!persistKey) return;
-    const snapshot: Persisted = { sortKey, sortAsc, query };
+    const snapshot: Persisted = { sortKey, sortAsc };
     try {
       localStorage.setItem("fabric-ui.table:" + persistKey, JSON.stringify(snapshot));
     } catch {

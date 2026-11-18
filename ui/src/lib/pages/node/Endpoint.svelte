@@ -53,6 +53,13 @@
     }
   }
 
+  // A cluster_event the stream added while the read was in flight comes
+  // again in the answer: merge by number, in order.
+  function mergeEvents(have: EventRecord[], more: EventRecord[]): EventRecord[] {
+    const seen = new Set(have.map((e) => e.number));
+    return [...have, ...more.filter((e) => !seen.has(e.number))].sort((a, b) => a.number - b.number);
+  }
+
   // fresh reads the log from its start; otherwise only the events after
   // the last one shown (since = its number + 1).
   async function loadEvents(fresh: boolean) {
@@ -61,7 +68,7 @@
     try {
       const l = await client.nodeEndpointEvents(endpoint, last === undefined ? {} : { since: last + 1 });
       if (mine !== eventSeq) return;
-      events = (last === undefined ? l.events : [...events, ...l.events]).slice(-MAX_EVENTS);
+      events = (last === undefined ? l.events : mergeEvents(events, l.events)).slice(-MAX_EVENTS);
       eventsError = null;
     } catch (err) {
       if (mine === eventSeq) eventsError = errorText(err);
@@ -73,15 +80,30 @@
     void loadEvents(true);
   }
 
+  // The endpoint's attribute_changed and the node's structure changes move
+  // the store's epochs; each move after the page mounted (or after the
+  // endpoint prop changed) refetches.
+  let startAttr = untrack(() => node.attributeEpoch(endpoint));
+  let startTopo = untrack(() => node.topologyEpoch);
+
+  // A new endpoint on a mounted page: nothing of the previous one stays.
+  let shown = untrack(() => endpoint);
   $effect(() => {
-    void endpoint;
-    untrack(refresh);
+    const ep = endpoint;
+    untrack(() => {
+      if (ep !== shown) {
+        shown = ep;
+        detail = null;
+        error = null;
+        events = [];
+        eventsError = null;
+        startAttr = node.attributeEpoch(ep);
+        startTopo = node.topologyEpoch;
+      }
+      refresh();
+    });
   });
 
-  // The endpoint's attribute_changed and the node's structure changes move
-  // the store's epochs; each move after the page mounted refetches.
-  const startAttr = untrack(() => node.attributeEpoch(endpoint));
-  const startTopo = untrack(() => node.topologyEpoch);
   $effect(() => {
     const moved = node.attributeEpoch(endpoint) !== startAttr || node.topologyEpoch !== startTopo;
     if (moved) {
@@ -125,7 +147,7 @@
 
 <div class="space-y-4">
   <div class="flex items-center justify-between gap-2">
-    <a href={routes.endpoints} class="text-sm text-[var(--ha-primary-color)] hover:underline">← {t("node.endpoint.back")}</a>
+    <a href={routes.endpoints} class="text-sm text-[var(--fui-primary-text)] hover:underline">← {t("node.endpoint.back")}</a>
     <Button variant="outline" size="sm" onclick={refresh}>{t("common.refresh")}</Button>
   </div>
   {#if error}
@@ -150,13 +172,13 @@
       </div>
       <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--ha-secondary-text-color)]">
         {#if d.parent_endpoint_id !== undefined}
-          <span>{t("node.endpoint.parent")} <a class="text-[var(--ha-primary-color)] hover:underline" href={routes.endpoint + d.parent_endpoint_id}>#{d.parent_endpoint_id}</a></span>
+          <span>{t("node.endpoint.parent")} <a class="text-[var(--fui-primary-text)] hover:underline" href={routes.endpoint + d.parent_endpoint_id}>#{d.parent_endpoint_id}</a></span>
         {/if}
         {#if d.parts.length > 0}
           <span data-testid="endpoint-parts">
             {t("node.endpoint.parts")}
             {#each d.parts as p (p)}
-              <a class="ml-1 text-[var(--ha-primary-color)] hover:underline" href={routes.endpoint + p}>#{p}</a>
+              <a class="ml-1 text-[var(--fui-primary-text)] hover:underline" href={routes.endpoint + p}>#{p}</a>
             {/each}
           </span>
         {/if}

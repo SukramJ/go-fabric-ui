@@ -27,13 +27,28 @@
       : cn("inline-flex flex-wrap gap-0.5 rounded-lg bg-[var(--ha-secondary-background-color)] p-0.5", cls),
   );
 
+  // Arrow keys, Home and End move the focus between the button tabs.
+  function onKeydown(e: KeyboardEvent) {
+    const tabs = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]')];
+    const at = tabs.indexOf(document.activeElement as HTMLElement);
+    if (at < 0) return;
+    let next = -1;
+    if (e.key === "ArrowRight") next = (at + 1) % tabs.length;
+    else if (e.key === "ArrowLeft") next = (at - 1 + tabs.length) % tabs.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = tabs.length - 1;
+    if (next < 0) return;
+    e.preventDefault();
+    tabs[next].focus();
+  }
+
   function itemClass(isActive: boolean): string {
     if (variant === "underline") {
       return cn(
         "inline-flex items-center justify-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-center text-sm font-medium transition",
         fill && "flex-1",
         isActive
-          ? "border-[var(--ha-primary-color)] text-[var(--ha-primary-color)]"
+          ? "border-[var(--ha-primary-color)] text-[var(--fui-primary-text)]"
           : "border-transparent text-[var(--ha-secondary-text-color)] hover:text-[var(--ha-primary-text-color)]",
       );
     }
@@ -46,21 +61,39 @@
   }
 </script>
 
-<div class={listClass} role="tablist" aria-label={ariaLabel}>
-  {#each items as item (item.key)}
-    {@const isActive = item.key === active}
-    {#if item.href}
-      <a href={item.href} role="tab" aria-selected={isActive} class={itemClass(isActive)} onclick={() => onSelect?.(item.key)}>
-        {#if item.icon}<Icon name={item.icon} size={16} />{/if}
-        {item.label}
-        {#if item.badge !== undefined}<Badge variant="muted">{item.badge}</Badge>{/if}
+<!-- Route tabs (every item a link) are a navigation: links that navigate,
+     the current one marked aria-current. Button tabs follow the tab
+     pattern: one Tab stop (the active tab), the arrow keys, Home and End
+     move between them. -->
+{#snippet content(item: TabItem)}
+  {#if item.icon}<Icon name={item.icon} size={16} />{/if}
+  {item.label}
+  {#if item.badge !== undefined}<Badge variant="muted">{item.badge}</Badge>{/if}
+{/snippet}
+
+{#if items.length > 0 && items.every((i) => i.href)}
+  <nav class={listClass} aria-label={ariaLabel}>
+    {#each items as item (item.key)}
+      {@const isActive = item.key === active}
+      <a href={item.href} aria-current={isActive ? "page" : undefined} class={itemClass(isActive)} onclick={() => onSelect?.(item.key)}>
+        {@render content(item)}
       </a>
-    {:else}
-      <button type="button" role="tab" aria-selected={isActive} class={itemClass(isActive)} onclick={() => onSelect?.(item.key)}>
-        {#if item.icon}<Icon name={item.icon} size={16} />{/if}
-        {item.label}
-        {#if item.badge !== undefined}<Badge variant="muted">{item.badge}</Badge>{/if}
+    {/each}
+  </nav>
+{:else}
+  <div class={listClass} role="tablist" aria-label={ariaLabel} tabindex="-1" onkeydown={onKeydown}>
+    {#each items as item (item.key)}
+      {@const isActive = item.key === active}
+      <button
+        type="button"
+        role="tab"
+        aria-selected={isActive}
+        tabindex={isActive || (!items.some((i) => i.key === active) && item === items[0]) ? 0 : -1}
+        class={itemClass(isActive)}
+        onclick={() => onSelect?.(item.key)}
+      >
+        {@render content(item)}
       </button>
-    {/if}
-  {/each}
-</div>
+    {/each}
+  </div>
+{/if}

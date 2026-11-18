@@ -53,3 +53,14 @@ rows are named by ID only until their fix merges (decisions 5 and 14).
 | --- | --- | --- |
 | 25 | One held row of phase 1a (medium; no contract change) | **Bundled in phase 3's pull request** with the held rows of decision 18, not fixed in 1a (the recommendation was the 1a pull request). The row stays held until then; the go-fabric issue for the facade gap it shows is filed after that pull request merges |
 | 26 | UR-P1-doc-41, UR-P1-doc-69: `CLAUDE.md` and the adapter's package doc name fewer allowed imports than `internal/arch` | **The docs follow the guard**: `CLAUDE.md` and the package doc list what `internal/arch/arch_test.go` allows; no code change |
+
+## 2026-11-18, after phase 1b's verification
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 27 | UR-P1-ctr-101 (high; with UR-P1-ctr-162): 64-bit attribute values rounded by the client's parse and written back by the Attributes tab | **Lossless parse in 1b**, no contract change: the client keeps integers outside the safe range exactly, the write sends the edited text as typed, and a value that would be rounded is refused. Not held back: an administrator's own data error, not an attacker's path |
+| 28 | The page part of UR-P1-err-04 | **A notice in 1b, the field in phase 3**: when a freshly read `window_kind` says the open window is not the page's own and the pairing answers `source: configured`, the Pair page shows the codes with a notice that the window was opened elsewhere and they may not apply, and offers Close; the exact answer is a contract field for phase 3's wizard |
+| 29 | UR-P1-bound-103: two or three streams per tab whatever page is shown | **Streams on demand**, no contract change: a family's stream only while one of its pages is shown, closed while the tab is hidden and reopened with a reload when it is shown again; together with UR-P1-conc-102's error and open hooks |
+| 30 | go-fabric v0.22.2 reports an administrator's basic window as `WindowEnhanced` | **A go-fabric issue after the 1b pull request merges**; not held back |
+| 31 | UR-P1-ui-172: under the HA skin, which the standalone shell uses too, Home Assistant's warning, success and primary colours fail AA as small text | **Text-safe variants**: the HA colours stay for areas and icons; status text uses `--fui-*-text` variants of at least 4.5:1, which a host's theme under an Ingress panel still overrides. No contract change, in 1b |
+| 32 | UR-P1-ui-142: the kit's search ran the user's term as a regular expression | **Kept as fixed**: literal text, `\|` separates alternatives; a `changelog.md` line tells the hosts |

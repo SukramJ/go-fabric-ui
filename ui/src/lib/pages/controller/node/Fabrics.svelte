@@ -74,7 +74,7 @@
           <span class="font-mono text-xs">0x{f.fabric_id_hex}</span>
         {:else if col.key === "action"}
           {#if !f.own}
-            <Button size="sm" variant="ghost" class="text-[var(--ha-error-color)]" onclick={() => void remove(f)}>{t("common.remove")}</Button>
+            <Button size="sm" variant="ghost" class="text-[var(--fui-error-text)]" onclick={() => void remove(f)}>{t("common.remove")}</Button>
           {/if}
         {/if}
       {/snippet}

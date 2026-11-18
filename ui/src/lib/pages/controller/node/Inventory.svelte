@@ -134,7 +134,7 @@
             <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]">{t("controller.inventory.parts", { parts: ep.parts.join(", ") })}</p>
           {/if}
           {#if ep.conformance && ep.conformance.violations.length > 0}
-            <ul class="mt-2 space-y-1 text-xs text-[var(--ha-error-color)]" data-testid={`violations-${ne.endpoint}`}>
+            <ul class="mt-2 space-y-1 text-xs text-[var(--fui-error-text)]" data-testid={`violations-${ne.endpoint}`}>
               {#each ep.conformance.violations as v, i (i)}
                 <li>{v.device_type} · {v.requirement}: {v.detail}</li>
               {/each}
@@ -150,7 +150,7 @@
                 <li class="py-1">
                   <button
                     type="button"
-                    class="flex w-full flex-wrap items-center gap-2 py-1 text-left text-sm hover:text-[var(--ha-primary-color)]"
+                    class="flex w-full flex-wrap items-center gap-2 py-1 text-left text-sm hover:text-[var(--fui-primary-text)]"
                     aria-expanded={open !== undefined}
                     data-testid={`cluster-${ne.endpoint}-${c.id_hex}`}
                     onclick={() => toggle(ne.endpoint, c.id_hex)}

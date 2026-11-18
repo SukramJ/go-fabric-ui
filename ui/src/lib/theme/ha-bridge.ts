@@ -73,7 +73,8 @@ export function resolveSkin(stored: Skin): Skin {
   return isEmbedded() ? "ha" : stored;
 }
 
-// A CSS colour as [r,g,b] (0–255), or null: #rgb, #rrggbb, rgb(), rgba().
+// A CSS colour as [r,g,b] (0–255), or null: #rgb, #rrggbb, rgb(), rgba(),
+// and color(srgb …), which a browser computes for color-mix().
 export function parseRgb(value: string): [number, number, number] | null {
   const v = value.trim();
   if (!v) return null;
@@ -88,8 +89,34 @@ export function parseRgb(value: string): [number, number, number] | null {
     }
     return null;
   }
-  const m = v.match(/rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
-  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+  const srgb = v.match(/^color\(\s*srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/i);
+  const m = srgb ?? v.match(/rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
+  if (!m) return null;
+  const k = srgb ? 255 : 1;
+  const rgb: [number, number, number] = [Number(m[1]) * k, Number(m[2]) * k, Number(m[3]) * k];
+  return rgb.some((c) => Number.isNaN(c)) ? null : rgb;
+}
+
+// A CSS colour of any syntax (a name, hsl(), color-mix()) as [r,g,b]: the
+// forms parseRgb reads directly, else what the browser computes for it on
+// a probe element (UR-P1-ui-118).
+export function resolveRgb(value: string, doc: Document = document): [number, number, number] | null {
+  const direct = parseRgb(value);
+  if (direct || !value.trim()) return direct;
+  try {
+    const probe = doc.createElement("span");
+    probe.style.color = value;
+    if (!probe.style.color) return null;
+    probe.style.display = "none";
+    doc.documentElement.appendChild(probe);
+    try {
+      return parseRgb((doc.defaultView ?? window).getComputedStyle(probe).color);
+    } finally {
+      probe.remove();
+    }
+  } catch {
+    return null;
+  }
 }
 
 // WCAG relative luminance (0 black, 1 white) of an sRGB triple.
@@ -123,7 +150,7 @@ export function startHaBridge(): () => void {
         // Follow Home Assistant's light/dark by its background luminance;
         // this overrides the page's own choice while embedded.
         const bg = ps.getPropertyValue("--primary-background-color").trim() || ps.backgroundColor;
-        const rgb = parseRgb(bg);
+        const rgb = resolveRgb(bg);
         if (rgb) {
           const dark = relativeLuminance(rgb) < 0.5;
           ourRoot.classList.toggle("dark", dark);

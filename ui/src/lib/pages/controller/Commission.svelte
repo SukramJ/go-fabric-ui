@@ -32,6 +32,7 @@
   import Spinner from "../../kit/Spinner.svelte";
   import { nodeName, vendorLabel } from "./format";
   import QrScan from "./QrScan.svelte";
+  import { formatDate } from "../../kit/dates";
 
   const { t, toast, client, controller, routes } = useFabricUI();
 
@@ -105,7 +106,7 @@
   // The Matter epoch (2000-01-01T00:00:00Z) in Unix seconds: a terms
   // deadline counts from it.
   const MATTER_EPOCH = 946684800;
-  const deadlineText = (s: number) => new Date((MATTER_EPOCH + s) * 1000).toLocaleDateString();
+  const deadlineText = (s: number) => formatDate(t, (MATTER_EPOCH + s) * 1000, "date");
 
   async function commission(req: CommissionRequest) {
     running = true;
@@ -187,6 +188,9 @@
       return;
     }
     await commission({ discovered: { instance_name: d.instance_name, long_discriminator: d.long_discriminator }, passcode: pin });
+    // Only a commissioned device leaves the list: after a failure (a wrong
+    // passcode, a timeout, terms required) it stays for the retry.
+    if (!result) return;
     passcodes = { ...passcodes, [d.instance_name]: "" };
     devices = devices.filter((x) => x.instance_name !== d.instance_name);
   }
@@ -247,7 +251,7 @@
         </p>
       {/if}
       {#if termsInvalid}
-        <p class="mt-1 text-xs text-[var(--ha-error-color)]">{t("controller.commission.terms_invalid")}</p>
+        <p class="mt-1 text-xs text-[var(--fui-error-text)]">{t("controller.commission.terms_invalid")}</p>
       {/if}
     </details>
   </Card>
@@ -259,12 +263,12 @@
       {:else if result}
         <p class="text-sm text-[var(--ha-primary-text-color)]">
           <Badge variant="success">{t("controller.commission.succeeded")}</Badge>
-          <a class="ml-2 font-medium text-[var(--ha-primary-color)] hover:underline" href={routes.controllerNode + result.node.node_id_hex}>{nodeName(result.node)}</a>
+          <a class="ml-2 font-medium text-[var(--fui-primary-text)] hover:underline" href={routes.controllerNode + result.node.node_id_hex}>{nodeName(result.node)}</a>
         </p>
       {:else if failure}
-        <p class="text-sm text-[var(--ha-error-color)]"><Badge variant="danger">{t("controller.commission.failed")}</Badge> {failure}</p>
+        <p class="text-sm text-[var(--fui-error-text)]"><Badge variant="danger">{t("controller.commission.failed")}</Badge> {failure}</p>
       {:else if phase === "failed"}
-        <p class="text-sm text-[var(--ha-error-color)]">{t("controller.commission.failed")}</p>
+        <p class="text-sm text-[var(--fui-error-text)]">{t("controller.commission.failed")}</p>
       {/if}
       {#if ble}
         <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]" data-testid="commission-ble">

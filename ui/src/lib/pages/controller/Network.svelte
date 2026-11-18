@@ -34,33 +34,48 @@
   let notServed = $state(false);
   let graph = $state<TopologyGraph | null>(null);
 
+  // A newer load or refresh wins: an older answer that arrives last is
+  // dropped.
+  let seq = 0;
+
   async function load() {
-    // A reload keeps the drawn graph until the new one arrives.
+    const mine = ++seq;
+    // A reload keeps the drawn graph until the new one arrives, and a
+    // failed reload keeps it too: the failure is a toast.
     if (!graph) loading = true;
     error = null;
     try {
-      graph = await client.controllerTopology();
+      const g = await client.controllerTopology();
+      if (mine !== seq) return;
+      graph = g;
       notServed = false;
     } catch (err) {
+      if (mine !== seq) return;
       if (err instanceof ApiError && err.status === 501) notServed = true;
+      else if (graph) toast.error(errorText(err));
       else error = errorText(err);
     } finally {
-      loading = false;
+      if (mine === seq) loading = false;
     }
   }
 
   // refresh=true re-reads the nodes' diagnostics; a refusal (403 without
   // admin rights, 502 when the read fails) keeps the drawn graph.
   async function refresh() {
+    const mine = ++seq;
     refreshing = true;
     try {
-      graph = await client.controllerTopology(true);
-      notServed = false;
-      error = null;
+      const g = await client.controllerTopology(true);
+      if (mine === seq) {
+        graph = g;
+        notServed = false;
+        error = null;
+      }
     } catch (err) {
       toast.error(errorText(err));
     } finally {
       refreshing = false;
+      if (mine === seq) loading = false;
     }
   }
 

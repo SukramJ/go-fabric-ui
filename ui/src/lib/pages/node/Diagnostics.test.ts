@@ -9,6 +9,7 @@ import { body, testUI } from "../../../test/support";
 import type { Compatibility, DiagnosticEventList, EndpointList, Mdns, SessionList, Status as StatusT } from "../../api/client";
 import Diagnostics from "./Diagnostics.svelte";
 import Endpoints from "./Endpoints.svelte";
+import { defaultT } from "../../i18n";
 
 afterEach(cleanup);
 
@@ -57,7 +58,8 @@ describe("Diagnostics", () => {
     c.findings = [{ ecosystem: "amazon", code: "endpoint_ceiling", message: "Alexa drops a bridge above 90 endpoints." }];
     renderDiag({ "GET /node/compatibility": { status: 200, body: c } });
     expect(await screen.findByText("Alexa drops a bridge above 90 endpoints.")).toBeInTheDocument();
-    expect(screen.getByText("node.diag.ecosystem.apple")).toBeInTheDocument();
+    // Under the echoing translator no ecosystem key resolves: it shows as written.
+    expect(screen.getByText("apple")).toBeInTheDocument();
   });
 
   it("shows a recorded pairing failure", async () => {
@@ -177,5 +179,51 @@ describe("Endpoints", () => {
     expect(params).toHaveTextContent("500 ms");
     expect(params).toHaveTextContent("node.diag.params.tcp_no");
     expect(screen.queryByTestId("node-reannounce")).toBeNull();
+  });
+
+  it("renders two interface findings with the same code and no service (UR-P1-ui-130)", async () => {
+    const m = body<Mdns>("node-mdns.200");
+    m.findings = [
+      { severity: "error", code: "interface_not_found", message: "Interface eth9 not found." },
+      { severity: "error", code: "interface_not_found", message: "Interface wlan9 not found." },
+    ];
+    renderDiag({ "GET /node/mdns": { status: 200, body: m } });
+    expect(await screen.findByText("Interface eth9 not found.")).toBeInTheDocument();
+    expect(screen.getByText("Interface wlan9 not found.")).toBeInTheDocument();
+  });
+});
+
+describe("Endpoints — overlapping loads (UR-P1-ui-137)", () => {
+  it("shows the newer list when the older answer arrives last", async () => {
+    const ui = testUI({ fixtures: ["node-endpoints.200", "node-surface.200"] });
+    const full = body<EndpointList>("node-endpoints.200");
+    const one: EndpointList = { ...full, endpoints: full.endpoints.slice(0, 1) };
+    let release: (() => void) | undefined;
+    let calls = 0;
+    ui.client.endpoints = async () => {
+      if (++calls === 1) return new Promise((resolve) => (release = () => resolve(full)));
+      return one;
+    };
+    render(Harness, { ui, page: Endpoints });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    ui.node.applyEvent({ type: "endpoints_changed", data: {} });
+    await vi.waitFor(() => expect(screen.getAllByTestId("endpoint")).toHaveLength(1));
+    release!();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getAllByTestId("endpoint")).toHaveLength(1);
+  });
+});
+
+describe("Diagnostics — ecosystems the catalogue does not name (UR-P1-ui-140)", () => {
+  it("shows an unknown ecosystem as its value, a known one by its label", async () => {
+    const c = body<Compatibility>("node-compatibility.200");
+    c.ecosystems = [{ ...c.ecosystems[0], fabric_index: 1, ecosystem: "apple" }, { ...c.ecosystems[0], fabric_index: 2, ecosystem: "tuya" }];
+    c.findings = [{ ecosystem: "tuya", code: "x", message: "Tuya finding." }];
+    const ui = testUI({ fixtures: ALL, answers: { "GET /node/compatibility": { status: 200, body: c } }, t: defaultT });
+    render(Harness, { ui, page: Diagnostics });
+    expect(await screen.findByText("Tuya finding.")).toBeInTheDocument();
+    expect(screen.getByText("Apple")).toBeInTheDocument();
+    expect(screen.getAllByText("tuya")).toHaveLength(2);
+    expect(screen.queryByText("node.diag.ecosystem.tuya")).toBeNull();
   });
 });

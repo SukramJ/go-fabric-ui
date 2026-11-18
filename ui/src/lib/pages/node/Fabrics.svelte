@@ -25,8 +25,14 @@
   // How often the status is asked while an erased node comes back.
   const ERASE_POLL_MS = 2000;
 
+  // The writes here are admin routes: without admin rights (the token of
+  // token mode, or the host's verdict) the page offers none of them.
+  const isAdmin = $derived(!!node.status?.csrf_token || node.status?.admin === true);
+
   onMount(() => {
     void node.loadFabrics();
+    // A host page that mounts the fabrics alone has not read the status.
+    if (node.status === null && !node.statusLoading) void node.loadStatus();
   });
 
   // The server owns the vendor table, so one list cannot drift from the
@@ -140,21 +146,31 @@
     }
   }
 
+  // The fabrics whose removal is being asked or sent: their Remove is
+  // disabled, so a double click asks once and deletes once.
+  let removing = $state<Set<number>>(new Set());
+
   async function unpair(f: Fabric) {
-    const ok = await confirm({
-      title: t("node.fabric.unpair_confirm"),
-      body: f.label || t("node.fabric.label_unknown"),
-      destructive: true,
-      confirmLabel: t("common.remove"),
-    });
-    if (!ok) return;
+    if (removing.has(f.fabric_index)) return;
+    removing = new Set([...removing, f.fabric_index]);
     try {
+      const ok = await confirm({
+        title: t("node.fabric.unpair_confirm"),
+        body: f.label || t("node.fabric.label_unknown"),
+        destructive: true,
+        confirmLabel: t("common.remove"),
+      });
+      if (!ok) return;
       await client.removeFabric(f.fabric_index);
       toast.success(t("node.fabric.unpaired"));
       await node.loadFabrics();
       await node.loadStatus();
     } catch (err) {
       toast.error(errorText(err));
+    } finally {
+      const next = new Set(removing);
+      next.delete(f.fabric_index);
+      removing = next;
     }
   }
 
@@ -164,7 +180,7 @@
     { key: "fabric", label: t("node.fabrics.col_fabric"), sortable: true, get: (f) => f.fabric_index },
     // Sorted on the zero-padded hex: fixed width makes lexical order numeric.
     { key: "node_id", label: t("node.fabrics.col_node_id"), sortable: true, get: (f) => nodeIdHex(f) },
-    { key: "action", label: "", align: "right", cellClass: "reflow-actions" },
+    ...(isAdmin ? [{ key: "action", label: "", align: "right" as const, cellClass: "reflow-actions" }] : []),
   ]);
 </script>
 
@@ -201,7 +217,7 @@
               {/if}
             </span>
           {:else if col.key === "action"}
-            <Button size="sm" variant="ghost" class="text-[var(--ha-error-color)]" onclick={() => void unpair(fabric)}>
+            <Button size="sm" variant="ghost" class="text-[var(--fui-error-text)]" disabled={removing.has(fabric.fabric_index)} onclick={() => void unpair(fabric)}>
               {t("common.remove")}
             </Button>
           {/if}
@@ -210,6 +226,7 @@
     </Card>
   {/if}
 
+  {#if isAdmin}
   <Card class="p-4">
     <h3 class="mb-2 font-medium text-[var(--ha-primary-text-color)]">{t("node.maint.title")}</h3>
     <div class="flex flex-wrap items-center gap-3">
@@ -227,14 +244,15 @@
       </div>
     {/if}
     {#if erased}
-      <p class="mt-3 text-sm text-[var(--ha-warning-color)]" data-testid="node-erased" role="status">{t("node.maint.erase_waiting")}</p>
+      <p class="mt-3 text-sm text-[var(--fui-warning-text)]" data-testid="node-erased" role="status">{t("node.maint.erase_waiting")}</p>
     {/if}
   </Card>
+  {/if}
 
   <div class="rounded-[var(--ha-radius-card)] border border-[var(--ha-divider-color)] bg-[var(--ha-secondary-background-color)] p-4">
     <h3 class="mb-2 font-medium text-[var(--ha-primary-text-color)]">{t("node.fabric.share")}</h3>
     <p class="text-sm text-[var(--ha-secondary-text-color)]">{t("node.fabric.share_hint")}</p>
-    <a href={routes.pair} data-testid="share-link" class="mt-3 inline-flex items-center text-sm font-medium text-[var(--ha-primary-color)] hover:underline">
+    <a href={routes.pair} data-testid="share-link" class="mt-3 inline-flex items-center text-sm font-medium text-[var(--fui-primary-text)] hover:underline">
       {t("node.fabric.share_go")}
     </a>
   </div>

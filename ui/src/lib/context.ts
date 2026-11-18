@@ -3,7 +3,7 @@
 // links between the pages. A host provides it once above the pages (provideFabricUI); the
 // standalone shell provides its own.
 import { getContext, hasContext, setContext } from "svelte";
-import type { FabricClient, LogRecord, TopologyRef } from "./api/client";
+import { NODE_ID_PATTERN, type FabricClient, type LogRecord, type TopologyRef } from "./api/client";
 import { subscribeLogStream } from "./api/stream";
 import { defaultT, type Translate } from "./i18n";
 import { createNodeStore, type NodeStore, type NodeStoreDeps, type Toast } from "./store.svelte";
@@ -91,7 +91,7 @@ const REF_PAGES = ["status", "endpoints", "fabrics", "diagnostics"] as const;
  */
 export function refHref(ref: TopologyRef | undefined, routes: Routes): string | undefined {
   if (!ref) return undefined;
-  if (ref.page === "controller_node") return routes.controllerNode + ref.id;
+  if (ref.page === "controller_node") return NODE_ID_PATTERN.test(ref.id) ? routes.controllerNode + ref.id : undefined;
   if (ref.page === "endpoints" && /^\d+$/.test(ref.id)) return routes.endpoint + ref.id;
   return (REF_PAGES as readonly string[]).includes(ref.page) ? routes[ref.page as (typeof REF_PAGES)[number]] : undefined;
 }
@@ -144,8 +144,31 @@ export function createFabricUI(opts: FabricUIOptions): FabricUI {
     nodes,
     controller: createControllerStore(opts.client, { t, toast, subscribe: opts.subscribeController }),
     routes: { ...defaultRoutes, ...opts.routes },
-    subscribeLog: opts.subscribeLog ?? ((fn) => subscribeLogStream(opts.client.logStreamUrl(), fn)),
+    subscribeLog: opts.subscribeLog ?? ((fn) => logSubscription(opts.client, fn)),
   };
+}
+
+/** How many of the newest ring records a log resync reads. */
+const LOG_RESYNC_LIMIT = 500;
+
+/**
+ * The default log subscription: the stream, and after a gap in it (a
+ * reconnect, a hidden tab shown again) the newest page of the ring
+ * (UR-P1-conc-102, -bound-103). Not "since the last streamed record": a
+ * gap before any streamed record, or a daemon restart that numbers from 1
+ * again, would read nothing (UR-P1-conc-191). The page merges by seq.
+ */
+function logSubscription(client: FabricClient, onRecord: (rec: LogRecord) => void): () => void {
+  return subscribeLogStream(client.logStreamUrl(), onRecord, undefined, {
+    onResync: () => {
+      client
+        .logRecords({ limit: LOG_RESYNC_LIMIT })
+        .then((list) => list.records.forEach(onRecord))
+        .catch(() => {
+          // the ring is unavailable; the stream goes on
+        });
+    },
+  });
 }
 
 /** Puts ui into the component context; call it in the component above the pages. */

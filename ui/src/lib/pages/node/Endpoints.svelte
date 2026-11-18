@@ -27,20 +27,25 @@
   let structuralList = $state<NonNullable<EndpointList["structural"]>>([]);
   let surface = $state<SurfaceReport | null>(null);
 
+  // A newer load wins: an older answer that arrives last is dropped.
+  let seq = 0;
+
   async function load() {
+    const mine = ++seq;
     loading = true;
     error = null;
     try {
       // The surface report only marks endpoints: its failure (an older
       // server, a report that does not encode) does not fail the page.
       const [eps, rep] = await Promise.all([client.endpoints(), client.surface().catch(() => null)]);
+      if (mine !== seq) return;
       endpoints = eps.endpoints;
       structuralList = eps.structural ?? [];
       surface = rep;
     } catch (err) {
-      error = errorText(err);
+      if (mine === seq) error = errorText(err);
     } finally {
-      loading = false;
+      if (mine === seq) loading = false;
     }
   }
 
@@ -93,7 +98,7 @@
     <ul class="mt-3 flex flex-wrap gap-2" data-testid="structural-endpoints">
       {#each structural as s (s.number)}
         <li>
-          <a class="rounded border border-[var(--ha-divider-color)] px-3 py-1 text-sm text-[var(--ha-primary-color)] hover:underline" href={routes.endpoint + s.number}>
+          <a class="rounded border border-[var(--ha-divider-color)] px-3 py-1 text-sm text-[var(--fui-primary-text)] hover:underline" href={routes.endpoint + s.number}>
             <span class="font-mono text-[var(--ha-secondary-text-color)]">#{s.number}</span> {s.label}
           </a>
         </li>
@@ -108,7 +113,7 @@
         <li class="rounded border border-[var(--ha-divider-color)] p-3" data-testid="endpoint">
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-mono text-sm text-[var(--ha-secondary-text-color)]">#{ep.endpoint_id}</span>
-            <a class="font-medium text-[var(--ha-primary-color)] hover:underline" href={routes.endpoint + ep.endpoint_id}>{ep.name}</a>
+            <a class="font-medium text-[var(--fui-primary-text)] hover:underline" href={routes.endpoint + ep.endpoint_id}>{ep.name}</a>
             <Badge variant={ep.reachable ? "success" : "muted"}>
               {ep.reachable ? t("node.endpoints.reachable") : t("node.endpoints.unreachable")}
             </Badge>

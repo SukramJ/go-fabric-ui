@@ -12,7 +12,7 @@
      shows them (0.2.5). A host without a selection gets the page all the
      same when it says why (Status.exposure_reason, 0.5.0). -->
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
   import type { Item, VerdictState } from "../../api/client";
@@ -33,6 +33,9 @@
   import { distinctValues, fieldMatches, itemValues } from "./fields";
 
   const { t, toast, node } = useFabricUI();
+  // Preview and apply are admin routes: without admin rights (the token of
+  // token mode, or the host's verdict) the list is read-only.
+  const isAdmin = $derived(!!node.status?.csrf_token || node.status?.admin === true);
 
   // A host without a selection says so in its status; the page then
   // loads nothing.
@@ -147,22 +150,62 @@
     selected = new Set(filtered.filter(bulkable).map((i) => i.key));
   }
 
+  // A change after Preview makes the preview stale: it goes, so Apply
+  // never writes what was not previewed.
   function bulkSet(enabled: boolean) {
     for (const item of filtered) if (selected.has(item.key)) node.markDirty(item, { enabled });
     selected = new Set();
+    previewItems = null;
   }
+
+  // The drawer is a modal dialog: focus moves into it, Tab stays in it,
+  // Escape closes it, and focus returns to the row's button.
+  let drawerEl = $state<HTMLElement | null>(null);
+  let drawerOpener: HTMLElement | null = null;
 
   function openDrawer(item: Item) {
     const it = current(item);
+    drawerOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     drawer = item;
     drawerName = it.name;
     drawerEnabled = it.enabled;
+    void tick().then(() => document.getElementById("fui-drawer-name")?.focus());
+  }
+
+  function closeDrawer() {
+    drawer = null;
+    const back = drawerOpener;
+    drawerOpener = null;
+    if (back?.isConnected) void tick().then(() => back.focus());
+  }
+
+  function drawerKeydown(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeDrawer();
+      return;
+    }
+    if (e.key !== "Tab" || !drawerEl) return;
+    const focusable = [...drawerEl.querySelectorAll<HTMLElement>("button, input, select, textarea, a[href], [tabindex]:not([tabindex='-1'])")].filter(
+      (el) => !el.hasAttribute("disabled"),
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
   }
 
   function saveDrawer() {
     if (!drawer) return;
     node.markDirty(drawer, { enabled: drawerEnabled, name: drawerName });
-    drawer = null;
+    previewItems = null;
+    closeDrawer();
   }
 
   async function preview() {
@@ -199,7 +242,7 @@
     !a || a.verdict.state !== b.verdict.state || a.verdict.device_type !== b.verdict.device_type || a.verdict.reason !== b.verdict.reason;
 
   const columns: DataColumn<Item>[] = $derived([
-    { key: "select", label: t("node.selection.col_select") },
+    ...(isAdmin ? [{ key: "select", label: t("node.selection.col_select") }] : []),
     { key: "state", label: t("node.selection.col_state"), align: "center", get: (i) => stateInfo(i).label },
     { key: "name", label: t("node.selection.col_name"), sortable: true, title: true, get: (i) => current(i).name },
     ...(schema?.columns ?? []).map((c) => ({
@@ -242,12 +285,16 @@
     {@const si = stateInfo(item)}
     <span class="inline-flex justify-center"><Icon name={si.icon} size={18} class={si.color} aria-label={si.label} title={si.label} /></span>
   {:else if col.key === "name"}
-    <button type="button" class="text-left hover:underline" onclick={() => openDrawer(item)}>
+    {#if isAdmin}
+      <button type="button" class="text-left hover:underline" onclick={() => openDrawer(item)}>
+        <span class="text-[var(--ha-primary-text-color)]">{current(item).name}</span>
+        {#if node.pending.has(item.key)}
+          <span class="ml-1 text-xs text-[var(--fui-primary-text)]">{t("common.modified")}</span>
+        {/if}
+      </button>
+    {:else}
       <span class="text-[var(--ha-primary-text-color)]">{current(item).name}</span>
-      {#if node.pending.has(item.key)}
-        <span class="ml-1 text-xs text-[var(--ha-primary-color)]">{t("common.modified")}</span>
-      {/if}
-    </button>
+    {/if}
   {:else if col.key === "device_type"}
     <span class="text-[var(--ha-secondary-text-color)]">{item.verdict.device_type_name || "—"}</span>
   {:else if multiColumn.has(col.key)}
@@ -295,6 +342,7 @@
         </label>
       {/if}
     </div>
+    {#if isAdmin}
     <div class="flex flex-wrap items-center gap-2">
       {#if selected.size > 0}
         <Button size="sm" onclick={() => bulkSet(true)}>{t("node.selection.bulk_expose")}</Button>
@@ -311,9 +359,10 @@
         </div>
       {/if}
     </div>
+    {/if}
   </div>
 
-  {#if previewItems}
+  {#if previewItems && isAdmin}
     <Card class="mb-4 p-4" data-testid="preview">
       <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.selection.preview_title")}</h3>
       <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("node.selection.preview_hint")}</p>
@@ -371,22 +420,19 @@
 
 {#if drawer}
   {@const item = current(drawer)}
+  <div class="fixed inset-0 z-40 bg-black/30" onclick={closeDrawer} role="presentation"></div>
   <div
-    class="fixed inset-0 z-40 bg-black/30"
-    onclick={() => (drawer = null)}
-    onkeydown={(e) => {
-      if (e.key === "Escape") drawer = null;
-    }}
-    role="presentation"
-    tabindex="-1"
-  ></div>
-  <aside
+    bind:this={drawerEl}
     class="fixed right-0 top-0 z-50 flex h-full w-full max-w-sm flex-col overflow-y-auto border-l border-[var(--ha-divider-color)] bg-[var(--ha-card-background-color)]"
+    role="dialog"
+    aria-modal="true"
     aria-label={t("node.selection.drawer_aria")}
+    tabindex="-1"
+    onkeydown={drawerKeydown}
   >
     <div class="flex items-center justify-between border-b border-[var(--ha-divider-color)] p-4">
       <h2 class="text-base font-semibold text-[var(--ha-primary-text-color)]">{drawer.name}</h2>
-      <button type="button" class="rounded-md p-2 hover:bg-[var(--ha-secondary-background-color)]" onclick={() => (drawer = null)} aria-label={t("common.close")}>✕</button>
+      <button type="button" class="rounded-md p-2 hover:bg-[var(--ha-secondary-background-color)]" onclick={closeDrawer} aria-label={t("common.close")}>✕</button>
     </div>
     <div class="flex-1 space-y-4 p-4">
       <div>
@@ -434,7 +480,7 @@
     </div>
     <div class="flex gap-2 border-t border-[var(--ha-divider-color)] p-4">
       <Button size="sm" onclick={saveDrawer}>{t("common.save")}</Button>
-      <Button size="sm" variant="outline" onclick={() => (drawer = null)}>{t("common.cancel")}</Button>
+      <Button size="sm" variant="outline" onclick={closeDrawer}>{t("common.cancel")}</Button>
     </div>
-  </aside>
+  </div>
 {/if}

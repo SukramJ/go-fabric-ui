@@ -5,7 +5,10 @@
 <script lang="ts">
   import { cn } from "./utils";
   import type { SemanticTag } from "../api/client";
+  import { useT } from "../context";
   import Badge from "./Badge.svelte";
+
+  const t = useT();
 
   // empty is the text an endpoint without tags shows; nothing when absent.
   type Props = { tags: SemanticTag[]; empty?: string; class?: string };
@@ -13,7 +16,9 @@
 
   const hex = (n: number) => "0x" + n.toString(16).toUpperCase().padStart(4, "0");
   const title = (tag: SemanticTag) =>
-    `namespace ${tag.namespace} · tag ${tag.tag}` + (tag.mfg_code !== undefined ? ` · mfg ${hex(tag.mfg_code)}` : "");
+    tag.mfg_code !== undefined
+      ? t("kit.tag_title_mfg", { namespace: tag.namespace, tag: tag.tag, mfg: hex(tag.mfg_code) })
+      : t("kit.tag_title", { namespace: tag.namespace, tag: tag.tag });
 </script>
 
 {#if tags.length > 0}

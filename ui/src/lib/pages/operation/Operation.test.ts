@@ -9,7 +9,7 @@ import { formatUptime, mergeRecords, recordLine, visibleRecords } from "./log";
 
 afterEach(cleanup);
 
-const ALL = ["operation-info.200", "operation-log-level.200", "operation-log.200", "operation-log-level-set.200"];
+const ALL = ["operation-info.200", "operation-log-level.200", "operation-log.200", "operation-log-level-set.200", "node-status.200"];
 
 function rec(seq: number, level: LogRecord["level"], msg: string, attrs: Record<string, string> = {}): LogRecord {
   return { seq, level, msg, attrs, time: "2026-10-25T12:00:00Z" };
@@ -69,7 +69,7 @@ describe("Operation", () => {
   it("sets the level through the admin route", async () => {
     const { ui } = renderOperation();
     await screen.findByTestId("operation-info");
-    await fireEvent.change(screen.getByLabelText("operation.level_label"), { target: { value: "debug" } });
+    await fireEvent.change(await screen.findByLabelText("operation.level_label"), { target: { value: "debug" } });
     await waitFor(() => expect(ui.toastSpy.success).toHaveBeenCalledWith('operation.level_set:{"level":"debug"}'));
     const put = ui.sent.find((s) => s.method === "PUT");
     expect(put?.body).toEqual({ level: "debug" });
@@ -77,9 +77,9 @@ describe("Operation", () => {
   });
 
   it("keeps the level and says why when the server refuses it", async () => {
-    const { ui } = renderOperation(["operation-info.200", "operation-log-level.200", "operation-log.200", "operation-log-level-set.403"]);
+    const { ui } = renderOperation(["operation-info.200", "operation-log-level.200", "operation-log.200", "operation-log-level-set.403", "node-status.200"]);
     await screen.findByTestId("operation-info");
-    await fireEvent.change(screen.getByLabelText("operation.level_label"), { target: { value: "debug" } });
+    await fireEvent.change(await screen.findByLabelText("operation.level_label"), { target: { value: "debug" } });
     await waitFor(() => expect(ui.toastSpy.error).toHaveBeenCalled());
     expect((screen.getByLabelText("operation.level_label") as HTMLSelectElement).value).toBe("info");
   });
@@ -106,5 +106,45 @@ describe("operation log helpers", () => {
     expect(recordLine(rs[1])).toBe("2026-10-25T12:00:00Z WARN b k=V");
     expect(formatUptime(echoT, 90061)).toBe('operation.uptime_days:{"d":1,"h":1}');
     expect(formatUptime(echoT, 59)).toBe('operation.uptime_minutes:{"m":0}');
+  });
+});
+
+describe("Operation — admin rights (UR-P1-ui-133)", () => {
+  it("shows the level without the select when neither status grants admin rights", async () => {
+    const st = body<Record<string, unknown>>("node-status.200");
+    const ui = testUI({
+      fixtures: ALL,
+      answers: {
+        "GET /operation/log?limit=2000": { status: 200, body: body("operation-log.200") },
+        "GET /node/status": { status: 200, body: { ...st, admin: false, csrf_token: undefined } },
+      },
+    });
+    await ui.node.loadStatus();
+    render(Harness, { ui, page: Operation });
+    expect(await screen.findByTestId("operation-level")).toHaveTextContent("info");
+    expect(screen.queryByLabelText("operation.level_label")).toBeNull();
+  });
+});
+
+describe("Operation — paused backlog and restarts", () => {
+  it("starts over when a restarted daemon numbers its records from the start again (UR-P1-ui-143)", async () => {
+    const { push } = renderOperation();
+    const before = await screen.findAllByTestId("log-record");
+    expect(before.length).toBeGreaterThan(1);
+    push({ seq: 1, level: "info", msg: "new process", attrs: {}, time: "2026-10-25T13:00:00Z" });
+    await waitFor(() => expect(screen.getAllByTestId("log-record")).toHaveLength(1));
+    expect(screen.getByText("new process")).toBeInTheDocument();
+  });
+});
+
+describe("Operation — mounted alone on a controller-only host (UR-P1-ui-196)", () => {
+  it("learns the token from the controller's status when the node family answers 404", async () => {
+    const ui = testUI({
+      fixtures: ["operation-info.200", "operation-log-level.200", "operation-log.200", "controller-status.200"],
+      answers: { "GET /operation/log?limit=2000": { status: 200, body: body("operation-log.200") } },
+    });
+    render(Harness, { ui, page: Operation });
+    expect(await screen.findByLabelText("operation.level_label")).toBeInTheDocument();
+    expect(ui.sent.some((s) => s.path === "/api/v1/controller/status")).toBe(true);
   });
 });

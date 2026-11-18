@@ -41,6 +41,24 @@ export function hexId(v: number): string {
   return `0x${v.toString(16).toUpperCase().padStart(4, "0")}`;
 }
 
+/**
+ * Parses a decimal number of up to five digits within 0..max; null for
+ * anything else ("abc", "1.5", "-1", "1e3", a value above max). Endpoint
+ * numbers are 16-bit with 0xFFFF reserved (max 65534), group ids 16-bit
+ * (max 65535).
+ */
+export function parseUint16(s: string, max: number): number | null {
+  const t = s.trim();
+  if (!/^\d{1,5}$/.test(t)) return null;
+  const n = Number(t);
+  return n <= max ? n : null;
+}
+
+/** The largest endpoint number; 0xFFFF is reserved. */
+export const MAX_ENDPOINT = 0xfffe;
+/** The largest group id. */
+export const MAX_GROUP = 0xffff;
+
 /** Parses "0x0006", "6" or "0006" as hex; null when it is not hex. */
 export function parseHexId(s: string): number | null {
   const t = s.trim().replace(/^0x/i, "");

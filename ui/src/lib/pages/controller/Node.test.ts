@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import NodeHarness from "../../../test/NodeHarness.svelte";
 import { body, fixtureFetch, testUI } from "../../../test/support";
 import { createClient, type ControllerNodeDetail, type EndpointDetail } from "../../api/client";
+import { createTranslator } from "../../i18n";
 
 afterEach(cleanup);
 
@@ -244,5 +245,160 @@ describe("Controller Node", () => {
     await screen.findByTestId("node-overview");
     await fireEvent.click(screen.getByText("controller.node.tab.endpoints"));
     expect(await screen.findByTestId("endpoint-0")).toBeInTheDocument();
+  });
+});
+
+describe("Controller Node — a new nodeId and overlapping loads", () => {
+  it("drops the previous node's tab state when nodeId changes in place (UR-P1-ui-163)", async () => {
+    const acl12 = { entries: [{ auth_mode: "case", fabric_index: 2, privilege: "administer", subjects_hex: ["00000000000000AA"], targets: [] }] };
+    const ui = testUI({
+      fixtures: ["controller-node.200", "controller-node.200-icd", "controller-node-acl.200"],
+      answers: { [`GET /controller/nodes/${S}/acl`]: { status: 200, body: acl12 } },
+    });
+    const r = render(NodeHarness, { ui, nodeId: L, tab: "acl" });
+    expect(await screen.findByTestId("acl-entries")).toHaveTextContent("000000000001B669");
+    await r.rerender({ ui, nodeId: S, tab: "acl" });
+    expect(screen.queryByText("Kitchen")).toBeNull();
+    await waitFor(() => expect(screen.getByTestId("acl-entries")).toHaveTextContent("00000000000000AA"));
+    expect(screen.getByTestId("acl-entries")).not.toHaveTextContent("000000000001B669");
+    expect(screen.getByTestId("node-title")).toHaveTextContent("Contact Sensor");
+  });
+
+  it("shows the newer detail when an older reload answers last (UR-P1-conc-180)", async () => {
+    const ui = testUI({ fixtures: ["controller-node.200"] });
+    const first = body<ControllerNodeDetail>("controller-node.200");
+    let calls = 0;
+    let release: (() => void) | undefined;
+    ui.client.controllerNode = async () => {
+      calls++;
+      if (calls === 1) return structuredClone(first);
+      if (calls === 2) return new Promise((resolve) => (release = () => resolve({ ...first, node: { ...first.node, node_label: "Old" } })));
+      return { ...first, node: { ...first.node, node_label: "New" } };
+    };
+    render(NodeHarness, { ui, nodeId: L, tab: "overview" });
+    await screen.findByTestId("node-title");
+    ui.controller.applyEvent({ type: "node_updated", data: { node_id_hex: L } } as never);
+    await waitFor(() => expect(release).toBeDefined());
+    ui.controller.applyEvent({ type: "node_updated", data: { node_id_hex: L } } as never);
+    await waitFor(() => expect(screen.getByTestId("node-title")).toHaveTextContent("New"));
+    release!();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByTestId("node-title")).toHaveTextContent("New");
+  });
+});
+
+describe("Controller Node — ACL and binding input", () => {
+  it("refuses an ACL target endpoint that is not a number in range (UR-P1-ui-164)", async () => {
+    const ui = renderNode(L, "acl", ["controller-node-acl.200", "controller-node-acl-set.200"]);
+    await screen.findByTestId("acl-entries");
+    for (const bad of ["abc", "1.5", "-1", "70000"]) {
+      await fireEvent.input(screen.getByLabelText("controller.acl.subjects"), { target: { value: "99" } });
+      await fireEvent.input(screen.getByLabelText("controller.acl.target_endpoint"), { target: { value: bad } });
+      await fireEvent.click(screen.getByText("controller.acl.add_entry"));
+    }
+    expect(ui.toastSpy.error).toHaveBeenCalledTimes(4);
+    expect(ui.toastSpy.error).toHaveBeenCalledWith("controller.acl.invalid_target");
+    expect(screen.getByTestId("acl-entries")).not.toHaveTextContent("0000000000000099");
+  });
+
+  it("refuses a binding endpoint or group out of range (UR-P1-ui-164)", async () => {
+    const ui = renderNode(L, "bindings", ["controller-node-bindings.200", "controller-node-bindings-set.200"]);
+    await screen.findByTestId("bindings-1");
+    const target = screen.getByLabelText("controller.bindings.target");
+    const endpoint = screen.getByLabelText("controller.bindings.endpoint");
+    for (const [tg, ep] of [["12", "abc"], ["12", "70000"], ["g:70000", ""]]) {
+      await fireEvent.input(target, { target: { value: tg } });
+      await fireEvent.input(endpoint, { target: { value: ep } });
+      await fireEvent.click(screen.getByText("controller.bindings.add"));
+    }
+    expect(ui.toastSpy.error).toHaveBeenCalledTimes(3);
+    expect(ui.sent.some((s) => s.method === "PUT")).toBe(false);
+  });
+
+  it("sends one binding write at a time (UR-P1-conc-165)", async () => {
+    const two = {
+      endpoints: [
+        {
+          endpoint: 1,
+          bindings: [
+            { cluster_hex: "0x0006", endpoint: 1, fabric_index: 1, node_id_hex: "0000000000000012" },
+            { cluster_hex: "0x0006", endpoint: 2, fabric_index: 1, node_id_hex: "0000000000000013" },
+          ],
+        },
+      ],
+    };
+    const ui = renderNode(L, "bindings", ["controller-node-bindings-set.200"], { answers: { [`GET /controller/nodes/${L}/bindings`]: { status: 200, body: two } } });
+    await screen.findByTestId("bindings-1");
+    const orig = ui.client.setNodeBindings.bind(ui.client);
+    let release: (() => void) | undefined;
+    let puts = 0;
+    ui.client.setNodeBindings = (...args) => {
+      puts++;
+      return new Promise((resolve) => (release = () => resolve(orig(...args))));
+    };
+    const removes = screen.getAllByRole("button", { name: "common.remove" });
+    await fireEvent.click(removes[0]);
+    await fireEvent.click(removes[1]);
+    expect(puts).toBe(1);
+    release!();
+    await waitFor(() => expect(ui.toastSpy.success).toHaveBeenCalledWith("controller.bindings.saved"));
+  });
+});
+
+describe("Controller Node — the window tab (UR-P1-ui-166)", () => {
+  it("offers Close after the tab was left and shown again", async () => {
+    const ui = renderNode(L, "window", ["controller-node-window.200", "controller-node-window-close.204"]);
+    await screen.findByTestId("node-title");
+    await fireEvent.click(screen.getByText("controller.window.open"));
+    await screen.findByTestId("node-window");
+    await fireEvent.click(screen.getByText("controller.node.tab.overview"));
+    await fireEvent.click(screen.getByText("controller.node.tab.window"));
+    await fireEvent.click(await screen.findByText("controller.window.close"));
+    await waitFor(() => expect(ui.toastSpy.success).toHaveBeenCalledWith("controller.window.closed"));
+    expect(ui.sent.some((s) => s.method === "POST" && s.path.endsWith("/window/close"))).toBe(true);
+  });
+
+  it("takes the codes off the page when the window's time is up", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderNode(L, "window", ["controller-node-window.200"]);
+    await screen.findByTestId("node-title");
+    await fireEvent.click(screen.getByText("controller.window.open"));
+    expect(await screen.findByTestId("node-window")).toHaveTextContent("34970112332");
+    await vi.advanceTimersByTimeAsync(301_000);
+    await waitFor(() => expect(screen.queryByTestId("node-window")).toBeNull());
+    expect(screen.getByText("controller.window.expired")).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+});
+
+describe("Controller Node — the updates tab (UR-P1-ui-167)", () => {
+  it("does not claim an empty queue when the queue could not be read", async () => {
+    const ui = renderNode(L, "updates", [], { answers: { "GET /controller/updates": { status: 500, body: { code: "internal", title: "boom", status: 500, type: "x" } } } });
+    await screen.findByTestId("node-updates");
+    await waitFor(() => expect(ui.toastSpy.error).toHaveBeenCalled());
+    expect(await screen.findByText("controller.updates.queue_unknown")).toBeInTheDocument();
+    expect(screen.queryByText("controller.updates.queue_empty")).toBeNull();
+  });
+});
+
+describe("Controller Node — forgetting an ICD registration (UR-P1-ui-176)", () => {
+  it("asks first, and sends nothing when the answer is no", async () => {
+    const ui = renderNode(S, "icd", ["controller-node-icd.200", "controller-node-icd-unregister.200"], { confirm: false });
+    await screen.findByTestId("node-icd");
+    await fireEvent.click(screen.getByText("controller.icd.forget"));
+    await waitFor(() => expect(ui.confirmSpy).toHaveBeenCalledWith(expect.objectContaining({ destructive: true, title: "controller.icd.forget_confirm" })));
+    expect(ui.sent.some((s) => s.method === "POST" && s.path.endsWith("/icd/unregister"))).toBe(false);
+  });
+});
+
+describe("Controller Node — dates in the UI's language (UR-P1-ui-182)", () => {
+  // Both languages: the process's own default locale (the machine's) is
+  // one of them, so on any machine one case fails without the fix.
+  it("formats the commissioning time in the UI's language, not the runtime's", async () => {
+    renderNode(L, "overview", [], { t: createTranslator(() => "de") });
+    expect(await screen.findByTestId("node-overview")).toHaveTextContent(/20\.10\.2026/);
+    cleanup();
+    renderNode(L, "overview", [], { t: createTranslator(() => "en") });
+    expect(await screen.findByTestId("node-overview")).toHaveTextContent(/10\/20\/2026/);
   });
 });

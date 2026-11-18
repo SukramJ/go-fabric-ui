@@ -17,6 +17,26 @@ export function mergeRecords(a: LogRecord[], b: LogRecord[]): LogRecord[] {
   return out.length > KEEP_RECORDS ? out.slice(out.length - KEEP_RECORDS) : out;
 }
 
+/**
+ * records with one streamed record added. The stream delivers in order, so
+ * a newer number is appended without a sort. A number at or below the
+ * newest one is a record already held (dropped), a gap filled late
+ * (merged), or the first record of a restarted daemon, which numbers from
+ * the start again: then the previous process's records go, so two
+ * sequences never interleave.
+ */
+export function appendRecord(records: LogRecord[], rec: LogRecord): LogRecord[] {
+  const last = records.at(-1);
+  if (!last || rec.seq > last.seq) {
+    const out = [...records, rec];
+    return out.length > KEEP_RECORDS ? out.slice(out.length - KEEP_RECORDS) : out;
+  }
+  const same = records.find((r) => r.seq === rec.seq);
+  if (same) return same.msg === rec.msg && same.level === rec.level ? records : [rec];
+  if (rec.seq > records[0].seq && rec.time <= last.time) return mergeRecords(records, [rec]);
+  return [rec];
+}
+
 /** The records at minLevel or above whose message or attributes contain text (case-insensitive). */
 export function visibleRecords(records: LogRecord[], minLevel: LogLevelName, text: string): LogRecord[] {
   const floor = LEVELS.indexOf(minLevel);

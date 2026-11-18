@@ -196,3 +196,22 @@ describe("Controller Commission", () => {
     expect(ui.controller.progress.phase).toBe("started");
   });
 });
+
+describe("Commission — a failed pairing of a discovered device (UR-P1-ui-170)", () => {
+  it("keeps the device listed when its pairing fails", async () => {
+    const ui = testUI({
+      answers: {
+        "GET /controller/discovery?timeout=5": fixture("controller-discovery.200").response,
+        "POST /controller/commission": { status: 502, body: { code: "pase_failed", title: "wrong passcode", status: 502, type: "x" } },
+      },
+    });
+    render(Harness, { ui, page: Commission });
+    await fireEvent.click(screen.getByText("controller.commission.search"));
+    expect(await screen.findByText("Plug")).toBeInTheDocument();
+    await fireEvent.input(screen.getByLabelText("controller.commission.passcode"), { target: { value: "20202021" } });
+    await fireEvent.click(screen.getByText("controller.commission.pair"));
+    await waitFor(() => expect(ui.sent.some((s) => s.method === "POST")).toBe(true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByText("Plug")).toBeInTheDocument();
+  });
+});

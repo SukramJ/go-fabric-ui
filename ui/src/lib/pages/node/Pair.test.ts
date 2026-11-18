@@ -47,7 +47,7 @@ describe("Pair — the window", () => {
     await fireEvent.click(await screen.findByText("node.pair.window_open"));
     expect(await screen.findByText("00020202021")).toBeInTheDocument();
     expect(screen.getByTestId("pair-qr").querySelector("svg")).not.toBeNull();
-    expect(screen.getByText("300s")).toBeInTheDocument();
+    expect(screen.getByText('common.seconds_short:{"n":300}')).toBeInTheDocument();
     expect(ui.sent.find((s) => s.path.endsWith("/pairing/window"))?.body).toEqual({ duration_seconds: 300 });
   });
 
@@ -138,5 +138,90 @@ describe("Pair — ecosystem hints", () => {
     await renderPair({ commissioning_window_open: false });
     expect(await screen.findAllByTestId("ecosystem-hint")).toHaveLength(5);
     expect(screen.queryByText("node.pair.hints.paired")).toBeNull();
+  });
+});
+
+describe("UR-P1-err-04: a window opened elsewhere", () => {
+  const configured = (patch: Record<string, unknown> = {}) => ({
+    status: 200,
+    body: { ...body<Record<string, unknown>>("node-pairing.200-window"), source: "configured", window_open: true, ...patch },
+  });
+
+  async function renderWith(st: Partial<Status>, pairing: { status: number; body?: unknown }) {
+    const ui = testUI({ answers: { "GET /node/status": status(st), "GET /node/pairing": pairing } });
+    render(Harness, { ui, page: Pair });
+    return ui;
+  }
+
+  it("shows the configured codes with a notice that they may not open a window of another kind, and offers Close", async () => {
+    await renderWith({ commissioning_window_open: true, window_kind: "enhanced" }, configured());
+    expect(await screen.findByTestId("pair-foreign")).toHaveTextContent("node.pair.foreign_window");
+    expect(screen.getByText("00020202021")).toBeInTheDocument();
+    expect(screen.getByText("node.pair.close_window")).toBeInTheDocument();
+  });
+
+  it("shows the codes without a notice for the page's own window, a window answered by its own codes, or a server without window_kind", async () => {
+    await renderWith({ commissioning_window_open: true, window_kind: "own" }, configured());
+    expect(await screen.findByText("00020202021")).toBeInTheDocument();
+    expect(screen.queryByTestId("pair-foreign")).toBeNull();
+    cleanup();
+    await renderWith({ commissioning_window_open: true, window_kind: "basic" }, configured({ source: "window" }));
+    expect(await screen.findByText("00020202021")).toBeInTheDocument();
+    expect(screen.queryByTestId("pair-foreign")).toBeNull();
+    cleanup();
+    await renderWith({ commissioning_window_open: true, window_kind: undefined }, configured());
+    expect(await screen.findByText("00020202021")).toBeInTheDocument();
+    expect(screen.queryByTestId("pair-foreign")).toBeNull();
+  });
+
+  it("stays on the form when the window closed between the status and the pairing read", async () => {
+    await renderWith({ commissioning_window_open: true, window_kind: "own" }, configured({ window_open: false }));
+    expect(await screen.findByText("node.pair.add_controller")).toBeInTheDocument();
+    expect(screen.queryByText("00020202021")).toBeNull();
+  });
+
+  it("judges the codes against a fresh status, not the cached one", async () => {
+    const ui = testUI({
+      answers: { "GET /node/status": status({ commissioning_window_open: true, window_kind: "enhanced" }), "GET /node/pairing": configured() },
+    });
+    // The cached status still says no window is open.
+    ui.node.applyEvent({ type: "window_closed", data: {} });
+    render(Harness, { ui, page: Pair });
+    expect(await screen.findByTestId("pair-foreign")).toBeInTheDocument();
+  });
+});
+
+describe("UR-P1-ui-132: a window opened while the page shows the form", () => {
+  it("shows the codes on window_opened", async () => {
+    let open = false;
+    const ui = testUI({ fixtures: ["node-pairing.200-window"] });
+    const statusBody = () => ({ ...body<Status>("node-status.200"), commissioning_window_open: open });
+    // The status answers what the window is now.
+    ui.client.status = async () => statusBody();
+    render(Harness, { ui, page: Pair });
+    expect(await screen.findByText("node.pair.add_controller")).toBeInTheDocument();
+    open = true;
+    ui.node.applyEvent({ type: "window_opened", data: {} });
+    expect(await screen.findByText("00020202021")).toBeInTheDocument();
+  });
+});
+
+describe("UR-P1-ui-133: a viewer without admin rights", () => {
+  it("reads no codes, shows the open window from the status and says the codes need admin rights", async () => {
+    const deadline = new Date(Date.now() + 120_000).toISOString();
+    const ui = await renderPair({ admin: false, csrf_token: undefined, commissioning_window_open: true, window_deadline: deadline });
+    expect(await screen.findByTestId("pair-viewer")).toHaveTextContent("node.pair.admin_required");
+    expect(screen.getByTestId("pair-viewer")).toHaveTextContent("node.pair.window_open_left");
+    expect(screen.queryByText("node.pair.window_open")).toBeNull();
+    expect(screen.queryByText("node.pair.close_window")).toBeNull();
+    expect(screen.queryByText("node.pair.load_error")).toBeNull();
+    expect(ui.sent.some((s) => s.path.endsWith("/pairing"))).toBe(false);
+  });
+});
+
+describe("UR-P1-ui-141: the countdown's unit is translated", () => {
+  it("renders the seconds through the catalogue", async () => {
+    await renderPair({});
+    expect(await screen.findByText(/^common\.seconds_short:/)).toBeInTheDocument();
   });
 });

@@ -46,3 +46,23 @@ describe("Controller Nodes", () => {
     await waitFor(() => expect(ui.toastSpy.success).toHaveBeenCalledWith("controller.nodes.interviewed"));
   });
 });
+
+describe("Controller Nodes — busy per node (UR-P1-ui-169)", () => {
+  it("keeps a node's actions disabled while its call runs, whatever else runs", async () => {
+    const ui = testUI({ fixtures: ["controller-nodes.200"] });
+    const held: Record<string, () => void> = {};
+    const calls: string[] = [];
+    ui.client.interviewNode = (id: string) => {
+      calls.push(id);
+      return new Promise<void>((resolve) => (held[id] = resolve));
+    };
+    render(Harness, { ui, page: Nodes });
+    await screen.findByText("Kitchen");
+    const buttons = () => screen.getAllByRole("button", { name: "controller.nodes.interview" });
+    await fireEvent.click(buttons()[0]);
+    await fireEvent.click(buttons()[1]);
+    await fireEvent.click(buttons()[0]);
+    expect(calls).toHaveLength(2);
+    expect(new Set(calls).size).toBe(2);
+  });
+});

@@ -32,7 +32,6 @@
 
   const layout = $derived(layoutGraph(graph.nodes, graph.edges));
   const byId = $derived(new Map(graph.nodes.map((n) => [n.id, n])));
-  const edgeOf = $derived(new Map(graph.edges.map((e) => [e.source + ">" + e.target, e])));
 
   // The view box: the whole graph until the viewer pans or zooms; a
   // reload keeps a view the viewer chose.
@@ -182,8 +181,9 @@
       onpointercancel={onPointerUp}
     >
       <g fill="none" stroke-linecap="round">
-        {#each layout.edges as e (e.source + ">" + e.target)}
-          {@const edge = edgeOf.get(e.source + ">" + e.target)}
+        <!-- Keyed by position: two edges may join the same pair (a session and a link). -->
+        {#each layout.edges as e (e.index)}
+          {@const edge = graph.edges[e.index]}
           {@const stroke = edgeStroke(edge)}
           {@const title = edgeTitle(edge)}
           <path
@@ -263,7 +263,7 @@
         </dl>
       {/if}
       {#if href}
-        <a class="mt-3 inline-block text-[var(--ha-primary-color)] underline" {href}>{t("graph.open")}</a>
+        <a class="mt-3 inline-block text-[var(--fui-primary-text)] underline" {href}>{t("graph.open")}</a>
       {/if}
     {:else}
       <p class="text-[var(--ha-secondary-text-color)]">{t("graph.select_hint")}</p>

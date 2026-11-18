@@ -50,7 +50,13 @@
       req.ssid = ssid.trim();
       req.passphrase = secret;
     } else {
-      req.dataset_hex = secret.replace(/\s+/g, "");
+      // An operational dataset is TLV bytes: hex digits, two per byte.
+      const hex = secret.replace(/\s+/g, "");
+      if (!/^(?:[0-9a-f]{2})+$/i.test(hex)) {
+        toast.error(t("controller.settings.dataset_invalid"));
+        return;
+      }
+      req.dataset_hex = hex;
     }
     busy = true;
     try {
@@ -121,13 +127,23 @@
             {:else if col.key === "id"}
               <span class="font-mono text-xs">{c.id}</span>
             {:else if col.key === "action"}
-              <Button size="sm" variant="ghost" class="text-[var(--ha-error-color)]" onclick={() => void removeCredential(c)}>{t("common.remove")}</Button>
+              <Button size="sm" variant="ghost" class="text-[var(--fui-error-text)]" onclick={() => void removeCredential(c)}>{t("common.remove")}</Button>
             {/if}
           {/snippet}
         </DataTable>
       {/if}
       <form class="mt-4 flex flex-wrap items-center gap-2" onsubmit={(e) => { e.preventDefault(); void addCredential(); }}>
-        <Select class="w-auto" ariaLabel={t("controller.settings.col_kind")} value={kind} onValueChange={(v) => (kind = v as typeof kind)} options={kindOptions} />
+        <Select
+          class="w-auto"
+          ariaLabel={t("controller.settings.col_kind")}
+          value={kind}
+          onValueChange={(v) => {
+            // A passphrase is never sent as a dataset, nor the other way.
+            if (v !== kind) ssid = secret = "";
+            kind = v as typeof kind;
+          }}
+          options={kindOptions}
+        />
         <Input class="w-32" bind:value={id} placeholder={t("controller.settings.col_id")} aria-label={t("controller.settings.col_id")} />
         {#if kind === "wifi"}
           <Input class="w-40" bind:value={ssid} placeholder={t("controller.settings.ssid")} aria-label={t("controller.settings.ssid")} />
@@ -152,7 +168,7 @@
         <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.settings.nodes")}</dt><dd>{s.node_count}</dd>
         <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.settings.capabilities")}</dt>
         <dd class="flex flex-wrap gap-1">
-          {#each (["ota", "credentials", "ble"] as const).filter((k) => s.capabilities[k]) as k (k)}<Badge variant="muted">{t(`controller.settings.cap.${k}`)}</Badge>{/each}
+          {#each (["ota", "credentials", "ble", "diagnostics"] as const).filter((k) => s.capabilities[k]) as k (k)}<Badge variant="muted">{t(`controller.settings.cap.${k}`)}</Badge>{/each}
         </dd>
       </dl>
     </Card>

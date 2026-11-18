@@ -8,12 +8,13 @@
   import { IM_STATUS, imStatusName, statusHex } from "./im-status";
   import type { ClusterAttribute } from "../api/client";
   import { useT } from "../context";
+  import { formatJson } from "./utils";
 
   type Props = { attributes: ClusterAttribute[]; class?: string };
   let { attributes, class: className }: Props = $props();
   const t = useT();
 
-  const format = (v: unknown) => JSON.stringify(v, null, 2);
+  const format = (v: unknown) => formatJson(v);
 </script>
 
 <div class={cn("overflow-x-auto", className)}>

@@ -21,9 +21,17 @@
   import EmptyState from "../../kit/EmptyState.svelte";
   import ErrorState from "../../kit/ErrorState.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
+  import { formatDate } from "../../kit/dates";
 
   const { t, toast, client, node } = useFabricUI();
   const isAdmin = $derived(!!node.status?.csrf_token || node.status?.admin === true);
+  // The contract gives the ecosystem no enum: one the catalogue does not
+  // name shows as written.
+  function ecosystemName(eco: string): string {
+    const k = `node.diag.ecosystem.${eco}`;
+    const s = t(k);
+    return s === k ? eco : s;
+  }
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -131,9 +139,9 @@
 
   const eventClass = (sev: string) =>
     sev === "error"
-      ? "bg-[color-mix(in_srgb,var(--ha-error-color)_15%,transparent)] text-[var(--ha-error-color)]"
+      ? "bg-[color-mix(in_srgb,var(--ha-error-color)_15%,transparent)] text-[var(--fui-error-text)]"
       : sev === "warning"
-        ? "bg-[color-mix(in_srgb,var(--ha-warning-color)_15%,transparent)] text-[var(--ha-warning-color)]"
+        ? "bg-[color-mix(in_srgb,var(--ha-warning-color)_15%,transparent)] text-[var(--fui-warning-text)]"
         : "bg-[var(--ha-secondary-background-color)] text-[var(--ha-secondary-text-color)]";
 </script>
 
@@ -148,7 +156,7 @@
   {:else if col.key === "subscriptions"}
     {s.subscriptions}
     {#if s.subscriptions === 0 && !s.is_pase}
-      <span class="ml-2 text-xs text-[var(--ha-warning-color)]">{t("node.diag.no_subscriptions")}</span>
+      <span class="ml-2 text-xs text-[var(--fui-warning-text)]">{t("node.diag.no_subscriptions")}</span>
     {/if}
   {/if}
 {/snippet}
@@ -177,10 +185,10 @@
         <p class="mt-2 text-sm text-[var(--ha-secondary-text-color)]">{t("node.diag.not_advertising")}</p>
       {:else}
         {#if errorFindings.length === 0 && warningFindings.length === 0}
-          <p class="mt-2 text-sm text-[var(--ha-success-color)]">{t("node.diag.discovery_ok")}</p>
+          <p class="mt-2 text-sm text-[var(--fui-success-text)]">{t("node.diag.discovery_ok")}</p>
         {/if}
         <ul class="mt-2 space-y-2">
-          {#each [...errorFindings, ...warningFindings] as finding (finding.code + (finding.service ?? ""))}
+          {#each [...errorFindings, ...warningFindings] as finding, i (i)}
             <li class="flex flex-wrap items-start gap-2 text-sm">
               <Badge variant={finding.severity === "error" ? "danger" : "warning"}>{t(`node.diag.severity.${finding.severity}`)}</Badge>
               <span class="min-w-[16rem] flex-1 text-[var(--ha-primary-text-color)]">{finding.message}</span>
@@ -239,16 +247,16 @@
         <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.diag.compatibility")}</h3>
         <div class="mt-2 flex flex-wrap gap-2">
           {#each compat.ecosystems as eco (eco.fabric_index)}
-            <Badge variant="muted">{t(`node.diag.ecosystem.${eco.ecosystem}`)}</Badge>
+            <Badge variant="muted">{ecosystemName(eco.ecosystem)}</Badge>
           {/each}
         </div>
         {#if compat.findings.length === 0}
-          <p class="mt-3 text-sm text-[var(--ha-success-color)]">{t("node.diag.compat_ok")}</p>
+          <p class="mt-3 text-sm text-[var(--fui-success-text)]">{t("node.diag.compat_ok")}</p>
         {:else}
           <ul class="mt-3 space-y-2">
-            {#each compat.findings as finding (finding.ecosystem + finding.code)}
+            {#each compat.findings as finding, i (i)}
               <li class="flex flex-wrap items-start gap-2 text-sm">
-                <Badge variant="warning">{t(`node.diag.ecosystem.${finding.ecosystem}`)}</Badge>
+                <Badge variant="warning">{ecosystemName(finding.ecosystem)}</Badge>
                 <span class="min-w-[16rem] flex-1 text-[var(--ha-primary-text-color)]">{finding.message}</span>
               </li>
             {/each}
@@ -269,7 +277,7 @@
           <!-- Keyed by position: two events can share second and message. -->
           {#each events as event, i (i)}
             <li class="flex gap-3 text-sm" data-testid="event">
-              <span class="shrink-0 font-mono text-xs text-[var(--ha-secondary-text-color)]">{new Date(event.at).toLocaleTimeString()}</span>
+              <span class="shrink-0 font-mono text-xs text-[var(--ha-secondary-text-color)]">{formatDate(t, event.at, "time")}</span>
               <span class="shrink-0 rounded px-1.5 py-0.5 text-xs {eventClass(event.severity)}">{t(`node.diag.kind_${event.kind}`)}</span>
               <span class="text-[var(--ha-primary-text-color)]">{event.message}</span>
             </li>

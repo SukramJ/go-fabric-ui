@@ -16,7 +16,13 @@
   let available = $state<AvailableUpdate[]>([]);
   let busy = $state(false);
 
-  onMount(() => void controller.loadUpdates());
+  // Whether a read of the queue finished: before it, and after one that
+  // failed (the store toasts and keeps updates null), the page says
+  // nothing about the queue rather than that it is empty.
+  let loaded = $state(false);
+  onMount(() => {
+    void controller.loadUpdates().finally(() => (loaded = true));
+  });
 
   const queue = $derived((controller.updates?.queue ?? []).filter((u) => u.node_id_hex === nodeId));
 
@@ -51,7 +57,9 @@
   <EmptyState message={t("controller.updates.unavailable")} />
 {:else}
   <Card class="p-4" data-testid="node-updates">
-    {#if queue.length === 0}
+    {#if controller.updates === null}
+      <p class="text-sm text-[var(--ha-secondary-text-color)]">{loaded ? t("controller.updates.queue_unknown") : t("common.loading")}</p>
+    {:else if queue.length === 0}
       <p class="text-sm text-[var(--ha-secondary-text-color)]">{t("controller.updates.queue_empty")}</p>
     {:else}
       <ul class="space-y-1 text-sm">

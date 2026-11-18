@@ -4,6 +4,7 @@
 // Mirrors the matter* functions of openccu-loom
 // assets/ui/src/lib/api/client.ts:1806-1875 at b40b289a, on the node routes.
 import type { components } from "./schema.gen";
+import { parseJson, stringifyJson } from "./json";
 
 type S = components["schemas"];
 export type Problem = S["Problem"];
@@ -150,6 +151,12 @@ export const FACTORY_RESET_CONFIRMATION = "remove-all-fabrics";
 /** The confirmation POST /node/maintenance/erase requires (0.7.0). */
 export const ERASE_CONFIRMATION = "erase-node";
 
+/** The contract's NodeKey pattern (a node of GET /nodes). */
+export const NODE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+/** A controller node id as the routes take it: 64-bit hex, case and leading zeros free. */
+export const NODE_ID_PATTERN = /^(?:0[xX])?[0-9A-Fa-f]{1,16}$/;
+
 /** A failed call: the status and, when the server sent one, its problem. */
 export class ApiError extends Error {
   readonly status: number;
@@ -245,8 +252,11 @@ export interface FabricClient {
   setNodeAutoSubscribe(id: string, enabled: boolean): Promise<void>;
   openNodeWindow(id: string, timeoutSeconds?: number): Promise<NodeWindow>;
   closeNodeWindow(id: string): Promise<void>;
+  /** The values as JSON; an integer beyond 2^53 in them is kept as its source text (json.ts), not rounded. */
   readAttributes(id: string, paths: AttributePath[], fabricFiltered?: boolean): Promise<AttributeValueList>;
+  /** The value is written as given: a kept integer or a jsonText verbatim; a JS number beyond 2^53 is refused (RangeError). */
   writeAttribute(id: string, req: WriteRequest): Promise<WriteResult>;
+  /** The payload as writeAttribute's value; the response's integers as readAttributes'. */
   invokeCommand(id: string, req: InvokeRequest): Promise<InvokeResult>;
   nodeAcl(id: string): Promise<{ entries: AclEntry[] }>;
   setNodeAcl(id: string, entries: AclEntry[]): Promise<WriteResult>;
@@ -290,29 +300,80 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
   // One token for every node's client: the handler issues one per process.
   const auth: { token?: string } = {};
 
-  async function call<T>(method: string, path: string, opts: { body?: unknown; admin?: boolean } = {}): Promise<T> {
+  // keep names the members whose integers beyond 2^53 are kept exact
+  // (json.ts): the generic values of attributes, events and commands.
+  type CallOpts = { body?: unknown; admin?: boolean; keep?: readonly string[]; retried?: boolean };
+  async function call<T>(method: string, path: string, opts: CallOpts = {}): Promise<T> {
+    // A controller node id that is a dot segment ("." or "..", which the
+    // browser resolves to another route) is refused before anything is
+    // sent; any other the server judges (400), as the contract's NodeID
+    // has no pattern.
+    const id = /^\/controller\/nodes\/([^/?]*)/.exec(path)?.[1];
+    if (id !== undefined && (id === "" || id === "." || id === "..")) throw new RangeError(`not a controller node id: "${id}"`);
     const headers: Record<string, string> = { Accept: "application/json" };
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
-    if (opts.admin && auth.token) headers[TOKEN_HEADER] = auth.token;
+    const token = opts.admin ? auth.token : undefined;
+    if (token) headers[TOKEN_HEADER] = token;
+    // Serialised before the request: a rounded integer is refused unsent.
+    const body = opts.body === undefined ? undefined : stringifyJson(opts.body);
     const res = await fetchImpl(base + path, {
       method,
       headers,
-      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+      body,
       credentials: "same-origin",
     });
     if (res.status === 204) return undefined as T;
     const text = await res.text();
-    const data: unknown = text ? JSON.parse(text) : undefined;
+    // An answer that is not JSON (a proxy's error page) or is empty where
+    // a body is due keeps its status: the callers test it (404, 503).
+    let data: unknown;
+    let parsed = text !== "";
+    if (parsed) {
+      try {
+        data = parseJson(text, opts.keep);
+      } catch {
+        parsed = false;
+      }
+    }
     if (!res.ok) {
-      const p = isProblem(data) ? data : undefined;
+      const p = parsed && isProblem(data) ? data : undefined;
+      // The handler draws a new token per process: after a restart the
+      // page holds a stale one. Reload it once and repeat the call once.
+      if (res.status === 403 && token && !opts.retried && p?.code === "forbidden" && (await refreshToken(token))) {
+        return call<T>(method, path, { ...opts, retried: true });
+      }
       throw new ApiError(res.status, p ? p.detail || p.title : `${method} ${path}: ${res.status}`, p);
     }
+    if (!parsed) throw new ApiError(res.status, `${method} ${path}: ${res.status}, ${text ? "not JSON" : "no body"}`);
     return data as T;
+  }
+
+  // One reload of the token at a time, shared by the calls a restart
+  // refused together. It answers whether the token changed.
+  let refreshing: Promise<boolean> | null = null;
+  function refreshToken(stale: string): Promise<boolean> {
+    refreshing ??= (async () => {
+      // The token is the process's: the default node's status carries it,
+      // or the controller's on a host without the node family.
+      for (const p of ["/node/status", "/controller/status"]) {
+        try {
+          const s = await call<{ csrf_token?: string }>("GET", p);
+          if (s.csrf_token) auth.token = s.csrf_token;
+          break;
+        } catch {
+          // the next source
+        }
+      }
+      refreshing = null;
+      return auth.token !== undefined && auth.token !== stale;
+    })();
+    return refreshing;
   }
 
   const clients = new Map<string, FabricClient>();
   const forNode = (key?: string): FabricClient => {
     const k = key || "";
+    if (k && !NODE_KEY_PATTERN.test(k)) throw new RangeError(`not a node key: ${k}`);
     let c = clients.get(k);
     if (!c) {
       c = build(k || undefined);
@@ -342,8 +403,8 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       openWindow: (d) => call("POST", np + "/pairing/window", { admin: true, body: { duration_seconds: d } }),
       closeWindow: () => call("POST", np + "/pairing/window/close", { admin: true }),
       endpoints: () => call("GET", np + "/endpoints"),
-      nodeEndpointDetail: (endpoint) => call("GET", `${np}/endpoints/${endpoint}`),
-      nodeEndpointEvents: (endpoint, w) => call("GET", `${np}/endpoints/${endpoint}/events${eventQuery(w)}`),
+      nodeEndpointDetail: (endpoint) => call("GET", `${np}/endpoints/${endpoint}`, { keep: VALUE_KEYS }),
+      nodeEndpointEvents: (endpoint, w) => call("GET", `${np}/endpoints/${endpoint}/events${eventQuery(w)}`, { keep: VALUE_KEYS }),
       surface: () => call("GET", np + "/surface"),
       sessions: () => call("GET", np + "/sessions"),
       topology: () => call("GET", np + "/topology"),
@@ -380,10 +441,10 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       },
       controllerNodes: () => call("GET", "/controller/nodes"),
       controllerNode: (id) => call("GET", node(id)),
-      controllerEndpointDetail: (id, endpoint) => call("GET", `${node(id)}/endpoints/${endpoint}`),
+      controllerEndpointDetail: (id, endpoint) => call("GET", `${node(id)}/endpoints/${endpoint}`, { keep: VALUE_KEYS }),
       controllerClusterDetail: (id, endpoint, clusterHex) =>
-        call("GET", `${node(id)}/endpoints/${endpoint}/clusters/${encodeURIComponent(clusterHex)}`),
-      controllerNodeEvents: (id, w) => call("GET", `${node(id)}/events${eventQuery(w)}`),
+        call("GET", `${node(id)}/endpoints/${endpoint}/clusters/${encodeURIComponent(clusterHex)}`, { keep: VALUE_KEYS }),
+      controllerNodeEvents: (id, w) => call("GET", `${node(id)}/events${eventQuery(w)}`, { keep: VALUE_KEYS }),
       decommissionNode: (id) => call("DELETE", node(id), { admin: true }),
       interviewNode: (id) => call("POST", node(id) + "/interview", { admin: true }),
       pingNode: (id) => call("POST", node(id) + "/ping", { admin: true }),
@@ -394,9 +455,12 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
         call("POST", node(id) + "/window", { admin: true, body: timeoutSeconds === undefined ? {} : { timeout_seconds: timeoutSeconds } }),
       closeNodeWindow: (id) => call("POST", node(id) + "/window/close", { admin: true }),
       readAttributes: (id, paths, fabricFiltered) =>
-        call("POST", node(id) + "/attributes", { body: fabricFiltered === undefined ? { paths } : { paths, fabric_filtered: fabricFiltered } }),
+        call("POST", node(id) + "/attributes", {
+          body: fabricFiltered === undefined ? { paths } : { paths, fabric_filtered: fabricFiltered },
+          keep: VALUE_KEYS,
+        }),
       writeAttribute: (id, req) => call("PUT", node(id) + "/attributes", { admin: true, body: req }),
-      invokeCommand: (id, req) => call("POST", node(id) + "/commands", { admin: true, body: req }),
+      invokeCommand: (id, req) => call("POST", node(id) + "/commands", { admin: true, body: req, keep: VALUE_KEYS }),
       nodeAcl: (id) => call("GET", node(id) + "/acl"),
       setNodeAcl: (id, entries) => call("PUT", node(id) + "/acl", { admin: true, body: { entries } }),
       nodeBindings: (id) => call("GET", node(id) + "/bindings"),
@@ -437,6 +501,14 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
   return forNode();
 }
 
+/**
+ * The members of the contract's generic values (AttributeValue.value,
+ * ClusterAttribute.value, EventRecord.data, InvokeResult.response): their
+ * integers beyond 2^53 are kept as source text, so a node or fabric id in
+ * them stays exact (json.ts).
+ */
+const VALUE_KEYS = ["value", "data", "response"] as const;
+
 /** The query of an event route; empty without since and limit. */
 function eventQuery(w: EventWindow | LogWindow = {}): string {
   const q = new URLSearchParams();
@@ -451,6 +523,9 @@ function node(id: string): string {
   return `/controller/nodes/${encodeURIComponent(id)}`;
 }
 
+/** A problem as the contract has it: code and title strings, detail a string when present. */
 function isProblem(v: unknown): v is Problem {
-  return typeof v === "object" && v !== null && "code" in v && "title" in v;
+  if (typeof v !== "object" || v === null) return false;
+  const p = v as Record<string, unknown>;
+  return typeof p.code === "string" && typeof p.title === "string" && (p.detail === undefined || typeof p.detail === "string");
 }

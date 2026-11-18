@@ -33,8 +33,8 @@ export interface CommissionProgress {
 export interface ControllerStoreDeps {
   t: Translate;
   toast: Toast;
-  /** Subscribes to the controller stream; the default opens an EventSource on the client's URL. */
-  subscribe?: (onEvent: (ev: ControllerStreamEvent) => void) => () => void;
+  /** Subscribes to the controller stream, as NodeStoreDeps.subscribe; the default opens an EventSource on the client's URL. */
+  subscribe?: (onEvent: (ev: ControllerStreamEvent) => void, onResync?: () => void) => () => void;
 }
 
 const IDLE: CommissionProgress = { phase: "idle", detail: null, nodeIdHex: null, steps: [], ble: null };
@@ -65,19 +65,32 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   let diagnosticEpoch = $state(0);
 
   let unsub: (() => void) | null = null;
+  // Whether the stream was connected before: connecting again resyncs.
+  let connectedBefore = false;
   let reload: ReturnType<typeof setTimeout> | null = null;
   let graphTimer: ReturnType<typeof setTimeout> | null = null;
   let diagnosticTimer: ReturnType<typeof setTimeout> | null = null;
 
   const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+  // Each loader counts its calls: an answer a newer call overtook is
+  // dropped (UR-P1-conc-109).
+  let statusGen = 0;
+  let nodesGen = 0;
+  let credentialsGen = 0;
+  let updatesGen = 0;
+
   /** Reads the status; a 404 marks the family absent, not an error. */
   async function loadStatus() {
+    const mine = ++statusGen;
     statusError = null;
     try {
-      status = await client.controllerStatus();
+      const s = await client.controllerStatus();
+      if (mine !== statusGen) return;
+      status = s;
       present = true;
     } catch (err) {
+      if (mine !== statusGen) return;
       if (err instanceof ApiError && err.status === 404) {
         present = false;
         status = null;
@@ -88,31 +101,37 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   }
 
   async function loadNodes() {
+    const mine = ++nodesGen;
     nodesLoading = true;
     nodesError = null;
     try {
-      nodes = (await client.controllerNodes()).nodes;
+      const list = (await client.controllerNodes()).nodes;
+      if (mine === nodesGen) nodes = list;
     } catch (err) {
-      nodesError = message(err);
+      if (mine === nodesGen) nodesError = message(err);
     } finally {
-      nodesLoading = false;
+      if (mine === nodesGen) nodesLoading = false;
     }
   }
 
   async function loadCredentials() {
+    const mine = ++credentialsGen;
     credentialsError = null;
     try {
-      credentials = (await client.credentials()).credentials;
+      const list = (await client.credentials()).credentials;
+      if (mine === credentialsGen) credentials = list;
     } catch (err) {
-      credentialsError = message(err);
+      if (mine === credentialsGen) credentialsError = message(err);
     }
   }
 
   async function loadUpdates() {
+    const mine = ++updatesGen;
     try {
-      updates = await client.updates();
+      const q = await client.updates();
+      if (mine === updatesGen) updates = q;
     } catch (err) {
-      deps.toast.error(message(err));
+      if (mine === updatesGen) deps.toast.error(message(err));
     }
   }
 
@@ -203,10 +222,36 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     progress = { ...IDLE };
   }
 
+  // After a gap in the stream the state may be stale: reload what the
+  // events would have moved (UR-P1-conc-102).
+  function resync() {
+    void loadStatus();
+    void loadNodes();
+    if (updates !== null) void loadUpdates();
+    revision++;
+    graphEpoch++;
+    diagnosticEpoch++;
+  }
+
   function connect() {
     if (unsub) return;
-    const sub = deps.subscribe ?? ((fn) => subscribeControllerStream(client.controllerStreamUrl(), fn));
-    unsub = sub(applyEvent);
+    if (deps.subscribe) {
+      // A host's own subscription: reload now when connecting again.
+      unsub = deps.subscribe(applyEvent, resync);
+      if (connectedBefore) resync();
+    } else {
+      // Connecting again, the reload waits for the new stream's open, so
+      // no event falls between the reload and the subscription
+      // (UR-P1-conc-192).
+      unsub = subscribeControllerStream(client.controllerStreamUrl(), applyEvent, undefined, { onResync: resync, resyncOnFirstOpen: connectedBefore });
+    }
+    connectedBefore = true;
+  }
+
+  /** Closes the stream only; connect() opens it again and reloads (the shell, while another family is shown). */
+  function disconnect() {
+    unsub?.();
+    unsub = null;
   }
 
   function close() {
@@ -242,6 +287,8 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     applyEvent,
     resetProgress,
     connect,
+    disconnect,
+    resync,
     close,
   };
 }

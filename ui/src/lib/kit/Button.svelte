@@ -25,7 +25,7 @@
     destructive: `bg-[var(--ha-error-color)] text-white hover:brightness-95 shadow-sm ${disabledFill}`,
     // Outline weight, red border and text; it fills red on hover, at the
     // point of commitment.
-    "outline-destructive": `border border-[color-mix(in_srgb,var(--ha-error-color)_40%,transparent)] bg-[var(--ha-card-background-color)] text-[var(--ha-error-color)] hover:border-[var(--ha-error-color)] hover:bg-[var(--ha-error-color)] hover:text-white ${disabledMuted}`,
+    "outline-destructive": `border border-[color-mix(in_srgb,var(--ha-error-color)_40%,transparent)] bg-[var(--ha-card-background-color)] text-[var(--fui-error-text)] hover:border-[var(--ha-error-color)] hover:bg-[var(--ha-error-color)] hover:text-white ${disabledMuted}`,
   };
   // Touch-first heights: even sm clears ~36px.
   const sizes: Record<Size, string> = {

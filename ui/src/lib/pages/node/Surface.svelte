@@ -19,6 +19,7 @@
   import LoadingState from "../../kit/LoadingState.svelte";
   import Select from "../../kit/Select.svelte";
   import { hexId, levelOrigin, shortDigest } from "./surface";
+  import { formatDate } from "../../kit/dates";
 
   const { t, client, node } = useFabricUI();
 
@@ -27,7 +28,11 @@
   let report = $state<SurfaceReport | null>(null);
   let endpoints = $state<Endpoint[]>([]);
 
+  // A newer load wins: an older answer that arrives last is dropped.
+  let seq = 0;
+
   async function load() {
+    const mine = ++seq;
     loading = true;
     error = null;
     try {
@@ -39,12 +44,13 @@
           () => [] as Endpoint[],
         ),
       ]);
+      if (mine !== seq) return;
       report = r;
       endpoints = eps;
     } catch (err) {
-      error = errorText(err);
+      if (mine === seq) error = errorText(err);
     } finally {
-      loading = false;
+      if (mine === seq) loading = false;
     }
   }
 
@@ -265,7 +271,7 @@
             <li class="rounded border border-[var(--ha-divider-color)] p-3" data-testid="surface-change">
               <div class="flex flex-wrap items-center gap-2 text-sm">
                 <span class="font-medium text-[var(--ha-primary-text-color)]">{endpointLabel(c.endpoint)}</span>
-                <span class="text-xs text-[var(--ha-secondary-text-color)]">{new Date(c.at).toLocaleString()}</span>
+                <span class="text-xs text-[var(--ha-secondary-text-color)]">{formatDate(t, c.at)}</span>
                 <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]" title={`${c.before} → ${c.after}`}>
                   {shortDigest(c.before)} → {shortDigest(c.after)}
                 </span>

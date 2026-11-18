@@ -33,13 +33,24 @@ export interface Commissioning {
   window: Window | null;
   remaining: number | null;
   addedFabricLabel: string | null;
+  /**
+   * The open window is not the one this handler opened (Status.window_kind
+   * basic or enhanced) while the pairing answers the configured codes:
+   * they may not open that window (UR-P1-err-04, decision 28). The exact
+   * answer needs a contract field (phase 3).
+   */
+  foreignWindow: boolean;
 }
 
 export interface NodeStoreDeps {
   t: Translate;
   toast: Toast;
-  /** Subscribes to the event stream; the default opens an EventSource on the client's stream URL. */
-  subscribe?: (onEvent: (ev: StreamEvent) => void) => () => void;
+  /**
+   * Subscribes to the event stream; the default opens an EventSource on
+   * the client's stream URL. A subscription that may have missed events
+   * (a reconnect) calls onResync, and the store reloads.
+   */
+  subscribe?: (onEvent: (ev: StreamEvent) => void, onResync?: () => void) => () => void;
   /** Called on the stream's nodes_changed (0.6.0) with the keys it names; the context reloads its node list. */
   onNodesChanged?: (keys: string[]) => void;
 }
@@ -61,7 +72,12 @@ const ATTRIBUTE_DELAY = 250;
 /** How long a burst of health_sample or diagnostic_event is coalesced before the reload. */
 const LIVE_DELAY = 300;
 
-const IDLE: Commissioning = { phase: "idle", window: null, remaining: null, addedFabricLabel: null };
+const IDLE: Commissioning = { phase: "idle", window: null, remaining: null, addedFabricLabel: null, foreignWindow: false };
+
+/** Whether a status grants admin rights: the token of token mode, or the host's verdict. */
+export function isAdminStatus(s: Pick<Status, "csrf_token" | "admin"> | null | undefined): boolean {
+  return !!s?.csrf_token || s?.admin === true;
+}
 
 export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   let status = $state<Status | null>(null);
@@ -96,6 +112,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   let clusterEvent = $state<EventRecord | null>(null);
 
   let unsub: (() => void) | null = null;
+  // Whether the stream was connected before: connecting again resyncs.
+  let connectedBefore = false;
   let countdown: ReturnType<typeof setInterval> | null = null;
   let exposureReload: ReturnType<typeof setTimeout> | null = null;
   let closedTimer: ReturnType<typeof setTimeout> | null = null;
@@ -106,42 +124,56 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
 
   const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+  // Each loader counts its calls: an answer a newer call overtook is
+  // dropped, as the node list's (nodes-store) is (UR-P1-conc-109).
+  let statusGen = 0;
+  let fabricsGen = 0;
+  let exposureGen = 0;
+
   async function loadStatus() {
+    const mine = ++statusGen;
     statusLoading = true;
     statusError = null;
     try {
-      status = await client.status();
+      const s = await client.status();
+      if (mine === statusGen) status = s;
     } catch (err) {
-      status = null;
-      statusError = message(err);
+      if (mine === statusGen) {
+        status = null;
+        statusError = message(err);
+      }
     } finally {
-      statusLoading = false;
+      if (mine === statusGen) statusLoading = false;
     }
   }
 
   async function loadFabrics() {
+    const mine = ++fabricsGen;
     fabricsLoading = true;
     fabricsError = null;
     try {
-      fabrics = (await client.fabrics()).fabrics;
+      const list = (await client.fabrics()).fabrics;
+      if (mine === fabricsGen) fabrics = list;
     } catch (err) {
-      fabricsError = message(err);
+      if (mine === fabricsGen) fabricsError = message(err);
     } finally {
-      fabricsLoading = false;
+      if (mine === fabricsGen) fabricsLoading = false;
     }
   }
 
   async function loadExposure() {
+    const mine = ++exposureGen;
     exposureLoading = true;
     exposureError = null;
     try {
       const [s, list] = await Promise.all([client.exposureSchema(), client.exposure()]);
+      if (mine !== exposureGen) return;
       schema = s;
       items = list.items;
     } catch (err) {
-      exposureError = message(err);
+      if (mine === exposureGen) exposureError = message(err);
     } finally {
-      exposureLoading = false;
+      if (mine === exposureGen) exposureLoading = false;
     }
   }
 
@@ -243,27 +275,57 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   }
 
   async function openWindow(durationSeconds: number) {
+    flowGen++;
     const win = await client.openWindow(durationSeconds);
-    commissioning = { phase: "open", window: win, remaining: win.duration_seconds, addedFabricLabel: null };
+    flowGen++;
+    shown = { kind: "own", deadline: Date.now() + win.duration_seconds * 1000 };
+    commissioning = { phase: "open", window: win, remaining: win.duration_seconds, addedFabricLabel: null, foreignWindow: false };
     startCountdown(win.duration_seconds);
   }
 
+  // The window the open flow shows, as the status named it (kind,
+  // deadline in ms): a fresh status naming another one replaces it
+  // (UR-P1-err-198).
+  let shown: { kind?: string; deadline?: number } = {};
+  // How far a deadline may move and still be the same window (clock and
+  // round trip).
+  const DEADLINE_SLACK_MS = 5000;
+  function otherWindow(st: Status): boolean {
+    if (st.window_kind && shown.kind && st.window_kind !== shown.kind) return true;
+    const d = st.window_deadline ? Date.parse(st.window_deadline) : NaN;
+    return !Number.isNaN(d) && shown.deadline !== undefined && Math.abs(d - shown.deadline) > DEADLINE_SLACK_MS;
+  }
+
+  // Counts the changes of the pairing flow (an open, a close, a fabric
+  // added): a hydrate that one overtook writes nothing (UR-P1-conc-110).
+  let flowGen = 0;
+
   // hydrateCommissioning re-syncs the pairing flow from the node, so a
   // reload or a window opened elsewhere shows the codes and the countdown
-  // instead of the empty form (loom matter.svelte.ts:282-318).
+  // instead of the empty form (loom matter.svelte.ts:282-318). Without
+  // admin rights it reads no codes (GET /pairing is admin-only): the Pair
+  // page shows the window from the status.
   async function hydrateCommissioning() {
     if (commissioning.phase !== "idle") return;
-    let st = status;
-    if (st === null) {
-      st = await client.status();
-      status = st;
-    }
-    if (!st.enabled || !st.commissioning_window_open) return;
+    const mine = ++flowGen;
+    // The status is read fresh: the pairing's answer is judged against
+    // the window it names now (UR-P1-err-04, correction 2).
+    const sMine = ++statusGen;
+    const st = await client.status();
+    if (sMine === statusGen) status = st;
+    if (mine !== flowGen || commissioning.phase !== "idle") return;
+    if (!st.enabled || !st.commissioning_window_open || !isAdminStatus(st)) return;
     const p = await client.pairing();
+    // The flow changed while the codes were read (a fabric added, the
+    // window closed or opened here): that change stands.
+    if (mine !== flowGen || commissioning.phase !== "idle") return;
+    // The window closed between the two reads.
+    if (!p.window_open) return;
     const duration = p.duration_seconds ?? st.commissioning_window_duration_seconds ?? 0;
     // The deadline says what is left; without one (a server before 0.1.2)
     // the full duration is the upper bound.
     const left = secondsUntil(st.window_deadline) ?? (duration > 0 ? duration : null);
+    shown = { kind: st.window_kind, deadline: st.window_deadline ? Date.parse(st.window_deadline) : undefined };
     commissioning = {
       phase: "open",
       window: {
@@ -275,17 +337,22 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       },
       remaining: left,
       addedFabricLabel: null,
+      // window_kind none or absent (a server before it) keeps the codes as they are.
+      foreignWindow: p.source === "configured" && (st.window_kind === "basic" || st.window_kind === "enhanced"),
     };
     if (left !== null && left > 0) startCountdown(left);
   }
 
   async function closeWindow() {
+    flowGen++;
     await client.closeWindow();
+    flowGen++;
     stopCountdown();
     commissioning = { ...IDLE };
   }
 
   function resetCommissioning() {
+    flowGen++;
     stopCountdown();
     commissioning = { ...IDLE };
   }
@@ -299,6 +366,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
           closedTimer = null;
         }
         stopCountdown();
+        flowGen++;
         commissioning = { ...commissioning, phase: "success", addedFabricLabel: ev.data.label || ev.data.vendor_name || null };
         void loadFabrics();
         void loadStatus();
@@ -319,7 +387,18 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         clusterEvent = ev.data;
         break;
       case "window_opened":
-        void loadStatus();
+        // A window opened elsewhere (another tab, the host) shows its
+        // codes on an idle flow, as a mount of the Pair page would
+        // (UR-P1-ui-132).
+        flowGen++;
+        // A close just before belongs to the window this one replaced: its
+        // timer would end the flow on an open window (UR-P1-err-198).
+        if (closedTimer) {
+          clearTimeout(closedTimer);
+          closedTimer = null;
+        }
+        if (commissioning.phase === "idle") void hydrateCommissioning().catch(() => undefined);
+        else void loadStatus().then(syncCommissioning);
         break;
       case "endpoints_changed":
       case "surface_changed":
@@ -327,6 +406,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         topologyEpoch++;
         break;
       case "window_closed":
+        flowGen++;
         void loadStatus();
         // A commissioning closes the window just before the fabric is
         // reported; only a close that no fabric follows ends the flow.
@@ -334,6 +414,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
           closedTimer = setTimeout(() => {
             closedTimer = null;
             if (commissioning.phase === "open") {
+              flowGen++;
               stopCountdown();
               commissioning = { ...IDLE };
               deps.toast.info(deps.t("node.commissioning.closed"));
@@ -359,10 +440,56 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     }
   }
 
+  // After a gap in the stream the state may be stale: reload what the
+  // events would have moved (UR-P1-conc-102).
+  function resync() {
+    void loadStatus().then(syncCommissioning);
+    void loadFabrics();
+    if (schema !== null) scheduleExposureReload();
+    topologyEpoch++;
+    graphEpoch++;
+    diagnosticEpoch++;
+    deps.onNodesChanged?.([]);
+  }
+
+  // An open flow whose window the reloaded status no longer shows open
+  // closed while the stream was away.
+  function syncCommissioning() {
+    if (commissioning.phase === "open" && status !== null && !status.commissioning_window_open) {
+      flowGen++;
+      stopCountdown();
+      commissioning = { ...IDLE };
+    } else if (commissioning.phase === "open" && status !== null && otherWindow(status)) {
+      // Another window than the one shown: its codes and the notice are
+      // judged afresh.
+      flowGen++;
+      stopCountdown();
+      commissioning = { ...IDLE };
+      void hydrateCommissioning().catch(() => undefined);
+    } else if (commissioning.phase === "idle" && status?.commissioning_window_open) {
+      void hydrateCommissioning().catch(() => undefined);
+    }
+  }
+
   function connect() {
     if (unsub) return;
-    const sub = deps.subscribe ?? ((fn) => subscribeStream(client.streamUrl(), fn));
-    unsub = sub(applyEvent);
+    if (deps.subscribe) {
+      // A host's own subscription: reload now when connecting again.
+      unsub = deps.subscribe(applyEvent, resync);
+      if (connectedBefore) resync();
+    } else {
+      // Connecting again, the reload waits for the new stream's open, so
+      // no event falls between the reload and the subscription
+      // (UR-P1-conc-192).
+      unsub = subscribeStream(client.streamUrl(), applyEvent, undefined, { onResync: resync, resyncOnFirstOpen: connectedBefore });
+    }
+    connectedBefore = true;
+  }
+
+  /** Closes the stream only; connect() opens it again and reloads (the shell, while another family is shown). */
+  function disconnect() {
+    unsub?.();
+    unsub = null;
   }
 
   function close() {
@@ -388,6 +515,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     get pending() { return pending; },
     get hasDirty() { return pending.size > 0; },
     get commissioning() { return commissioning; },
+    /** Whether the status grants admin rights (the token of token mode, or the host's verdict). */
+    get isAdmin() { return isAdminStatus(status); },
     get topologyEpoch() { return topologyEpoch; },
     get graphEpoch() { return graphEpoch; },
     /** Moves once per burst of diagnostic_event; the diagnostics page refetches when it does. */
@@ -409,6 +538,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     resetCommissioning,
     applyEvent,
     connect,
+    disconnect,
+    resync,
     close,
   };
 }

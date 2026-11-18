@@ -128,3 +128,15 @@ describe("Graph", () => {
     expect(viewBox()).toEqual([0, 0, 1053, 184]);
   });
 });
+
+describe("Graph — edges between the same pair (UR-P1-ui-139)", () => {
+  it("draws two edges with the same source and target but different kinds, each with its own kind", () => {
+    const g = graph();
+    g.edges = [...g.edges, { kind: "link", source: "node", target: "ep:1", strength: "strong" }];
+    render(Graph, { graph: g, hrefOf, label: "Topology" });
+    const paths = [...document.querySelectorAll("path[data-edge-kind]")];
+    expect(paths).toHaveLength(g.edges.length);
+    const pair = paths.filter((p) => p.getAttribute("data-edge-kind") === "link" && p.getAttribute("data-strength") === "strong");
+    expect(pair).toHaveLength(1);
+  });
+});

@@ -15,7 +15,7 @@ afterEach(() => {
   localStorage.clear();
 });
 
-const BASE = ["node-exposure-schema.200", "node-exposure.200"];
+const BASE = ["node-exposure-schema.200", "node-exposure.200", "node-status.200"];
 
 function renderSel(opts: Parameters<typeof testUI>[0] = {}) {
   const ui = testUI({ ...opts, fixtures: [...BASE, ...(opts.fixtures ?? [])] });
@@ -228,5 +228,45 @@ describe("Selection — changes, preview, apply", () => {
     expect(await screen.findByText("node.selection.unavailable")).toBeInTheDocument();
     expect(screen.getByTestId("exposure-reason")).toHaveTextContent("This host builds its endpoints without a selection.");
     expect(ui.sent.some((r) => r.path.includes("/exposure"))).toBe(false);
+  });
+});
+
+describe("Selection — admin rights (UR-P1-ui-133)", () => {
+  it("offers no selection, bulk or save control without admin rights", async () => {
+    const st = body<Record<string, unknown>>("node-status.200");
+    renderSel({ answers: { "GET /node/status": { status: 200, body: { ...st, admin: false, csrf_token: undefined } } } });
+    await screen.findAllByRole("row");
+    await waitFor(() => expect(screen.queryByText("node.selection.select_all")).toBeNull());
+    expect(screen.queryAllByLabelText("node.selection.select_row")).toHaveLength(0);
+    expect(screen.queryByTestId("save-bar")).toBeNull();
+  });
+});
+
+describe("Selection — preview and drawer", () => {
+  it("drops the preview when the pending set changes after it (UR-P1-ui-135)", async () => {
+    const preview = body<ItemList>("node-exposure-preview.200");
+    renderSel({ answers: { "POST /node/exposure/preview": { status: 200, body: preview } } });
+    await screen.findByText("Kitchen lamp");
+    await fireEvent.click(screen.getAllByLabelText("node.selection.select_row")[0]);
+    await fireEvent.click(screen.getByText("node.selection.bulk_expose"));
+    await fireEvent.click(screen.getByText("node.selection.preview"));
+    await screen.findByTestId("preview");
+    await fireEvent.click(screen.getAllByLabelText("node.selection.select_row")[1]);
+    await fireEvent.click(screen.getByText("node.selection.bulk_hide"));
+    await waitFor(() => expect(screen.queryByTestId("preview")).toBeNull());
+  });
+
+  it("opens the drawer as a dialog with focus inside, closes on Escape and returns focus (UR-P1-ui-136)", async () => {
+    renderSel();
+    const opener = (await screen.findByText("Kitchen lamp")).closest("button")!;
+    opener.focus();
+    await fireEvent.click(opener);
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    const name = screen.getByLabelText("node.selection.name");
+    await waitFor(() => expect(document.activeElement).toBe(name));
+    await fireEvent.keyDown(name, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(opener));
   });
 });

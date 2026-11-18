@@ -13,10 +13,10 @@
   // A 15% tint of the matching token as the fill and the token as the text
   // colour, so the badge follows the active skin and flips with .dark.
   const variants: Record<Variant, string> = {
-    default: "bg-[color-mix(in_srgb,var(--ha-primary-color)_15%,transparent)] text-[var(--ha-primary-color)]",
-    success: "bg-[color-mix(in_srgb,var(--ha-success-color)_15%,transparent)] text-[var(--ha-success-color)]",
-    warning: "bg-[color-mix(in_srgb,var(--ha-warning-color)_15%,transparent)] text-[var(--ha-warning-color)]",
-    danger: "bg-[color-mix(in_srgb,var(--ha-error-color)_15%,transparent)] text-[var(--ha-error-color)]",
+    default: "bg-[color-mix(in_srgb,var(--ha-primary-color)_15%,transparent)] text-[var(--fui-primary-text)]",
+    success: "bg-[color-mix(in_srgb,var(--ha-success-color)_15%,transparent)] text-[var(--fui-success-text)]",
+    warning: "bg-[color-mix(in_srgb,var(--ha-warning-color)_15%,transparent)] text-[var(--fui-warning-text)]",
+    danger: "bg-[color-mix(in_srgb,var(--ha-error-color)_15%,transparent)] text-[var(--fui-error-text)]",
     muted: "bg-[var(--ha-secondary-background-color)] text-[var(--ha-secondary-text-color)]",
   };
 </script>

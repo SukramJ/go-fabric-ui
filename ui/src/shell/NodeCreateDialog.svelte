@@ -7,6 +7,7 @@
   import { errorText } from "../lib/store.svelte";
   import Button from "../lib/kit/Button.svelte";
   import Input from "../lib/kit/Input.svelte";
+  import { trapFocus } from "./focus-trap";
 
   let { onCreate, onClose }: { onCreate: (label: string) => Promise<void>; onClose: () => void } = $props();
 
@@ -39,15 +40,16 @@
     aria-modal="true"
     aria-labelledby="fui-node-create-title"
     data-testid="node-create-dialog"
+    tabindex="-1"
+    use:trapFocus={onClose}
   >
   <form onsubmit={submit}>
     <h2 id="fui-node-create-title" class="text-base font-semibold text-[var(--ha-primary-text-color)]">{t("shell.node_create.title")}</h2>
     <p class="mt-2 text-sm text-[var(--ha-secondary-text-color)]">{t("shell.node_create.intro")}</p>
     <label class="mt-4 block text-sm font-medium text-[var(--ha-primary-text-color)]" for="fui-node-create-label">{t("shell.node_create.label")}</label>
-    <!-- svelte-ignore a11y_autofocus -->
-    <Input id="fui-node-create-label" class="mt-1" maxlength={64} autofocus placeholder={t("shell.node_create.placeholder")} bind:value={label} />
+    <Input id="fui-node-create-label" class="mt-1" maxlength={64} data-autofocus placeholder={t("shell.node_create.placeholder")} bind:value={label} />
     {#if error}
-      <p class="mt-2 text-sm text-[var(--ha-error-color)]" role="alert">{error}</p>
+      <p class="mt-2 text-sm text-[var(--fui-error-text)]" role="alert">{error}</p>
     {/if}
     <div class="mt-6 flex justify-end gap-2">
       <Button type="button" variant="outline" onclick={onClose}>{t("common.cancel")}</Button>

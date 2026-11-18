@@ -194,6 +194,12 @@ Details the fixtures pin:
   travel exactly as 16-digit uppercase hex in `*_hex`; the numeric twins
   are informational — a JSON number carries 53 bits and a browser rounds
   larger ids.
+- **Generic values** (`value`, `data` and `response` of the controller's
+  attribute, event and command routes and of `cluster_event`) carry 64-bit
+  integers as plain JSON numbers. A JavaScript client parses them
+  losslessly and sends an edited value as typed; the shipped client does
+  both (`ui/src/lib/api/json.ts`) and refuses to send a number outside the
+  safe integer range.
 - **Secrets**: the passcode appears only in the answers of the admin routes
   `GET /node/pairing` and `POST /node/pairing/window` — the configured one
   (`Node.SetupPayload`) or that of the window this handler opened on fresh

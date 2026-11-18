@@ -19,33 +19,57 @@
   let starting = $state(false);
   let video = $state<HTMLVideoElement | null>(null);
   let stop: (() => void) | null = null;
+  // Counts the scans and their ends: a scan Cancel or the page's end
+  // overtook while it started reports nothing and is stopped
+  // (UR-P1-conc-105 with -160).
+  let scanGen = 0;
+  let abort: AbortController | null = null;
 
   async function start() {
+    const mine = ++scanGen;
+    abort = new AbortController();
+    const signal = abort.signal;
     open = true;
     starting = true;
     try {
       const scan = await import("../../scan");
       // The video element renders once open is true.
       await tick();
+      if (mine !== scanGen) return;
       if (!video) throw new Error("no video element");
-      stop = await scan.startScan(video, (payload) => {
-        stop = null;
-        open = false;
-        onCode(payload);
-        toast.success(t("controller.commission.scan_read"));
-      });
+      const s = await scan.startScan(
+        video,
+        (payload) => {
+          if (mine !== scanGen) return;
+          stop = null;
+          open = false;
+          onCode(payload);
+          toast.success(t("controller.commission.scan_read"));
+        },
+        signal,
+      );
+      if (mine !== scanGen) {
+        s();
+        return;
+      }
+      stop = s;
     } catch (err) {
+      if (mine !== scanGen) return;
       open = false;
       toast.error(t("controller.commission.scan_failed", { error: errorText(err) }));
     } finally {
-      starting = false;
+      if (mine === scanGen) starting = false;
     }
   }
 
   function cancel() {
+    scanGen++;
+    abort?.abort();
+    abort = null;
     stop?.();
     stop = null;
     open = false;
+    starting = false;
   }
 
   onDestroy(cancel);

@@ -25,7 +25,10 @@
  * Ported from openccu-loom assets/ui/src/app.css at b40b289a: :56-104
  * (tokens, dark block), :106-142 (HA skin, HA dark), :144-152 (base
  * colours), :154-240 (palette remap), :339-423 (reflow, hide-narrow). The
- * values are verbatim. This file holds plain CSS: import it after Tailwind
+ * values are verbatim but for the standalone light warning, success and
+ * info, darkened for text contrast (see there). The HA skin's literals are
+ * Home Assistant's own defaults and stay as they are: inside a panel the
+ * host's theme rules. This file holds plain CSS: import it after Tailwind
  * (see ui/README.md).
  */
 
@@ -47,17 +50,33 @@
   --ha-secondary-text-color: #64748b;
   --ha-disabled-text-color: #9ca3af;
   --ha-error-color: #dc2626;
-  --ha-warning-color: #d97706;
-  --ha-success-color: #059669;
-  /* Info is deliberately blue (Tailwind sky-600) so it stays
+  /* Warning, success and info are one Tailwind step darker than the port
+   * (amber-600, emerald-600, sky-600 → -700): they colour small text, and
+   * the lighter ones stayed below WCAG AA's 4.5:1 on white (3.2, 3.8,
+   * 4.0; UR-P1-ui-172, tokens.test.ts). */
+  --ha-warning-color: #b45309;
+  --ha-success-color: #047857;
+  /* Info is deliberately blue (Tailwind sky-700) so it stays
    * distinguishable from the teal primary. */
-  --ha-info-color: oklch(58.8% 0.158 241.966);
+  --ha-info-color: oklch(50% 0.134 242.749);
   --ha-elevation-card: 0 1px 2px 0 rgb(0 0 0 / 0.04);
   --ha-elevation-modal: 0 10px 25px -5px rgb(0 0 0 / 0.15);
   --ha-radius-card: 12px;
   --ha-radius-control: 8px;
   /* The label on a primary fill. */
   --ha-on-primary-color: #ffffff;
+  /* Status TEXT (owner decision 31, UR-P1-ui-172): small text in a status
+   * colour reads these, never --ha-*-color, which stay for areas, borders
+   * and icons. They reach WCAG AA (4.5:1) on the card and on a badge's
+   * 15% tint in every palette (tokens.test.ts): the status colour mixed
+   * a little towards black, since on a badge's tint the plain colour
+   * misses AA. Each takes a host's exact value first:
+   * --fui-<status>-text-color, set anywhere above the pages. */
+  --fui-primary-text: var(--fui-primary-text-color, color-mix(in srgb, var(--ha-primary-color) 80%, #000000));
+  --fui-error-text: var(--fui-error-text-color, color-mix(in srgb, var(--ha-error-color) 80%, #000000));
+  --fui-warning-text: var(--fui-warning-text-color, color-mix(in srgb, var(--ha-warning-color) 80%, #000000));
+  --fui-success-text: var(--fui-success-text-color, color-mix(in srgb, var(--ha-success-color) 80%, #000000));
+  --fui-info-text: var(--fui-info-text-color, color-mix(in srgb, var(--ha-info-color) 80%, #000000));
 }
 
 html.dark,
@@ -81,6 +100,12 @@ html.dark,
   --ha-info-color: oklch(74.6% 0.16 232.661);
   --ha-elevation-card: 0 1px 2px 0 rgb(0 0 0 / 0.30);
   --ha-elevation-modal: 0 10px 25px -5px rgb(0 0 0 / 0.50);
+  /* The dark status colours are AA on the dark card as they are. */
+  --fui-primary-text: var(--fui-primary-text-color, var(--ha-primary-color));
+  --fui-error-text: var(--fui-error-text-color, var(--ha-error-color));
+  --fui-warning-text: var(--fui-warning-text-color, var(--ha-warning-color));
+  --fui-success-text: var(--fui-success-text-color, var(--ha-success-color));
+  --fui-info-text: var(--fui-info-text-color, var(--ha-info-color));
 }
 
 /* Home-Assistant skin. When data-skin="ha" the --ha-* consumption tokens
@@ -112,6 +137,18 @@ html[data-skin="ha"],
   /* Native controls (checkboxes, radios, range, scrollbars) take the theme. */
   accent-color: var(--ha-primary-color);
   color-scheme: light;
+  /* Status text under the HA skin: Home Assistant's status colours are
+   * fills (warning #ffa600 is 1.96:1 on white), so the text is the host's
+   * own colour mixed towards black — it keeps a custom theme's hue (the
+   * bridge copies --warning-color & co. live) with no new variable asked
+   * of the host. The shares make HA's defaults reach AA on the card and on
+   * a badge's tint; a host whose colours the mix does not carry sets the
+   * exact value through --fui-<status>-text-color. */
+  --fui-primary-text: var(--fui-primary-text-color, color-mix(in srgb, var(--ha-primary-color) 70%, #000000));
+  --fui-error-text: var(--fui-error-text-color, color-mix(in srgb, var(--ha-error-color) 80%, #000000));
+  --fui-warning-text: var(--fui-warning-text-color, color-mix(in srgb, var(--ha-warning-color) 50%, #000000));
+  --fui-success-text: var(--fui-success-text-color, color-mix(in srgb, var(--ha-success-color) 70%, #000000));
+  --fui-info-text: var(--fui-info-text-color, color-mix(in srgb, var(--ha-info-color) 65%, #000000));
 }
 
 html[data-skin="ha"].dark,
@@ -127,6 +164,12 @@ html[data-skin="ha"].dark,
   --ha-secondary-text-color: var(--secondary-text-color, #9b9b9b);
   --ha-disabled-text-color: var(--disabled-text-color, #6f6f6f);
   color-scheme: dark;
+  /* On a dark card the status colours are mixed towards white instead. */
+  --fui-primary-text: var(--fui-primary-text-color, color-mix(in srgb, var(--ha-primary-color) 75%, #ffffff));
+  --fui-error-text: var(--fui-error-text-color, color-mix(in srgb, var(--ha-error-color) 70%, #ffffff));
+  --fui-warning-text: var(--fui-warning-text-color, color-mix(in srgb, var(--ha-warning-color) 75%, #ffffff));
+  --fui-success-text: var(--fui-success-text-color, color-mix(in srgb, var(--ha-success-color) 75%, #ffffff));
+  --fui-info-text: var(--fui-info-text-color, color-mix(in srgb, var(--ha-info-color) 75%, #ffffff));
 }
 
 /* Base document colours track the theme tokens so the boot paint and any

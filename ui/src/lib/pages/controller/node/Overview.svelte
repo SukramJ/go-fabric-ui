@@ -9,6 +9,7 @@
   import Button from "../../../kit/Button.svelte";
   import Card from "../../../kit/Card.svelte";
   import { connectionLabel, connectionVariant, vendorLabel } from "../format";
+  import { formatDate } from "../../../kit/dates";
 
   let { detail }: { detail: ControllerNodeDetail } = $props();
   const { t, toast, client } = useFabricUI();
@@ -74,7 +75,7 @@
       <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.overview.addresses")}</dt><dd class="font-mono text-xs">{r.addresses.join(", ")}</dd>
       {#if r.operational_host}<dt class="text-[var(--ha-secondary-text-color)]" title={t("controller.overview.operational_host_hint")}>{t("controller.overview.operational_host")}</dt><dd class="font-mono text-xs" data-testid="node-operational-host">{r.operational_host}</dd>{/if}
       <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.overview.fabric_index")}</dt><dd>{r.fabric_index_on_peer ?? "–"}</dd>
-      <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.overview.commissioned_at")}</dt><dd>{r.commissioned_at ? new Date(r.commissioned_at).toLocaleString() : "–"}</dd>
+      <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.overview.commissioned_at")}</dt><dd>{r.commissioned_at ? formatDate(t, r.commissioned_at) : "–"}</dd>
     </dl>
     <div class="mt-3 flex flex-wrap gap-2">
       <Button size="sm" variant="outline" disabled={busy} onclick={() => void setAutoSubscribe(!n.subscription_active)}>
@@ -90,14 +91,14 @@
         <p class="mt-1">
           <Badge variant={ping.reachable ? "success" : "danger"}>{ping.reachable ? t("controller.ping.reachable") : t("controller.ping.unreachable")}</Badge>
           {#if ping.rtt_ms !== undefined}<span class="ml-2">{t("controller.ping.rtt", { ms: ping.rtt_ms })}</span>{/if}
-          {#if ping.error}<span class="ml-2 text-[var(--ha-error-color)]">{ping.error}</span>{/if}
+          {#if ping.error}<span class="ml-2 text-[var(--fui-error-text)]">{ping.error}</span>{/if}
         </p>
         {#if ping.addresses.length > 0}
           <ul class="mt-1 space-y-0.5 font-mono text-xs">
             {#each ping.addresses as a (a.ip)}
               <li data-testid="ping-address">
                 <Badge variant={a.reachable ? "success" : "danger"}>{a.reachable ? t("controller.ping.reachable") : t("controller.ping.unreachable")}</Badge>
-                <span class="ml-1">{a.ip}</span>{#if a.rtt_ms !== undefined}&nbsp;· {t("controller.ping.rtt", { ms: a.rtt_ms })}{/if}{#if a.error}&nbsp;· <span class="text-[var(--ha-error-color)]" data-testid="ping-address-error">{a.error}</span>{/if}
+                <span class="ml-1">{a.ip}</span>{#if a.rtt_ms !== undefined}&nbsp;· {t("controller.ping.rtt", { ms: a.rtt_ms })}{/if}{#if a.error}&nbsp;· <span class="text-[var(--fui-error-text)]" data-testid="ping-address-error">{a.error}</span>{/if}
               </li>
             {/each}
           </ul>
