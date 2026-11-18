@@ -123,7 +123,7 @@
   {#if answered}
     <div class="mt-4" data-testid="attribute-result">
       {#if result?.status !== undefined}
-        <p class="text-sm text-[var(--ha-error-color)]">{t("controller.attributes.status", { status: hexId(result.status) })}</p>
+        <p class="text-sm text-[var(--fui-error-text)]">{t("controller.attributes.status", { status: hexId(result.status) })}</p>
       {:else if !result || !hasValue}
         <p class="text-sm text-[var(--ha-secondary-text-color)]" data-testid="attribute-no-answer">{t("controller.attributes.no_answer")}</p>
       {:else}

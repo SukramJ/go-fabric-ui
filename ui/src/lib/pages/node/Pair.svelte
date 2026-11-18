@@ -105,7 +105,7 @@
   {#if hydrateLoading}
     <p class="text-sm text-[var(--ha-secondary-text-color)]">{t("node.pair.loading")}</p>
   {:else if hydrateError}
-    <p class="text-sm text-[var(--ha-error-color)]">{t("node.pair.load_error")}</p>
+    <p class="text-sm text-[var(--fui-error-text)]">{t("node.pair.load_error")}</p>
   {:else if phase === "idle" && !isAdmin}
     <Card class="p-6" data-testid="pair-viewer">
       {#if viewerWindowOpen}

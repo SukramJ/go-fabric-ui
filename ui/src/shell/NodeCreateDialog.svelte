@@ -49,7 +49,7 @@
     <label class="mt-4 block text-sm font-medium text-[var(--ha-primary-text-color)]" for="fui-node-create-label">{t("shell.node_create.label")}</label>
     <Input id="fui-node-create-label" class="mt-1" maxlength={64} data-autofocus placeholder={t("shell.node_create.placeholder")} bind:value={label} />
     {#if error}
-      <p class="mt-2 text-sm text-[var(--ha-error-color)]" role="alert">{error}</p>
+      <p class="mt-2 text-sm text-[var(--fui-error-text)]" role="alert">{error}</p>
     {/if}
     <div class="mt-6 flex justify-end gap-2">
       <Button type="button" variant="outline" onclick={onClose}>{t("common.cancel")}</Button>
