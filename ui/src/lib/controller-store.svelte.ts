@@ -73,13 +73,24 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
 
   const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+  // Each loader counts its calls: an answer a newer call overtook is
+  // dropped (UR-P1-conc-109).
+  let statusGen = 0;
+  let nodesGen = 0;
+  let credentialsGen = 0;
+  let updatesGen = 0;
+
   /** Reads the status; a 404 marks the family absent, not an error. */
   async function loadStatus() {
+    const mine = ++statusGen;
     statusError = null;
     try {
-      status = await client.controllerStatus();
+      const s = await client.controllerStatus();
+      if (mine !== statusGen) return;
+      status = s;
       present = true;
     } catch (err) {
+      if (mine !== statusGen) return;
       if (err instanceof ApiError && err.status === 404) {
         present = false;
         status = null;
@@ -90,31 +101,37 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   }
 
   async function loadNodes() {
+    const mine = ++nodesGen;
     nodesLoading = true;
     nodesError = null;
     try {
-      nodes = (await client.controllerNodes()).nodes;
+      const list = (await client.controllerNodes()).nodes;
+      if (mine === nodesGen) nodes = list;
     } catch (err) {
-      nodesError = message(err);
+      if (mine === nodesGen) nodesError = message(err);
     } finally {
-      nodesLoading = false;
+      if (mine === nodesGen) nodesLoading = false;
     }
   }
 
   async function loadCredentials() {
+    const mine = ++credentialsGen;
     credentialsError = null;
     try {
-      credentials = (await client.credentials()).credentials;
+      const list = (await client.credentials()).credentials;
+      if (mine === credentialsGen) credentials = list;
     } catch (err) {
-      credentialsError = message(err);
+      if (mine === credentialsGen) credentialsError = message(err);
     }
   }
 
   async function loadUpdates() {
+    const mine = ++updatesGen;
     try {
-      updates = await client.updates();
+      const q = await client.updates();
+      if (mine === updatesGen) updates = q;
     } catch (err) {
-      deps.toast.error(message(err));
+      if (mine === updatesGen) deps.toast.error(message(err));
     }
   }
 

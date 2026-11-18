@@ -115,3 +115,63 @@ describe("UR-P1-conc-102: a store reloads after a gap in its stream", () => {
     vi.unstubAllGlobals();
   });
 });
+
+/** A client whose answers the test releases one by one, in any order. */
+function deferredClient() {
+  const pending: { url: string; resolve: (body: unknown) => void }[] = [];
+  const client = createClient(
+    "/api/v1",
+    (url) =>
+      new Promise<Response>((res) => {
+        pending.push({ url, resolve: (body) => res(new Response(JSON.stringify(body), { status: 200 })) });
+      }),
+  );
+  return { client, pending };
+}
+
+describe("UR-P1-conc-109: an older answer does not overwrite a newer one", () => {
+  it("node store: loadStatus keeps the later call's answer", async () => {
+    const { client, pending } = deferredClient();
+    const store = createNodeStore(client, { t, toast, subscribe: () => () => {} });
+    const st = body<Status>("node-status.200");
+    const a = store.loadStatus();
+    const b = store.loadStatus();
+    pending[1].resolve({ ...st, commissioning_window_open: false });
+    await b;
+    pending[0].resolve({ ...st, commissioning_window_open: true });
+    await a;
+    expect(store.status?.commissioning_window_open).toBe(false);
+    expect(store.statusLoading).toBe(false);
+  });
+
+  it("node store: loadFabrics keeps the later call's answer", async () => {
+    const { client, pending } = deferredClient();
+    const store = createNodeStore(client, { t, toast, subscribe: () => () => {} });
+    const a = store.loadFabrics();
+    const b = store.loadFabrics();
+    pending[1].resolve({ fabrics: [] });
+    await b;
+    pending[0].resolve({ fabrics: [{ fabric_index: 1, label: "old" }] });
+    await a;
+    expect(store.fabrics).toEqual([]);
+  });
+
+  it("controller store: loadNodes and loadStatus keep the later call's answer", async () => {
+    const { client, pending } = deferredClient();
+    const store = createControllerStore(client, { t, toast, subscribe: () => () => {} });
+    const a = store.loadNodes();
+    const b = store.loadNodes();
+    pending[1].resolve({ nodes: [] });
+    await b;
+    pending[0].resolve({ nodes: [{ node_id_hex: "0000000000000011" }] });
+    await a;
+    expect(store.nodes).toEqual([]);
+    const c = store.loadStatus();
+    const d = store.loadStatus();
+    pending[3].resolve({ fabric_label: "new", capabilities: {} });
+    await d;
+    pending[2].resolve({ fabric_label: "old", capabilities: {} });
+    await c;
+    expect((store.status as { fabric_label?: string } | null)?.fabric_label).toBe("new");
+  });
+});

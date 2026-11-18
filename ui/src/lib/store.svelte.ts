@@ -112,42 +112,56 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
 
   const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+  // Each loader counts its calls: an answer a newer call overtook is
+  // dropped, as the node list's (nodes-store) is (UR-P1-conc-109).
+  let statusGen = 0;
+  let fabricsGen = 0;
+  let exposureGen = 0;
+
   async function loadStatus() {
+    const mine = ++statusGen;
     statusLoading = true;
     statusError = null;
     try {
-      status = await client.status();
+      const s = await client.status();
+      if (mine === statusGen) status = s;
     } catch (err) {
-      status = null;
-      statusError = message(err);
+      if (mine === statusGen) {
+        status = null;
+        statusError = message(err);
+      }
     } finally {
-      statusLoading = false;
+      if (mine === statusGen) statusLoading = false;
     }
   }
 
   async function loadFabrics() {
+    const mine = ++fabricsGen;
     fabricsLoading = true;
     fabricsError = null;
     try {
-      fabrics = (await client.fabrics()).fabrics;
+      const list = (await client.fabrics()).fabrics;
+      if (mine === fabricsGen) fabrics = list;
     } catch (err) {
-      fabricsError = message(err);
+      if (mine === fabricsGen) fabricsError = message(err);
     } finally {
-      fabricsLoading = false;
+      if (mine === fabricsGen) fabricsLoading = false;
     }
   }
 
   async function loadExposure() {
+    const mine = ++exposureGen;
     exposureLoading = true;
     exposureError = null;
     try {
       const [s, list] = await Promise.all([client.exposureSchema(), client.exposure()]);
+      if (mine !== exposureGen) return;
       schema = s;
       items = list.items;
     } catch (err) {
-      exposureError = message(err);
+      if (mine === exposureGen) exposureError = message(err);
     } finally {
-      exposureLoading = false;
+      if (mine === exposureGen) exposureLoading = false;
     }
   }
 
