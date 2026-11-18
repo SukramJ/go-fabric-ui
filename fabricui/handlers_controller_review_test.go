@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -85,4 +86,66 @@ func TestController_NullForANonNullableAttributeIs502(t *testing.T) {
 			}
 		})
 	}
+}
+
+// UR-P1-adpt-34: only a CASE subject names a node; a Group entry whose
+// group id equals the node id is kept.
+func TestSetNodeACL_KeepsAGroupSubjectEqualToTheNodeID(t *testing.T) {
+	_, mux, _ := controllerHandler(t, nil)
+	body := `{"entries":[{"privilege":"administer","auth_mode":"case","subjects_hex":["0000000000000020"],"targets":[]},` +
+		`{"privilege":"operate","auth_mode":"group","subjects_hex":["0000000000000011"],"targets":[]}]}`
+	if r := do(t, mux, http.MethodPut, "/controller/nodes/0000000000000011/acl", body); r.Code != http.StatusOK {
+		t.Fatalf("acl %d %s", r.Code, r.Body)
+	}
+	r := do(t, mux, http.MethodGet, "/controller/nodes/0000000000000011/acl", "")
+	if !strings.Contains(r.Body.String(), `"auth_mode":"group"`) {
+		t.Fatalf("the group entry is gone: %s", r.Body)
+	}
+}
+
+// UR-P1-ctr-32: an ACL entry whose privilege or auth mode is outside the
+// contract's enums is a node error, not "" in the answer.
+func TestGetNodeACL_UnknownPrivilegeOrAuthModeIs502(t *testing.T) {
+	for _, entry := range []string{
+		`[{"privilege":6,"authMode":2,"subjects":[32],"targets":null,"fabricIndex":1}]`,
+		`[{"privilege":5,"authMode":4,"subjects":[32],"targets":null,"fabricIndex":1}]`,
+	} {
+		src := &rawSource{MemoryController: NewMemoryController(),
+			raw: map[AttributePath]json.RawMessage{{Endpoint: 0, Cluster: clusterAccessControl, Attribute: attributeACL}: json.RawMessage(entry)}}
+		_, mux := newTestHandler(t, testOptions{noNode: true, controller: src})
+		r := do(t, mux, http.MethodGet, "/controller/nodes/0000000000000011/acl", "")
+		if r.Code != http.StatusBadGateway {
+			t.Fatalf("%s: %d %s, want 502", entry, r.Code, r.Body)
+		}
+	}
+}
+
+// rawSource hands out the memory controller's nodes wrapped in rawNode.
+type rawSource struct {
+	*MemoryController
+	raw map[AttributePath]json.RawMessage
+}
+
+func (s *rawSource) Node(id uint64) (ControllerNode, bool) {
+	n, ok := s.MemoryController.Node(id)
+	if !ok {
+		return nil, false
+	}
+	return rawNode{ControllerNode: n, raw: s.raw}, true
+}
+
+// rawNode answers the given JSON for the paths in raw.
+type rawNode struct {
+	ControllerNode
+	raw map[AttributePath]json.RawMessage
+}
+
+func (n rawNode) Read(ctx context.Context, paths []AttributePath, filtered bool) ([]AttributeValue, error) {
+	vals, err := n.ControllerNode.Read(ctx, paths, filtered)
+	for i := range vals {
+		if v, ok := n.raw[vals[i].Path]; ok {
+			vals[i].Value, vals[i].Status = v, 0
+		}
+	}
+	return vals, err
 }

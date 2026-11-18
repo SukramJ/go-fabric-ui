@@ -853,8 +853,11 @@ var (
 		1: api.ACLEntryPrivilegeView, 2: api.ACLEntryPrivilegeProxyView, 3: api.ACLEntryPrivilegeOperate,
 		4: api.ACLEntryPrivilegeManage, 5: api.ACLEntryPrivilegeAdminister,
 	}
-	authModeNames = map[uint8]api.ACLEntryAuthMode{1: api.ACLEntryAuthModePase, 2: api.ACLEntryAuthModeCase, 3: api.ACLEntryAuthModeGroup}
+	authModeNames = map[uint8]api.ACLEntryAuthMode{1: api.ACLEntryAuthModePase, authModeCASE: api.ACLEntryAuthModeCase, 3: api.ACLEntryAuthModeGroup}
 )
+
+// authModeCASE is AccessControlEntryAuthModeEnum's CASE.
+const authModeCASE uint8 = 2
 
 func keyOf[K, V comparable](m map[K]V, v V) (K, bool) {
 	for k, x := range m {
@@ -894,9 +897,17 @@ func (s *controllerServer) GetNodeACL(ctx context.Context, req api.GetNodeACLReq
 		return nil, fmt.Errorf("%w: the ACL does not read as a list of entries: %w", ErrNodeFailed, err)
 	}
 	out := api.GetNodeACL200JSONResponse{Entries: []api.ACLEntry{}}
-	for _, e := range entries {
+	for i, e := range entries {
+		priv, ok := privilegeNames[e.Privilege]
+		if !ok {
+			return nil, fmt.Errorf("%w: ACL entry %d: privilege %d is outside the contract's enum", ErrNodeFailed, i, e.Privilege)
+		}
+		mode, ok := authModeNames[e.AuthMode]
+		if !ok {
+			return nil, fmt.Errorf("%w: ACL entry %d: auth mode %d is outside the contract's enum", ErrNodeFailed, i, e.AuthMode)
+		}
 		a := api.ACLEntry{
-			Privilege: privilegeNames[e.Privilege], AuthMode: authModeNames[e.AuthMode],
+			Privilege: priv, AuthMode: mode,
 			SubjectsHex: []string{}, Targets: []api.ACLTarget{}, FabricIndex: nonZero(e.FabricIndex),
 		}
 		for _, sub := range e.Subjects {
@@ -920,9 +931,10 @@ func (s *controllerServer) GetNodeACL(ctx context.Context, req api.GetNodeACLReq
 	return out, nil
 }
 
-// SetNodeACL writes our fabric's entries in one write of the ACL. A
-// subject naming the node itself is left out, and an entry left without
-// subjects dropped — a node always has access to itself — as
+// SetNodeACL writes our fabric's entries in one write of the ACL. A CASE
+// subject naming the node itself is left out (a Group entry's subject is a
+// group id, a PASE entry's a passcode id: neither names a node), and an
+// entry left without subjects dropped — a node always has access to itself — as
 // go-fabric-server's set_acl_entry does after matterjs-server
 // (ControllerCommandHandler.ts:2618-2668).
 func (s *controllerServer) SetNodeACL(ctx context.Context, req api.SetNodeACLRequestObject) (api.SetNodeACLResponseObject, error) {
@@ -949,7 +961,7 @@ func (s *controllerServer) SetNodeACL(ctx context.Context, req api.SetNodeACLReq
 			if err != nil {
 				return nil, err
 			}
-			if sub != n.ID() {
+			if mode != authModeCASE || sub != n.ID() {
 				entry.Subjects = append(entry.Subjects, sub)
 			}
 		}
