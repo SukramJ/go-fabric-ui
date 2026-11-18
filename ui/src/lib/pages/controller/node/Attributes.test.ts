@@ -63,3 +63,39 @@ describe("UR-P1-ctr-101: a 64-bit value read and written back", () => {
     expect(sent.find((s) => s.method === "PUT")?.body).toContain(`"value":[${SUBJECT}]`);
   });
 });
+
+describe("UR-P1-ui-161: a value read from one path is not written to another", () => {
+  const kitchen = () => `{"values":[{"endpoint":0,"cluster_hex":"0x0028","attribute_hex":"0x0005","value":"Kitchen"}]}`;
+
+  it("drops the result when the attribute id changes", async () => {
+    const { client, sent } = rawClient(kitchen);
+    renderAttributes(client);
+    await readPath("0x0028", "5");
+    await screen.findByTestId("attribute-result");
+    await fireEvent.input(screen.getByLabelText("controller.attributes.attribute"), { target: { value: "0" } });
+    expect(screen.queryByTestId("attribute-result")).toBeNull();
+    expect(screen.queryByText("controller.attributes.write")).toBeNull();
+    expect(sent.some((s) => s.method === "PUT")).toBe(false);
+  });
+
+  it("drops the result and the cluster when the endpoint changes", async () => {
+    const { client } = rawClient(kitchen);
+    renderAttributes(client);
+    await readPath("0x0028", "5");
+    await screen.findByTestId("attribute-result");
+    await fireEvent.change(screen.getByLabelText("controller.attributes.endpoint"), { target: { value: "1" } });
+    expect(screen.queryByTestId("attribute-result")).toBeNull();
+    expect((screen.getByLabelText("controller.attributes.cluster") as HTMLSelectElement).value).not.toBe("0x0028");
+    expect(screen.getByText("controller.attributes.read")).toBeDisabled();
+  });
+});
+
+describe("a read the node answers with neither value nor status", () => {
+  it("says so instead of showing nothing", async () => {
+    const { client } = rawClient(() => `{"values":[{"endpoint":0,"cluster_hex":"0x0028","attribute_hex":"0x0005"}]}`);
+    renderAttributes(client);
+    await readPath("0x0028", "5");
+    expect(await screen.findByTestId("attribute-no-answer")).toHaveTextContent("controller.attributes.no_answer");
+    expect(screen.queryByText("controller.attributes.write")).toBeNull();
+  });
+});

@@ -42,6 +42,7 @@
   "controller.attributes.hint": "Ein Attribut lesen: Endpoint und Cluster wählen, die Attribut-ID hexadezimal angeben.",
   "controller.attributes.invalid_json": "Der Wert ist kein JSON.",
   "controller.attributes.invalid_path": "Cluster- oder Attribut-ID ist nicht hexadezimal.",
+  "controller.attributes.no_answer": "Der Knoten hat für dieses Attribut weder einen Wert noch einen Status geliefert.",
   "controller.attributes.read": "Lesen",
   "controller.attributes.status": "Der Knoten antwortete mit Status {status}.",
   "controller.attributes.value": "Wert als JSON",

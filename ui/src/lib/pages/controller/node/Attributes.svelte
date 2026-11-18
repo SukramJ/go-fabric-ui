@@ -20,8 +20,36 @@
   let cluster = $state("");
   let attribute = $state("0x0000");
   let result = $state<AttributeValue | null>(null);
+  // Whether the last read answered: a read the node answered with neither
+  // value nor status says so instead of showing nothing.
+  let answered = $state(false);
   let edit = $state("");
   let busy = $state(false);
+  // Counts the reads and the path's changes: a read answered after the
+  // path changed is dropped.
+  let readSeq = 0;
+  const hasValue = $derived(result !== null && result.status === undefined && result.value !== undefined);
+
+  // A value read from one path is never offered for writing to another:
+  // a change of the path drops the result (UR-P1-ui-161).
+  function clearResult() {
+    readSeq++;
+    result = null;
+    answered = false;
+    edit = "";
+  }
+
+  function setEndpoint(v: string) {
+    endpoint = v;
+    // The cluster of one endpoint may not exist on another.
+    cluster = "";
+    clearResult();
+  }
+
+  function setCluster(v: string) {
+    cluster = v;
+    clearResult();
+  }
 
   const endpointOptions = $derived(detail.endpoints.map((e) => ({ value: String(e.endpoint), label: t("controller.endpoints.endpoint", { number: e.endpoint }) })));
   const clusterOptions = $derived(
@@ -42,12 +70,15 @@
       return;
     }
     busy = true;
+    const seq = ++readSeq;
     try {
       const res = await client.readAttributes(nodeId, [p]);
+      if (seq !== readSeq) return;
       result = res.values[0] ?? null;
+      answered = true;
       // The value's integers beyond 2^53 are kept exact (a node id in an
       // ACL subject): shown and seeded as the node sent them.
-      edit = result && result.status === undefined ? stringifyJson(result.value) : "";
+      edit = result && result.status === undefined && result.value !== undefined ? stringifyJson(result.value) : "";
     } catch (err) {
       toast.error(errorText(err));
     } finally {
@@ -84,15 +115,17 @@
 <Card class="p-4">
   <p class="mb-3 text-sm text-[var(--ha-secondary-text-color)]">{t("controller.attributes.hint")}</p>
   <form class="flex flex-wrap items-center gap-2" onsubmit={(e) => { e.preventDefault(); void read(); }}>
-    <Select class="w-auto" ariaLabel={t("controller.attributes.endpoint")} value={endpoint} onValueChange={(v) => (endpoint = v as typeof endpoint)} options={endpointOptions} />
-    <Select class="w-auto" ariaLabel={t("controller.attributes.cluster")} value={cluster} onValueChange={(v) => (cluster = v as typeof cluster)} options={clusterOptions} />
-    <Input class="w-28 font-mono" bind:value={attribute} aria-label={t("controller.attributes.attribute")} placeholder="0x0000" />
+    <Select class="w-auto" ariaLabel={t("controller.attributes.endpoint")} value={endpoint} onValueChange={setEndpoint} options={endpointOptions} />
+    <Select class="w-auto" ariaLabel={t("controller.attributes.cluster")} value={cluster} onValueChange={setCluster} options={clusterOptions} />
+    <Input class="w-28 font-mono" bind:value={attribute} oninput={clearResult} aria-label={t("controller.attributes.attribute")} placeholder="0x0000" />
     <Button type="submit" disabled={busy || !cluster}>{t("controller.attributes.read")}</Button>
   </form>
-  {#if result}
+  {#if answered}
     <div class="mt-4" data-testid="attribute-result">
-      {#if result.status !== undefined}
+      {#if result?.status !== undefined}
         <p class="text-sm text-[var(--ha-error-color)]">{t("controller.attributes.status", { status: hexId(result.status) })}</p>
+      {:else if !result || !hasValue}
+        <p class="text-sm text-[var(--ha-secondary-text-color)]" data-testid="attribute-no-answer">{t("controller.attributes.no_answer")}</p>
       {:else}
         <pre class="overflow-x-auto rounded bg-[var(--ha-secondary-background-color)] p-2 font-mono text-xs">{stringifyJson(result.value, 2)}</pre>
         <div class="mt-2 flex flex-wrap items-center gap-2">

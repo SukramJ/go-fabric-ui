@@ -42,6 +42,7 @@
   "controller.attributes.hint": "Read one attribute: pick the endpoint and cluster, give the attribute id in hex.",
   "controller.attributes.invalid_json": "The value is not JSON.",
   "controller.attributes.invalid_path": "The cluster or attribute id is not hex.",
+  "controller.attributes.no_answer": "The node answered neither a value nor a status for this attribute.",
   "controller.attributes.read": "Read",
   "controller.attributes.status": "The node answered status {status}.",
   "controller.attributes.value": "Value as JSON",
