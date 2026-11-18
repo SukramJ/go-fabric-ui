@@ -246,3 +246,42 @@ describe("Controller Node", () => {
     expect(await screen.findByTestId("endpoint-0")).toBeInTheDocument();
   });
 });
+
+describe("Controller Node — a new nodeId and overlapping loads", () => {
+  it("drops the previous node's tab state when nodeId changes in place (UR-P1-ui-163)", async () => {
+    const acl12 = { entries: [{ auth_mode: "case", fabric_index: 2, privilege: "administer", subjects_hex: ["00000000000000AA"], targets: [] }] };
+    const ui = testUI({
+      fixtures: ["controller-node.200", "controller-node.200-icd", "controller-node-acl.200"],
+      answers: { [`GET /controller/nodes/${S}/acl`]: { status: 200, body: acl12 } },
+    });
+    const r = render(NodeHarness, { ui, nodeId: L, tab: "acl" });
+    expect(await screen.findByTestId("acl-entries")).toHaveTextContent("000000000001B669");
+    await r.rerender({ ui, nodeId: S, tab: "acl" });
+    expect(screen.queryByText("Kitchen")).toBeNull();
+    await waitFor(() => expect(screen.getByTestId("acl-entries")).toHaveTextContent("00000000000000AA"));
+    expect(screen.getByTestId("acl-entries")).not.toHaveTextContent("000000000001B669");
+    expect(screen.getByTestId("node-title")).toHaveTextContent("Contact Sensor");
+  });
+
+  it("shows the newer detail when an older reload answers last (UR-P1-conc-180)", async () => {
+    const ui = testUI({ fixtures: ["controller-node.200"] });
+    const first = body<ControllerNodeDetail>("controller-node.200");
+    let calls = 0;
+    let release: (() => void) | undefined;
+    ui.client.controllerNode = async () => {
+      calls++;
+      if (calls === 1) return structuredClone(first);
+      if (calls === 2) return new Promise((resolve) => (release = () => resolve({ ...first, node: { ...first.node, node_label: "Old" } })));
+      return { ...first, node: { ...first.node, node_label: "New" } };
+    };
+    render(NodeHarness, { ui, nodeId: L, tab: "overview" });
+    await screen.findByTestId("node-title");
+    ui.controller.applyEvent({ type: "node_updated", data: { node_id_hex: L } } as never);
+    await waitFor(() => expect(release).toBeDefined());
+    ui.controller.applyEvent({ type: "node_updated", data: { node_id_hex: L } } as never);
+    await waitFor(() => expect(screen.getByTestId("node-title")).toHaveTextContent("New"));
+    release!();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByTestId("node-title")).toHaveTextContent("New");
+  });
+});

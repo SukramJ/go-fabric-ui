@@ -38,18 +38,37 @@
   // The endpoint the endpoints tab opened the inventory at.
   let focus = $state<number | undefined>(undefined);
 
+  // A newer load wins: an older answer (a stream reload, a retry, the
+  // previous node's) that arrives last is dropped.
+  let seq = 0;
+
   async function load() {
+    const mine = ++seq;
+    const id = nodeId;
     error = null;
     try {
-      detail = await client.controllerNode(nodeId);
+      const d = await client.controllerNode(id);
+      if (mine === seq) detail = d;
     } catch (err) {
-      error = errorText(err);
+      if (mine === seq) error = errorText(err);
     }
   }
 
+  // A new nodeId on a mounted page: nothing of the previous node stays.
+  // detail = null unmounts the tab, so the tab mounts again on the new
+  // node and loads its own state (UR-P1-ui-163).
+  let shown = untrack(() => nodeId);
   $effect(() => {
-    void nodeId;
-    untrack(() => void load());
+    const id = nodeId;
+    untrack(() => {
+      if (id !== shown) {
+        shown = id;
+        detail = null;
+        error = null;
+        focus = undefined;
+      }
+      void load();
+    });
   });
 
   // An event about this node reloads it.
@@ -70,6 +89,8 @@
   {:else}
     <h2 class="text-lg font-medium text-[var(--ha-primary-text-color)]" data-testid="node-title">{nodeName(detail.node)}</h2>
     <Tabs {items} {active} onSelect={(k) => (active = isTab(k) ? k : "overview")} ariaLabel={t("controller.node.tabs")} />
+    <!-- Keyed by the node as well: a tab never outlives the node it loaded. -->
+    {#key nodeId}
     <div class="mt-2">
       {#if active === "overview"}
         <Overview {detail} />
@@ -101,5 +122,6 @@
         <Updates {nodeId} />
       {/if}
     </div>
+    {/key}
   {/if}
 </div>
