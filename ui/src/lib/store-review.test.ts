@@ -175,3 +175,23 @@ describe("UR-P1-conc-109: an older answer does not overwrite a newer one", () =>
     expect((store.status as { fabric_label?: string } | null)?.fabric_label).toBe("new");
   });
 });
+
+describe("UR-P1-conc-110: hydrateCommissioning looks again after its awaits", () => {
+  it("keeps the success a fabric_added brought while the codes were read", async () => {
+    const st = { ...body<Status>("node-status.200"), commissioning_window_open: true };
+    let release: (r: Response) => void = () => {};
+    const ff = fixtureFetch(["node-fabrics.200"]);
+    const client = createClient("/api/v1", async (url, init) => {
+      if (url.endsWith("/node/status")) return new Response(JSON.stringify(st), { status: 200 });
+      if (url.endsWith("/node/pairing")) return new Promise<Response>((r) => (release = r));
+      return ff.fetch(url, init);
+    });
+    const store = createNodeStore(client, { t, toast, subscribe: () => () => {} });
+    const h = store.hydrateCommissioning();
+    await vi.advanceTimersByTimeAsync(0);
+    store.applyEvent({ type: "fabric_added", data: { fabric_index: 2, label: "Home" } });
+    release(new Response(JSON.stringify({ ...body<Record<string, unknown>>("node-pairing.200-window") }), { status: 200 }));
+    await h;
+    expect(store.commissioning.phase).toBe("success");
+  });
+});

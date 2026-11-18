@@ -33,6 +33,13 @@ export interface Commissioning {
   window: Window | null;
   remaining: number | null;
   addedFabricLabel: string | null;
+  /**
+   * The open window is not the one this handler opened (Status.window_kind
+   * basic or enhanced) while the pairing answers the configured codes:
+   * they may not open that window (UR-P1-err-04, decision 28). The exact
+   * answer needs a contract field (phase 3).
+   */
+  foreignWindow: boolean;
 }
 
 export interface NodeStoreDeps {
@@ -65,7 +72,12 @@ const ATTRIBUTE_DELAY = 250;
 /** How long a burst of health_sample or diagnostic_event is coalesced before the reload. */
 const LIVE_DELAY = 300;
 
-const IDLE: Commissioning = { phase: "idle", window: null, remaining: null, addedFabricLabel: null };
+const IDLE: Commissioning = { phase: "idle", window: null, remaining: null, addedFabricLabel: null, foreignWindow: false };
+
+/** Whether a status grants admin rights: the token of token mode, or the host's verdict. */
+export function isAdminStatus(s: Pick<Status, "csrf_token" | "admin"> | null | undefined): boolean {
+  return !!s?.csrf_token || s?.admin === true;
+}
 
 export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   let status = $state<Status | null>(null);
@@ -263,23 +275,38 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   }
 
   async function openWindow(durationSeconds: number) {
+    flowGen++;
     const win = await client.openWindow(durationSeconds);
-    commissioning = { phase: "open", window: win, remaining: win.duration_seconds, addedFabricLabel: null };
+    flowGen++;
+    commissioning = { phase: "open", window: win, remaining: win.duration_seconds, addedFabricLabel: null, foreignWindow: false };
     startCountdown(win.duration_seconds);
   }
 
+  // Counts the changes of the pairing flow (an open, a close, a fabric
+  // added): a hydrate that one overtook writes nothing (UR-P1-conc-110).
+  let flowGen = 0;
+
   // hydrateCommissioning re-syncs the pairing flow from the node, so a
   // reload or a window opened elsewhere shows the codes and the countdown
-  // instead of the empty form (loom matter.svelte.ts:282-318).
+  // instead of the empty form (loom matter.svelte.ts:282-318). Without
+  // admin rights it reads no codes (GET /pairing is admin-only): the Pair
+  // page shows the window from the status.
   async function hydrateCommissioning() {
     if (commissioning.phase !== "idle") return;
-    let st = status;
-    if (st === null) {
-      st = await client.status();
-      status = st;
-    }
-    if (!st.enabled || !st.commissioning_window_open) return;
+    const mine = ++flowGen;
+    // The status is read fresh: the pairing's answer is judged against
+    // the window it names now (UR-P1-err-04, correction 2).
+    const sMine = ++statusGen;
+    const st = await client.status();
+    if (sMine === statusGen) status = st;
+    if (mine !== flowGen || commissioning.phase !== "idle") return;
+    if (!st.enabled || !st.commissioning_window_open || !isAdminStatus(st)) return;
     const p = await client.pairing();
+    // The flow changed while the codes were read (a fabric added, the
+    // window closed or opened here): that change stands.
+    if (mine !== flowGen || commissioning.phase !== "idle") return;
+    // The window closed between the two reads.
+    if (!p.window_open) return;
     const duration = p.duration_seconds ?? st.commissioning_window_duration_seconds ?? 0;
     // The deadline says what is left; without one (a server before 0.1.2)
     // the full duration is the upper bound.
@@ -295,17 +322,22 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       },
       remaining: left,
       addedFabricLabel: null,
+      // window_kind none or absent (a server before it) keeps the codes as they are.
+      foreignWindow: p.source === "configured" && (st.window_kind === "basic" || st.window_kind === "enhanced"),
     };
     if (left !== null && left > 0) startCountdown(left);
   }
 
   async function closeWindow() {
+    flowGen++;
     await client.closeWindow();
+    flowGen++;
     stopCountdown();
     commissioning = { ...IDLE };
   }
 
   function resetCommissioning() {
+    flowGen++;
     stopCountdown();
     commissioning = { ...IDLE };
   }
@@ -319,6 +351,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
           closedTimer = null;
         }
         stopCountdown();
+        flowGen++;
         commissioning = { ...commissioning, phase: "success", addedFabricLabel: ev.data.label || ev.data.vendor_name || null };
         void loadFabrics();
         void loadStatus();
@@ -339,7 +372,12 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         clusterEvent = ev.data;
         break;
       case "window_opened":
-        void loadStatus();
+        // A window opened elsewhere (another tab, the host) shows its
+        // codes on an idle flow, as a mount of the Pair page would
+        // (UR-P1-ui-132).
+        flowGen++;
+        if (commissioning.phase === "idle") void hydrateCommissioning().catch(() => undefined);
+        else void loadStatus();
         break;
       case "endpoints_changed":
       case "surface_changed":
@@ -347,6 +385,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         topologyEpoch++;
         break;
       case "window_closed":
+        flowGen++;
         void loadStatus();
         // A commissioning closes the window just before the fabric is
         // reported; only a close that no fabric follows ends the flow.
@@ -354,6 +393,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
           closedTimer = setTimeout(() => {
             closedTimer = null;
             if (commissioning.phase === "open") {
+              flowGen++;
               stopCountdown();
               commissioning = { ...IDLE };
               deps.toast.info(deps.t("node.commissioning.closed"));
@@ -395,8 +435,11 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   // closed while the stream was away.
   function syncCommissioning() {
     if (commissioning.phase === "open" && status !== null && !status.commissioning_window_open) {
+      flowGen++;
       stopCountdown();
       commissioning = { ...IDLE };
+    } else if (commissioning.phase === "idle" && status?.commissioning_window_open) {
+      void hydrateCommissioning().catch(() => undefined);
     }
   }
 
@@ -437,6 +480,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     get pending() { return pending; },
     get hasDirty() { return pending.size > 0; },
     get commissioning() { return commissioning; },
+    /** Whether the status grants admin rights (the token of token mode, or the host's verdict). */
+    get isAdmin() { return isAdminStatus(status); },
     get topologyEpoch() { return topologyEpoch; },
     get graphEpoch() { return graphEpoch; },
     /** Moves once per burst of diagnostic_event; the diagnostics page refetches when it does. */

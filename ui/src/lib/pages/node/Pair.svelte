@@ -3,11 +3,16 @@
      openccu-loom assets/ui/src/routes/matter/MatterPair.svelte:1-279 at
      b40b289a; the host-readiness gate becomes the node's own "no endpoint
      exposed yet" hint, and the colours are the theme tokens. Below the
-     flow, the ecosystems' pairing hints (EcosystemHints, 0.5.0). -->
+     flow, the ecosystems' pairing hints (EcosystemHints, 0.5.0). Without
+     admin rights the page reads no codes (GET /pairing is admin-only) and
+     shows the window's state from the status. A window opened elsewhere
+     while the pairing answers the configured codes shows them with a
+     notice that they may not open it (UR-P1-err-04, decision 28). -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
+  import { secondsUntil } from "../../countdown";
   import { renderQrSvg } from "../../qr";
   import Button from "../../kit/Button.svelte";
   import Card from "../../kit/Card.svelte";
@@ -45,6 +50,11 @@
   const win = $derived(node.commissioning.window);
   const remaining = $derived(node.commissioning.remaining);
   const addedLabel = $derived(node.commissioning.addedFabricLabel);
+  const foreignWindow = $derived(node.commissioning.foreignWindow);
+  const isAdmin = $derived(node.isAdmin);
+  // Without admin rights: the window the status names, and what is left of it.
+  const viewerWindowOpen = $derived(node.status?.enabled === true && node.status.commissioning_window_open);
+  const viewerLeft = $derived(secondsUntil(node.status?.window_deadline));
 
   // Opening a window on a node controllers already hold adds a controller;
   // the card says which of the two the operator is doing.
@@ -96,6 +106,15 @@
     <p class="text-sm text-[var(--ha-secondary-text-color)]">{t("node.pair.loading")}</p>
   {:else if hydrateError}
     <p class="text-sm text-[var(--ha-error-color)]">{t("node.pair.load_error")}</p>
+  {:else if phase === "idle" && !isAdmin}
+    <Card class="p-6" data-testid="pair-viewer">
+      {#if viewerWindowOpen}
+        <p class="mb-2 text-sm font-medium text-[var(--ha-primary-text-color)]">
+          {viewerLeft !== null && viewerLeft > 0 ? t("node.pair.window_open_left", { left: t("common.seconds_short", { n: viewerLeft }) }) : t("node.pair.window_open_now")}
+        </p>
+      {/if}
+      <p class="text-sm text-[var(--ha-secondary-text-color)]">{t("node.pair.admin_required")}</p>
+    </Card>
   {:else if phase === "idle"}
     <Card class="p-6">
       <h2 class="mb-4 text-base font-semibold text-[var(--ha-primary-text-color)]">{t("node.pair.window_open_duration")}</h2>
@@ -122,6 +141,11 @@
   {:else if phase === "open" && win}
     <Card class="p-6">
       <h2 class="mb-4 text-base font-semibold text-[var(--ha-primary-text-color)]">{t("node.pair.qr_caption")}</h2>
+      {#if foreignWindow}
+        <p class="mb-4 rounded border border-[var(--ha-warning-color)] p-3 text-sm text-[var(--ha-primary-text-color)]" role="note" data-testid="pair-foreign">
+          {t("node.pair.foreign_window")}
+        </p>
+      {/if}
       <div class="flex flex-col items-center gap-4">
         {#if remaining !== null}
           <div class="relative flex items-center justify-center">
@@ -141,7 +165,7 @@
                 style:transition="stroke-dashoffset 1s linear"
               />
             </svg>
-            <span class="absolute text-xl font-semibold text-[var(--ha-primary-text-color)]">{remaining}s</span>
+            <span class="absolute text-xl font-semibold text-[var(--ha-primary-text-color)]">{t("common.seconds_short", { n: remaining })}</span>
           </div>
         {/if}
         {#if qrSvg}

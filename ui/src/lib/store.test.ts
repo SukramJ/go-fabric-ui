@@ -126,7 +126,8 @@ describe("node store", () => {
 
   it("hydrates an open window with what is left until its deadline", async () => {
     vi.setSystemTime(new Date("2026-10-25T12:02:00Z"));
-    const ui = testUI({ fixtures: ["node-status.200", "node-pairing.200"] });
+    // The pairing names the window open (node-pairing.200 answers a closed one, which hydrates nothing).
+    const ui = testUI({ fixtures: ["node-status.200", "node-pairing.200-window"] });
     await ui.node.hydrateCommissioning();
     expect(ui.node.commissioning).toMatchObject({ phase: "open", remaining: 180 });
     await vi.advanceTimersByTimeAsync(3000);
