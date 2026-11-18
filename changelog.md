@@ -15,7 +15,6 @@ All notable changes to this project are documented here. The format follows
   any parent (`*`, `https:`, `https://*`). The default admits the page's own origin
   only, which is the Ingress parent. See `docs/embedding.md`, "Response
   headers and framing".
-
 - The client keeps 64-bit integers in generic values exactly
   (UR-P1-ctr-101): `value`, `data` and `response` of the controller's
   attribute, event and command answers and of `cluster_event` are parsed
