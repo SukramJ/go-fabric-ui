@@ -109,7 +109,8 @@ describe("UR-P1-conc-102: a store reloads after a gap in its stream", () => {
     emit("error");
     emit("open");
     await vi.advanceTimersByTimeAsync(10);
-    expect(seen).toEqual(["/api/v1/operation/log?since=6"]);
+    // The newest page of the ring, not since: see UR-P1-conc-191.
+    expect(seen).toEqual(["/api/v1/operation/log?limit=500"]);
     expect(got).toEqual([5, 6, 7]);
     close();
     vi.unstubAllGlobals();
@@ -250,6 +251,62 @@ describe("UR-P1-conc-192: connecting again reloads on the new stream's open, not
     await vi.advanceTimersByTimeAsync(10);
     expect(paths(ff.sent)).toContain("GET /controller/status");
     store.close();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("UR-P1-conc-191: the log's resync without a streamed record, and after a restart", () => {
+  function setup(ring: number[]) {
+    const sources: { listeners: Map<string, ((ev: MessageEvent) => void)[]>; readyState: number }[] = [];
+    vi.stubGlobal(
+      "EventSource",
+      vi.fn(function () {
+        const src = {
+          listeners: new Map<string, ((ev: MessageEvent) => void)[]>(),
+          readyState: 0,
+          addEventListener(type: string, fn: (ev: MessageEvent) => void) {
+            this.listeners.set(type, [...(this.listeners.get(type) ?? []), fn]);
+          },
+          close() {},
+        };
+        sources.push(src);
+        return src;
+      }),
+    );
+    const rec = (seq: number): LogRecord => ({ seq, time: "2026-11-18T12:00:00Z", level: "info", msg: `m${seq}`, attrs: {} });
+    const client = createClient("/api/v1", async (url) => {
+      const since = Number(new URL(url, "http://x").searchParams.get("since") ?? 0);
+      return new Response(JSON.stringify({ records: ring.filter((n) => n >= since).map(rec) }), { status: 200 });
+    });
+    const got: number[] = [];
+    const close = createFabricUI({ client }).subscribeLog((r) => got.push(r.seq));
+    const emit = (type: string, data = "{}") => sources[0].listeners.get(type)?.forEach((fn) => fn({ data } as MessageEvent));
+    const gap = () => {
+      sources[0].readyState = 0;
+      emit("error");
+      emit("open");
+    };
+    return { got, close, emit, gap, rec };
+  }
+
+  it("reads the ring after a gap before any streamed record", async () => {
+    const { got, close, emit, gap } = setup([1, 2]);
+    emit("open");
+    gap();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(got).toEqual([1, 2]);
+    close();
+    vi.unstubAllGlobals();
+  });
+
+  it("reads the new process's records after a daemon restart", async () => {
+    const { got, close, emit, gap, rec } = setup([1, 2]);
+    emit("open");
+    emit("log_record", JSON.stringify(rec(900)));
+    gap();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(got).toEqual([900, 1, 2]);
+    close();
     vi.unstubAllGlobals();
   });
 });
