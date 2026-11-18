@@ -301,6 +301,7 @@
   "controller.updates.event_failed": "Ein Update ist fehlgeschlagen: {error}",
   "controller.updates.none_available": "Kein Update verfügbar.",
   "controller.updates.queue_empty": "Für diesen Knoten ist kein Update eingereiht",
+  "controller.updates.queue_unknown": "Die Update-Warteschlange konnte nicht gelesen werden.",
   "controller.updates.status.in_progress": "Läuft",
   "controller.updates.status.queued": "Eingereiht",
   "controller.updates.status.stalled": "Hängt",

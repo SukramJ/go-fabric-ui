@@ -369,3 +369,13 @@ describe("Controller Node — the window tab (UR-P1-ui-166)", () => {
     vi.useRealTimers();
   });
 });
+
+describe("Controller Node — the updates tab (UR-P1-ui-167)", () => {
+  it("does not claim an empty queue when the queue could not be read", async () => {
+    const ui = renderNode(L, "updates", [], { answers: { "GET /controller/updates": { status: 500, body: { code: "internal", title: "boom", status: 500, type: "x" } } } });
+    await screen.findByTestId("node-updates");
+    await waitFor(() => expect(ui.toastSpy.error).toHaveBeenCalled());
+    expect(await screen.findByText("controller.updates.queue_unknown")).toBeInTheDocument();
+    expect(screen.queryByText("controller.updates.queue_empty")).toBeNull();
+  });
+});

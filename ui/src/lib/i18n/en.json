@@ -301,6 +301,7 @@
   "controller.updates.event_failed": "An update failed: {error}",
   "controller.updates.none_available": "No update available.",
   "controller.updates.queue_empty": "No update queued for this node",
+  "controller.updates.queue_unknown": "The update queue could not be read.",
   "controller.updates.status.in_progress": "In progress",
   "controller.updates.status.queued": "Queued",
   "controller.updates.status.stalled": "Stalled",
