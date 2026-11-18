@@ -72,6 +72,8 @@ export interface LaidNode {
 }
 
 export interface LaidEdge {
+  /** The edge's position in the input: the contract does not make source and target unique. */
+  index: number;
   source: string;
   target: string;
   kind: string;
@@ -165,11 +167,11 @@ export function layoutGraph(nodes: LayoutInputNode[], edges: LayoutInputEdge[], 
   const width = columns.length ? x - columnGap + margin : 2 * margin;
 
   const out: LaidEdge[] = [];
-  for (const e of edges) {
+  edges.forEach((e, index) => {
     const a = laid.get(e.source);
     const b = laid.get(e.target);
-    if (a && b) out.push({ source: e.source, target: e.target, kind: e.kind, path: edgePath(a, b) });
-  }
+    if (a && b) out.push({ index, source: e.source, target: e.target, kind: e.kind, path: edgePath(a, b) });
+  });
   return { width, height: inner + 2 * margin, nodes: nodes.map((n) => laid.get(n.id)!), edges: out };
 }
 
