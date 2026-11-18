@@ -46,3 +46,10 @@ rows are named by ID only until their fix merges (decisions 5 and 14).
 | 22 | `Options.FrameAncestors` and an entry that admits any parent | **Refused**: `New` and `Mount` fail on `*`, a host of `*` with any scheme or port, and every scheme-source (`https:`); only a named origin (also `*.domain`) passes |
 | 23 | `Mount` as one pattern `Prefix/` (UR-P0-api-32): a host route registered under the prefix after `Mount` shadows the API's | **Accepted** as implemented and documented; both pinned hosts use `Handler`, not `Mount` |
 | 24 | Exporting the CSP builder for a host that serves the page itself beside `Mount` | **Not now**; phase 3's api unit takes it up if a host needs it |
+
+## 2026-11-18, after phase 1a's verification
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 25 | One held row of phase 1a (medium; no contract change) | **Bundled in phase 3's pull request** with the held rows of decision 18, not fixed in 1a (the recommendation was the 1a pull request). The row stays held until then; the go-fabric issue for the facade gap it shows is filed after that pull request merges |
+| 26 | UR-P1-doc-41, UR-P1-doc-69: `CLAUDE.md` and the adapter's package doc name fewer allowed imports than `internal/arch` | **The docs follow the guard**: `CLAUDE.md` and the package doc list what `internal/arch/arch_test.go` allows; no code change |
