@@ -25,7 +25,7 @@ test("a page of another origin cannot frame the shell; a same-origin parent can"
   const shell = baseURL!;
   const consoleLines: string[] = [];
   page.on("console", (m) => consoleLines.push(m.text()));
-  pages.set("/frame.html", `<!doctype html><iframe src="${shell}/#/node/fabrics" width=800 height=600></iframe><iframe src="${shell}/deep/path" width=800 height=600></iframe>`);
+  pages.set("/frame.html", `<!doctype html><iframe src="${shell}/#/node/fabrics" width=800 height=600></iframe><iframe src="${shell}/index.html#/controller" width=800 height=600></iframe>`);
   await page.goto(OTHER + "/frame.html");
   await expect.poll(() => consoleLines.filter((l) => l.includes("frame-ancestors")).length).toBeGreaterThanOrEqual(2);
   const frames = page.frames().filter((f) => f !== page.mainFrame());
