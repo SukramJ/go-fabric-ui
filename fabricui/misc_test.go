@@ -322,7 +322,7 @@ func TestSPA_ServesTheBundleWithItsCacheHeaders(t *testing.T) {
 		h.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, p, nil))
 		return rec
 	}
-	for _, p := range []string{"/", "/index.html", "/deep/link", "/assets/"} {
+	for _, p := range []string{"/", "/index.html"} {
 		rec := get(p)
 		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "shell") || rec.Header().Get("Cache-Control") != "no-store" {
 			t.Fatalf("%s: %d %q %s", p, rec.Code, rec.Header().Get("Cache-Control"), rec.Body)

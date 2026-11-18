@@ -52,6 +52,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The bundle's handler serves the index for the root (`/`,
+  `/index.html`) only; any other path that is no file of the bundle
+  answers 404 (UR-P2-web-91). The page routes by hash and loads its assets
+  relatively, so under a deeper path it loaded nothing and stayed blank.
+  A host that linked to a path under the prefix (`…/node/status`) links
+  to the root with the hash instead (`…/#/node/status`).
 - The kit's search takes its text literally; `|` separates alternatives.
   It no longer runs the term as a regular expression (UR-P1-ui-142,
   decision 32).

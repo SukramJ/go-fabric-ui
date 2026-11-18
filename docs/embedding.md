@@ -17,8 +17,11 @@ mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Exposure: provider}))
 `Handler` serves the API under `/api/v1` and the standalone shell at `/`
 from the bundle embedded in the module (`fabricui/dist/`, built and
 committed here): no Node.js toolchain in the daemon's build, no second
-image. Any path that is not a file of the bundle answers the shell's index;
-an unknown path under the API prefix answers a 404 problem.
+image. The root (`/`, `/index.html`) answers the shell's index, a file of
+the bundle answers itself, and any other path answers 404 — the shell
+routes by hash (`/#/node/status`), and its relative asset paths would not
+load under a deeper path; an unknown path under the API prefix answers a
+404 problem.
 
 `Options`:
 
@@ -376,8 +379,8 @@ path prefix it chooses:
 
 What the handler sets on its responses, so a host does not have to:
 
-- **The page** (`index.html`, every deep path, and the 503 page while the
-  bundle is not built) carries `Content-Security-Policy`:
+- **The page** (`index.html`, served for the prefix root alone, and the
+  503 page while the bundle is not built) carries `Content-Security-Policy`:
   `default-src 'self'`; `script-src 'self'` and the hash of the inline
   pre-paint script, derived from the embedded `index.html` when the handler
   is built; `style-src 'self'`; `img-src 'self'`; `object-src 'none'`;

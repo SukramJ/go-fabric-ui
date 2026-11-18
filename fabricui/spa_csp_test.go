@@ -10,6 +10,8 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -50,7 +52,7 @@ func TestSPA_IndexCarriesTheCSP(t *testing.T) {
 		"index.html":      {Data: []byte("<!doctype html><head><script>" + inline + "</script><script type=\"module\" src=\"./assets/app-1.js\"></script></head>")},
 		"assets/app-1.js": {Data: []byte("console.log(1)")},
 	}, nil)
-	for _, p := range []string{"/", "/deep/link"} {
+	for _, p := range []string{"/", "/index.html"} {
 		rec := getPath(h, p)
 		d := cspDirectives(t, rec.Header().Get("Content-Security-Policy"))
 		for name, want := range map[string]string{
@@ -174,6 +176,64 @@ func TestValidFrameAncestors_RefusesAWildcardOverATopLevelLabel(t *testing.T) {
 	for _, s := range []string{"https://*.example.com", "*.home.arpa", "https://ha.local"} {
 		if err := validFrameAncestors([]string{s}); err != nil {
 			t.Errorf("%q refused: %v", s, err)
+		}
+	}
+}
+
+// The page routes by hash and names its assets relatively ("./assets/…"),
+// so only the root serves the index: under a path with a directory part
+// the browser would ask for the assets below it and get the index again,
+// a blank page. Any other path that is no file answers 404 (UR-P2-web-91,
+// decision 36).
+func TestSPA_OnlyTheRootServesTheIndex(t *testing.T) {
+	h := spaHandlerFS(fstest.MapFS{
+		"index.html":      {Data: []byte("<!doctype html><title>shell</title>")},
+		"assets/app-1.js": {Data: []byte("console.log(1)")},
+	}, nil)
+	for _, p := range []string{"/", "/index.html"} {
+		if rec := getPath(h, p); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "shell") {
+			t.Errorf("%s: %d %s, want the index", p, rec.Code, rec.Body)
+		}
+	}
+	for _, p := range []string{"/x", "/a/", "/a/b", "/assets/", "/assets/nope.js", "/node/status"} {
+		rec := getPath(h, p)
+		if rec.Code != http.StatusNotFound || strings.Contains(rec.Body.String(), "shell") {
+			t.Errorf("%s: %d %s, want 404", p, rec.Code, rec.Body)
+		}
+		if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+			t.Errorf("%s: headers %v", p, rec.Header())
+		}
+	}
+}
+
+// Every path the embedded bundle answers with the index can load the
+// assets the index names: each relative reference resolves to the asset
+// itself, never to the index again (UR-P2-web-91).
+func TestSPA_TheIndexCanLoadItsAssets(t *testing.T) {
+	spa := spaHandler(nil)
+	ref := regexp.MustCompile(`(?:src|href)="(\./assets/[^"]+)"`)
+	for _, p := range []string{"/", "/index.html", "/x", "/a/", "/a/b", "/assets/", "/node/status"} {
+		rec := getPath(spa, p)
+		if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/html") {
+			continue // not the index
+		}
+		refs := ref.FindAllStringSubmatch(rec.Body.String(), -1)
+		if len(refs) == 0 {
+			t.Fatalf("%s: the index names no asset", p)
+		}
+		base, err := url.Parse("http://h" + p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range refs {
+			u, err := base.Parse(m[1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := getPath(spa, u.Path)
+			if got.Code != http.StatusOK || strings.HasPrefix(got.Header().Get("Content-Type"), "text/html") {
+				t.Errorf("GET %s: the index's %s resolves to %s → %d %s", p, m[1], u.Path, got.Code, got.Header().Get("Content-Type"))
+			}
 		}
 	}
 }

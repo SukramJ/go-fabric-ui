@@ -23,10 +23,13 @@ var distFS embed.FS
 // change under one name.
 const hashedAssetDir = "assets/"
 
-// spaHandler serves the bundle: a file that exists as itself, anything else
-// as index.html (the shell routes by hash, so a deep path is a reload of
-// the shell). Mirrors loom internal/north/ui/spa.go:29-111 at b40b289a,
-// including the 503 page while the bundle is not built. frameAncestors are
+// spaHandler serves the bundle: the root as index.html, a file that exists
+// as itself, anything else 404. The shell routes by hash and names its
+// assets relatively ("./assets/…"), so the index under any other path
+// would load its assets below that path and get no script: a blank page
+// (UR-P2-web-91). Mirrors loom internal/north/ui/spa.go:29-111 at
+// b40b289a, including the 503 page while the bundle is not built; the 404
+// for an unknown path is this module's. frameAncestors are
 // the parents admitted beside the page's own origin (Options.FrameAncestors).
 func spaHandler(frameAncestors []string) http.Handler {
 	sub, err := fs.Sub(distFS, "dist")
@@ -42,19 +45,23 @@ func spaHandlerFS(sub fs.FS, frameAncestors []string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		setCommonHeaders(w.Header())
 		path := strings.TrimPrefix(r.URL.Path, "/")
-		if path == "" || path == "index.html" || strings.HasSuffix(path, "/") {
+		if path == "" || path == "index.html" {
 			idx.serve(w)
+			return
+		}
+		if strings.HasSuffix(path, "/") {
+			http.NotFound(w, r)
 			return
 		}
 		f, err := sub.Open(path)
 		if err != nil {
-			idx.serve(w)
+			http.NotFound(w, r)
 			return
 		}
 		st, err := f.Stat()
 		_ = f.Close()
 		if err != nil || st.IsDir() {
-			idx.serve(w)
+			http.NotFound(w, r)
 			return
 		}
 		w.Header().Set("Cache-Control", cacheControlFor(path))
