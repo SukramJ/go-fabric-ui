@@ -151,6 +151,12 @@ export const FACTORY_RESET_CONFIRMATION = "remove-all-fabrics";
 /** The confirmation POST /node/maintenance/erase requires (0.7.0). */
 export const ERASE_CONFIRMATION = "erase-node";
 
+/** The contract's NodeKey pattern (a node of GET /nodes). */
+export const NODE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+/** A controller node id as the routes take it: 64-bit hex, case and leading zeros free. */
+export const NODE_ID_PATTERN = /^(?:0[xX])?[0-9A-Fa-f]{1,16}$/;
+
 /** A failed call: the status and, when the server sent one, its problem. */
 export class ApiError extends Error {
   readonly status: number;
@@ -298,6 +304,12 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
   // (json.ts): the generic values of attributes, events and commands.
   type CallOpts = { body?: unknown; admin?: boolean; keep?: readonly string[]; retried?: boolean };
   async function call<T>(method: string, path: string, opts: CallOpts = {}): Promise<T> {
+    // A controller node id that is a dot segment ("." or "..", which the
+    // browser resolves to another route) is refused before anything is
+    // sent; any other the server judges (400), as the contract's NodeID
+    // has no pattern.
+    const id = /^\/controller\/nodes\/([^/?]*)/.exec(path)?.[1];
+    if (id !== undefined && (id === "" || id === "." || id === "..")) throw new RangeError(`not a controller node id: "${id}"`);
     const headers: Record<string, string> = { Accept: "application/json" };
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
     const token = opts.admin ? auth.token : undefined;
@@ -361,6 +373,7 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
   const clients = new Map<string, FabricClient>();
   const forNode = (key?: string): FabricClient => {
     const k = key || "";
+    if (k && !NODE_KEY_PATTERN.test(k)) throw new RangeError(`not a node key: ${k}`);
     let c = clients.get(k);
     if (!c) {
       c = build(k || undefined);

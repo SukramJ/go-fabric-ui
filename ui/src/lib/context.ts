@@ -3,7 +3,7 @@
 // links between the pages. A host provides it once above the pages (provideFabricUI); the
 // standalone shell provides its own.
 import { getContext, hasContext, setContext } from "svelte";
-import type { FabricClient, LogRecord, TopologyRef } from "./api/client";
+import { NODE_ID_PATTERN, type FabricClient, type LogRecord, type TopologyRef } from "./api/client";
 import { subscribeLogStream } from "./api/stream";
 import { defaultT, type Translate } from "./i18n";
 import { createNodeStore, type NodeStore, type NodeStoreDeps, type Toast } from "./store.svelte";
@@ -91,7 +91,7 @@ const REF_PAGES = ["status", "endpoints", "fabrics", "diagnostics"] as const;
  */
 export function refHref(ref: TopologyRef | undefined, routes: Routes): string | undefined {
   if (!ref) return undefined;
-  if (ref.page === "controller_node") return routes.controllerNode + ref.id;
+  if (ref.page === "controller_node") return NODE_ID_PATTERN.test(ref.id) ? routes.controllerNode + ref.id : undefined;
   if (ref.page === "endpoints" && /^\d+$/.test(ref.id)) return routes.endpoint + ref.id;
   return (REF_PAGES as readonly string[]).includes(ref.page) ? routes[ref.page as (typeof REF_PAGES)[number]] : undefined;
 }
