@@ -20,7 +20,10 @@
   import Select from "../../kit/Select.svelte";
   import { formatUptime, KEEP_RECORDS, LEVELS, mergeRecords, recordLine, visibleRecords } from "./log";
 
-  const { t, toast, client, subscribeLog } = useFabricUI();
+  const { t, toast, client, subscribeLog, node, controller } = useFabricUI();
+  // Setting the level is an admin route: admin rights are the token of
+  // token mode (on either family's status) or the node host's verdict.
+  const isAdmin = $derived(!!node.status?.csrf_token || node.status?.admin === true || !!controller.status?.csrf_token);
 
   let loading = $state(true);
   let unavailable = $state(false);
@@ -68,6 +71,8 @@
     // and mergeRecords drops the one both deliver.
     const close = subscribeLog(append);
     void load();
+    // A host page that mounts the operation alone has read no status.
+    if (node.status === null && controller.status === null && !node.statusLoading) void node.loadStatus();
     return close;
   });
 
@@ -133,10 +138,17 @@
     <Card class="p-4">
       <div class="flex flex-wrap items-center gap-3">
         <h2 class="mr-auto text-base font-semibold text-[var(--ha-primary-text-color)]">{t("operation.log")}</h2>
-        <label class="flex items-center gap-2 text-sm text-[var(--ha-secondary-text-color)]">
-          {t("operation.level_label")}
-          <Select class="w-auto" value={level} disabled={saving} ariaLabel={t("operation.level_label")} options={levelOptions} onValueChange={(v) => void changeLevel(v)} />
-        </label>
+        {#if isAdmin}
+          <label class="flex items-center gap-2 text-sm text-[var(--ha-secondary-text-color)]">
+            {t("operation.level_label")}
+            <Select class="w-auto" value={level} disabled={saving} ariaLabel={t("operation.level_label")} options={levelOptions} onValueChange={(v) => void changeLevel(v)} />
+          </label>
+        {:else}
+          <span class="flex items-center gap-2 text-sm text-[var(--ha-secondary-text-color)]">
+            {t("operation.level_label")}
+            <span class="font-mono text-[var(--ha-primary-text-color)]" data-testid="operation-level">{level}</span>
+          </span>
+        {/if}
       </div>
       <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("operation.log_hint")}</p>
       <div class="mt-3 flex flex-wrap items-center gap-2">

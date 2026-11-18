@@ -25,8 +25,14 @@
   // How often the status is asked while an erased node comes back.
   const ERASE_POLL_MS = 2000;
 
+  // The writes here are admin routes: without admin rights (the token of
+  // token mode, or the host's verdict) the page offers none of them.
+  const isAdmin = $derived(!!node.status?.csrf_token || node.status?.admin === true);
+
   onMount(() => {
     void node.loadFabrics();
+    // A host page that mounts the fabrics alone has not read the status.
+    if (node.status === null && !node.statusLoading) void node.loadStatus();
   });
 
   // The server owns the vendor table, so one list cannot drift from the
@@ -164,7 +170,7 @@
     { key: "fabric", label: t("node.fabrics.col_fabric"), sortable: true, get: (f) => f.fabric_index },
     // Sorted on the zero-padded hex: fixed width makes lexical order numeric.
     { key: "node_id", label: t("node.fabrics.col_node_id"), sortable: true, get: (f) => nodeIdHex(f) },
-    { key: "action", label: "", align: "right", cellClass: "reflow-actions" },
+    ...(isAdmin ? [{ key: "action", label: "", align: "right" as const, cellClass: "reflow-actions" }] : []),
   ]);
 </script>
 
@@ -210,6 +216,7 @@
     </Card>
   {/if}
 
+  {#if isAdmin}
   <Card class="p-4">
     <h3 class="mb-2 font-medium text-[var(--ha-primary-text-color)]">{t("node.maint.title")}</h3>
     <div class="flex flex-wrap items-center gap-3">
@@ -230,6 +237,7 @@
       <p class="mt-3 text-sm text-[var(--ha-warning-color)]" data-testid="node-erased" role="status">{t("node.maint.erase_waiting")}</p>
     {/if}
   </Card>
+  {/if}
 
   <div class="rounded-[var(--ha-radius-card)] border border-[var(--ha-divider-color)] bg-[var(--ha-secondary-background-color)] p-4">
     <h3 class="mb-2 font-medium text-[var(--ha-primary-text-color)]">{t("node.fabric.share")}</h3>

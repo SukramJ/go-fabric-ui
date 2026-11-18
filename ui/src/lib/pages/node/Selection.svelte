@@ -33,6 +33,9 @@
   import { distinctValues, fieldMatches, itemValues } from "./fields";
 
   const { t, toast, node } = useFabricUI();
+  // Preview and apply are admin routes: without admin rights (the token of
+  // token mode, or the host's verdict) the list is read-only.
+  const isAdmin = $derived(!!node.status?.csrf_token || node.status?.admin === true);
 
   // A host without a selection says so in its status; the page then
   // loads nothing.
@@ -199,7 +202,7 @@
     !a || a.verdict.state !== b.verdict.state || a.verdict.device_type !== b.verdict.device_type || a.verdict.reason !== b.verdict.reason;
 
   const columns: DataColumn<Item>[] = $derived([
-    { key: "select", label: t("node.selection.col_select") },
+    ...(isAdmin ? [{ key: "select", label: t("node.selection.col_select") }] : []),
     { key: "state", label: t("node.selection.col_state"), align: "center", get: (i) => stateInfo(i).label },
     { key: "name", label: t("node.selection.col_name"), sortable: true, title: true, get: (i) => current(i).name },
     ...(schema?.columns ?? []).map((c) => ({
@@ -242,12 +245,16 @@
     {@const si = stateInfo(item)}
     <span class="inline-flex justify-center"><Icon name={si.icon} size={18} class={si.color} aria-label={si.label} title={si.label} /></span>
   {:else if col.key === "name"}
-    <button type="button" class="text-left hover:underline" onclick={() => openDrawer(item)}>
+    {#if isAdmin}
+      <button type="button" class="text-left hover:underline" onclick={() => openDrawer(item)}>
+        <span class="text-[var(--ha-primary-text-color)]">{current(item).name}</span>
+        {#if node.pending.has(item.key)}
+          <span class="ml-1 text-xs text-[var(--ha-primary-color)]">{t("common.modified")}</span>
+        {/if}
+      </button>
+    {:else}
       <span class="text-[var(--ha-primary-text-color)]">{current(item).name}</span>
-      {#if node.pending.has(item.key)}
-        <span class="ml-1 text-xs text-[var(--ha-primary-color)]">{t("common.modified")}</span>
-      {/if}
-    </button>
+    {/if}
   {:else if col.key === "device_type"}
     <span class="text-[var(--ha-secondary-text-color)]">{item.verdict.device_type_name || "—"}</span>
   {:else if multiColumn.has(col.key)}
@@ -295,6 +302,7 @@
         </label>
       {/if}
     </div>
+    {#if isAdmin}
     <div class="flex flex-wrap items-center gap-2">
       {#if selected.size > 0}
         <Button size="sm" onclick={() => bulkSet(true)}>{t("node.selection.bulk_expose")}</Button>
@@ -311,9 +319,10 @@
         </div>
       {/if}
     </div>
+    {/if}
   </div>
 
-  {#if previewItems}
+  {#if previewItems && isAdmin}
     <Card class="mb-4 p-4" data-testid="preview">
       <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.selection.preview_title")}</h3>
       <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("node.selection.preview_hint")}</p>

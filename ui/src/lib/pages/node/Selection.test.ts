@@ -15,7 +15,7 @@ afterEach(() => {
   localStorage.clear();
 });
 
-const BASE = ["node-exposure-schema.200", "node-exposure.200"];
+const BASE = ["node-exposure-schema.200", "node-exposure.200", "node-status.200"];
 
 function renderSel(opts: Parameters<typeof testUI>[0] = {}) {
   const ui = testUI({ ...opts, fixtures: [...BASE, ...(opts.fixtures ?? [])] });
@@ -228,5 +228,16 @@ describe("Selection — changes, preview, apply", () => {
     expect(await screen.findByText("node.selection.unavailable")).toBeInTheDocument();
     expect(screen.getByTestId("exposure-reason")).toHaveTextContent("This host builds its endpoints without a selection.");
     expect(ui.sent.some((r) => r.path.includes("/exposure"))).toBe(false);
+  });
+});
+
+describe("Selection — admin rights (UR-P1-ui-133)", () => {
+  it("offers no selection, bulk or save control without admin rights", async () => {
+    const st = body<Record<string, unknown>>("node-status.200");
+    renderSel({ answers: { "GET /node/status": { status: 200, body: { ...st, admin: false, csrf_token: undefined } } } });
+    await screen.findAllByRole("row");
+    await waitFor(() => expect(screen.queryByText("node.selection.select_all")).toBeNull());
+    expect(screen.queryAllByLabelText("node.selection.select_row")).toHaveLength(0);
+    expect(screen.queryByTestId("save-bar")).toBeNull();
   });
 });

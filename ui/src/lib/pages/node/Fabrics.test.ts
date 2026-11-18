@@ -158,3 +158,17 @@ describe("Fabrics — erasing the node (0.7.0)", () => {
     expect(ui.sent.some((s) => s.path === "/api/v1/node/maintenance/erase")).toBe(false);
   });
 });
+
+describe("Fabrics — admin rights (UR-P1-ui-133)", () => {
+  it("shows no remove or maintenance control without admin rights", async () => {
+    const st = body<Record<string, unknown>>("node-status.200");
+    const ui = testUI({ fixtures: ["node-fabrics.200"], answers: { "GET /node/status": { status: 200, body: { ...st, admin: false, csrf_token: undefined, erase: true } } } });
+    await ui.node.loadStatus();
+    render(Harness, { ui, page: Fabrics });
+    expect(await screen.findByText("0xB2C3D4E5F6071829")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "common.remove" })).toBeNull();
+    expect(screen.queryByText("node.maint.reassemble")).toBeNull();
+    expect(screen.queryByText("node.maint.reset")).toBeNull();
+    expect(screen.queryByTestId("node-erase")).toBeNull();
+  });
+});
