@@ -88,3 +88,26 @@ describe("UR-P1-ui-112: an inherited name is no page", () => {
     expect(await screen.findByTestId("node-status")).toBeInTheDocument();
   });
 });
+
+describe("UR-P1-conc-199: one probe chain, none after the shell is gone", () => {
+  it("a probe in flight when the shell is destroyed schedules no retry", async () => {
+    let calls = 0;
+    serve([]);
+    const fetchImpl = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    const inner = fetchImpl.getMockImplementation()!;
+    // The controller probe answers 502 after 100 ms.
+    fetchImpl.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/controller/status")) {
+        calls++;
+        await new Promise((r) => setTimeout(r, 100));
+        return new Response("<html>502</html>", { status: 502 });
+      }
+      return inner(url, init);
+    });
+    const view = render(App);
+    await waitFor(() => expect(calls).toBe(1));
+    view.unmount();
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(calls).toBe(1);
+  });
+});

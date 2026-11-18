@@ -163,6 +163,9 @@
   const PROBE_BACKOFF_MS = [1000, 2000, 5000, 10000, 30000];
   let probeAttempt = 0;
   let probeTimer: ReturnType<typeof setTimeout> | null = null;
+  // Counts the probe chains: a retry or the shell's end supersedes the one
+  // in flight, which then schedules nothing (UR-P1-conc-199).
+  let probeGen = 0;
 
   async function probeNode() {
     try {
@@ -188,9 +191,11 @@
   // Probes what is still undecided, and again with a backoff while
   // something is.
   async function probe() {
+    const mine = ++probeGen;
     if (probeTimer) clearTimeout(probeTimer);
     probeTimer = null;
     await Promise.all([nodeServed === null ? probeNode() : undefined, controller.present === null ? probeController() : undefined]);
+    if (mine !== probeGen) return;
     if (nodeServed !== null && controller.present !== null) {
       probeError = null;
       return;
@@ -243,6 +248,7 @@
   });
 
   onDestroy(() => {
+    probeGen++;
     if (probeTimer) clearTimeout(probeTimer);
     window.removeEventListener("hashchange", onHash);
     media?.removeEventListener("change", onScheme);
