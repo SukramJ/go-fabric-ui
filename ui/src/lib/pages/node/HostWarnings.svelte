@@ -5,6 +5,7 @@
   import type { Warning } from "../../api/client";
   import Badge from "../../kit/Badge.svelte";
   import Card from "../../kit/Card.svelte";
+  import { formatDate } from "../../kit/dates";
 
   type Props = { warnings: Warning[]; collapsed?: boolean };
   let { warnings, collapsed = false }: Props = $props();
@@ -19,7 +20,7 @@
         <Badge variant="warning">{w.code}</Badge>
         <span class="text-[var(--ha-primary-text-color)]">{w.message}</span>
         {#if w.since}
-          <span class="text-xs text-[var(--ha-secondary-text-color)]">{t("node.warnings.since", { time: new Date(w.since).toLocaleString() })}</span>
+          <span class="text-xs text-[var(--ha-secondary-text-color)]">{t("node.warnings.since", { time: formatDate(t, w.since) })}</span>
         {/if}
       </li>
     {/each}

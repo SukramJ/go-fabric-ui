@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/sv
 import NodeHarness from "../../../test/NodeHarness.svelte";
 import { body, fixtureFetch, testUI } from "../../../test/support";
 import { createClient, type ControllerNodeDetail, type EndpointDetail } from "../../api/client";
+import { createTranslator } from "../../i18n";
 
 afterEach(cleanup);
 
@@ -387,5 +388,17 @@ describe("Controller Node — forgetting an ICD registration (UR-P1-ui-176)", ()
     await fireEvent.click(screen.getByText("controller.icd.forget"));
     await waitFor(() => expect(ui.confirmSpy).toHaveBeenCalledWith(expect.objectContaining({ destructive: true, title: "controller.icd.forget_confirm" })));
     expect(ui.sent.some((s) => s.method === "POST" && s.path.endsWith("/icd/unregister"))).toBe(false);
+  });
+});
+
+describe("Controller Node — dates in the UI's language (UR-P1-ui-182)", () => {
+  // Both languages: the process's own default locale (the machine's) is
+  // one of them, so on any machine one case fails without the fix.
+  it("formats the commissioning time in the UI's language, not the runtime's", async () => {
+    renderNode(L, "overview", [], { t: createTranslator(() => "de") });
+    expect(await screen.findByTestId("node-overview")).toHaveTextContent(/20\.10\.2026/);
+    cleanup();
+    renderNode(L, "overview", [], { t: createTranslator(() => "en") });
+    expect(await screen.findByTestId("node-overview")).toHaveTextContent(/10\/20\/2026/);
   });
 });

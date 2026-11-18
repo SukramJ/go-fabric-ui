@@ -22,6 +22,7 @@
   import ErrorState from "../../kit/ErrorState.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
   import { connectionLabel, connectionVariant, nodeName } from "./format";
+  import { formatDate } from "../../kit/dates";
 
   const { t, client, controller, routes } = useFabricUI();
 
@@ -85,7 +86,7 @@
     return t("node.diag.age_hours", { n: Math.floor(seconds / 3600) });
   }
 
-  const time = (iso: string | undefined) => (iso ? new Date(iso).toLocaleString() : "—");
+  const time = (iso: string | undefined) => (iso ? formatDate(t, iso) : "—");
 
   // A peer's name: the commissioned node's label or product, else its id.
   function peerName(p: ControllerPeer): string {
@@ -253,7 +254,7 @@
           <!-- Keyed by position: two events can share second and message. -->
           {#each events as event, i (i)}
             <li class="flex gap-3 text-sm" data-testid="event">
-              <span class="shrink-0 font-mono text-xs text-[var(--ha-secondary-text-color)]">{new Date(event.at).toLocaleTimeString()}</span>
+              <span class="shrink-0 font-mono text-xs text-[var(--ha-secondary-text-color)]">{formatDate(t, event.at, "time")}</span>
               <span class="shrink-0 rounded px-1.5 py-0.5 text-xs {eventClass(event.severity)}">{t(`node.diag.kind_${event.kind}`)}</span>
               <span class="text-[var(--ha-primary-text-color)]">{event.message}</span>
             </li>

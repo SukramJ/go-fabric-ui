@@ -11,6 +11,7 @@
   import EmptyState from "../../../kit/EmptyState.svelte";
   import ErrorState from "../../../kit/ErrorState.svelte";
   import LoadingState from "../../../kit/LoadingState.svelte";
+  import { formatDate } from "../../../kit/dates";
 
   let { nodeId }: { nodeId: string } = $props();
   const { t, toast, confirm, client } = useFabricUI();
@@ -88,8 +89,8 @@
       {#if icd.available === false}<Badge variant="warning">{t("controller.icd.unavailable")}</Badge>{/if}
     </div>
     <dl class="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-      <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.icd.next_check_in")}</dt><dd>{icd.next_check_in ? new Date(icd.next_check_in).toLocaleString() : "–"}</dd>
-      <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.icd.last_check_in")}</dt><dd>{icd.last_check_in ? new Date(icd.last_check_in).toLocaleString() : "–"}</dd>
+      <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.icd.next_check_in")}</dt><dd>{icd.next_check_in ? formatDate(t, icd.next_check_in) : "–"}</dd>
+      <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.icd.last_check_in")}</dt><dd>{icd.last_check_in ? formatDate(t, icd.last_check_in) : "–"}</dd>
     </dl>
     <div class="mt-3 flex flex-wrap gap-2">
       {#if icd.registered}

@@ -8,6 +8,7 @@
   import type { EventRecord } from "../api/client";
   import { useT } from "../context";
   import Badge from "./Badge.svelte";
+  import { formatDate } from "./dates";
 
   // empty is the text without events.
   type Props = { events: EventRecord[]; empty: string; class?: string };
@@ -16,7 +17,7 @@
 
   const newestFirst = $derived([...events].reverse());
   const variant = (p: EventRecord["priority"]) => (p === "critical" ? "danger" : p === "info" ? "default" : "muted");
-  const time = (ms: number) => new Date(ms).toLocaleString();
+  const time = (ms: number) => formatDate(t, ms);
   const format = (v: unknown) => JSON.stringify(v, null, 2);
 </script>
 

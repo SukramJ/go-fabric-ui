@@ -32,6 +32,7 @@
   import Spinner from "../../kit/Spinner.svelte";
   import { nodeName, vendorLabel } from "./format";
   import QrScan from "./QrScan.svelte";
+  import { formatDate } from "../../kit/dates";
 
   const { t, toast, client, controller, routes } = useFabricUI();
 
@@ -105,7 +106,7 @@
   // The Matter epoch (2000-01-01T00:00:00Z) in Unix seconds: a terms
   // deadline counts from it.
   const MATTER_EPOCH = 946684800;
-  const deadlineText = (s: number) => new Date((MATTER_EPOCH + s) * 1000).toLocaleDateString();
+  const deadlineText = (s: number) => formatDate(t, (MATTER_EPOCH + s) * 1000, "date");
 
   async function commission(req: CommissionRequest) {
     running = true;

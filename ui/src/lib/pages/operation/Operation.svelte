@@ -19,6 +19,7 @@
   import LoadingState from "../../kit/LoadingState.svelte";
   import Select from "../../kit/Select.svelte";
   import { appendRecord, formatUptime, KEEP_RECORDS, LEVELS, mergeRecords, recordLine, visibleRecords } from "./log";
+  import { formatDate } from "../../kit/dates";
 
   const { t, toast, client, subscribeLog, node, controller } = useFabricUI();
   // Setting the level is an admin route: admin rights are the token of
@@ -170,7 +171,7 @@
         <ol class="mt-3 max-h-[32rem] space-y-1 overflow-y-auto font-mono text-xs" data-testid="log">
           {#each shown as rec (rec.seq)}
             <li class="flex flex-wrap items-baseline gap-2" data-testid="log-record">
-              <span class="shrink-0 text-[var(--ha-secondary-text-color)]">{new Date(rec.time).toLocaleTimeString()}</span>
+              <span class="shrink-0 text-[var(--ha-secondary-text-color)]">{formatDate(t, rec.time, "time")}</span>
               <Badge variant={levelVariant(rec.level)}>{rec.level}</Badge>
               <span class="text-[var(--ha-primary-text-color)]">{rec.msg}</span>
               {#each Object.entries(rec.attrs) as [k, v] (k)}

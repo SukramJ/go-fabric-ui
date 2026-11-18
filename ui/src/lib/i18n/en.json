@@ -5,6 +5,7 @@
   "common.copy": "Copy",
   "common.error": "Error:",
   "common.loading": "Loading…",
+  "common.locale": "en",
   "common.modified": "modified",
   "common.refresh": "Refresh",
   "common.reload": "Reload",
