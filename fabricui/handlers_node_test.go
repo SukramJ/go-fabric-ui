@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
@@ -496,5 +497,41 @@ func TestErase_PerNode(t *testing.T) {
 	}
 	if !slices.Equal(got, []string{key}) {
 		t.Fatalf("erased %v, want the registry node %s", got, key)
+	}
+}
+
+// UR-P1-err-08: a client that leaves mid-reset does not cut the reset
+// short: every fabric is still removed.
+func TestFactoryReset_OutlivesTheRequest(t *testing.T) {
+	n := sampleNode()
+	n.fabricList = []node.FabricInfo{{FabricIndex: 1}, {FabricIndex: 2}, {FabricIndex: 3}}
+	_, mux := newTestHandler(t, testOptions{node: n})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	n.afterRemove = cancel
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, DefaultPrefix+"/node/maintenance/factory-reset",
+		strings.NewReader(`{"confirm":"`+factoryResetConfirmation+`"}`))
+	req.Header.Set(TokenHeader, testToken)
+	mux.ServeHTTP(httptest.NewRecorder(), req)
+	if !slices.Equal(n.removed, []uint8{1, 2, 3}) {
+		t.Fatalf("removed %v, want every fabric", n.removed)
+	}
+}
+
+// UR-P1-err-07, UR-P1-err-36 (the no-contract parts): a fabric read that
+// fails is logged at warn, not swallowed, on the status and the
+// compatibility report.
+func TestFailedFabricReadIsLogged(t *testing.T) {
+	for _, path := range []string{"/node/status", "/node/compatibility"} {
+		n := sampleNode()
+		n.fabricsErr = errors.New("store: closed")
+		var log bytes.Buffer
+		_, mux := newTestHandler(t, testOptions{node: n, log: &log})
+		if rec := do(t, mux, http.MethodGet, path, ""); rec.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", path, rec.Code, rec.Body)
+		}
+		if !strings.Contains(log.String(), "level=WARN") || !strings.Contains(log.String(), "store: closed") {
+			t.Fatalf("%s: the failed fabric read is not logged at warn:\n%s", path, log.String())
+		}
 	}
 }

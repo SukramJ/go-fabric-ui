@@ -147,6 +147,9 @@ type fakeNode struct {
 	// removeFailAt fails the removal of this fabric index.
 	removeFailAt uint8
 	removed      []uint8
+	// afterRemove, when set, runs after each removal: a client that
+	// leaves mid-reset.
+	afterRemove func()
 
 	// open, duration, kind and disc are the window node.Window reports;
 	// an open window without a kind is the node's own.
@@ -159,6 +162,9 @@ type fakeNode struct {
 	own      []time.Duration
 	closeErr error
 	closed   int
+	// afterClose, when set, runs once the window is closed, before
+	// closeWindow returns: a request that lands in that gap.
+	afterClose func()
 
 	qr, manual string
 	codesErr   error
@@ -334,7 +340,11 @@ func (f *fakeNode) fabrics(context.Context) ([]node.FabricInfo, error) {
 	return append([]node.FabricInfo(nil), f.fabricList...), f.fabricsErr
 }
 
-func (f *fakeNode) removeFabric(_ context.Context, idx uint8) error {
+func (f *fakeNode) removeFabric(ctx context.Context, idx uint8) error {
+	// go-fabric's RemoveFabric honours a cancelled context.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	f.mu.Lock()
 	if f.removeErr != nil || (f.removeFailAt != 0 && idx == f.removeFailAt) {
 		defer f.mu.Unlock()
@@ -344,7 +354,11 @@ func (f *fakeNode) removeFabric(_ context.Context, idx uint8) error {
 		return errors.New("store: disk /var/lib/node.db is read-only")
 	}
 	f.removed = append(f.removed, idx)
+	after := f.afterRemove
 	f.mu.Unlock()
+	if after != nil {
+		after()
+	}
 	f.notify(func(o node.Observers) {
 		if o.OnFabricRemoved != nil {
 			o.OnFabricRemoved(node.FabricInfo{FabricIndex: idx})
@@ -414,8 +428,13 @@ func (f *fakeNode) closeWindow(context.Context) error {
 	}
 	f.closed++
 	f.open, f.duration, f.kind, f.disc = false, 0, node.WindowNone, 0
+	after := f.afterClose
+	f.afterClose = nil
 	f.mu.Unlock()
 	f.transition()
+	if after != nil {
+		after()
+	}
 	return nil
 }
 
@@ -460,7 +479,9 @@ func (f *fakeNode) eventLog(q node.EventQuery) []EventRecord {
 	f.mu.Unlock()
 	out := []EventRecord{}
 	for _, e := range f.logged {
-		if (q.Endpoint == nil || *q.Endpoint == e.Endpoint) && e.Number >= q.MinNumber {
+		// 0xFFFF is go-fabric's endpoint wildcard (im/eventlog.go:443 at
+		// v0.22.2), as nil is.
+		if (q.Endpoint == nil || *q.Endpoint == 0xFFFF || *q.Endpoint == e.Endpoint) && e.Number >= q.MinNumber {
 			out = append(out, e)
 		}
 	}

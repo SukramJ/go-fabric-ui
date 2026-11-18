@@ -25,7 +25,8 @@ const updateDelay = 500 * time.Millisecond
 // controller/client/config.go Hooks.Event at 894adbcd). The host builds them before
 // controller.New, wires [Hooks.For] or [Hooks.Wrap] into
 // controller.Config.HooksFor, passes them to [ControllerOf], and calls
-// [Hooks.Close] before it closes the controller. Events before
+// [Hooks.Close] before it closes the controller (Close closes the bound
+// source too, [Source.Close]). Events before
 // ControllerOf, after Close, or while the controller has no registry are
 // dropped. It is safe for concurrent use.
 type Hooks struct {
@@ -33,13 +34,21 @@ type Hooks struct {
 	src    *source
 	closed bool
 	// ids are the node ids by local id, kept so a Decommissioned hook,
-	// which runs once the peer address is gone, still names its node.
+	// which runs once the peer address is gone, still names its node; the
+	// entry goes with that hook.
 	ids map[string]uint64
 	// pending are the coalescing timers of node_updated, by local id. A
 	// timer's function emits only while it is still the one in pending.
 	pending map[string]*time.Timer
+	// running counts the timers scheduled whose function has not ended:
+	// one is added per timer, done when its function returns or when Stop
+	// keeps it from running. Close waits for it.
+	running sync.WaitGroup
 	// delay is updateDelay; a test shortens it.
 	delay time.Duration
+	// fired, when set, runs in a node_updated callback that is still
+	// current, before it emits; a test holds the callback there.
+	fired func()
 }
 
 // NewHooks returns hooks bound to no controller yet.
@@ -53,7 +62,7 @@ func (h *Hooks) bind(s *source) {
 	h.mu.Lock()
 	if h.closed {
 		h.mu.Unlock()
-		s.closeTopology()
+		s.Close()
 		return
 	}
 	h.src = s
@@ -65,23 +74,45 @@ func (h *Hooks) bind(s *source) {
 	}
 }
 
-// Close stops the pending node_updated timers, releases the bound
-// source's subscription to its topology service and drops every event
-// from now on. The host calls it before closing the controller; it is
-// idempotent.
+// Close stops the pending node_updated timers and waits for one already
+// running, closes the bound source ([Source.Close]: its subscriptions
+// and its label push) and drops every event from now on. The host calls
+// it before closing the controller; it is idempotent.
 func (h *Hooks) Close() {
 	h.mu.Lock()
 	src := h.src
 	h.closed = true
 	h.src = nil
-	for local, t := range h.pending {
-		t.Stop()
-		delete(h.pending, local)
+	for local := range h.pending {
+		h.stop(local)
 	}
 	h.mu.Unlock()
+	h.running.Wait()
 	if src != nil {
-		src.closeTopology()
+		src.Close()
 	}
+}
+
+// stop stops the node's pending node_updated timer; the caller holds mu.
+func (h *Hooks) stop(local string) {
+	t := h.pending[local]
+	if t == nil {
+		return
+	}
+	delete(h.pending, local)
+	if t.Stop() {
+		h.running.Done()
+	}
+}
+
+// removed emits node_removed and forgets the node: its id and its pending
+// node_updated, which would otherwise follow the removal.
+func (h *Hooks) removed(local string) {
+	h.emit(local, fabricui.ControllerEvent{Type: fabricui.EventNodeRemoved})
+	h.mu.Lock()
+	delete(h.ids, local)
+	h.stop(local)
+	h.mu.Unlock()
 }
 
 // source is the bound source, nil while unbound or closed.
@@ -141,7 +172,9 @@ func (h *Hooks) updated(local string) {
 		return
 	}
 	var t *time.Timer
+	h.running.Add(1)
 	t = time.AfterFunc(h.delay, func() {
+		defer h.running.Done()
 		h.mu.Lock()
 		current := h.pending[local] == t
 		if current {
@@ -150,6 +183,9 @@ func (h *Hooks) updated(local string) {
 		h.mu.Unlock()
 		// A timer Close stopped too late, or one replaced, emits nothing.
 		if current {
+			if h.fired != nil {
+				h.fired()
+			}
 			h.emit(local, fabricui.ControllerEvent{Type: fabricui.EventNodeUpdated})
 		}
 	})
@@ -176,7 +212,7 @@ func (h *Hooks) For(id string) client.Hooks {
 			h.emit(id, fabricui.ControllerEvent{Type: fabricui.EventSubscription, Active: active})
 		},
 		Commissioned:   func() { h.emit(id, fabricui.ControllerEvent{Type: fabricui.EventNodeAdded}) },
-		Decommissioned: func() { h.emit(id, fabricui.ControllerEvent{Type: fabricui.EventNodeRemoved}) },
+		Decommissioned: func() { h.removed(id) },
 	}
 }
 

@@ -4,6 +4,7 @@
 package fabricui
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -101,6 +102,14 @@ func writeTermsRequired(w http.ResponseWriter, r *http.Request, e *ErrTermsRequi
 // operator's log, not for a caller. Mirrors loom
 // internal/north/rest/handlers/write.go:59-81 (writeServerError).
 func (h *handler) serverError(w http.ResponseWriter, r *http.Request, title string, err error) {
+	if errors.Is(err, context.Canceled) && r.Context().Err() != nil {
+		// The client left before the answer: nothing failed on our side,
+		// and nobody reads the 500 (UR-P1-err-12).
+		h.log.DebugContext(r.Context(), "fabricui.request.abandoned", slog.String("error", err.Error()),
+			slog.String("method", r.Method), slog.String("path", r.URL.Path))
+		writeProblem(w, r, http.StatusInternalServerError, codeInternal, title, "")
+		return
+	}
 	h.log.ErrorContext(r.Context(), title, slog.String("error", err.Error()),
 		slog.String("method", r.Method), slog.String("path", r.URL.Path))
 	writeProblem(w, r, http.StatusInternalServerError, codeInternal, title, "")

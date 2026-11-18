@@ -330,3 +330,26 @@ func TestFreshCredentials_ComeFromTheNode(t *testing.T) {
 		t.Fatalf("only %d distinct passcodes in 50 draws", len(seen))
 	}
 }
+
+// UR-P1-conc-05: a close that a fresh open overtakes between the node's
+// close and the handler's forgetting does not drop the new window's
+// credentials.
+func TestPairing_CloseKeepsTheCredentialsOfAWindowOpenedMeanwhile(t *testing.T) {
+	n := sampleNode()
+	_, mux := newTestHandler(t, testOptions{node: n})
+	n.afterClose = func() {
+		if rec := do(t, mux, http.MethodPost, "/node/pairing/window", `{"duration_seconds":300}`); rec.Code != http.StatusOK {
+			t.Errorf("open: %d %s", rec.Code, rec.Body)
+		}
+	}
+	if rec := do(t, mux, http.MethodPost, "/node/pairing/window/close", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("close: %d %s", rec.Code, rec.Body)
+	}
+	var p pairingResponse
+	if err := json.Unmarshal(do(t, mux, http.MethodGet, "/node/pairing", "").Body.Bytes(), &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Source != sourceWindow {
+		t.Fatalf("pairing source %q, want %q: the open window's credentials were dropped", p.Source, sourceWindow)
+	}
+}

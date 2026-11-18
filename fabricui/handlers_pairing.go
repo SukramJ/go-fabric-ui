@@ -246,12 +246,18 @@ func (h *handler) closeWindow(w http.ResponseWriter, r *http.Request) {
 		nodeUnready(w, r)
 		return
 	}
+	h.mu.Lock()
+	prev := h.ephemeral
+	h.mu.Unlock()
 	if err := h.node.closeWindow(r.Context()); err != nil {
 		h.serverError(w, r, "Failed to close commissioning window", err)
 		return
 	}
-	// window_closed reaches the stream through the node's observer.
-	h.forgetEphemeral()
+	// window_closed reaches the stream through the node's observer. Only
+	// the credentials held before the close are forgotten: a fresh window
+	// another request opened meanwhile keeps its own (UR-P1-conc-05); a
+	// window this close did end anyway is forgotten by activeEphemeral.
+	h.forgetEphemeralIf(prev)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -268,9 +274,12 @@ func durationSeconds(d time.Duration) uint16 {
 	return uint16(sec)
 }
 
-// forgetEphemeral drops the credentials of the window this handler opened.
-func (h *handler) forgetEphemeral() {
+// forgetEphemeralIf drops the credentials of the window this handler
+// opened while they are still prev.
+func (h *handler) forgetEphemeralIf(prev *ephemeralWindow) {
 	h.mu.Lock()
-	h.ephemeral = nil
+	if h.ephemeral == prev {
+		h.ephemeral = nil
+	}
 	h.mu.Unlock()
 }

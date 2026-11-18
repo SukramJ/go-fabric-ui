@@ -83,7 +83,9 @@ func (s *source) DiagnoseMDNS() []fabricui.MDNSFinding {
 }
 
 // DiagnosticEvents implements [fabricui.ControllerSource]: the trace,
-// oldest first.
+// newest first, in the order go-fabric's Controller.DiagnosticEvents
+// returns it (its diagevent ring's snapshot, diagevent/ring.go:210-231 at
+// v0.22.2).
 func (s *source) DiagnosticEvents() []fabricui.DiagnosticEvent {
 	events := s.ctrl.DiagnosticEvents()
 	out := make([]fabricui.DiagnosticEvent, 0, len(events))

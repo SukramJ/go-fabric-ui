@@ -475,7 +475,7 @@ func (m *MemoryController) Diagnostics() (ControllerDiagnostics, bool) {
 	for _, id := range slices.Sorted(maps.Keys(m.nodes)) {
 		nodes = append(nodes, m.nodes[id])
 	}
-	local, fabric := m.fabric.NodeID, m.fabric.FabricIndex
+	local, fabric, compressed := m.fabric.NodeID, m.fabric.FabricIndex, m.fabric.CompressedFabricID
 	m.mu.Unlock()
 	out := ControllerDiagnostics{AsOf: memoryTime}
 	for i, n := range nodes {
@@ -490,7 +490,7 @@ func (m *MemoryController) Diagnostics() (ControllerDiagnostics, bool) {
 			id := uint16(0x100 + i) //nolint:gosec // a handful of nodes
 			rec := n.Record()
 			p.OperationalAddress, p.OperationalHost, p.Reachable = rec.Addresses[0], rec.OperationalHost, true
-			p.DiscoveredNames = []string{fmt.Sprintf("%016X-%016X", m.fabric.CompressedFabricID, n.id)}
+			p.DiscoveredNames = []string{fmt.Sprintf("%016X-%016X", compressed, n.id)}
 			p.SessionIDs = []uint16{id}
 			out.Sessions = append(out.Sessions, ControllerSession{
 				ID: id, FabricIndex: fabric, PeerNodeID: n.id, LocalNodeID: local,
@@ -527,23 +527,23 @@ func (m *MemoryController) DiagnoseMDNS() []MDNSFinding {
 	return []MDNSFinding{}
 }
 
-// DiagnosticEvents implements [ControllerSource]: the light's session and
-// the sensor's missed Check-In, oldest first, in go-fabric's sentences
-// (controller/diagnostics.go at v0.21.0).
+// DiagnosticEvents implements [ControllerSource]: the sensor's missed
+// Check-In and the light's session, newest first as the port says, in
+// go-fabric's sentences (controller/diagnostics.go at v0.21.0).
 func (m *MemoryController) DiagnosticEvents() []DiagnosticEvent {
 	if m.NoDiagnostics {
 		return nil
 	}
 	return []DiagnosticEvent{
 		{
-			At: memoryTime.Add(-10 * time.Minute), Kind: "session", Severity: "info",
-			Message: "A secure session with node 0000000000000011 was established.",
-			Detail:  map[string]string{"node_id": "0000000000000011", "fabric_index": "1", "session_id": "256", "transport": "udp", "resumed": "true"},
-		},
-		{
 			At: memoryTime.Add(-5 * time.Minute), Kind: "icd", Severity: "warning",
 			Message: "Node 0000000000000012 missed its expected check-in.",
 			Detail:  map[string]string{"node_id": "0000000000000012", "fabric_index": "1"},
+		},
+		{
+			At: memoryTime.Add(-10 * time.Minute), Kind: "session", Severity: "info",
+			Message: "A secure session with node 0000000000000011 was established.",
+			Detail:  map[string]string{"node_id": "0000000000000011", "fabric_index": "1", "session_id": "256", "transport": "udp", "resumed": "true"},
 		},
 	}
 }
@@ -578,8 +578,15 @@ func (u *memoryUpdates) Check(context.Context) ([]AvailableUpdate, error) {
 
 // Consent starts the queued update or queues a new one and emits
 // consent_changed with the target version (softwareupdate.
-// UpdateConsentChanged).
+// UpdateConsentChanged). A known node whose vendor or product differs is
+// an invalid argument, as the adapter answers go-fabric's
+// softwareupdate.ErrMismatch.
 func (u *memoryUpdates) Consent(_ context.Context, node uint64, vendorID, productID uint16, version uint32) error {
+	if n, ok := u.m.Node(node); ok {
+		if b := n.Basic(); b.VendorID != vendorID || b.ProductID != productID {
+			return fmt.Errorf("%w: node %016X is vendor %#04x, product %#04x", ErrInvalidArgument, node, b.VendorID, b.ProductID)
+		}
+	}
 	u.consent(node, vendorID, productID, version)
 	u.m.publish(ControllerEvent{Type: EventUpdate, Node: node, UpdateKind: "consent_changed", UpdateVersion: &version})
 	return nil
@@ -767,13 +774,17 @@ func (n *memoryNode) ID() uint64 { return n.id }
 func (n *memoryNode) Record() NodeRecord {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return n.spec.record
+	r := n.spec.record
+	r.Addresses = slices.Clone(r.Addresses)
+	return r
 }
 
 func (n *memoryNode) Properties() NodeProperties {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return n.spec.props
+	p := n.spec.props
+	p.DeviceTypes = slices.Clone(p.DeviceTypes)
+	return p
 }
 
 func (n *memoryNode) Basic() NodeBasic {
@@ -806,7 +817,30 @@ func (n *memoryNode) Disabled() bool {
 func (n *memoryNode) Endpoints() []NodeEndpoint {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return slices.Clone(n.spec.endpoints)
+	out := make([]NodeEndpoint, 0, len(n.spec.endpoints))
+	for _, e := range n.spec.endpoints {
+		out = append(out, cloneEndpoint(e))
+	}
+	return out
+}
+
+// cloneEndpoint is e with nothing shared: the parent, the reachability,
+// the device types and the clusters with their features.
+func cloneEndpoint(e NodeEndpoint) NodeEndpoint {
+	if e.Parent != nil {
+		p := *e.Parent
+		e.Parent = &p
+	}
+	if e.Reachable != nil {
+		r := *e.Reachable
+		e.Reachable = &r
+	}
+	e.DeviceTypes = slices.Clone(e.DeviceTypes)
+	e.Clusters = slices.Clone(e.Clusters)
+	for i := range e.Clusters {
+		e.Clusters[i].Features = slices.Clone(e.Clusters[i].Features)
+	}
+	return e
 }
 
 // endpoint is the spec's endpoint number ep; the caller holds mu.
@@ -928,7 +962,7 @@ func (n *memoryNode) Read(_ context.Context, paths []AttributePath, _ bool) ([]A
 	out := make([]AttributeValue, 0, len(paths))
 	for _, p := range paths {
 		if v, ok := n.spec.values[p]; ok {
-			out = append(out, AttributeValue{Path: p, Value: v})
+			out = append(out, AttributeValue{Path: p, Value: slices.Clone(v)})
 		} else {
 			out = append(out, AttributeValue{Path: p, Status: statusUnsupportedAttribute})
 		}
@@ -940,7 +974,7 @@ func (n *memoryNode) Write(_ context.Context, p AttributePath, value any, _ time
 	var raw json.RawMessage
 	switch v := value.(type) {
 	case json.RawMessage:
-		raw = v
+		raw = slices.Clone(v)
 	case []ACLEntry:
 		raw = mustJSON(aclValue(v))
 	case []BindingTarget:

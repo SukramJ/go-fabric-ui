@@ -4,6 +4,7 @@
 package fabricui
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -40,6 +41,9 @@ const (
 	attributeCurrentFabricIndex   uint32 = 0x0005
 	commandRemoveFabric           uint32 = 0x000A
 )
+
+// maxLongDiscriminator is the largest 12-bit long discriminator.
+const maxLongDiscriminator = 0x0FFF
 
 // maxReadPaths bounds a targeted read (decision 0.4: no full inventory).
 const maxReadPaths = 32
@@ -97,7 +101,7 @@ var _ api.StrictServerInterface = (*controllerServer)(nil)
 // problem for any other /controller path.
 func (h *handler) controllerRoutes() http.Handler {
 	srv := &controllerServer{h: h, src: h.ctrl}
-	strict := api.NewStrictHandlerWithOptions(srv, nil, api.StrictHTTPServerOptions{
+	strict := api.NewStrictHandlerWithOptions(srv, []api.StrictMiddlewareFunc{streamHeadOnly}, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  func(w http.ResponseWriter, r *http.Request, err error) { badBody(w, r, err) },
 		ResponseErrorHandlerFunc: h.controllerError,
 	})
@@ -815,7 +819,10 @@ func (s *controllerServer) InvokeNodeCommand(ctx context.Context, req api.Invoke
 }
 
 // readOne reads one attribute and answers its JSON; a status the node
-// answers for it is a node error.
+// answers for it is a node error, and so is null: every attribute read
+// through it (ACL, Fabrics, CurrentFabricIndex) is non-nullable, and
+// json.Unmarshal of null leaves the zero value without an error — no
+// ACL, no fabric, fabric index 0 (UR-P1-err-31).
 func readOne(ctx context.Context, n ControllerNode, path AttributePath, filtered bool) (json.RawMessage, error) {
 	values, err := n.Read(ctx, []AttributePath{path}, filtered)
 	if err != nil {
@@ -828,9 +835,18 @@ func readOne(ctx context.Context, n ControllerNode, path AttributePath, filtered
 		if v.Status != 0 {
 			return nil, fmt.Errorf("%w: status %#x for %s/%s/%s", ErrNodeFailed, v.Status, strconv.Itoa(int(path.Endpoint)), hexID(path.Cluster), hexID(path.Attribute))
 		}
+		if isNull(v.Value) {
+			return nil, fmt.Errorf("%w: null for the non-nullable %s/%s/%s", ErrNodeFailed, strconv.Itoa(int(path.Endpoint)), hexID(path.Cluster), hexID(path.Attribute))
+		}
 		return v.Value, nil
 	}
 	return nil, fmt.Errorf("%w: no value for %s/%s/%s", ErrNodeFailed, strconv.Itoa(int(path.Endpoint)), hexID(path.Cluster), hexID(path.Attribute))
+}
+
+// isNull reports whether raw is absent or JSON null.
+func isNull(raw json.RawMessage) bool {
+	t := bytes.TrimSpace(raw)
+	return len(t) == 0 || bytes.Equal(t, []byte("null"))
 }
 
 // --- ACL ---
@@ -840,8 +856,11 @@ var (
 		1: api.ACLEntryPrivilegeView, 2: api.ACLEntryPrivilegeProxyView, 3: api.ACLEntryPrivilegeOperate,
 		4: api.ACLEntryPrivilegeManage, 5: api.ACLEntryPrivilegeAdminister,
 	}
-	authModeNames = map[uint8]api.ACLEntryAuthMode{1: api.ACLEntryAuthModePase, 2: api.ACLEntryAuthModeCase, 3: api.ACLEntryAuthModeGroup}
+	authModeNames = map[uint8]api.ACLEntryAuthMode{1: api.ACLEntryAuthModePase, authModeCASE: api.ACLEntryAuthModeCase, 3: api.ACLEntryAuthModeGroup}
 )
+
+// authModeCASE is AccessControlEntryAuthModeEnum's CASE.
+const authModeCASE uint8 = 2
 
 func keyOf[K, V comparable](m map[K]V, v V) (K, bool) {
 	for k, x := range m {
@@ -881,9 +900,17 @@ func (s *controllerServer) GetNodeACL(ctx context.Context, req api.GetNodeACLReq
 		return nil, fmt.Errorf("%w: the ACL does not read as a list of entries: %w", ErrNodeFailed, err)
 	}
 	out := api.GetNodeACL200JSONResponse{Entries: []api.ACLEntry{}}
-	for _, e := range entries {
+	for i, e := range entries {
+		priv, ok := privilegeNames[e.Privilege]
+		if !ok {
+			return nil, fmt.Errorf("%w: ACL entry %d: privilege %d is outside the contract's enum", ErrNodeFailed, i, e.Privilege)
+		}
+		mode, ok := authModeNames[e.AuthMode]
+		if !ok {
+			return nil, fmt.Errorf("%w: ACL entry %d: auth mode %d is outside the contract's enum", ErrNodeFailed, i, e.AuthMode)
+		}
 		a := api.ACLEntry{
-			Privilege: privilegeNames[e.Privilege], AuthMode: authModeNames[e.AuthMode],
+			Privilege: priv, AuthMode: mode,
 			SubjectsHex: []string{}, Targets: []api.ACLTarget{}, FabricIndex: nonZero(e.FabricIndex),
 		}
 		for _, sub := range e.Subjects {
@@ -907,9 +934,10 @@ func (s *controllerServer) GetNodeACL(ctx context.Context, req api.GetNodeACLReq
 	return out, nil
 }
 
-// SetNodeACL writes our fabric's entries in one write of the ACL. A
-// subject naming the node itself is left out, and an entry left without
-// subjects dropped — a node always has access to itself — as
+// SetNodeACL writes our fabric's entries in one write of the ACL. A CASE
+// subject naming the node itself is left out (a Group entry's subject is a
+// group id, a PASE entry's a passcode id: neither names a node), and an
+// entry left without subjects dropped — a node always has access to itself — as
 // go-fabric-server's set_acl_entry does after matterjs-server
 // (ControllerCommandHandler.ts:2618-2668).
 func (s *controllerServer) SetNodeACL(ctx context.Context, req api.SetNodeACLRequestObject) (api.SetNodeACLResponseObject, error) {
@@ -936,7 +964,7 @@ func (s *controllerServer) SetNodeACL(ctx context.Context, req api.SetNodeACLReq
 			if err != nil {
 				return nil, err
 			}
-			if sub != n.ID() {
+			if mode != authModeCASE || sub != n.ID() {
 				entry.Subjects = append(entry.Subjects, sub)
 			}
 		}
@@ -1005,13 +1033,24 @@ func (s *controllerServer) GetNodeBindings(ctx context.Context, req api.GetNodeB
 	if len(paths) == 0 {
 		return out, nil
 	}
-	values, err := n.Read(ctx, paths, true)
-	if err != nil {
-		return nil, err
+	// The read is chunked at maxReadPaths, as a targeted read is bounded
+	// (UR-P1-bound-37).
+	var values []AttributeValue
+	for chunk := range slices.Chunk(paths, maxReadPaths) {
+		vs, err := n.Read(ctx, chunk, true)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, vs...)
 	}
 	for _, v := range values {
 		if v.Status != 0 {
-			continue
+			// The answer holds every Binding endpoint; one the node
+			// refuses cannot be left out silently.
+			return nil, fmt.Errorf("%w: status %#x for endpoint %d's bindings", ErrNodeFailed, v.Status, v.Path.Endpoint)
+		}
+		if isNull(v.Value) {
+			return nil, fmt.Errorf("%w: endpoint %d's bindings read as null", ErrNodeFailed, v.Path.Endpoint)
 		}
 		var targets []bindingJSON
 		if err := json.Unmarshal(v.Value, &targets); err != nil {
@@ -1173,6 +1212,10 @@ func (s *controllerServer) ownIndex(ctx context.Context, n ControllerNode) (uint
 	if err := json.Unmarshal(raw, &idx); err != nil {
 		return 0, fmt.Errorf("%w: CurrentFabricIndex: %w", ErrNodeFailed, err)
 	}
+	if idx == 0 {
+		// 0 is no fabric index: the own-fabric guard would never match.
+		return 0, fmt.Errorf("%w: CurrentFabricIndex is 0 on a commissioned node", ErrNodeFailed)
+	}
 	return idx, nil
 }
 
@@ -1274,6 +1317,9 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 	case b.TermsAndConditions != nil && (b.TermsAndConditions.Version < 0 || b.TermsAndConditions.Version > 0xFFFF ||
 		b.TermsAndConditions.Acknowledgements < 0 || b.TermsAndConditions.Acknowledgements > 0xFFFF):
 		return nil, badRequest("terms_and_conditions: version and acknowledgements are 0 to 65535")
+	case b.Discovered != nil && b.Discovered.LongDiscriminator != nil &&
+		(*b.Discovered.LongDiscriminator < 0 || *b.Discovered.LongDiscriminator > maxLongDiscriminator):
+		return nil, badRequest("discovered.long_discriminator: %d is not 0 to %d", *b.Discovered.LongDiscriminator, maxLongDiscriminator)
 	}
 	if b.TimeoutSeconds != nil {
 		if *b.TimeoutSeconds < 1 || *b.TimeoutSeconds > 600 {
@@ -1303,7 +1349,9 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 	} else {
 		d := Discovered{InstanceName: b.Discovered.InstanceName}
 		if b.Discovered.LongDiscriminator != nil {
-			d.LongDiscriminator = uint16(*b.Discovered.LongDiscriminator) //nolint:gosec // a 12-bit discriminator
+			// 0 is a valid discriminator; the port cannot yet tell it from
+			// "not sent" (UR-P1-adpt-65, the adapter's half).
+			d.LongDiscriminator = uint16(*b.Discovered.LongDiscriminator) //nolint:gosec // range-checked above
 		}
 		n, err = s.src.CommissionDiscovered(ctx, d, uint32(*b.Passcode), opts) //nolint:gosec // bounded above
 	}
@@ -1633,6 +1681,29 @@ func (c controllerStream) VisitControllerStreamResponse(w http.ResponseWriter) e
 	return nil
 }
 
+// streamHeadOnly answers a HEAD on the controller stream with the
+// stream's headers only, as streamHead does for the node and log streams
+// (UR-P1-conc-01).
+func streamHeadOnly(f api.StrictHandlerFunc, operationID string) api.StrictHandlerFunc {
+	if operationID != "ControllerStream" {
+		return f
+	}
+	return func(ctx context.Context, w http.ResponseWriter, r *http.Request, req any) (any, error) {
+		if r.Method != http.MethodGet {
+			return controllerStreamHead{}, nil
+		}
+		return f(ctx, w, r, req)
+	}
+}
+
+// controllerStreamHead is the controller stream's answer to a HEAD.
+type controllerStreamHead struct{}
+
+func (controllerStreamHead) VisitControllerStreamResponse(w http.ResponseWriter) error {
+	writeStreamHeaders(w)
+	return nil
+}
+
 func (s *controllerServer) ControllerStream(ctx context.Context, _ api.ControllerStreamRequestObject) (api.ControllerStreamResponseObject, error) {
 	return controllerStream{h: s.h, ctx: ctx}, nil
 }
@@ -1838,15 +1909,15 @@ func (s *controllerServer) GetControllerMdns(context.Context, api.GetControllerM
 }
 
 // ListControllerDiagnosticEvents serves GET /controller/events: the
-// port's trace newest first, as GET /node/events; 501 when the source
-// serves no diagnostics.
+// port's trace in the port's order, newest first, as GET /node/events;
+// 501 when the source serves no diagnostics.
 func (s *controllerServer) ListControllerDiagnosticEvents(context.Context, api.ListControllerDiagnosticEventsRequestObject) (api.ListControllerDiagnosticEventsResponseObject, error) {
 	if !s.diagnosticsServed() {
 		return nil, ErrNotImplemented
 	}
 	events := s.src.DiagnosticEvents()
 	out := api.ListControllerDiagnosticEvents200JSONResponse{Events: make([]api.DiagnosticEvent, 0, len(events))}
-	for i := len(events) - 1; i >= 0; i-- {
+	for i := range events {
 		e := &events[i]
 		ev := api.DiagnosticEvent{
 			At: wireTime(e.At), Kind: api.DiagnosticEventKind(e.Kind),

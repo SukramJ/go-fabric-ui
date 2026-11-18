@@ -443,3 +443,34 @@ func TestStream_DropsAnEventWithAnInvalidType(t *testing.T) {
 		t.Fatalf("log %s", log.String())
 	}
 }
+
+// UR-P1-api-02: a prefix that is not a clean, plain path fails Mount and
+// Handler with an error and panics in neither.
+func TestMount_RefusesAnUncleanPrefixWithoutPanicking(t *testing.T) {
+	for _, p := range []string{"/a\tb", "/a//b", "/a/../b", "/a/.", "/a%zz", "/a\nb"} {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("prefix %q: Mount panicked: %v", p, r)
+				}
+			}()
+			if err := Mount(http.NewServeMux(), Options{Prefix: p}); err == nil {
+				t.Fatalf("prefix %q accepted", p)
+			}
+		}()
+	}
+}
+
+// UR-P1-err-03: a typed-nil *Events as Options.Events is no source; the
+// stream serves.
+func TestStream_TypedNilEventsServes(t *testing.T) {
+	var ev *Events
+	_, mux := newTestHandler(t, testOptions{events: ev})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequestWithContext(ctx, http.MethodGet, DefaultPrefix+"/node/stream", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+}

@@ -38,11 +38,11 @@ type handler struct {
 	admin   func(*http.Request) bool
 	// token is the admin token of token mode; empty when Options.Admin is
 	// set.
-	token      string
-	reassemble func(context.Context) error
-	// erase is the host's erase of this node (Options.Erase,
-	// NodeEntry.Erase); nil answers 501.
-	erase    func(context.Context) error
+	token string
+	// hooks are the host's rebuild and erase of this node (Options.
+	// Reassemble and Erase, NodeEntry's); a registry node's are replaced
+	// on every lookup, as config is (UR-P1-conc-06).
+	hooks    atomic.Pointer[nodeHooks]
 	warnings func(context.Context) []Warning
 	counters func(context.Context) []Counter
 	// hub carries the handler's own events; extra is the host's source
@@ -81,6 +81,14 @@ type handler struct {
 	// with the entry it was built on (the default node's handler only).
 	regMu    sync.Mutex
 	regCache map[string]managedNode
+	// regGen counts the registry deletions (under regMu): a lookup that a
+	// deletion overtook caches nothing (UR-P1-conc-11).
+	regGen uint64
+	// done is closed by stop when the registry deletes this node: its
+	// open streams end (UR-P1-conc-11). Nil, never closed, on every other
+	// handler.
+	done chan struct{}
+	stop func()
 
 	// mu guards ephemeral: the credentials of the window this handler
 	// opened, served by GET /node/pairing while that window is open.
@@ -188,7 +196,12 @@ func nodeEntries(o *Options) ([]nodeEntry, error) {
 // beside it: the host's *Events itself, else a hub of the handler's own
 // and src.
 func hubOf(src EventSource) (hub *Events, extra EventSource) {
-	if ev, ok := src.(*Events); ok && ev != nil {
+	if ev, ok := src.(*Events); ok {
+		if ev == nil {
+			// A typed-nil *Events is no source: as extra it would pass an
+			// interface nil check and panic on Subscribe (UR-P1-err-03).
+			return NewEvents(), nil
+		}
 		return ev, nil
 	}
 	return NewEvents(), src
@@ -243,8 +256,6 @@ func newHandler(o Options) (*handler, error) {
 		ctrl:           o.Controller,
 		ctrlHub:        NewEvents(),
 		admin:          o.Admin,
-		reassemble:     o.Reassemble,
-		erase:          o.Erase,
 		warnings:       o.Warnings,
 		counters:       o.Counters,
 		prefix:         prefix,
@@ -254,6 +265,7 @@ func newHandler(o Options) (*handler, error) {
 		heartbeat:      15 * time.Second,
 		fresh:          node.NewWindowCredentials,
 	}
+	h.hooks.Store(&nodeHooks{reassemble: o.Reassemble, erase: o.Erase})
 	if h.log == nil {
 		h.log = slog.Default()
 	}
@@ -340,17 +352,19 @@ func (h *handler) register(mux *http.ServeMux) {
 // error. A pattern the host registers under the prefix after the mount is
 // more specific than prefix + "/" and shadows the API's route.
 func (h *handler) mount(mux *http.ServeMux) (err error) {
+	// The API's own mux is built inside the recovered section too: a
+	// pattern it refuses is an error of Mount, not a panic (UR-P1-api-02).
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("fabricui: mount: %v; nothing was registered", r)
+		}
+	}()
 	api, patterns := h.routes()
 	for _, p := range patterns {
 		if q := servedPattern(mux, p); q != "" && h.underPrefix(q) {
 			return fmt.Errorf("fabricui: mount: the mux already serves %q for the API route %q; nothing was registered", q, p)
 		}
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("fabricui: mount: %v; nothing was registered", r)
-		}
-	}()
 	mux.Handle(h.prefix+"/", apiHeaders(api))
 	return nil
 }
@@ -488,8 +502,6 @@ func (h *handler) sibling(e nodeEntry) *handler {
 	s := &handler{
 		node:           e.port,
 		exposure:       e.exposure,
-		reassemble:     e.reassemble,
-		erase:          e.erase,
 		registry:       h.registry,
 		nodesHub:       h.nodesHub,
 		admin:          h.admin,
@@ -508,7 +520,35 @@ func (h *handler) sibling(e nodeEntry) *handler {
 	}
 	s.hub, s.extra = hubOf(e.events)
 	s.config.Store(e.config)
+	s.hooks.Store(&nodeHooks{reassemble: e.reassemble, erase: e.erase})
+	if e.managed {
+		s.done = make(chan struct{})
+		s.stop = sync.OnceFunc(func() { close(s.done) })
+	}
 	return s
+}
+
+// nodeHooks are a node's rebuild and erase; either may be nil.
+type nodeHooks struct {
+	reassemble func(context.Context) error
+	// erase is the host's erase of this node; nil answers 501.
+	erase func(context.Context) error
+}
+
+// reassembleFn is the node's rebuild; nil without one.
+func (h *handler) reassembleFn() func(context.Context) error {
+	if k := h.hooks.Load(); k != nil {
+		return k.reassemble
+	}
+	return nil
+}
+
+// eraseFn is the node's erase; nil without one.
+func (h *handler) eraseFn() func(context.Context) error {
+	if k := h.hooks.Load(); k != nil {
+		return k.erase
+	}
+	return nil
 }
 
 // deviceNodeSummary is one entry of GET /nodes and the answer of POST

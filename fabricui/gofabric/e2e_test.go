@@ -235,6 +235,32 @@ type nodeDetail struct {
 	} `json:"endpoints"`
 }
 
+// Two label writes in a row end at the second: the background push never
+// sets an older label again (UR-P1-conc-61).
+func TestEndToEnd_FabricLabelLastWriteWins(t *testing.T) {
+	s := newCtrlSite(t)
+	for i := range 100 {
+		a, b := fmt.Sprintf("a%d", i), fmt.Sprintf("b%d", i)
+		if err := s.src.SetFabricLabel(t.Context(), a); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.src.SetFabricLabel(t.Context(), b); err != nil {
+			t.Fatal(err)
+		}
+		// The pushes settle within a few milliseconds on the site; the
+		// label then stays.
+		time.Sleep(2 * time.Millisecond)
+		deadline := time.Now().Add(time.Second)
+		for s.src.Fabric().Label != b && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		time.Sleep(2 * time.Millisecond)
+		if got := s.src.Fabric().Label; got != b {
+			t.Fatalf("round %d: label %q, want %q", i, got, b)
+		}
+	}
+}
+
 // TestEndToEnd_Controller: the controller family on a real go-fabric
 // controller — commission a fabrictest device by its manual code, list
 // and read the node, open and close a window, write and read back the
@@ -317,6 +343,18 @@ func TestEndToEnd_Controller(t *testing.T) {
 		return e.Kind == "session" && e.Detail["node_id"] == id
 	}) {
 		t.Fatalf("trace %+v", trace.Events)
+	}
+	// The port's trace is newest first, as go-fabric's ring returns it:
+	// the pairing's start, the first entry recorded, is the last one (the
+	// site's clock stands still, so the order is the only witness).
+	evs := s.src.DiagnosticEvents()
+	if len(evs) < 2 || evs[len(evs)-1].Kind != "pairing" || !strings.Contains(evs[len(evs)-1].Message, "started") {
+		t.Fatalf("trace not newest first: %+v", evs)
+	}
+	for i := 1; i < len(evs); i++ {
+		if evs[i-1].At.Before(evs[i].At) {
+			t.Fatalf("trace entry %d (%s) is older than entry %d (%s)", i-1, evs[i-1].At, i, evs[i].At)
+		}
 	}
 	var findings struct {
 		Findings []struct {
@@ -969,6 +1007,39 @@ func TestEndToEnd_UpdateEventsFromTheManager(t *testing.T) {
 		case <-deadline:
 			t.Fatalf("no check_finished; update events %v", got)
 		}
+	}
+}
+
+// A consent whose vendor or product differs from the node's is the
+// request's error (400 bad_request), not the node's (UR-P1-err-63):
+// go-fabric's softwareupdate.ErrMismatch is decided before any node is
+// asked.
+func TestEndToEnd_ConsentMismatchIsABadRequest(t *testing.T) {
+	dir := t.TempDir()
+	s := newCtrlSiteWith(t, ctrlSiteOptions{
+		ota: &controller.OTAConfig{},
+		// The device's OTA requestor makes it a node the manager updates.
+		configure: func(cfg *node.Config) { cfg.OTA = &node.OTAConfig{Dir: dir} },
+	})
+	sp, err := s.dev.Node().SetupPayload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.json(http.MethodPost, "/controller/commission", fmt.Sprintf(`{"code":%q}`, sp.Manual), http.StatusOK, nil)
+	s.waitEvent(fabricui.EventSubscription)
+	nodes := s.src.Nodes()
+	if len(nodes) != 1 {
+		t.Fatalf("%d nodes", len(nodes))
+	}
+	b := nodes[0].Basic()
+	body := func(product uint16) string {
+		return fmt.Sprintf(`{"node_id_hex":"%016X","vendor_id":%d,"product_id":%d,"target_software_version":2}`, nodes[0].ID(), b.VendorID, product)
+	}
+	if status, out := s.call(http.MethodPost, "/controller/updates/consent", body(b.ProductID+1)); status != http.StatusBadRequest {
+		t.Fatalf("mismatch: %d %s", status, out)
+	}
+	if status, out := s.call(http.MethodPost, "/controller/updates/consent", body(b.ProductID)); status != http.StatusNoContent {
+		t.Fatalf("match: %d %s", status, out)
 	}
 }
 

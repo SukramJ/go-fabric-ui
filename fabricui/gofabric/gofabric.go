@@ -4,11 +4,15 @@
 // Package gofabric binds the controller page family to go-fabric's
 // controller: [ControllerOf] is a [fabricui.ControllerSource] over a
 // *controller.Controller, the one place in this module that knows the
-// controller facade (controller, controller/client,
-// controller/softwareupdate, the network graph controller/topology, the
-// diagnostic shapes diag, the Thread dataset codec thread and the
-// generated cluster definitions it encodes ACL and Binding entries with).
-// A host passes it in
+// controller facade. Beside the facade every package may import, the
+// import guard (internal/arch, its adapter list) allows it exactly: the
+// controller facade controller, controller/client,
+// controller/commissioner and controller/softwareupdate, the network
+// graph controller/topology, the diagnostic shapes diag, the DNS-SD
+// identifiers client/discovery, the Thread dataset codec thread, and the
+// generated cluster definitions it encodes ACL and Binding entries with
+// (cluster/spec and its accesscontrol, basicinformation, binding,
+// icdmanagement and operationalcredentials). A host passes it in
 // fabricui.Options.Controller:
 //
 //	hooks := gofabric.NewHooks()
@@ -19,7 +23,8 @@
 //	svc := topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})
 //	src := gofabric.ControllerOf(ctrl, gofabric.ControllerOptions{Hooks: hooks, Credentials: store, Topology: svc})
 //	mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Controller: src}))
-//	// … on shutdown: svc.Close() and hooks.Close() before ctrl.Close(ctx)
+//	// … on shutdown: svc.Close() and hooks.Close() (or src.Close()
+//	// without hooks) before ctrl.Close(ctx)
 //
 // The facade calls are those go-fabric-server's controllerapi makes per
 // WebSocket command (cmd_node.go, cmd_commission.go, cmd_interact.go,
@@ -60,7 +65,9 @@ type ControllerOptions struct {
 	// host wires them into controller.Config.HooksFor before
 	// controller.New. Nil leaves the stream with the handler's own
 	// events (commissioning progress) and the update events the source
-	// observes on the controller's update manager.
+	// observes on the controller's update manager; the host then closes
+	// the source itself ([Source.Close]), which Hooks.Close does
+	// otherwise.
 	Hooks *Hooks
 	// Credentials is the host's Wi-Fi and Thread credential store; nil
 	// serves none (the credential routes answer 503).
@@ -96,9 +103,22 @@ func ThreadDatasetName(dataset []byte) (string, error) {
 	return *ds.NetworkName, nil
 }
 
+// Source is the controller family's source over a controller, with what
+// ends the work it runs beside the requests.
+type Source interface {
+	fabricui.ControllerSource
+	// Close releases the source's subscriptions to the topology service
+	// and the update manager, cancels a running label push and waits for
+	// it. [Hooks.Close] calls it; a host without hooks calls it before it
+	// closes the controller. It is idempotent.
+	Close()
+}
+
 // ControllerOf is the controller family's source over ctrl.
-func ControllerOf(ctrl *controller.Controller, opts ControllerOptions) fabricui.ControllerSource {
-	s := &source{ctrl: ctrl, opts: opts, events: fabricui.NewEvents(), discovered: map[string]client.Device{}, log: opts.Logger}
+func ControllerOf(ctrl *controller.Controller, opts ControllerOptions) Source {
+	s := &source{ctrl: ctrl, opts: opts, events: fabricui.NewEvents(), log: opts.Logger, now: time.Now}
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	s.push = s.pushCurrentLabel
 	if s.log == nil {
 		s.log = slog.Default()
 	}
@@ -121,15 +141,32 @@ type source struct {
 	events *fabricui.Events
 	log    *slog.Logger
 
-	// mu guards discovered: the devices the last discoveries answered,
-	// by instance name, for CommissionDiscovered.
-	mu         sync.Mutex
-	discovered map[string]client.Device
+	// mu guards discovered and discoveredAt: the devices the last
+	// discovery answered, by instance name, for CommissionDiscovered, and
+	// when it answered. now is the clock; a test sets it.
+	mu           sync.Mutex
+	discovered   map[string]client.Device
+	discoveredAt time.Time
+	now          func() time.Time
 
 	// topoState holds the subscriptions to opts.Topology and to the
-	// controller's update manager, released by Hooks.Close (or
-	// closeTopology without hooks).
+	// controller's update manager, released by Close.
 	topoState
+
+	// ctx is the source's life: Close cancels it, and the label push
+	// derives from it.
+	ctx    context.Context //nolint:containedctx // the source's own lifetime, not a request's
+	cancel context.CancelFunc
+	// labelMu guards the label push's state: closed after Close, pushing
+	// while the push worker runs, again when a label was set during a
+	// push. pushes counts the running worker; Close waits for it.
+	labelMu        sync.Mutex
+	closed         bool
+	pushing, again bool
+	pushes         sync.WaitGroup
+	// push sends the fabric's current label to the nodes; a test
+	// replaces it.
+	push func(ctx context.Context) error
 }
 
 func (s *source) publish(e fabricui.ControllerEvent) {
@@ -411,11 +448,7 @@ func (s *source) Discover(ctx context.Context, f fabricui.DiscoverFilter, timeou
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	for i := range found {
-		s.discovered[found[i].InstanceID] = found[i]
-	}
-	s.mu.Unlock()
+	s.remember(found)
 	out := make([]fabricui.Discovered, 0, len(found))
 	for i := range found {
 		out = append(out, discoveredOf(&found[i]))
@@ -471,6 +504,43 @@ func cutPlus(s string) (a, b string, ok bool) {
 // device the adapter no longer holds.
 const rediscoverWindow = 5 * time.Second
 
+// discoveredMaxAge is how long a discovery's answers stand in for the
+// device: an older one may have moved, so CommissionDiscovered finds it
+// again.
+const discoveredMaxAge = 2 * time.Minute
+
+// remember replaces the cached devices with a discovery's answers: only
+// the last discovery's are kept, so anything on the network that
+// advertises does not grow the cache.
+func (s *source) remember(found []client.Device) {
+	m := make(map[string]client.Device, len(found))
+	for i := range found {
+		m[found[i].InstanceID] = found[i]
+	}
+	s.mu.Lock()
+	s.discovered, s.discoveredAt = m, s.now()
+	s.mu.Unlock()
+}
+
+// cached is the device the last discovery answered by instance name,
+// false when it did not or the answer is older than discoveredMaxAge.
+func (s *source) cached(instance string) (client.Device, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.discovered[instance]
+	if !ok || s.now().Sub(s.discoveredAt) > discoveredMaxAge {
+		return client.Device{}, false
+	}
+	return d, true
+}
+
+// forget drops a commissioned device from the cache.
+func (s *source) forget(instance string) {
+	s.mu.Lock()
+	delete(s.discovered, instance)
+	s.mu.Unlock()
+}
+
 // CommissionDiscovered commissions a discovered device with its passcode
 // through the registry (client.Registry.ForDevice and Commission), as
 // go-fabric-server's commission_on_network does
@@ -478,9 +548,7 @@ const rediscoverWindow = 5 * time.Second
 // apply — the device came from a DNS-SD discovery — so it reports no
 // PairOptions.Transport.
 func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered, passcode uint32, o fabricui.PairOptions) (fabricui.ControllerNode, error) {
-	s.mu.Lock()
-	dev, ok := s.discovered[d.InstanceName]
-	s.mu.Unlock()
+	dev, ok := s.cached(d.InstanceName)
 	if !ok {
 		if d.LongDiscriminator == 0 {
 			return nil, fabricui.ErrNoDevice
@@ -523,9 +591,7 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 	if err := reg.Commission(ctx, n, copts); err != nil {
 		return nil, commissionError(err)
 	}
-	s.mu.Lock()
-	delete(s.discovered, d.InstanceName)
-	s.mu.Unlock()
+	s.forget(d.InstanceName)
 	w, ok := s.nodeOf(n)
 	if !ok {
 		return nil, fmt.Errorf("%w: the commissioned node has no peer address", fabricui.ErrNodeFailed)
@@ -569,19 +635,74 @@ func (s *source) SetFabricLabel(_ context.Context, label string) error {
 		}
 		return err
 	}
-	// The push outlives the request on purpose: the answer does not wait.
-	go func() { //nolint:gosec,contextcheck // G118: the push outlives the request by design
-		ctx, cancel := context.WithTimeout(context.Background(), labelPushTimeout)
-		defer cancel()
-		reg := s.ctrl.Registry()
-		if reg == nil {
-			return
-		}
-		if err := reg.SetFabricLabel(ctx, label); err != nil {
+	s.pushLabel() //nolint:contextcheck // the push outlives the request by design
+	return nil
+}
+
+// pushLabel starts the label push worker, or asks the running one for
+// another round. The push outlives the request on purpose: the answer
+// does not wait. One worker at a time sends the label as it stands when
+// a round starts, so the pushes end at the last label set, never at an
+// older one a late goroutine still held.
+func (s *source) pushLabel() {
+	s.labelMu.Lock()
+	defer s.labelMu.Unlock()
+	switch {
+	case s.closed:
+		return
+	case s.pushing:
+		s.again = true
+		return
+	}
+	s.pushing = true
+	s.pushes.Add(1)
+	go s.pushRounds() //nolint:contextcheck // the push outlives the request by design
+}
+
+// pushRounds is the worker: a round per label set while it runs, each
+// bounded by labelPushTimeout and cancelled by Close.
+func (s *source) pushRounds() {
+	defer s.pushes.Done()
+	for {
+		s.labelMu.Lock()
+		s.again = false
+		s.labelMu.Unlock()
+		ctx, cancel := context.WithTimeout(s.ctx, labelPushTimeout)
+		if err := s.push(ctx); err != nil {
 			s.log.Warn("fabricui.gofabric.label_push_failed", slog.String("error", err.Error()))
 		}
-	}()
-	return nil
+		cancel()
+		s.labelMu.Lock()
+		if !s.again || s.closed {
+			s.pushing = false
+			s.labelMu.Unlock()
+			return
+		}
+		s.labelMu.Unlock()
+	}
+}
+
+// pushCurrentLabel sends the fabric's current label to the connected
+// nodes (client.Registry.SetFabricLabel, which sets that label on the
+// fabrics again: the current one, so nothing older returns).
+func (s *source) pushCurrentLabel(ctx context.Context) error {
+	f, reg := s.ctrl.Fabric(), s.ctrl.Registry()
+	if f == nil || reg == nil {
+		return nil
+	}
+	return reg.SetFabricLabel(ctx, f.CurrentLabel())
+}
+
+// Close implements [Source].
+func (s *source) Close() {
+	s.labelMu.Lock()
+	s.closed = true
+	s.labelMu.Unlock()
+	if s.cancel != nil {
+		s.cancel()
+	}
+	s.pushes.Wait()
+	s.closeTopology()
 }
 
 func (s *source) Credentials() fabricui.CredentialStore {

@@ -4,6 +4,7 @@
 package fabricui
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -135,7 +136,7 @@ func summariseSurface(r *surface.Report) *surfaceSummary {
 // 200 and enabled false, not 503: the status is what tells a page the
 // family is off (loom matter_exposures.go:363-372).
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
-	res := statusResponse{Exposure: h.exposure != nil, CSRFToken: h.token, NodeRegistry: h.registry != nil, Erase: h.erase != nil}
+	res := statusResponse{Exposure: h.exposure != nil, CSRFToken: h.token, NodeRegistry: h.registry != nil, Erase: h.eraseFn() != nil}
 	if h.admin != nil {
 		admin := h.admin(r)
 		res.Admin = &admin
@@ -197,6 +198,10 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	if fabrics, err := h.node.fabrics(r.Context()); err == nil {
 		res.FabricCount = len(fabrics)
+	} else {
+		// fabric_count then says 0 where the truth is unknown; the log
+		// says why (UR-P1-err-07).
+		h.log.WarnContext(r.Context(), "fabricui.status.fabrics_failed", slog.String("error", err.Error()))
 	}
 	if h.exposure != nil {
 		if items, err := h.exposure.List(r.Context()); err == nil {
@@ -291,11 +296,16 @@ func (h *handler) removeFabric(w http.ResponseWriter, r *http.Request) {
 // touching a pairing. Mirrors loom matter_maintenance.go:27-48
 // (MatterForceSync).
 func (h *handler) maintenanceReassemble(w http.ResponseWriter, r *http.Request) {
-	if h.reassemble == nil {
+	reassemble := h.reassembleFn()
+	if reassemble == nil {
 		unready(w, r, "Reassembly not available", "the host wires no Options.Reassemble")
 		return
 	}
-	if err := h.reassemble(r.Context()); err != nil {
+	// Run to its end once started, as the exposure apply's rebuild
+	// (UR-P1-conc-39).
+	ctx, cancel := detached(r.Context())
+	defer cancel()
+	if err := reassemble(ctx); err != nil {
 		// A silent success would tell the operator the list is correct
 		// now, which is the one thing they came to check.
 		h.serverError(w, r, "Failed to reassemble the endpoints", err)
@@ -335,9 +345,14 @@ func (h *handler) factoryReset(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r, "Failed to list fabrics", err)
 		return
 	}
+	// Once the first fabric goes, the reset runs to its end: a client
+	// that leaves mid-loop would leave the node paired to some
+	// controllers (UR-P1-err-08).
+	ctx, cancel := detached(r.Context())
+	defer cancel()
 	removed := make([]uint8, 0, len(infos))
 	for _, f := range infos {
-		if err := h.node.removeFabric(r.Context(), f.FabricIndex); err != nil {
+		if err := h.node.removeFabric(ctx, f.FabricIndex); err != nil {
 			// Reported rather than skipped: a partial reset leaves the
 			// node paired to a controller the operator believes removed.
 			h.log.WarnContext(r.Context(), "fabricui.factory_reset.partial",
@@ -366,7 +381,8 @@ func (h *handler) eraseNode(w http.ResponseWriter, r *http.Request) {
 		nodeUnready(w, r)
 		return
 	}
-	if h.erase == nil {
+	erase := h.eraseFn()
+	if erase == nil {
 		writeProblem(w, r, http.StatusNotImplemented, codeNotImplemented, "Erase not available", "the host wires no Erase")
 		return
 	}
@@ -381,7 +397,7 @@ func (h *handler) eraseNode(w http.ResponseWriter, r *http.Request) {
 				`and ends the node; every paired controller has to commission it again`)
 		return
 	}
-	if err := h.erase(r.Context()); err != nil {
+	if err := erase(r.Context()); err != nil {
 		h.serverError(w, r, "Failed to erase the node", err)
 		return
 	}
@@ -576,5 +592,26 @@ func (h *handler) nodeEndpointEvents(w http.ResponseWriter, r *http.Request) {
 		h.writeAPIError(w, r, "", err)
 		return
 	}
+	if ep == endpointWildcard {
+		// 0xFFFF is no endpoint, and go-fabric reads it as "any
+		// endpoint": answered as the contract answers an unknown
+		// endpoint, not with every endpoint's events (UR-P1-adpt-35).
+		writeJSON(w, eventRecords(nil))
+		return
+	}
 	writeJSON(w, eventRecords(h.node.eventLog(node.EventQuery{Endpoint: &ep, MinNumber: s, Limit: l})))
+}
+
+// endpointWildcard is the endpoint number go-fabric's event log reads as
+// any endpoint (im/eventlog.go:443 at v0.22.2).
+const endpointWildcard = 0xFFFF
+
+// detachedTimeout bounds work that outlives its request (detached).
+const detachedTimeout = 2 * time.Minute
+
+// detached is ctx without its cancellation, so the work runs on when the
+// client leaves, bounded by detachedTimeout; its values (the logger's
+// attributes) stay.
+func detached(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), detachedTimeout)
 }

@@ -5,6 +5,8 @@ package gofabric
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/SukramJ/go-fabric/controller/softwareupdate"
@@ -85,6 +87,10 @@ func updateEvent(e *softwareupdate.UpdateEvent) fabricui.ControllerEvent {
 	return out
 }
 
+// Consent records the consent (softwareupdate.Manager.AddUpdateConsent).
+// A vendor or product that differs from the node's
+// (softwareupdate.ErrMismatch) is the request's error, decided before
+// any node is asked: an invalid argument, not the node's failure.
 func (u *updates) Consent(ctx context.Context, nodeID uint64, vendorID, productID uint16, version uint32) error {
 	n, ok := u.s.lookup(nodeID)
 	if !ok {
@@ -92,5 +98,8 @@ func (u *updates) Consent(ctx context.Context, nodeID uint64, vendorID, productI
 	}
 	addr, _ := n.n.PeerAddress()
 	_, err := u.m.AddUpdateConsent(ctx, addr, softwareupdate.Target{VendorID: vendorID, ProductID: productID, TargetSoftwareVersion: version})
+	if errors.Is(err, softwareupdate.ErrMismatch) {
+		return fmt.Errorf("%w: %w", fabricui.ErrInvalidArgument, err)
+	}
 	return nodeError(err)
 }

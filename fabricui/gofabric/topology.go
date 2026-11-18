@@ -67,8 +67,8 @@ func (s *source) watchTopology(svc *topology.Service) {
 }
 
 // closeTopology releases the subscriptions of watchTopology and
-// watchUpdates; Hooks.Close runs it when hooks are bound, a test without
-// hooks calls it. It is idempotent.
+// watchUpdates; Source.Close runs it (through Hooks.Close when hooks are
+// bound). It is idempotent.
 func (s *source) closeTopology() {
 	s.topoMu.Lock()
 	unsubscribe, unobserve := s.unwatch, s.unobserve

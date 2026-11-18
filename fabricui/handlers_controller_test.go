@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -707,5 +708,42 @@ func TestControllerDiagnostics_CapabilityCostsNoSnapshot(t *testing.T) {
 	}
 	if rec := do(t, mux, http.MethodGet, "/controller/diagnostics", ""); rec.Code != http.StatusNotImplemented || src.calls.Load() != 1 {
 		t.Fatalf("diagnostics: status %d, %d snapshots", rec.Code, src.calls.Load())
+	}
+}
+
+// traceSource answers a fixed diagnostic trace, newest first as go-fabric's
+// Controller.DiagnosticEvents does (diagevent/ring.go:210 at v0.22.2).
+type traceSource struct {
+	*MemoryController
+	trace []DiagnosticEvent
+}
+
+func (c *traceSource) DiagnosticEvents() []DiagnosticEvent { return c.trace }
+
+// UR-P1-adpt-30: GET /controller/events serves the port's trace in the
+// port's order, newest first as the contract says, and does not reverse
+// it.
+func TestControllerEvents_ServesThePortsOrderNewestFirst(t *testing.T) {
+	src := &traceSource{MemoryController: NewMemoryController(), trace: []DiagnosticEvent{
+		{At: memoryTime, Kind: "session", Severity: "info", Message: "newest"},
+		{At: memoryTime.Add(-time.Minute), Kind: "session", Severity: "info", Message: "middle"},
+		{At: memoryTime.Add(-2 * time.Minute), Kind: "session", Severity: "info", Message: "oldest"},
+	}}
+	_, mux := newTestHandler(t, testOptions{noNode: true, controller: src})
+	rec := do(t, mux, http.MethodGet, "/controller/events", "")
+	var body struct {
+		Events []struct {
+			Message string `json:"message"`
+		} `json:"events"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("%d %s: %v", rec.Code, rec.Body, err)
+	}
+	got := make([]string, 0, len(body.Events))
+	for _, e := range body.Events {
+		got = append(got, e.Message)
+	}
+	if want := []string{"newest", "middle", "oldest"}; !slices.Equal(got, want) {
+		t.Fatalf("served %v, want %v", got, want)
 	}
 }
