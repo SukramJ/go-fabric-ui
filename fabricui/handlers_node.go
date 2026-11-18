@@ -198,6 +198,10 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	if fabrics, err := h.node.fabrics(r.Context()); err == nil {
 		res.FabricCount = len(fabrics)
+	} else {
+		// fabric_count then says 0 where the truth is unknown; the log
+		// says why (UR-P1-err-07).
+		h.log.WarnContext(r.Context(), "fabricui.status.fabrics_failed", slog.String("error", err.Error()))
 	}
 	if h.exposure != nil {
 		if items, err := h.exposure.List(r.Context()); err == nil {

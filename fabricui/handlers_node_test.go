@@ -517,3 +517,21 @@ func TestFactoryReset_OutlivesTheRequest(t *testing.T) {
 		t.Fatalf("removed %v, want every fabric", n.removed)
 	}
 }
+
+// UR-P1-err-07, UR-P1-err-36 (the no-contract parts): a fabric read that
+// fails is logged at warn, not swallowed, on the status and the
+// compatibility report.
+func TestFailedFabricReadIsLogged(t *testing.T) {
+	for _, path := range []string{"/node/status", "/node/compatibility"} {
+		n := sampleNode()
+		n.fabricsErr = errors.New("store: closed")
+		var log bytes.Buffer
+		_, mux := newTestHandler(t, testOptions{node: n, log: &log})
+		if rec := do(t, mux, http.MethodGet, path, ""); rec.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", path, rec.Code, rec.Body)
+		}
+		if !strings.Contains(log.String(), "level=WARN") || !strings.Contains(log.String(), "store: closed") {
+			t.Fatalf("%s: the failed fabric read is not logged at warn:\n%s", path, log.String())
+		}
+	}
+}
