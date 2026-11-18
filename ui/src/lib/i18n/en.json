@@ -157,6 +157,8 @@
   "controller.fabrics.removed": "The fabric is removed.",
   "controller.icd.awake": "Awake",
   "controller.icd.forget": "Forget without the node",
+  "controller.icd.forget_confirm": "Forget the registration without the node?",
+  "controller.icd.forget_confirm_body": "The node is not told: it keeps checking in with a client that no longer listens until its registration is removed on the node.",
   "controller.icd.last_check_in": "Last check-in",
   "controller.icd.lit_supported": "Supports LIT",
   "controller.icd.mode.lit": "LIT",

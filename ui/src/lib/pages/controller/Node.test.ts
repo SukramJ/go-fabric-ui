@@ -379,3 +379,13 @@ describe("Controller Node — the updates tab (UR-P1-ui-167)", () => {
     expect(screen.queryByText("controller.updates.queue_empty")).toBeNull();
   });
 });
+
+describe("Controller Node — forgetting an ICD registration (UR-P1-ui-176)", () => {
+  it("asks first, and sends nothing when the answer is no", async () => {
+    const ui = renderNode(S, "icd", ["controller-node-icd.200", "controller-node-icd-unregister.200"], { confirm: false });
+    await screen.findByTestId("node-icd");
+    await fireEvent.click(screen.getByText("controller.icd.forget"));
+    await waitFor(() => expect(ui.confirmSpy).toHaveBeenCalledWith(expect.objectContaining({ destructive: true, title: "controller.icd.forget_confirm" })));
+    expect(ui.sent.some((s) => s.method === "POST" && s.path.endsWith("/icd/unregister"))).toBe(false);
+  });
+});

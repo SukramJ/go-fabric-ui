@@ -49,6 +49,17 @@
   }
 
   async function unregister(force: boolean) {
+    // Forgetting does not tell the node, which keeps a check-in
+    // registration for a client that no longer listens: it asks first.
+    if (force) {
+      const ok = await confirm({
+        title: t("controller.icd.forget_confirm"),
+        body: t("controller.icd.forget_confirm_body"),
+        destructive: true,
+        confirmLabel: t("controller.icd.forget"),
+      });
+      if (!ok) return;
+    }
     busy = true;
     try {
       icd = await client.unregisterNodeIcd(nodeId, force);

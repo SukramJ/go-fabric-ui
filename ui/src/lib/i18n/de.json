@@ -157,6 +157,8 @@
   "controller.fabrics.removed": "Die Fabric ist entfernt.",
   "controller.icd.awake": "Wach",
   "controller.icd.forget": "Ohne den Knoten vergessen",
+  "controller.icd.forget_confirm": "Registrierung ohne den Knoten vergessen?",
+  "controller.icd.forget_confirm_body": "Der Knoten erfährt davon nichts: Er meldet sich weiter bei einem Client, der nicht mehr zuhört, bis die Registrierung auf dem Knoten entfernt ist.",
   "controller.icd.last_check_in": "Letzter Check-in",
   "controller.icd.lit_supported": "Unterstützt LIT",
   "controller.icd.mode.lit": "LIT",
