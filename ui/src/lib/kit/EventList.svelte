@@ -4,7 +4,7 @@
      routes answer oldest first; the list turns them round. Written for
      both families (the node's endpoint page, the controller's events tab). -->
 <script lang="ts">
-  import { cn } from "./utils";
+  import { cn, formatJson } from "./utils";
   import type { EventRecord } from "../api/client";
   import { useT } from "../context";
   import Badge from "./Badge.svelte";
@@ -18,7 +18,7 @@
   const newestFirst = $derived([...events].reverse());
   const variant = (p: EventRecord["priority"]) => (p === "critical" ? "danger" : p === "info" ? "default" : "muted");
   const time = (ms: number) => formatDate(t, ms);
-  const format = (v: unknown) => JSON.stringify(v, null, 2);
+  const format = (v: unknown) => formatJson(v);
 </script>
 
 {#if events.length === 0}
