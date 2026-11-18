@@ -16,6 +16,22 @@ All notable changes to this project are documented here. The format follows
   only, which is the Ingress parent. See `docs/embedding.md`, "Response
   headers and framing".
 
+- The client keeps 64-bit integers in generic values exactly
+  (UR-P1-ctr-101): `value`, `data` and `response` of the controller's
+  attribute, event and command answers and of `cluster_event` are parsed
+  losslessly, an edited value is sent as typed, and a number outside the
+  safe range is refused. New exports of `./client`: `JsonText`,
+  `isRawJson`, `jsonText`, `parseJson`, `stringifyJson`.
+- A host's `subscribe(onEvent, onResync?)` may take a second argument,
+  called after a reconnect so the page reloads what it missed; the stores
+  add `disconnect()` and `resync()` (UR-P1-conc-102).
+- Status text tokens `--fui-{primary,error,warning,success,info}-text`,
+  at least 4.5:1 on the card and on a badge's tint; under the HA skin
+  they mix the host's colour, and `--fui-<status>-text-color` sets one
+  exactly (UR-P1-ui-172, decision 31).
+- Catalogue key `common.locale`: the BCP 47 tag dates are formatted with;
+  a host that adds a language sets it (UR-P1-ui-182).
+
 ### Fixed
 
 - `theme/tokens.css` applies inside a shadow root (#72): each selector
@@ -37,6 +53,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The kit's search takes its text literally; `|` separates alternatives.
+  It no longer runs the term as a regular expression (UR-P1-ui-142,
+  decision 32).
+- The node and controller streams are open only while a page of their
+  family is shown, closed while the tab is hidden and reopened with a
+  reload; a failed stream reopens with a backoff (UR-P1-bound-103,
+  decision 29).
+- Tab strips made of links are a `nav` with `aria-current`; button strips
+  keep `role="tab"` with arrow keys (UR-P1-ui-138). A confirmation's
+  button is armed 500 ms after its question appears (UR-P1-ui-104).
+- The Pair page says when the open window was opened elsewhere and its
+  codes may not apply (UR-P1-err-04, decision 28); admin controls are
+  hidden from non-admins on Pair, Fabrics, Selection and Operation
+  (UR-P1-ui-133).
 - `make licenses` fails on a Go dependency whose licence go-licenses
   cannot classify (`unknown` is disallowed); the ones read by hand are
   listed in `LICENSES_CHECKED` with their licence and where it was read —
