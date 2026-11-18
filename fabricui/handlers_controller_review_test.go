@@ -110,8 +110,10 @@ func TestGetNodeACL_UnknownPrivilegeOrAuthModeIs502(t *testing.T) {
 		`[{"privilege":6,"authMode":2,"subjects":[32],"targets":null,"fabricIndex":1}]`,
 		`[{"privilege":5,"authMode":4,"subjects":[32],"targets":null,"fabricIndex":1}]`,
 	} {
-		src := &rawSource{MemoryController: NewMemoryController(),
-			raw: map[AttributePath]json.RawMessage{{Endpoint: 0, Cluster: clusterAccessControl, Attribute: attributeACL}: json.RawMessage(entry)}}
+		src := &rawSource{
+			MemoryController: NewMemoryController(),
+			raw:              map[AttributePath]json.RawMessage{{Endpoint: 0, Cluster: clusterAccessControl, Attribute: attributeACL}: json.RawMessage(entry)},
+		}
 		_, mux := newTestHandler(t, testOptions{noNode: true, controller: src})
 		r := do(t, mux, http.MethodGet, "/controller/nodes/0000000000000011/acl", "")
 		if r.Code != http.StatusBadGateway {
