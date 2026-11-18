@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/SukramJ/go-fabric/node"
@@ -24,10 +25,13 @@ const (
 )
 
 // ephemeralWindow is a window this handler opened on fresh credentials.
+// openedAt is the node's OpenedAt for it, read right after the open; zero
+// when the node reported no basic window then.
 type ephemeralWindow struct {
-	creds  node.WindowCredentials
-	qr     string
-	manual string
+	creds    node.WindowCredentials
+	qr       string
+	manual   string
+	openedAt time.Time
 }
 
 // pairingResponse is the body of GET /node/pairing: the codes with the
@@ -89,11 +93,9 @@ func (h *handler) pairing(w http.ResponseWriter, r *http.Request) {
 }
 
 // activeEphemeral returns the window this handler opened while the node
-// still serves it — a basic window (node.WindowBasic) on its
-// discriminator whose deadline has not passed on the node's clock — and
-// forgets it otherwise: a window the node closed meanwhile (commissioned,
-// timed out, revoked over the wire) is no longer the one GET /node/pairing
-// serves.
+// still serves it (servesEphemeral) and forgets it otherwise: a window the
+// node closed meanwhile (commissioned, timed out, revoked over the wire)
+// is no longer the one GET /node/pairing serves.
 func (h *handler) activeEphemeral(win node.WindowSnapshot) *ephemeralWindow {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -101,12 +103,31 @@ func (h *handler) activeEphemeral(win node.WindowSnapshot) *ephemeralWindow {
 	if eph == nil {
 		return nil
 	}
-	if !win.Open || win.Kind != node.WindowBasic || win.Discriminator != eph.creds.Discriminator ||
-		(!win.Deadline.IsZero() && !h.node.now().Before(win.Deadline)) {
+	if !h.servesEphemeral(win, eph) {
 		h.ephemeral = nil
 		return nil
 	}
 	return eph
+}
+
+// servesEphemeral reports whether win is the window eph names: a basic
+// window (node.WindowBasic) opened when eph was, on its discriminator,
+// whose deadline has not passed on the node's clock. The window is told
+// by its OpenedAt: the snapshot's discriminator is that of the record the
+// node published, 0 while the publish failed (UR-P2-err-02), so it decides
+// only when the snapshot names one.
+func (h *handler) servesEphemeral(win node.WindowSnapshot, eph *ephemeralWindow) bool {
+	switch {
+	case !win.Open, win.Kind != node.WindowBasic:
+		return false
+	case !eph.openedAt.IsZero() && !win.OpenedAt.Equal(eph.openedAt):
+		return false
+	case win.Discriminator != 0 && win.Discriminator != eph.creds.Discriminator:
+		return false
+	case !win.Deadline.IsZero() && !h.node.now().Before(win.Deadline):
+		return false
+	}
+	return true
 }
 
 // windowRequest is the body of POST /node/pairing/window.
@@ -159,6 +180,11 @@ func (h *handler) openWindow(w http.ResponseWriter, r *http.Request) {
 		unready(w, r, title, "the node exposes no endpoint yet; retry once the host has assembled its endpoints")
 		return
 	}
+	// openMu holds from the check to the stored credentials: a second
+	// open finds the first one's window open, 409, instead of replacing
+	// it with codes of its own (UR-P2-conc-07).
+	h.openMu.Lock()
+	defer h.openMu.Unlock()
 	if h.node.window().Open {
 		writeProblem(w, r, http.StatusConflict, codeConflict, title, "a commissioning window is already open")
 		return
@@ -230,9 +256,14 @@ func (h *handler) openFresh(r *http.Request, timeout time.Duration) (windowRespo
 	if err := h.node.openBasicWindow(r.Context(), creds); err != nil {
 		return windowResponse{}, err
 	}
+	eph := &ephemeralWindow{creds: creds, qr: qr, manual: manual}
+	if win := h.node.window(); win.Open && win.Kind == node.WindowBasic {
+		eph.openedAt = win.OpenedAt
+	}
 	h.mu.Lock()
-	h.ephemeral = &ephemeralWindow{creds: creds, qr: qr, manual: manual}
+	h.ephemeral = eph
 	h.mu.Unlock()
+	h.forgetOnClose(eph)
 	pc, disc := creds.Passcode, creds.Discriminator
 	return windowResponse{Discriminator: &disc, Passcode: &pc, QRCode: qr, ManualCode: manual}, nil
 }
@@ -282,4 +313,47 @@ func (h *handler) forgetEphemeralIf(prev *ephemeralWindow) {
 		h.ephemeral = nil
 	}
 	h.mu.Unlock()
+}
+
+// forgetOnClose drops eph's credentials on the node's transition that ends
+// the window — closed, commissioned, timed out, replaced — instead of
+// holding them until the next GET /node/pairing (UR-P2-leak-08). The
+// observer unregisters itself once eph is gone, off the node's goroutine.
+func (h *handler) forgetOnClose(eph *ephemeralWindow) {
+	var mu sync.Mutex
+	var unobserve func()
+	ended := false
+	end := func() {
+		mu.Lock()
+		u := unobserve
+		first := !ended
+		ended = true
+		mu.Unlock()
+		if first && u != nil {
+			go u()
+		}
+	}
+	u := h.node.observe(node.Observers{OnWindowTransition: func(w node.WindowSnapshot) {
+		h.mu.Lock()
+		gone := h.ephemeral != eph
+		if !gone && !h.servesEphemeral(w, eph) {
+			h.ephemeral, gone = nil, true
+		}
+		h.mu.Unlock()
+		if gone {
+			end()
+		}
+	}})
+	mu.Lock()
+	unobserve = u
+	done := ended
+	mu.Unlock()
+	if done {
+		u()
+		return
+	}
+	// A window that ended before the observer was registered.
+	if h.activeEphemeral(h.node.window()) != eph {
+		end()
+	}
 }
