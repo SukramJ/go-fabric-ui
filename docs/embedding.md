@@ -72,6 +72,13 @@ status (a health verdict, a fabric, a window, an endpoint change) reloads
 the counters with it, as it does the warnings — a counter alone sends no
 event.
 
+`GET /node/status` is not an admin route and the page polls it, so any
+client that reaches the listener calls four host ports per request, on
+the request's goroutine: `Warnings`, `Counters`, the node's
+`FabricInfos` and the exposure provider's `List` (to count the enabled
+items). Nothing bounds the rate; keep them cheap — answers from memory,
+no network round trip, no store scan.
+
 The node's transitions need no wiring: each open stream registers an
 observer with `Node.Observe` and removes it when the connection closes, so
 a handler built after `Node.Start` reports a controller commissioning the
@@ -92,6 +99,18 @@ events over a channel of its own registers them with
 `fabricui.ObserveNode(n, push)` — `NodeObservers` through `Node.Observe`
 plus the two callbacks `node.Observers` does not hold; publishing them
 into `Options.Events` instead would hand every stream each one twice.
+
+The streams are long requests: `http.Server.Shutdown` does not cancel a
+running request, so an open page holds the host's shutdown for its whole
+budget, and the stream's observers outlive it while the host stops its
+node. A handler stream ends when its request's context does, so the host
+serves with a base context it cancels when the shutdown begins:
+
+```go
+base, stopStreams := context.WithCancel(context.Background())
+srv := &http.Server{Handler: mux, BaseContext: func(net.Listener) context.Context { return base }}
+srv.RegisterOnShutdown(stopStreams)
+```
 
 Everything the handlers read is on the node facade: the window from
 `Node.Window` (its kind, discriminator and deadline on the node's clock),

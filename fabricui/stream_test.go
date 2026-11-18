@@ -144,3 +144,33 @@ func TestStream_StalledReaderIsReaped(t *testing.T) {
 	}
 	waitFor(t, func() bool { return subsOf(ev) == 0 })
 }
+
+// The shutdown pattern docs/embedding.md gives the hosts: a base context
+// cancelled in RegisterOnShutdown ends the open streams, so Shutdown does
+// not wait its budget for them and their subscriptions go
+// (UR-P2-conc-34).
+func TestStream_EndsOnTheHostsShutdown(t *testing.T) {
+	ev := NewEvents()
+	_, mux := newTestHandler(t, testOptions{events: ev})
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, stopStreams := context.WithCancel(context.Background())
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, BaseContext: func(net.Listener) context.Context { return base }}
+	srv.RegisterOnShutdown(stopStreams)
+	go func() { _ = srv.Serve(ln) }()
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+ln.Addr().String()+DefaultPrefix+"/node/stream", http.NoBody)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	waitFor(t, func() bool { return subsOf(ev) == 1 })
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		t.Fatalf("Shutdown with an open stream: %v", err)
+	}
+	waitFor(t, func() bool { return subsOf(ev) == 0 })
+}
