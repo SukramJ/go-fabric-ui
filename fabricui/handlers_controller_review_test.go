@@ -4,9 +4,11 @@
 package fabricui
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -230,5 +232,34 @@ func TestCommission_LongDiscriminatorOutOfRangeIs400(t *testing.T) {
 		if r := do(t, mux, http.MethodPost, "/controller/commission", body); r.Code != http.StatusBadRequest {
 			t.Fatalf("long_discriminator %s: %d %s, want 400", v, r.Code, r.Body)
 		}
+	}
+}
+
+// cancelNode answers every read with context.Canceled, as the adapter
+// passes a cancelled request's error through.
+type cancelNode struct{ ControllerNode }
+
+func (cancelNode) Read(context.Context, []AttributePath, bool) ([]AttributeValue, error) {
+	return nil, context.Canceled
+}
+
+type cancelSource struct{ *MemoryController }
+
+func (s cancelSource) Node(id uint64) (ControllerNode, bool) {
+	n, ok := s.MemoryController.Node(id)
+	return cancelNode{n}, ok
+}
+
+// UR-P1-err-12: a request its client abandoned is no server error: it is
+// not logged at error level.
+func TestController_AbandonedRequestIsNotLoggedAsError(t *testing.T) {
+	var log bytes.Buffer
+	_, mux := newTestHandler(t, testOptions{noNode: true, controller: cancelSource{NewMemoryController()}, log: &log})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "http://x"+DefaultPrefix+"/controller/nodes/0000000000000011/acl", http.NoBody)
+	mux.ServeHTTP(httptest.NewRecorder(), req)
+	if strings.Contains(log.String(), "level=ERROR") {
+		t.Fatalf("an abandoned request logged at error level:\n%s", log.String())
 	}
 }
