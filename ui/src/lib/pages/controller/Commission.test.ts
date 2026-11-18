@@ -215,3 +215,38 @@ describe("Commission — a failed pairing of a discovered device (UR-P1-ui-170)"
     expect(screen.getByText("Plug")).toBeInTheDocument();
   });
 });
+
+describe("Commission — codes held past their use (UR-P2-leak-08)", () => {
+  it("drops the code held for a terms retry when the terms block is closed", async () => {
+    const ff = fixtureFetch(["controller-commission.409-terms-required", "controller-nodes.200"]);
+    const ui = testUI({ client: createClient("/api/v1", ff.fetch) });
+    render(Harness, { ui, page: Commission });
+    await fireEvent.input(screen.getByLabelText("controller.commission.code"), { target: { value: "34970112332" } });
+    await fireEvent.click(screen.getByText("controller.commission.start"));
+    await screen.findByTestId("commission-terms-retry");
+    const block = screen.getByTestId("commission-terms") as HTMLDetailsElement;
+    block.open = false;
+    await fireEvent(block, new Event("toggle"));
+    block.open = true;
+    await fireEvent(block, new Event("toggle"));
+    await waitFor(() => expect(screen.queryByTestId("commission-terms-retry")).toBeNull());
+  });
+
+  it("drops the passcode typed for a device a new search no longer lists", async () => {
+    const ff = fixtureFetch([]);
+    const found = fixture("controller-discovery.200").response;
+    ff.routes.set("GET /api/v1/controller/discovery?timeout=5", { route: "", request: { method: "GET", path: "" }, response: found });
+    const ui = testUI({ client: createClient("/api/v1", ff.fetch) });
+    render(Harness, { ui, page: Commission });
+    await fireEvent.click(screen.getByText("controller.commission.search"));
+    expect(await screen.findByText("Plug")).toBeInTheDocument();
+    await fireEvent.input(screen.getByLabelText("controller.commission.passcode"), { target: { value: "20202021" } });
+    ff.routes.set("GET /api/v1/controller/discovery?timeout=5", { route: "", request: { method: "GET", path: "" }, response: { status: 200, body: { devices: [] } } });
+    await fireEvent.click(screen.getByText("controller.commission.search"));
+    await waitFor(() => expect(screen.queryByText("Plug")).toBeNull());
+    ff.routes.set("GET /api/v1/controller/discovery?timeout=5", { route: "", request: { method: "GET", path: "" }, response: found });
+    await fireEvent.click(screen.getByText("controller.commission.search"));
+    expect(await screen.findByText("Plug")).toBeInTheDocument();
+    expect((screen.getByLabelText("controller.commission.passcode") as HTMLInputElement).value).toBe("");
+  });
+});

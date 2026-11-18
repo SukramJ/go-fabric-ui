@@ -390,7 +390,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         }
         stopCountdown();
         flowGen++;
-        commissioning = { ...commissioning, phase: "success", addedFabricLabel: ev.data.label || ev.data.vendor_name || null };
+        // The codes are done with: the success shows none (UR-P2-leak-08).
+        commissioning = { ...commissioning, phase: "success", window: null, remaining: null, addedFabricLabel: ev.data.label || ev.data.vendor_name || null };
         void loadFabrics();
         void loadStatus();
         break;

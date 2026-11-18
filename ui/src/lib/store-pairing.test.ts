@@ -158,3 +158,12 @@ describe("UR-P2-conc-04: an erase under an open Pair flow", () => {
   });
 });
 
+describe("UR-P2-leak-08: the codes leave the store with their window", () => {
+  it("a fabric added ends the flow without the window's codes", async () => {
+    const h = harness({ pairing: failed });
+    h.set(basic());
+    await h.store.openWindow(300);
+    h.store.applyEvent({ type: "fabric_added", data: { fabric_index: 2, label: "Home" } } as never);
+    expect(h.store.commissioning).toMatchObject({ phase: "success", window: null, addedFabricLabel: "Home" });
+  });
+});
