@@ -77,3 +77,22 @@ gate is a contract change and lands in phase 3's pull request (decision 13).
 | 34 | Decision 8, class A-b: `status.config.store` and the text of the host's warnings | **Withheld from a non-admin**: the status leaves out `config.store` and gives each warning's kind only. Phase 3 |
 | 35 | Decision 8, classes B, F, H, J, D and K: fabrics and sessions, the exposure item list, the controller inventory, diagnostics and topology, the node and controller traces | **Gated, everything but the status** (the recommendation was open and documented, the traces with decision 20): a non-admin keeps the node status, the node list and the operation info; the read-only page shows little else. Phase 3, with rows 19, 20 and 33 |
 | 36 | UR-P2-web-91: every unknown path is answered with the index, whose relative asset paths then fail | **404 for an unknown path**: only the prefix root serves the index (the page routes by hash); a `changelog.md` line for the hosts, `docs/embedding.md` drops "every deep path". In phase 2 |
+
+## 2026-11-18, before phase 3
+
+Put as one wizard of eight questions in three steps, the recommendation
+first; the owner took every recommendation. The inventory of what phase 3
+carries is `notes/reads/read-review-p3-carryover.md` (46 rows). The two
+held rows are named by ID only until their fix merges (decisions 5, 14,
+18); the shape of their fix is in the review worktree's `held/`.
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 37 | The held row UR-P0-auth-20, the verifier's observation next to it and one held finding of phase 2 | **The recommended shape**, in phase 3's pull request: one check for every mode and every route, a new `Options` field, a new 403. Held until then |
+| 38 | The held row UR-P0-web-21 and two held findings of phase 2 | **The recommended shape**, in phase 3's pull request: three handler-side checks, a new 415 and a new 403, a request header a host's own client must send. Held until then |
+| 39 | Order of phase 3's two jobs | **Reviews first, then one fix wave**: the four review units and the verifier read `f4b8573`; one fix wave (at most two agents) then implements the carried rows and the new findings together, with one contract bump |
+| 40 | Decision 8, classes C and E and M (not named by decision 35) | **C and E gated, M open**: the node's endpoints, attribute values, surface and mDNS become `x-admin` (decision 33's endpoint-0 rule is subsumed); `window_opened` stays readable |
+| 41 | The streams under decisions 20, 33–35 and 40 | **The node stream filtered, the controller stream gated**: a non-admin receives on the node stream only the event types of the classes it may read (status, `nodes_changed`, `window_opened`); host events from `Options.Events` are admin-only; the controller stream and the log stream are `x-admin`. One allow-list of event types per class, held by a guard test |
+| 42 | UR-P0-bound-29 | **A per-handler cap on open streams**, answered 503 with `Retry-After`, the cap an `Options` field with a default |
+| 43 | UR-P0-ctr-28, UR-P1-ctr-17, -ctr-13, -err-33, -err-36, -adpt-35, -ctr-32 | **All land**: strict bodies everywhere (unknown fields and trailing data are 400; factory reset and erase stop discarding the decode error); 405 with `Allow`; an unknown fabric index 404 on the node route (the controller route after go-fabric exports the error); compatibility 500 on a store error; endpoint `maximum: 65534`; `unknown` in the ACL enums |
+| 44 | Additive fields | **All four groups land**: the pairing window's own/other answer (decision 28, UR-P2-ui-05) and the seconds left (UR-P2-ui-06); 64-bit values as strings (UR-P1-ctr-113, -177, UR-P2-ctr-64) and a hex pattern on `NodeID` (UR-P1-web-115); `admin` on the controller status (UR-P1-ui-133, -196), `auto_subscribe` (UR-P1-ctr-168), a commissioning id on progress events (UR-P1-api-18); `fabric_count` absent on a failed read (UR-P1-err-07), a per-endpoint status on bindings (UR-P1-bound-37), a failed rebuild on exposure apply (UR-P2-ui-35) |
