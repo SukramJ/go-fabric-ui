@@ -187,6 +187,9 @@
       return;
     }
     await commission({ discovered: { instance_name: d.instance_name, long_discriminator: d.long_discriminator }, passcode: pin });
+    // Only a commissioned device leaves the list: after a failure (a wrong
+    // passcode, a timeout, terms required) it stays for the retry.
+    if (!result) return;
     passcodes = { ...passcodes, [d.instance_name]: "" };
     devices = devices.filter((x) => x.instance_name !== d.instance_name);
   }
