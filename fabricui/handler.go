@@ -188,7 +188,12 @@ func nodeEntries(o *Options) ([]nodeEntry, error) {
 // beside it: the host's *Events itself, else a hub of the handler's own
 // and src.
 func hubOf(src EventSource) (hub *Events, extra EventSource) {
-	if ev, ok := src.(*Events); ok && ev != nil {
+	if ev, ok := src.(*Events); ok {
+		if ev == nil {
+			// A typed-nil *Events is no source: as extra it would pass an
+			// interface nil check and panic on Subscribe (UR-P1-err-03).
+			return NewEvents(), nil
+		}
 		return ev, nil
 	}
 	return NewEvents(), src
@@ -340,17 +345,19 @@ func (h *handler) register(mux *http.ServeMux) {
 // error. A pattern the host registers under the prefix after the mount is
 // more specific than prefix + "/" and shadows the API's route.
 func (h *handler) mount(mux *http.ServeMux) (err error) {
+	// The API's own mux is built inside the recovered section too: a
+	// pattern it refuses is an error of Mount, not a panic (UR-P1-api-02).
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("fabricui: mount: %v; nothing was registered", r)
+		}
+	}()
 	api, patterns := h.routes()
 	for _, p := range patterns {
 		if q := servedPattern(mux, p); q != "" && h.underPrefix(q) {
 			return fmt.Errorf("fabricui: mount: the mux already serves %q for the API route %q; nothing was registered", q, p)
 		}
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("fabricui: mount: %v; nothing was registered", r)
-		}
-	}()
 	mux.Handle(h.prefix+"/", apiHeaders(api))
 	return nil
 }

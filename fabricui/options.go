@@ -8,8 +8,10 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"path"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/SukramJ/go-fabric/clock"
 	"github.com/SukramJ/go-fabric/node"
@@ -339,9 +341,15 @@ func Handler(o Options) http.Handler {
 	return mux
 }
 
+// validPrefix accepts a clean absolute path without a trailing slash,
+// pattern characters, escapes, white space or control characters: what
+// the mux registers as given and a request can reach (UR-P1-api-02).
 func validPrefix(p string) error {
-	if !strings.HasPrefix(p, "/") || strings.HasSuffix(p, "/") || strings.ContainsAny(p, " {}") {
-		return errors.New("fabricui: Options.Prefix must start with \"/\", not end with one, and hold no pattern characters")
+	if !strings.HasPrefix(p, "/") || strings.HasSuffix(p, "/") || path.Clean(p) != p ||
+		strings.ContainsFunc(p, func(r rune) bool {
+			return r == '{' || r == '}' || r == '%' || unicode.IsSpace(r) || unicode.IsControl(r)
+		}) {
+		return errors.New("fabricui: Options.Prefix must be a clean path that starts with \"/\", does not end with one, and holds no pattern characters, escapes or white space")
 	}
 	return nil
 }
