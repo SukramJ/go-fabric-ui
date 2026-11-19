@@ -654,7 +654,8 @@ const labelPushTimeout = 2 * time.Minute
 func (s *source) SetFabricLabel(_ context.Context, label string) error {
 	f := s.ctrl.Fabric()
 	if f == nil {
-		return fmt.Errorf("%w: the controller has no fabric", fabricui.ErrNodeFailed)
+		// The controller's state, not a node's failure: 500 (UR-P4-test-33).
+		return errors.New("the controller has no fabric")
 	}
 	// The fabric's label and the label the worker pushes change together:
 	// a push of an older label sets the fabric's label back to it
@@ -755,7 +756,7 @@ func (s *source) SoftwareUpdates() fabricui.SoftwareUpdateSource {
 	if m == nil {
 		return nil
 	}
-	return &updates{s: s, m: m}
+	return newUpdates(s, m)
 }
 
 func (s *source) Observe(fn func(fabricui.ControllerEvent)) (unsubscribe func()) {

@@ -21,6 +21,33 @@ import (
 type updates struct {
 	s *source
 	m *softwareupdate.Manager
+	// query is the manager's QueryUpdates over every node (all) or one;
+	// nodes the ids of the commissioned nodes. Test seams.
+	query func(ctx context.Context, only uint64, all bool) ([]softwareupdate.PeerUpdate, error)
+	nodes func() []uint64
+}
+
+func newUpdates(s *source, m *softwareupdate.Manager) *updates {
+	u := &updates{s: s, m: m}
+	u.query = func(ctx context.Context, only uint64, all bool) ([]softwareupdate.PeerUpdate, error) {
+		if all {
+			return m.QueryUpdates(ctx, nil, true)
+		}
+		n, ok := s.lookup(only)
+		if !ok {
+			return nil, nil
+		}
+		return m.QueryUpdates(ctx, n.n, true)
+	}
+	u.nodes = func() []uint64 {
+		nodes := s.Nodes()
+		ids := make([]uint64, 0, len(nodes))
+		for _, n := range nodes {
+			ids = append(ids, n.ID())
+		}
+		return ids
+	}
+	return u
 }
 
 func (u *updates) Queue() []fabricui.PendingUpdate {
@@ -42,11 +69,49 @@ func (u *updates) Queue() []fabricui.PendingUpdate {
 	return out
 }
 
+// Check is QueryUpdates over every node. go-fabric passes over a
+// product whose check failed and returns the updates of the others with
+// the joined error, which names no node (softwareupdate.Manager.
+// QueryUpdates). So on an error every node without an update found is
+// checked again on its own: a node whose own check fails is one of the
+// fabricui.UpdateCheckFailures, and the updates found are returned with
+// them (contract 0.11.0, decision 70). Each check of one node ends with
+// its own check_finished event.
 func (u *updates) Check(ctx context.Context) ([]fabricui.AvailableUpdate, error) {
-	found, err := u.m.QueryUpdates(ctx, nil, true)
-	if err != nil {
-		return nil, nodeError(err)
+	found, err := u.query(ctx, 0, true)
+	if err == nil {
+		return availableOf(found), nil
 	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	have := map[uint64]bool{}
+	for _, f := range found {
+		have[f.Peer.NodeID] = true
+	}
+	var failed fabricui.UpdateCheckFailures
+	for _, id := range u.nodes() {
+		if have[id] {
+			continue
+		}
+		one, err := u.query(ctx, id, false)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if err != nil {
+			failed = append(failed, fabricui.UpdateCheckFailure{NodeID: id, Err: err})
+			continue
+		}
+		found = append(found, one...)
+	}
+	if len(failed) == 0 {
+		// Every failure was passing: each node's own check succeeded.
+		return availableOf(found), nil
+	}
+	return availableOf(found), failed
+}
+
+func availableOf(found []softwareupdate.PeerUpdate) []fabricui.AvailableUpdate {
 	out := make([]fabricui.AvailableUpdate, 0, len(found))
 	for _, f := range found {
 		out = append(out, fabricui.AvailableUpdate{
@@ -54,7 +119,7 @@ func (u *updates) Check(ctx context.Context) ([]fabricui.AvailableUpdate, error)
 			SoftwareVersion: f.Info.SoftwareVersion, SoftwareVersionString: f.Info.SoftwareVersionString,
 		})
 	}
-	return out, nil
+	return out
 }
 
 // watchUpdates subscribes the source to the update manager's events
@@ -101,5 +166,7 @@ func (u *updates) Consent(ctx context.Context, nodeID uint64, vendorID, productI
 	if errors.Is(err, softwareupdate.ErrMismatch) {
 		return fmt.Errorf("%w: %w", fabricui.ErrInvalidArgument, err)
 	}
-	return nodeError(err)
+	// Any other refusal is the manager's (500, as the route declares),
+	// never a node's 502 or 409 (UR-P4-test-33).
+	return err
 }

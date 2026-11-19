@@ -1721,10 +1721,22 @@ func (s *controllerServer) CheckUpdates(ctx context.Context, _ api.CheckUpdatesR
 		return nil, err
 	}
 	list, err := u.Check(ctx)
-	if err != nil {
-		return nil, err
+	failures, partial := errors.AsType[UpdateCheckFailures](err)
+	if err != nil && !partial {
+		// A check that failed as a whole is the controller's failure
+		// (500): no node's, since a node's is listed in errors.
+		return nil, fmt.Errorf("update check: %v", err) //nolint:errorlint // no port kind: 500, never a node's 502
 	}
 	out := api.CheckUpdates200JSONResponse{Updates: []api.AvailableUpdate{}}
+	// A node whose check failed does not fail the others' (contract
+	// 0.11.0, decision 70): its error is listed beside the updates.
+	if len(failures) > 0 {
+		errs := make([]api.UpdateCheckError, 0, len(failures))
+		for _, f := range failures {
+			errs = append(errs, api.UpdateCheckError{NodeIDHex: hex16(f.NodeID), Error: f.Err.Error()})
+		}
+		out.Errors = &errs
+	}
 	for _, a := range list {
 		out.Updates = append(out.Updates, api.AvailableUpdate{
 			NodeIDHex: hex16(a.NodeID), VendorID: int(a.VendorID), ProductID: int(a.ProductID),

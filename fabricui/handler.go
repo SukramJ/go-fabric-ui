@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/SukramJ/go-fabric/node"
+
+	"github.com/SukramJ/go-fabric-ui/internal/statusobs"
 )
 
 // TokenHeader carries the admin token in token mode (a nil
@@ -433,22 +435,18 @@ func apiHeaders(next http.Handler) http.Handler {
 		hdr := w.Header()
 		hdr.Set("Cache-Control", "no-store")
 		setCommonHeaders(hdr)
-		if observeStatus == nil {
+		observe := statusobs.Observe
+		if observe == nil {
 			next.ServeHTTP(w, r)
 			return
 		}
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(sw, r)
 		if !sw.pathLevel {
-			observeStatus(r.Method, r.URL.Path, sw.status)
+			observe(r.Method, r.URL.Path, sw.status)
 		}
 	})
 }
-
-// observeStatus, set by the package's tests only, sees every status the
-// API answers: the guard that each is declared for its operation in the
-// contract (decision 47, TestMain).
-var observeStatus func(method, path string, status int)
 
 // statusWriter records the status written through it.
 type statusWriter struct {
