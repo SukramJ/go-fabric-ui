@@ -27,8 +27,8 @@ import (
 // per-node form) a handler serves while the switch is its Options.Node or
 // a NodeEntry.Source: a stream's observers were
 // registered on the node it was opened on (events.go:152-166), so the
-// browser's EventSource reconnects and its new stream observes the new
-// node, and the page reads the node again on that reconnection. The
+// page's stream subscription reconnects and its new stream observes the
+// new node, and the page reads the node again on that reconnection. The
 // page's erase flow polls the status, which reads through the switch,
 // until the node answers. As a registry node's
 // NodeEntry.Source the same *NodeSwitch is the same value across a Set,

@@ -629,7 +629,7 @@ func (s *controllerServer) GetNodeCluster(_ context.Context, req api.GetNodeClus
 
 // ListNodeEvents serves the node's event history in the controller
 // (client.Node.EventHistory, go-fabric controller/client/event_history.go:100-115
-// at 894adbcd): no interaction, no admin.
+// at 894adbcd): no interaction with the node.
 func (s *controllerServer) ListNodeEvents(_ context.Context, req api.ListNodeEventsRequestObject) (api.ListNodeEventsResponseObject, error) {
 	n, err := s.node(req.ID)
 	if err != nil {
