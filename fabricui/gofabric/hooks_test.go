@@ -5,6 +5,7 @@ package gofabric
 
 import (
 	"context"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -199,5 +200,47 @@ func TestHooks_CloseWaitsForARunningTimer(t *testing.T) {
 	<-closed
 	if !done.Load() {
 		t.Fatal("Close returned before the callback ended")
+	}
+}
+
+// TestHooks_WrapCallsEveryHostHook holds Wrap against go-fabric's Hooks
+// by reflection: every func field of client.Hooks the host sets runs
+// through the chain, so a hook a go-fabric release adds (Deleted, v0.23.0)
+// fails here until chain carries it (UR-P4-adpt-31).
+func TestHooks_WrapCallsEveryHostHook(t *testing.T) {
+	var host client.Hooks
+	hv := reflect.ValueOf(&host).Elem()
+	called := map[string]bool{}
+	for i := range hv.NumField() {
+		f := hv.Field(i)
+		if f.Kind() != reflect.Func {
+			continue
+		}
+		name := hv.Type().Field(i).Name
+		f.Set(reflect.MakeFunc(f.Type(), func([]reflect.Value) []reflect.Value {
+			called[name] = true
+			return nil
+		}))
+	}
+	h, _ := hooksOnClosedController(t)
+	got := reflect.ValueOf(h.Wrap(func(string) client.Hooks { return host })("n"))
+	for i := range got.NumField() {
+		f := got.Field(i)
+		if f.Kind() != reflect.Func {
+			continue
+		}
+		name := got.Type().Field(i).Name
+		if f.IsNil() {
+			t.Errorf("Wrap drops the host's %s hook", name)
+			continue
+		}
+		args := make([]reflect.Value, f.Type().NumIn())
+		for j := range args {
+			args[j] = reflect.Zero(f.Type().In(j))
+		}
+		f.Call(args)
+		if !called[name] {
+			t.Errorf("Wrap's %s does not call the host's", name)
+		}
 	}
 }
