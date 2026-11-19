@@ -186,3 +186,16 @@ took both recommendations.
 | --- | --- | --- |
 | 74 | The cut of run 2 (run 1's unit S covered only part of its scope, decision 72) | **The security unit split upfront**: S-go (Fable: the Go security paths and the adapter against go-fabric `v0.23.0`), S-web (Fable: the web security paths), G and W (Opus, the rest of each half), a Fable verifier — five agents (decision 6); full cut over `792d15b`, the delta since `979a67a` first (as decision 66) |
 | 75 | The rows carried to run 2 (UR-P4-adpt-197, UR-P4-ui-61's other-tab path, UR-P4-ctr-196's mapping) when run 2 finds no new high or medium | **One fix wave and a patch release**: at most two implementers, the carried rows with run 2's lows and notes, one pull request `review/p4r2`, release `v0.11.1`; contract unchanged unless ctr-196's mapping needs an enum value (then 0.12.0 and `v0.12.0`) |
+
+## 2026-11-19, after run 2's verification
+
+Put as one wizard of four questions, the recommendation first; the owner
+took every recommendation. Source: `held/phase-4r2-verify.md`. Run 2
+yields no new high or medium (README "Done").
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 76 | UR-P4-ui-291: the ICD page reads every 409 as the multi-admin refusal | **Fix now, contract 0.12.0, release `v0.12.0`** (decision 75's clause): additive `Problem.code` `icd_multi_admin` (409 on `registerNodeIcd`), `fabricui.ErrICDMultiAdmin` wrapping `ErrConflict` and tested first in `controllerError`, adapter and memory controller return it, the page asks only on that code; UR-P4-ctr-196's mapping may ride in the same minor |
+| 77 | UR-P4-ui-299/300: labels on fills and the EmptyState description below 4.5:1 | **Both to 4.5:1**: decision 31 extended to labels on a fill and secondary text; button label and fill tokens meet 4.5:1 in every theme (a visible change to primary buttons), the EmptyState description uses the secondary text colour; a guard test computes the ratios |
+| 78 | UR-P4-doc-263: the comma-separated Multi form "accepted until v0.2.0" | **Keep the form, fix the docs**: godoc and `docs/provider.md` say it stays accepted (deprecated, no removal date); no behaviour change |
+| 79 | UR-P4-api-267: the port godoc promises 501/503 on any route | **Narrow the godoc**: it names the routes where each is declared; `controllerError` answers 500 elsewhere, and the status guard checks it; no contract change |
