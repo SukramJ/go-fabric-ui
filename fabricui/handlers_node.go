@@ -714,8 +714,15 @@ func detached(ctx context.Context) (context.Context, context.CancelFunc) {
 }
 
 // logFabricsState logs the status's fabric read when its outcome changes:
-// a failure, a failure with another text, its end.
+// a failure, a failure with another text, its end. ctx is the request's:
+// an abandoned request leaves the state alone.
 func (h *handler) logFabricsState(ctx context.Context, err error) {
+	if ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		// The request was abandoned, not the node's read failed: no
+		// state, no line, as serverError's abandoned rule (UR-P1-err-12,
+		// UR-P4-leak-200).
+		return
+	}
 	text := ""
 	if err != nil {
 		text = err.Error()
