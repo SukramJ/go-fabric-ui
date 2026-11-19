@@ -20,6 +20,9 @@ updates:
       # they get a focused review.
       go-minor-patch:
         update-types: ["minor", "patch"]
+        # go-fabric gets pull requests of its own: dependabot-auto-merge.yml
+        # never merges them, and a group would hold the others back.
+        exclude-patterns: ["github.com/SukramJ/go-fabric"]
 
   # Go modules (tools/: the pinned oapi-codegen, a module of its own so
   # that the generator's requirements stay out of the root go.mod)
