@@ -222,6 +222,16 @@ describe("UR-P1-err-04: a window opened elsewhere", () => {
     expect(screen.queryByTestId("pair-foreign")).toBeNull();
   });
 
+  it("a window of a kind the contract does not name (window_kind other, 0.12.0) shows as any open window", async () => {
+    await renderWith({ commissioning_window_open: true, window_kind: "other" }, configured({ window_match: false }));
+    expect(await screen.findByTestId("pair-foreign")).toHaveTextContent("node.pair.foreign_window");
+    expect(screen.getByText("00020202021")).toBeInTheDocument();
+    cleanup();
+    await renderWith({ commissioning_window_open: true, window_kind: "other" }, configured({ window_match: true }));
+    expect(await screen.findByText("00020202021")).toBeInTheDocument();
+    expect(screen.queryByTestId("pair-foreign")).toBeNull();
+  });
+
   it("stays on the form when the window closed between the status and the pairing read", async () => {
     await renderWith({ commissioning_window_open: true, window_kind: "own" }, configured({ window_open: false }));
     expect(await screen.findByText("node.pair.add_controller")).toBeInTheDocument();
