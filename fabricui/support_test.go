@@ -848,6 +848,10 @@ func do(t *testing.T, mux http.Handler, method, path, body string) *httptest.Res
 	}
 	req := httptest.NewRequestWithContext(context.Background(), method, DefaultPrefix+path, rd)
 	req.Header.Set(TokenHeader, testToken)
+	req.Header.Set(RequestHeader, "1")
+	if rd != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec

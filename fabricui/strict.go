@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"reflect"
 	"slices"
@@ -118,6 +119,44 @@ func jsonFields(t reflect.Type) map[string]reflect.Type {
 		out[name] = f.Type
 	}
 	return out
+}
+
+// jsonBody answers 415 unsupported_media_type for a request that carries
+// a body whose Content-Type is not application/json (parameters allowed,
+// case-insensitive), a body without a Content-Type included, and reports
+// whether the request may go on. A body of unknown length is peeked at.
+func jsonBody(w http.ResponseWriter, r *http.Request) bool {
+	if !hasBody(r) {
+		return true
+	}
+	mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err == nil && mt == "application/json" {
+		return true
+	}
+	writeProblem(w, r, http.StatusUnsupportedMediaType, codeUnsupportedMediaType, "Unsupported media type",
+		"a request body is application/json")
+	return false
+}
+
+// hasBody reports whether r carries a body of at least one byte; a body
+// of unknown length keeps the byte it was peeked for.
+func hasBody(r *http.Request) bool {
+	switch {
+	case r.Body == nil, r.Body == http.NoBody, r.ContentLength == 0:
+		return false
+	case r.ContentLength > 0:
+		return true
+	}
+	var one [1]byte
+	n, _ := io.ReadFull(r.Body, one[:])
+	if n == 0 {
+		return false
+	}
+	r.Body = struct {
+		io.Reader
+		io.Closer
+	}{io.MultiReader(bytes.NewReader(one[:n]), r.Body), r.Body}
+	return true
 }
 
 // readBody reads r's body, bounded by maxBodyBytes.

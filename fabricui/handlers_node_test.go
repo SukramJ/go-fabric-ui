@@ -513,6 +513,7 @@ func TestFactoryReset_OutlivesTheRequest(t *testing.T) {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, DefaultPrefix+"/node/maintenance/factory-reset",
 		strings.NewReader(`{"confirm":"`+factoryResetConfirmation+`"}`))
 	req.Header.Set(TokenHeader, testToken)
+	req.Header.Set("Content-Type", "application/json")
 	mux.ServeHTTP(httptest.NewRecorder(), req)
 	if !slices.Equal(n.removed, []uint8{1, 2, 3}) {
 		t.Fatalf("removed %v, want every fabric", n.removed)
@@ -546,6 +547,7 @@ func leaving(t *testing.T, mux http.Handler, method, path, body string, started 
 	defer cancel()
 	req := httptest.NewRequestWithContext(ctx, method, DefaultPrefix+path, strings.NewReader(body))
 	req.Header.Set(TokenHeader, testToken)
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	done := make(chan struct{})
 	go func() {

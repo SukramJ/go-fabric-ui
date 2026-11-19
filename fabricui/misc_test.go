@@ -69,6 +69,12 @@ func TestAdmin_HostCheckDecides(t *testing.T) {
 	req.Header.Set("X-Host-Admin", "yes")
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("host admin without the request header: %d, want 403", rec.Code)
+	}
+	req.Header.Set(RequestHeader, "1")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("host admin: %d, want 204", rec.Code)
 	}

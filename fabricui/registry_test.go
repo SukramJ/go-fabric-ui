@@ -460,6 +460,7 @@ func TestStatus_RegistryAndAdmin(t *testing.T) {
 	}{{"1", true}, {"", false}} {
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, DefaultPrefix+"/node/status", http.NoBody)
 		req.Header.Set("X-Admin", c.header)
+		req.Header.Set(RequestHeader, "1")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		st = nil

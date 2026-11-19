@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -25,6 +26,12 @@ import (
 // TokenHeader carries the admin token in token mode (a nil
 // [Options].Admin).
 const TokenHeader = "X-Fabric-UI-Token" //nolint:gosec // a header name, not a credential
+
+// RequestHeader, with the value "1", marks a request of the web
+// interface's client: in host mode (a non-nil [Options].Admin) a request
+// has admin rights only with it and Admin's yes. The shipped client sends
+// it on every request.
+const RequestHeader = "X-Fabric-UI"
 
 // handler holds what every route reads.
 type handler struct {
@@ -519,7 +526,7 @@ func (h *handler) routes() (api http.Handler, patterns []string) {
 		mux.Handle(pattern, fn)
 		patterns = append(patterns, pattern)
 	}
-	read := func(pattern string, fn http.HandlerFunc) { handle(pattern, fn) }
+	read := func(pattern string, fn http.HandlerFunc) { handle(pattern, h.openRoute(fn)) }
 	write := func(pattern string, fn http.HandlerFunc) { handle(pattern, h.adminOnly(fn)) }
 
 	for _, rt := range nodeRoutes {
@@ -697,24 +704,72 @@ func (h *handler) adminOnly(next http.HandlerFunc) http.HandlerFunc {
 	return h.adminOnlyBecause(next, "this route needs admin rights")
 }
 
-// adminOnlyBecause is adminOnly with the refusal's detail.
+// adminOnlyBecause is adminOnly with the refusal's detail: the Origin,
+// then the admin test, then the body's media type, as every admin route
+// checks them (admitAdmin).
 func (h *handler) adminOnlyBecause(next http.HandlerFunc, detail string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.isAdmin(r) {
-			writeProblem(w, r, http.StatusForbidden, codeForbidden, "Admin rights required", detail)
+		if !h.admitAdmin(w, r, detail) || !jsonBody(w, r) {
 			return
 		}
 		next(w, r)
 	}
 }
 
+// openRoute checks an open route's body media type (jsonBody).
+func (h *handler) openRoute(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if jsonBody(w, r) {
+			next(w, r)
+		}
+	}
+}
+
+// admitAdmin answers 403 origin_not_allowed for an Origin the handler
+// does not admit and 403 forbidden for a request without admin rights,
+// and reports whether the request may go on.
+func (h *handler) admitAdmin(w http.ResponseWriter, r *http.Request, detail string) bool {
+	if !h.originAllowed(r) {
+		writeProblem(w, r, http.StatusForbidden, codeOriginNotAllowed, "Origin not allowed", "the handler does not admit this origin")
+		return false
+	}
+	if !h.isAdmin(r) {
+		writeProblem(w, r, http.StatusForbidden, codeForbidden, "Admin rights required", detail)
+		return false
+	}
+	return true
+}
+
 // requestAdmin is the one admin test of a request on an open route: the
 // status's admin field, its reduced answer and the node stream's filter.
-func (h *handler) requestAdmin(r *http.Request) bool { return h.isAdmin(r) }
+// An Origin the handler does not admit makes the request a non-admin's.
+func (h *handler) requestAdmin(r *http.Request) bool { return h.originAllowed(r) && h.isAdmin(r) }
 
+// originAllowed reports whether r's Origin, when it carries one, names a
+// host the name rules admit, or, for a request Options.AllowHost
+// admitted, the request's own Host and port; "null" and an unparsable
+// Origin are not.
+func (h *handler) originAllowed(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Path != "" || u.User != nil {
+		return false
+	}
+	if h.nameAllowed(hostName(u.Host)) {
+		return true
+	}
+	a, _ := admissionOf(r)
+	return a.byPredicate && strings.EqualFold(u.Host, r.Host)
+}
+
+// isAdmin is the admin test: in host mode RequestHeader set to "1" and
+// the host's Admin; in token mode the token.
 func (h *handler) isAdmin(r *http.Request) bool {
 	if h.admin != nil {
-		return h.admin(r)
+		return r.Header.Get(RequestHeader) == "1" && h.admin(r)
 	}
 	got := r.Header.Get(TokenHeader)
 	return got != "" && subtle.ConstantTimeCompare([]byte(got), []byte(h.token)) == 1

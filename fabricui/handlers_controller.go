@@ -160,9 +160,10 @@ func (h *handler) controllerGate(sub *http.ServeMux) http.Handler {
 		_, pattern := sub.Handler(r)
 		method, path, _ := strings.Cut(pattern, " ")
 		route := method + " " + strings.TrimPrefix(path, h.prefix)
-		if controllerAdmin[route] && !h.isAdmin(r) {
-			writeProblem(w, r, http.StatusForbidden, codeForbidden, "Admin rights required",
-				"this route needs admin rights")
+		if controllerAdmin[route] && !h.admitAdmin(w, r, "this route needs admin rights") {
+			return
+		}
+		if !jsonBody(w, r) {
 			return
 		}
 		if body, ok := controllerBodies[route]; ok {

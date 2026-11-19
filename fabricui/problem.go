@@ -30,6 +30,11 @@ const (
 	// codeHostNotAllowed is 403 for a Host the handler does not serve
 	// (contract 0.10.0).
 	codeHostNotAllowed = "host_not_allowed"
+	// codeOriginNotAllowed is 403 for an Origin an admin route does not
+	// admit, codeUnsupportedMediaType 415 for a body that is not JSON
+	// (contract 0.10.0).
+	codeOriginNotAllowed     = "origin_not_allowed"
+	codeUnsupportedMediaType = "unsupported_media_type"
 )
 
 // problemTypeBase is the base of every problem's type URI: the contract

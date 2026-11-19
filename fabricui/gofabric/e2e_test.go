@@ -175,6 +175,9 @@ func (s *ctrlSite) call(method, path, body string) (status int, out []byte) {
 			return err
 		}
 		req.Header.Set(fabricui.TokenHeader, s.token)
+		if body != "" {
+			req.Header.Set("Content-Type", "application/json")
+		}
 		resp, err := s.srv.Client().Do(req)
 		if err != nil {
 			return err

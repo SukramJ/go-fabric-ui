@@ -375,6 +375,7 @@ func TestExposureApply_ReassembleOutlivesTheRequest(t *testing.T) {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPut, DefaultPrefix+"/node/exposure",
 		strings.NewReader(`{"items":[{"key":"lamp-1","enabled":true}]}`))
 	req.Header.Set(TokenHeader, testToken)
+	req.Header.Set("Content-Type", "application/json")
 	mux.ServeHTTP(httptest.NewRecorder(), req)
 	if !ran || ctxErr != nil {
 		t.Fatalf("reassemble ran %v with context error %v, want a live context", ran, ctxErr)
