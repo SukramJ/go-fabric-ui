@@ -1,84 +1,164 @@
 name: "Release: Create from Tag"
 # A tag vX.Y.Z releases both artefacts of one version: the Go module (the
 # tag itself; the committed bundle travels with it) and the npm package
-# @sukramj/fabric-ui. The tag must equal internal/version, ui/package.json
-# and changelog.md's newest section (make version-check), and the committed
-# bundle must be the build of the tagged tree (make dist-check); the job
-# refuses the tag otherwise. The GitHub release's notes are the changelog
-# section. The npm publish carries no token: npmjs trusts this workflow
-# through GitHub's OIDC token (Trusted Publisher on the package, set to
-# SukramJ/go-fabric-ui and the file name release-on-tag.yml), which also
-# signs the provenance. The template is the sibling repositories'
+# @sukramj/fabric-ui. The template is the sibling repositories'
 # release-on-tag.yml (go-ha2fabric, go-fabric-server).
+#
+# Three jobs, each with only the rights it needs:
+#   verify   (contents: read, checks: read) refuses the tag unless the
+#            tagged commit is on main, every required check of ci.yml and
+#            codeql.yml passed on it, the tag equals internal/version,
+#            ui/package.json and changelog.md's newest section (make
+#            version-check), and the committed bundle is the build of the
+#            tagged tree (make dist-check).
+#   release  (contents: write) creates the GitHub release; its notes are
+#            the changelog section.
+#   publish  (id-token: write, in the `npm` environment) publishes the npm
+#            package. It carries no token: npmjs trusts this workflow
+#            through GitHub's OIDC token (Trusted Publisher on the package,
+#            set to SukramJ/go-fabric-ui and the file name
+#            release-on-tag.yml), which also signs the provenance. It runs
+#            no dependency's code: the package has no lifecycle script and
+#            is packed from its sources.
+# No checkout keeps the job token in .git/config (persist-credentials:
+# false), and npm installs run with --ignore-scripts.
 # yamllint disable-line rule:truthy
 on:
   push:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-  id-token: write # npm trusted publishing and provenance
+permissions: {}
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
-  GO_VERSION: "1.27.4"
   NODE_VERSION: "22.22.1"
+  # Exact, not npm@11: trusted publishing needs npm 11.5.1 or newer.
+  NPM_VERSION: "11.21.2"
 
 jobs:
-  release:
+  verify:
     if: github.repository_owner == 'SukramJ'
-    name: Release (${{ github.ref_name }})
+    name: verify (${{ github.ref_name }})
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      checks: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Determine version from tag
+          persist-credentials: false
+      - name: The tagged commit is on main
         run: |
-          echo "TAG_NAME=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
-          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "tag ${GITHUB_REF_NAME} (${GITHUB_SHA}) is not on main"; exit 1; }
+      - name: Every required check passed on the tagged commit
+        # The contexts of ci.yml and codeql.yml that branch protection
+        # requires. A tag pushed right after the merge waits for main's
+        # run of them; a failed or missing one refuses the tag.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUIRED: |-
+            lint
+            security (vuln + licenses + secrets)
+            test (ubuntu-latest)
+            test (windows-latest)
+            build
+            coverage
+            web
+            e2e-web (Playwright smoke, Chromium)
+            contract
+            codeql (go)
+            codeql (javascript-typescript)
+        run: |
+          for attempt in $(seq 1 90); do
+            runs=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100" \
+              --jq '.check_runs[] | [.id, .name, .status, (.conclusion // "")] | @tsv' | sort -n)
+            pending=0; failed=0
+            while IFS= read -r ctx; do
+              # The newest run of a context counts (a re-run replaces it).
+              last=$(printf '%s\n' "$runs" | awk -F'\t' -v n="$ctx" '$2 == n' | tail -1)
+              status=$(printf '%s' "$last" | cut -f3); conclusion=$(printf '%s' "$last" | cut -f4)
+              if [ -z "$last" ] || [ "$status" != "completed" ]; then
+                pending=$((pending + 1))
+              elif [ "$conclusion" != "success" ]; then
+                echo "required check '$ctx' concluded '$conclusion'"; failed=1
+              fi
+            done <<EOF
+          $REQUIRED
+          EOF
+            [ "$failed" = 0 ] || exit 1
+            [ "$pending" = 0 ] && { echo "every required check passed on ${GITHUB_SHA}"; exit 0; }
+            echo "waiting for $pending required check(s) (attempt $attempt)"; sleep 30
+          done
+          echo "required checks did not complete on ${GITHUB_SHA}"; exit 1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: ui/package-lock.json
-          registry-url: https://registry.npmjs.org
       - name: The tag matches internal/version, ui/package.json and changelog.md
         run: |
           want=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' internal/version/version.go)
-          test "$want" = "$VERSION" || { echo "tag $VERSION, internal/version $want"; exit 1; }
+          test "$want" = "${GITHUB_REF_NAME#v}" || { echo "tag ${GITHUB_REF_NAME#v}, internal/version $want"; exit 1; }
           make version-check
       - name: npm ci
-        run: make web-install
+        run: cd ui && npm ci --ignore-scripts --no-audit --no-fund
       - name: The committed bundle is the build of the tag
         run: make dist-check
+
+  release:
+    name: release (${{ github.ref_name }})
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Release notes from the changelog
-        run: script/extract-release-notes.sh "$VERSION" > RELEASE_NOTES.md
+        run: script/extract-release-notes.sh "${GITHUB_REF_NAME#v}" > RELEASE_NOTES.md
       - name: Create GitHub Release
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
-          tag_name: ${{ env.TAG_NAME }}
-          name: ${{ env.TAG_NAME }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           body_path: RELEASE_NOTES.md
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: npm 11 (trusted publishing needs npm 11.5.1 or newer)
-        run: npm install -g npm@11
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    name: publish (${{ github.ref_name }})
+    needs: verify
+    runs-on: ubuntu-latest
+    # The owner can require a reviewer for this environment in the
+    # repository settings; the OIDC token is minted only in this job.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: https://registry.npmjs.org
+      - name: npm ${{ env.NPM_VERSION }}
+        run: npm install -g --ignore-scripts "npm@${NPM_VERSION}"
       - name: Publish @sukramj/fabric-ui to npm
         # No NODE_AUTH_TOKEN: the registry exchanges the job's OIDC token for
         # a publish credential (Trusted Publisher configured on npmjs).
         run: |
           cd ui
-          npm publish --access public --provenance
+          npm publish --access public --provenance --ignore-scripts
           echo "### npm publish" >> "$GITHUB_STEP_SUMMARY"
-          echo "Published \`@sukramj/fabric-ui@${VERSION}\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "Published \`@sukramj/fabric-ui@${GITHUB_REF_NAME#v}\`." >> "$GITHUB_STEP_SUMMARY"
