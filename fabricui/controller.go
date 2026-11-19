@@ -243,8 +243,8 @@ type ControllerNode interface {
 	// ClusterDetail is one server cluster of an endpoint of the image
 	// with the attribute values the controller holds; nothing is read
 	// from the node. ErrEndpointNotFound or ErrClusterNotFound when the
-	// image lacks it, ErrNotRead while the endpoint's ServerList names
-	// the cluster but the controller has not read it yet.
+	// image lacks it, ErrNotRead (503) while the endpoint's ServerList
+	// names the cluster but the controller has not read it yet.
 	ClusterDetail(ep uint16, cluster uint32) (ClusterDetail, error)
 	// Events are the events the controller received from the node, those
 	// numbered since or later, oldest first; with limit > 0 only the
@@ -949,13 +949,21 @@ var (
 	// ErrUnknownCredential: no stored credential with the kind and id
 	// (404).
 	ErrUnknownCredential = errors.New("fabricui: no such credential")
-	// ErrNotImplemented: the source does not serve the route yet (501).
+	// ErrNotImplemented: the source does not serve the route yet. 501
+	// from NetworkTopology (GET /controller/topology), the one port method
+	// whose operation declares it (the diagnostics reads answer 501 from
+	// Capabilities); from any other method it is 500, as an error of no
+	// kind (decision 79).
 	ErrNotImplemented = errors.New("fabricui: not implemented")
 	// ErrEndpointNotFound: the node's image holds no such endpoint (404).
 	ErrEndpointNotFound = errors.New("fabricui: no such endpoint")
 	// ErrClusterNotFound: the endpoint holds no such server cluster (404).
 	ErrClusterNotFound = errors.New("fabricui: no such cluster")
-	// ErrNotRead: the controller has not read the element yet (503).
+	// ErrNotRead: the controller has not read the element yet. 503 from
+	// ControllerNode.ClusterDetail (GET
+	// /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}), the
+	// one operation that declares it; from any other method it is 500
+	// (decision 79).
 	ErrNotRead = errors.New("fabricui: not read yet")
 )
 

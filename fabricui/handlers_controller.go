@@ -207,7 +207,10 @@ func serviceUnready(title, detail string) error {
 
 // controllerError writes the problem of a handler body's error: its own
 // problem, a port error by its kind, 500 for anything else (logged, no
-// detail).
+// detail). ErrNotImplemented and ErrNotRead are among the rest: the
+// operations that declare 501 or 503 for them turn them into their
+// problem themselves (notImplemented, notRead), so another route
+// answers no status its operation does not declare (decisions 47, 79).
 func (h *handler) controllerError(w http.ResponseWriter, r *http.Request, err error) {
 	if p, ok := errors.AsType[*apiProblem](err); ok {
 		writeProblem(w, r, p.status, p.code, p.title, p.detail)
@@ -223,8 +226,6 @@ func (h *handler) controllerError(w http.ResponseWriter, r *http.Request, err er
 		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such endpoint", err.Error())
 	case errors.Is(err, ErrClusterNotFound):
 		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such cluster", err.Error())
-	case errors.Is(err, ErrNotRead):
-		writeProblem(w, r, http.StatusServiceUnavailable, codeServiceUnready, "Not read yet", err.Error())
 	case errors.Is(err, ErrNoDevice):
 		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No device answered", err.Error())
 	case errors.Is(err, ErrUnknownCredential):
@@ -236,14 +237,31 @@ func (h *handler) controllerError(w http.ResponseWriter, r *http.Request, err er
 		writeProblem(w, r, http.StatusConflict, codeICDMultiAdmin, "Other administrators may not support LIT", err.Error())
 	case errors.Is(err, ErrConflict):
 		writeProblem(w, r, http.StatusConflict, codeConflict, "Refused by the node", err.Error())
-	case errors.Is(err, ErrNotImplemented):
-		writeProblem(w, r, http.StatusNotImplemented, codeNotImplemented, "Not implemented", "the host's controller does not serve this route yet")
 	case errors.Is(err, ErrNodeFailed), errors.Is(err, context.DeadlineExceeded):
 		h.log.WarnContext(r.Context(), "fabricui.controller.node_failed", slog.String("path", r.URL.Path), slog.String("error", err.Error()))
 		writeProblem(w, r, http.StatusBadGateway, codeNodeError, "The node failed", err.Error())
 	default:
 		h.serverError(w, r, "Controller failed", err)
 	}
+}
+
+// notImplemented is ErrNotImplemented as the 501 problem, for the
+// operations that declare it (getControllerTopology and the three
+// diagnostics reads); any other error is returned as it is.
+func notImplemented(err error) error {
+	if errors.Is(err, ErrNotImplemented) {
+		return &apiProblem{http.StatusNotImplemented, codeNotImplemented, "Not implemented", "the host's controller does not serve this route yet"}
+	}
+	return err
+}
+
+// notRead is ErrNotRead as the 503 problem, for getNodeCluster, the one
+// node operation that declares it; any other error is returned as it is.
+func notRead(err error) error {
+	if errors.Is(err, ErrNotRead) {
+		return &apiProblem{http.StatusServiceUnavailable, codeServiceUnready, "Not read yet", err.Error()}
+	}
+	return err
 }
 
 // --- identifiers ---
@@ -625,7 +643,7 @@ func (s *controllerServer) GetNodeCluster(_ context.Context, req api.GetNodeClus
 	}
 	d, err := n.ClusterDetail(ep, cluster)
 	if err != nil {
-		return nil, err
+		return nil, notRead(err)
 	}
 	return api.GetNodeCluster200JSONResponse(clusterDetail(d)), nil
 }
@@ -1783,7 +1801,7 @@ func (s *controllerServer) GetControllerTopology(ctx context.Context, req api.Ge
 	refresh := req.Params.Refresh != nil && *req.Params.Refresh
 	topo, err := s.src.NetworkTopology(ctx, refresh)
 	if err != nil {
-		return nil, err
+		return nil, notImplemented(err)
 	}
 	return api.GetControllerTopology200JSONResponse(networkGraph(topo)), nil
 }
@@ -1986,12 +2004,12 @@ func controllerEvent(e ControllerEvent) Event {
 // none answers ErrNotImplemented, 501.
 func (s *controllerServer) GetControllerDiagnostics(context.Context, api.GetControllerDiagnosticsRequestObject) (api.GetControllerDiagnosticsResponseObject, error) {
 	if !s.diagnosticsServed() {
-		return nil, ErrNotImplemented
+		return nil, notImplemented(ErrNotImplemented)
 	}
 	// A source that claims the capability and answers nothing is 501 too.
 	d, ok := s.src.Diagnostics()
 	if !ok {
-		return nil, ErrNotImplemented
+		return nil, notImplemented(ErrNotImplemented)
 	}
 	out := api.GetControllerDiagnostics200JSONResponse{
 		AsOf: wireTime(d.AsOf),
@@ -2083,7 +2101,7 @@ func controllerPeerOf(p *ControllerPeer) api.ControllerPeer {
 // its order (errors first); 501 when the source serves no diagnostics.
 func (s *controllerServer) GetControllerMdns(context.Context, api.GetControllerMdnsRequestObject) (api.GetControllerMdnsResponseObject, error) {
 	if !s.diagnosticsServed() {
-		return nil, ErrNotImplemented
+		return nil, notImplemented(ErrNotImplemented)
 	}
 	findings := s.src.DiagnoseMDNS()
 	out := api.GetControllerMdns200JSONResponse{Findings: make([]api.MdnsFinding, 0, len(findings))}
@@ -2100,7 +2118,7 @@ func (s *controllerServer) GetControllerMdns(context.Context, api.GetControllerM
 // 501 when the source serves no diagnostics.
 func (s *controllerServer) ListControllerDiagnosticEvents(context.Context, api.ListControllerDiagnosticEventsRequestObject) (api.ListControllerDiagnosticEventsResponseObject, error) {
 	if !s.diagnosticsServed() {
-		return nil, ErrNotImplemented
+		return nil, notImplemented(ErrNotImplemented)
 	}
 	events := s.src.DiagnosticEvents()
 	out := api.ListControllerDiagnosticEvents200JSONResponse{Events: make([]api.DiagnosticEvent, 0, len(events))}
