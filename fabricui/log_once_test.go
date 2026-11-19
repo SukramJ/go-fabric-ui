@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -101,5 +102,27 @@ func TestRegistry_ASkippedEntryIsLoggedOnce(t *testing.T) {
 	list()
 	if got := count(); got != 2 {
 		t.Errorf("after the entry left and returned: %d warnings, want 2", got)
+	}
+}
+
+// A fabric read that ends in a context error of its own (a store's
+// deadline) under a live request is a failure of the node, not an
+// abandoned request: it is logged (UR-P4-leak-200, UR-P4-test-392).
+func TestStatus_AContextErrorUnderALiveRequestIsLogged(t *testing.T) {
+	for _, cause := range []error{context.DeadlineExceeded, context.Canceled} {
+		t.Run(cause.Error(), func(t *testing.T) {
+			var log bytes.Buffer
+			n := sampleNode()
+			n.fabricsErr = fmt.Errorf("store: read fabrics: %w", cause)
+			_, mux := newTestHandler(t, testOptions{node: n, log: &log, admin: func(*http.Request) bool { return false }, second: secondNode()})
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, DefaultPrefix+"/node/status", http.NoBody))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status %d %s", rec.Code, rec.Body)
+			}
+			if got := strings.Count(log.String(), "fabricui.status.fabrics_failed"); got != 1 {
+				t.Errorf("a fabric read failing with %v under a live request wrote %d fabrics_failed lines, want 1", cause, got)
+			}
+		})
 	}
 }

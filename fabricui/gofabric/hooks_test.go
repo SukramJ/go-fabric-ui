@@ -16,6 +16,7 @@ import (
 
 	"github.com/SukramJ/go-fabric/controller"
 	"github.com/SukramJ/go-fabric/controller/client"
+	"github.com/SukramJ/go-fabric/fabrictest"
 
 	"github.com/SukramJ/go-fabric-ui/fabricui"
 )
@@ -260,5 +261,68 @@ func TestSource_FabricLabelWithoutAFabricIs500(t *testing.T) {
 	fabricui.Handler(fabricui.Options{AllowedHosts: []string{"example.com"}, Controller: src, Admin: func(*http.Request) bool { return true }}).ServeHTTP(rec, req)
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("label without a fabric: %d %s", rec.Code, rec.Body)
+	}
+}
+
+// A local id whose node was removed and that a node commissioned later
+// holds again raises node_removed again when that node goes: Commissioned
+// clears the id's mark in gone (UR-P4-adpt-201, UR-P4-adpt-393). The
+// registry is a real controller's, without a device; the node id is
+// placed in ids as the hooks learn it from a commissioned node.
+func TestHooks_AReaddedLocalIDIsRemovedAgain(t *testing.T) {
+	site := fabrictest.NewSite(t, fabrictest.Options{})
+	cfg := site.ControllerConfig(fabrictest.ControllerOptions{Label: "hooks"})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	var ctrl *controller.Controller
+	if err := site.Run(ctx, func(ctx context.Context) (err error) {
+		ctrl, err = controller.New(ctx, cfg)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	h := NewHooks()
+	src := ControllerOf(ctrl, ControllerOptions{Hooks: h})
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		h.Close()
+		_ = site.Run(ctx, ctrl.Close)
+	})
+	var mu sync.Mutex
+	var events []fabricui.ControllerEvent
+	src.Observe(func(e fabricui.ControllerEvent) {
+		mu.Lock()
+		events = append(events, e)
+		mu.Unlock()
+	})
+	learn := func() {
+		h.mu.Lock()
+		h.ids["n1"] = 0x11
+		h.mu.Unlock()
+	}
+	removed := func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		n := 0
+		for _, e := range events {
+			if e.Type == fabricui.EventNodeRemoved && e.Node == 0x11 {
+				n++
+			}
+		}
+		return n
+	}
+	hooks := h.For("n1")
+	learn()
+	hooks.Decommissioned()
+	hooks.Deleted()
+	if got := removed(); got != 1 {
+		t.Fatalf("after Decommissioned and Deleted: %d node_removed, want 1", got)
+	}
+	learn()
+	hooks.Commissioned()
+	hooks.Deleted()
+	if got := removed(); got != 2 {
+		t.Fatalf("after the local id was commissioned again and deleted: %d node_removed, want 2", got)
 	}
 }
