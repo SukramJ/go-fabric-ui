@@ -78,12 +78,9 @@ func (n errNode) UnregisterICD(context.Context, bool) error       { return n.err
 // ErrNotImplemented and ErrNotRead are 501 and 503 only on the operations
 // that declare them; from any other route a source's error of either
 // kind is 500, as any error the handler has no kind for (decision 79,
-// UR-P4-api-267). The requests go to the controller routes past the API
-// headers, so the status guard does not record them: most controller
-// operations do not declare 500, which the adapter and the memory
-// controller never reach (their errors all have a kind). The two
-// declared answers are asked again through the full handler, where the
-// guard sees them.
+// UR-P4-api-267), and every controller operation declares 500 (contract
+// 0.12.0, decision 82). The requests go through the full handler, so
+// TestMain's status guard checks every answer here too.
 func TestController_NotImplementedAndNotReadOnlyWhereDeclared(t *testing.T) {
 	routes := append([]struct{ method, path, body string }{
 		{http.MethodGet, "/controller/topology", ""},
@@ -101,8 +98,7 @@ func TestController_NotImplementedAndNotReadOnlyWhereDeclared(t *testing.T) {
 		{ErrNotRead, http.StatusServiceUnavailable, "/clusters/"},
 	} {
 		src := errController{NewMemoryController(), c.err}
-		h, full := newTestHandler(t, testOptions{noNode: true, controller: src})
-		mux := h.controllerRoutes()
+		_, mux := newTestHandler(t, testOptions{noNode: true, controller: src})
 		for _, r := range routes {
 			path := strings.ReplaceAll(r.path, "{id}", "0000000000000011")
 			rec := do(t, mux, r.method, path, r.body)
@@ -114,11 +110,6 @@ func TestController_NotImplementedAndNotReadOnlyWhereDeclared(t *testing.T) {
 				t.Errorf("%v: %s %s: %d, undeclared there: %s", c.err, r.method, path, rec.Code, rec.Body)
 			case !declared && rec.Code >= 500 && rec.Code != http.StatusInternalServerError:
 				t.Errorf("%v: %s %s: %d, want 500: %s", c.err, r.method, path, rec.Code, rec.Body)
-			}
-			if declared {
-				if rec := do(t, full, r.method, path, r.body); rec.Code != c.status {
-					t.Errorf("%v: %s %s through the handler: %d", c.err, r.method, path, rec.Code)
-				}
 			}
 		}
 	}

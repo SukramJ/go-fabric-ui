@@ -5089,6 +5089,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     listControllerNodes: {
@@ -5110,6 +5111,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     getControllerNode: {
@@ -5136,6 +5138,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     decommissionNode: {
@@ -5191,6 +5194,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     getNodeCluster: {
@@ -5221,6 +5225,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -5255,6 +5260,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     interviewNode: {
@@ -5280,6 +5286,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5307,6 +5314,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     enableNode: {
@@ -5427,6 +5435,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5453,6 +5462,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5487,6 +5497,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5521,6 +5532,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5555,6 +5567,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5583,6 +5596,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5617,6 +5631,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5645,6 +5660,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5679,6 +5695,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5706,6 +5723,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     registerNodeIcd: {
@@ -5747,6 +5765,7 @@ export interface operations {
             };
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5781,6 +5800,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5809,6 +5829,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5836,6 +5857,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5875,6 +5897,7 @@ export interface operations {
             };
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -6033,6 +6056,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     consentUpdate: {
@@ -6110,6 +6134,7 @@ export interface operations {
             };
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
@@ -6133,6 +6158,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
         };
     };
@@ -6155,6 +6181,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
         };
     };
@@ -6177,6 +6204,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
         };
     };
@@ -6199,6 +6227,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             503: components["responses"]["StreamUnavailable"];
         };
     };

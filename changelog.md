@@ -22,7 +22,8 @@ additive over 0.11.0 (no accepted break). `docs/contract.md`
 - **`ErrNotImplemented` and `ErrNotRead`** from a host's own
   `ControllerSource` are 501 and 503 only where the contract declares
   them — `NetworkTopology` and `ControllerNode.ClusterDetail`; from any
-  other method they are 500 (decision 79).
+  other method they are 500 (decision 79), which every controller
+  operation declares (decision 82).
 - **The ICD multi-admin refusal** is its own error,
   `fabricui.ErrICDMultiAdmin`, which wraps `ErrConflict`; a host's own
   `ControllerNode.RegisterICD` returns it for the refusal, and
@@ -36,6 +37,9 @@ additive over 0.11.0 (no accepted break). `docs/contract.md`
 - `window_kind` `other`: an open window of a kind the contract does not
   name, which a later go-fabric may add; before, such a kind reached the
   wire as go-fabric's own text (UR-P4-ctr-196).
+- A 500 response (the shared `Problem`) on every controller operation;
+  29 of the 40 declared none, though an error of no kind answered 500
+  there (decision 82).
 
 ### Fixed
 

@@ -1269,6 +1269,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ControllerStatus" }
         "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
   /controller/nodes:
     get:
       tags: [controller]
@@ -1282,6 +1283,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ControllerNodeList" }
         "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}:
     parameters:
       - $ref: "#/components/parameters/NodeID"
@@ -1299,6 +1301,7 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
     delete:
       tags: [controller]
       operationId: decommissionNode
@@ -1339,6 +1342,7 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}:
     parameters:
       - $ref: "#/components/parameters/NodeID"
@@ -1370,6 +1374,7 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/events:
     parameters:
@@ -1399,6 +1404,7 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/interview:
     parameters:
       - $ref: "#/components/parameters/NodeID"
@@ -1413,6 +1419,7 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/ping:
     parameters:
@@ -1446,6 +1453,7 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/enable:
     parameters:
       - $ref: "#/components/parameters/NodeID"
@@ -1526,6 +1534,7 @@ paths:
         "409": { $ref: "#/components/responses/Problem" }
         "413": { $ref: "#/components/responses/Problem" }
         "415": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/window/close:
     parameters:
@@ -1541,6 +1550,7 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/attributes:
     parameters:
@@ -1573,6 +1583,7 @@ paths:
         "409": { $ref: "#/components/responses/Problem" }
         "413": { $ref: "#/components/responses/Problem" }
         "415": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
     put:
       tags: [controller]
@@ -1596,6 +1607,7 @@ paths:
         "409": { $ref: "#/components/responses/Problem" }
         "413": { $ref: "#/components/responses/Problem" }
         "415": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/commands:
     parameters:
@@ -1622,6 +1634,7 @@ paths:
         "409": { $ref: "#/components/responses/Problem" }
         "413": { $ref: "#/components/responses/Problem" }
         "415": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/acl:
     parameters:
@@ -1641,6 +1654,7 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
     put:
       tags: [controller]
@@ -1668,6 +1682,7 @@ paths:
         "409": { $ref: "#/components/responses/Problem" }
         "413": { $ref: "#/components/responses/Problem" }
         "415": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/bindings:
     parameters:
@@ -1687,6 +1702,7 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
     put:
       tags: [controller]
@@ -1710,6 +1726,7 @@ paths:
         "409": { $ref: "#/components/responses/Problem" }
         "413": { $ref: "#/components/responses/Problem" }
         "415": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/icd:
     parameters:
@@ -1728,6 +1745,7 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/icd/register:
     parameters:
       - $ref: "#/components/parameters/NodeID"
@@ -1756,6 +1774,7 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         "413": { $ref: "#/components/responses/Problem" }
         "415": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/icd/unregister:
     parameters:
@@ -1781,6 +1800,7 @@ paths:
         "409": { $ref: "#/components/responses/Problem" }
         "413": { $ref: "#/components/responses/Problem" }
         "415": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/fabrics:
     parameters:
@@ -1800,6 +1820,7 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/fabrics/{index}:
     parameters:
@@ -1820,6 +1841,7 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/commission:
     post:
@@ -1852,6 +1874,7 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         "413": { $ref: "#/components/responses/Problem" }
         "415": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /controller/discovery:
@@ -1968,6 +1991,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/UpdateQueue" }
         "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
   /controller/updates/consent:
     post:
       tags: [controller]
@@ -2045,6 +2069,7 @@ paths:
               schema: { $ref: "#/components/schemas/TopologyGraph" }
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "501": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/diagnostics:
@@ -2070,6 +2095,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ControllerDiagnostics" }
         "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "501": { $ref: "#/components/responses/Problem" }
   /controller/mdns:
     get:
@@ -2092,6 +2118,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ControllerMdns" }
         "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "501": { $ref: "#/components/responses/Problem" }
   /controller/events:
     get:
@@ -2112,6 +2139,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/DiagnosticEventList" }
         "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "501": { $ref: "#/components/responses/Problem" }
   /controller/stream:
     get:
@@ -2137,6 +2165,7 @@ paths:
             text/event-stream:
               schema: { type: string }
         "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/StreamUnavailable" }
 components:
   parameters:

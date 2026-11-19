@@ -747,7 +747,9 @@ unchanged. `EventRecord.epoch_ms` is absent also for a node's epoch
 timestamp above the int64 range. A host's own `ControllerSource` that
 returns `fabricui.ErrNotImplemented` or `ErrNotRead` gets 501 or 503 only
 where the contract declares them (`NetworkTopology`,
-`ControllerNode.ClusterDetail`); from any other method they are 500.
+`ControllerNode.ClusterDetail`); from any other method they are 500,
+which every controller operation now declares (a shared 500 response;
+29 of the 40 declared none before).
 
 ## Controller routes (v0.2.0)
 
