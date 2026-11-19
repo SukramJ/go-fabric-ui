@@ -3297,7 +3297,7 @@ components:
         cluster_hex: { type: string }
         event_hex: { type: string }
         name: { type: string, description: The event's name in go-fabric's schema; absent for one it does not name. }
-        epoch_ms: { type: integer, format: int64, description: The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only. }
+        epoch_ms: { type: integer, format: int64, description: "The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only, or (0.12.0) a value above the int64 range." }
         data: { description: The event's data as JSON by field name; absent without data or when it cannot be rendered., x-go-type: json.RawMessage }
     EventRecordList:
       type: object

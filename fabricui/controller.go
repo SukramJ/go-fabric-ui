@@ -537,7 +537,7 @@ type EventRecord struct {
 	// Name is the event's name; empty where the schema names none.
 	Name string
 	// EpochMS is the epoch timestamp in milliseconds; nil when the event
-	// carries none.
+	// carries none or one above the int64 range.
 	EpochMS *int64
 	// Data is the event's data as JSON by field name; nil without data or
 	// when it does not render.

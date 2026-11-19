@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/SukramJ/go-fabric/controller/client"
@@ -51,3 +52,25 @@ func TestNodeError_MapsTheKinds(t *testing.T) {
 		t.Error("nodeError(nil) is not nil")
 	}
 }
+
+// An event's epoch timestamp is the node's data: one above the int64
+// range is left out, not cast to a negative time (UR-P4-ui-302).
+func TestEpochMS_LeavesOutAValueOutsideInt64(t *testing.T) {
+	for _, c := range []struct {
+		in   *uint64
+		want *int64
+	}{
+		{nil, nil},
+		{ptrTo(uint64(1_700_000_000_000)), ptrTo(int64(1_700_000_000_000))},
+		{ptrTo(uint64(math.MaxInt64)), ptrTo(int64(math.MaxInt64))},
+		{ptrTo(uint64(math.MaxInt64) + 1), nil},
+		{ptrTo(uint64(math.MaxUint64)), nil},
+	} {
+		got := epochMS(c.in)
+		if (got == nil) != (c.want == nil) || (got != nil && *got != *c.want) {
+			t.Errorf("epochMS(%v) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
+func ptrTo[T any](v T) *T { return &v }

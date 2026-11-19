@@ -1256,7 +1256,7 @@ type EventRecord struct {
 	Data     *json.RawMessage `json:"data,omitempty"`
 	Endpoint int              `json:"endpoint"`
 
-	// EpochMs The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only.
+	// EpochMs The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only, or (0.12.0) a value above the int64 range.
 	EpochMs  *int64 `json:"epoch_ms,omitempty"`
 	EventHex string `json:"event_hex"`
 
