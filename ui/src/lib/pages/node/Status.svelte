@@ -19,7 +19,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
-  import { secondsUntil } from "../../countdown";
+  import { windowSecondsLeft } from "../../countdown";
   import Badge from "../../kit/Badge.svelte";
   import Card from "../../kit/Card.svelte";
   import ErrorState from "../../kit/ErrorState.svelte";
@@ -41,11 +41,12 @@
   });
 
   const s = $derived(node.status);
-  // Seconds left in the open window, from its deadline; the duration it
-  // was opened for when the server reports no deadline.
+  // Seconds left in the open window, as the node counts them
+  // (window_remaining_seconds, 0.10.0) or from its deadline; the duration
+  // it was opened for when the server reports neither.
   const windowLeft = $derived(
     s?.commissioning_window_open
-      ? (secondsUntil(s.window_deadline, now) ?? ((s.commissioning_window_duration_seconds ?? 0) > 0 ? s.commissioning_window_duration_seconds! : null))
+      ? (windowSecondsLeft(s, node.statusAt, now) ?? ((s.commissioning_window_duration_seconds ?? 0) > 0 ? s.commissioning_window_duration_seconds! : null))
       : null,
   );
 </script>
@@ -84,7 +85,10 @@
         </Badge>
       {/if}
       <span class="text-sm text-[var(--ha-secondary-text-color)]">{t("node.status.endpoints", { count: s.endpoint_count })}</span>
-      <span class="text-sm text-[var(--ha-secondary-text-color)]">{t("node.status.fabrics", { count: s.fabric_count })}</span>
+      <!-- fabric_count is absent when the fabric read failed (0.10.0). -->
+      <span class="text-sm text-[var(--ha-secondary-text-color)]" data-testid="status-fabrics">
+        {s.fabric_count !== undefined ? t("node.status.fabrics", { count: s.fabric_count }) : t("node.status.fabrics_unknown")}
+      </span>
       {#if s.enabled_count !== undefined}
         <span class="text-sm text-[var(--ha-secondary-text-color)]">{t("node.status.exposed", { count: s.enabled_count })}</span>
       {/if}

@@ -8,6 +8,7 @@
      Aggregator included: the route's structural list (go-fabric
      Node.Endpoints, contract 0.5.0). -->
 <script lang="ts">
+  import DeniedState from "../../kit/DeniedState.svelte";
   import { onMount, untrack } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
@@ -84,6 +85,10 @@
   );
 </script>
 
+<!-- Without admin rights the routes of this page are refused (0.10.0): a notice, not an error. -->
+{#if node.status !== null && !node.isAdmin}
+  <DeniedState />
+{:else}
 <Card class="p-4">
   <div class="flex items-center justify-between gap-2">
     <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.endpoints.title")}</h3>
@@ -141,3 +146,4 @@
     </ul>
   {/if}
 </Card>
+{/if}

@@ -224,7 +224,7 @@ describe("Controller Node", () => {
   it("lists the events the controller received, newest first, and fetches the newer ones on node_updated", async () => {
     const ui = renderNode(L, "events", ["controller-node-events.200"], {
       answers: {
-        [`GET /controller/nodes/${L}/events?since=43`]: {
+        [`GET /controller/nodes/${L}/events?since_str=43`]: {
           status: 200,
           body: { events: [{ number: 44, priority: "info", endpoint: 1, cluster_hex: "0x0039", event_hex: "0x0003", name: "ReachableChanged", data: { reachableNewValue: false } }] },
         },
@@ -237,7 +237,7 @@ describe("Controller Node", () => {
     expect(screen.getByTestId("event-41")).toHaveTextContent("events.priority.critical");
     ui.controller.applyEvent({ type: "node_updated", data: { node_id_hex: L } });
     expect(await screen.findByTestId("event-44")).toHaveTextContent("ReachableChanged");
-    expect(ui.sent.map((s) => s.path)).toContain(`/api/v1/controller/nodes/${L}/events?since=43`);
+    expect(ui.sent.map((s) => s.path)).toContain(`/api/v1/controller/nodes/${L}/events?since_str=43`);
   });
 
   it("switches tabs", async () => {

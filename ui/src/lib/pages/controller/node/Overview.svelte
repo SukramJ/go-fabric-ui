@@ -45,6 +45,10 @@
     }
   }
 
+  // The setting, not the live subscription (auto_subscribe, 0.10.0;
+  // UR-P1-ctr-168); a server before it says only whether one is active.
+  const autoSubscribe = $derived(n.auto_subscribe ?? n.subscription_active);
+
   let busy = $state(false);
   async function setAutoSubscribe(on: boolean) {
     busy = true;
@@ -78,8 +82,8 @@
       <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.overview.commissioned_at")}</dt><dd>{r.commissioned_at ? formatDate(t, r.commissioned_at) : "–"}</dd>
     </dl>
     <div class="mt-3 flex flex-wrap gap-2">
-      <Button size="sm" variant="outline" disabled={busy} onclick={() => void setAutoSubscribe(!n.subscription_active)}>
-        {n.subscription_active ? t("controller.overview.unsubscribe") : t("controller.overview.subscribe")}
+      <Button size="sm" variant="outline" disabled={busy} onclick={() => void setAutoSubscribe(!autoSubscribe)}>
+        {autoSubscribe ? t("controller.overview.unsubscribe") : t("controller.overview.subscribe")}
       </Button>
       <Button size="sm" variant="outline" disabled={pinging} onclick={() => void runPing()}>
         {pinging ? t("controller.ping.running") : t("controller.ping.button")}

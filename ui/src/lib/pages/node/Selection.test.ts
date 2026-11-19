@@ -232,10 +232,11 @@ describe("Selection — changes, preview, apply", () => {
 });
 
 describe("Selection — admin rights (UR-P1-ui-133)", () => {
-  it("offers no selection, bulk or save control without admin rights", async () => {
+  it("shows the admin notice and no selection, bulk or save control without admin rights (0.10.0)", async () => {
     const st = body<Record<string, unknown>>("node-status.200");
     renderSel({ answers: { "GET /node/status": { status: 200, body: { ...st, admin: false, csrf_token: undefined } } } });
-    await screen.findAllByRole("row");
+    expect(await screen.findByTestId("denied")).toHaveAttribute("data-code", "forbidden");
+    expect(screen.queryAllByRole("row")).toHaveLength(0);
     await waitFor(() => expect(screen.queryByText("node.selection.select_all")).toBeNull());
     expect(screen.queryAllByLabelText("node.selection.select_row")).toHaveLength(0);
     expect(screen.queryByTestId("save-bar")).toBeNull();

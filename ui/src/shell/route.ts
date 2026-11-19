@@ -5,6 +5,7 @@
 // #/node/ that is no page name is a node's key; the Go side refuses a key
 // that is one (fabricui reservedNodeKeys). Anything else is the default
 // node's first page, as before the controller family.
+import { ENDPOINT_MAX } from "../lib/api/client";
 import { NODE_ROUTES } from "../lib/context";
 
 export type Route = {
@@ -47,7 +48,7 @@ export function routeOf(hash: string): Route {
   }
   if (rest[0] === "endpoint") {
     const n = Number(rest[1]);
-    return /^\d+$/.test(rest[1] ?? "") && n <= 0xffff ? { family: "node", page: "endpoint", endpoint: n, ...keyed } : { family: "node", page: "endpoints", ...keyed };
+    return /^\d+$/.test(rest[1] ?? "") && n <= ENDPOINT_MAX ? { family: "node", page: "endpoint", endpoint: n, ...keyed } : { family: "node", page: "endpoints", ...keyed };
   }
   return { family: "node", page: rest[0] ?? "status", ...keyed };
 }

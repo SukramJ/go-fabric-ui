@@ -9,6 +9,7 @@
      the node reports to every peer sit collapsed under the sessions
      (contract 0.7.0). -->
 <script lang="ts">
+  import DeniedState from "../../kit/DeniedState.svelte";
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
@@ -145,6 +146,10 @@
         : "bg-[var(--ha-secondary-background-color)] text-[var(--ha-secondary-text-color)]";
 </script>
 
+<!-- Without admin rights the routes of this page are refused (0.10.0): a notice, not an error. -->
+{#if node.status !== null && !node.isAdmin}
+  <DeniedState />
+{:else}
 {#snippet sessionCell(s: Session, col: DataColumn<Session>)}
   {#if col.key === "session_id"}
     {s.session_id}
@@ -287,3 +292,4 @@
     </Card>
   {/if}
 </div>
+{/if}

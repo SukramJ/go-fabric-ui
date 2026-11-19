@@ -8,13 +8,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
-  import { ApiError, type LogLevelName, type LogRecord, type OperationInfo } from "../../api/client";
+  import { ApiError, deniedCode, type LogLevelName, type LogRecord, type OperationInfo } from "../../api/client";
   import { errorText } from "../../store.svelte";
   import Badge from "../../kit/Badge.svelte";
   import Button from "../../kit/Button.svelte";
   import Card from "../../kit/Card.svelte";
   import EmptyState from "../../kit/EmptyState.svelte";
   import ErrorState from "../../kit/ErrorState.svelte";
+  import DeniedState from "../../kit/DeniedState.svelte";
   import Input from "../../kit/Input.svelte";
   import LoadingState from "../../kit/LoadingState.svelte";
   import Select from "../../kit/Select.svelte";
@@ -24,11 +25,14 @@
   const { t, toast, client, subscribeLog, node, controller } = useFabricUI();
   // Setting the level is an admin route: admin rights are the token of
   // token mode (on either family's status) or the node host's verdict.
-  const isAdmin = $derived(!!node.status?.csrf_token || node.status?.admin === true || !!controller.status?.csrf_token);
+  const isAdmin = $derived(node.isAdmin || controller.isAdmin);
 
   let loading = $state(true);
   let unavailable = $state(false);
   let error = $state<string | null>(null);
+  // The log is an admin's (0.10.0): the 403 problem code when it was refused.
+  let logDenied = $state<string | null>(null);
+  let closeLog: (() => void) | null = null;
   let info = $state<OperationInfo | null>(null);
   let level = $state<LogLevelName>("info");
   let levels = $state<LogLevelName[]>([...LEVELS]);
@@ -56,11 +60,11 @@
     loading = true;
     error = null;
     try {
-      const [i, l, log] = await Promise.all([client.operationInfo(), client.logLevel(), client.logRecords({ limit: KEEP_RECORDS })]);
+      const [i, l, log] = await Promise.all([client.operationInfo(), client.logLevel(), readLog()]);
       info = i;
       level = l.level;
       levels = l.levels;
-      records = mergeRecords(log.records, records);
+      if (log) records = mergeRecords(log.records, records);
     } catch (err) {
       if (err instanceof ApiError && (err.status === 503 || err.status === 404)) unavailable = true;
       else error = errorText(err);
@@ -69,15 +73,33 @@
     }
   }
 
+  // The ring; undefined when it is refused (no admin rights): the stream
+  // then ends too, and the log section says why.
+  async function readLog() {
+    try {
+      const log = await client.logRecords({ limit: KEEP_RECORDS });
+      logDenied = null;
+      return log;
+    } catch (err) {
+      const code = deniedCode(err);
+      if (!code) throw err;
+      logDenied = code;
+      closeLog?.();
+      closeLog = null;
+      return undefined;
+    }
+  }
+
   onMount(() => {
     // The stream first: a record logged while the ring is read is kept,
     // and mergeRecords drops the one both deliver.
-    const close = subscribeLog(append);
+    closeLog = subscribeLog(append);
+    const close = () => closeLog?.();
     void load();
     // A host page that mounts the operation alone has read no status: the
     // node's first, and on a host without the node family (or a node
-    // status that fails) the controller's, whose token says admin
-    // (UR-P1-ui-196; a host-mode admin field on it is phase 3's).
+    // status that fails) the controller's, whose token or admin member says admin
+    // (UR-P1-ui-196, -ui-133).
     if (node.status === null && controller.status === null && !node.statusLoading) {
       void node.loadStatus().then(() => {
         if (node.status === null && controller.status === null) void controller.loadStatus();
@@ -167,12 +189,16 @@
         <Button variant="outline" size="sm" onclick={togglePause} aria-pressed={paused}>{paused ? t("operation.resume") : t("operation.pause")}</Button>
         <Button variant="outline" size="sm" onclick={() => void copy()} disabled={shown.length === 0}>{t("common.copy")}</Button>
       </div>
-      {#if paused}
+      {#if logDenied}
+        <DeniedState class="mt-3" code={logDenied} />
+      {:else if paused}
         <p class="mt-2 text-xs text-[var(--fui-warning-text)]" data-testid="paused">
           {heldCount > KEEP_RECORDS ? t("operation.paused_dropped", { count: heldCount, kept: KEEP_RECORDS }) : t("operation.paused", { count: heldCount })}
         </p>
       {/if}
-      {#if shown.length === 0}
+      {#if logDenied}
+        <!-- the notice above -->
+      {:else if shown.length === 0}
         <EmptyState class="mt-3" message={records.length === 0 ? t("operation.log_empty") : t("operation.log_filtered")} />
       {:else}
         <ol class="mt-3 max-h-[32rem] space-y-1 overflow-y-auto font-mono text-xs" data-testid="log">

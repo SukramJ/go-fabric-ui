@@ -21,7 +21,7 @@
      the stream helper closes it while the tab is hidden. -->
 <script lang="ts">
   import { onDestroy, onMount, untrack } from "svelte";
-  import { ApiError, createClient } from "../lib/api/client";
+  import { ApiError, createClient, deniedCode } from "../lib/api/client";
   import { createFabricUI, provideFabricUI, routesForNode } from "../lib/context";
   import { createTranslator, detectLocale } from "../lib/i18n";
   import { applySkin, isEmbedded, startHaBridge } from "../lib/theme/ha-bridge";
@@ -29,6 +29,7 @@
   import PageShell from "../lib/kit/PageShell.svelte";
   import LoadingState from "../lib/kit/LoadingState.svelte";
   import EmptyState from "../lib/kit/EmptyState.svelte";
+  import DeniedState from "../lib/kit/DeniedState.svelte";
   import Button from "../lib/kit/Button.svelte";
   import Select from "../lib/kit/Select.svelte";
   import Tabs from "../lib/kit/Tabs.svelte";
@@ -79,8 +80,14 @@
   // The node family shows when the node route answers and either serves a
   // node or no controller is there to show instead.
   const nodeFamily = $derived(nodeServed === true && (node.status?.enabled !== false || controller.present !== true));
-  const controllerFamily = $derived(controller.present === true);
-  const probed = $derived(nodeServed !== null && controller.present !== null);
+  // Without admin rights the controller family has no page to show
+  // (0.10.0): beside the node family it is hidden, alone it says why.
+  const controllerFamily = $derived(controller.present === true && (controller.isAdmin || !nodeFamily));
+  // A status the server refuses (403, 0.10.0) decides its family too:
+  // the shell says why instead of probing again.
+  let denied = $state<string | null>(null);
+  const controllerDecided = $derived(controller.present !== null || controller.statusDenied !== null);
+  const probed = $derived(nodeServed !== null && controllerDecided);
   const family = $derived<"node" | "controller" | "operation" | null>(
     route.family === "operation" && operationServed
       ? "operation"
@@ -109,7 +116,7 @@
   );
   // The node registry (0.6.0): creating a node needs the registry and
   // admin rights — the token of token mode, or the host's admin verdict.
-  const isAdmin = $derived(!!node.status?.csrf_token || node.status?.admin === true);
+  const isAdmin = $derived(node.isAdmin);
   const canCreate = $derived(node.status?.node_registry === true && isAdmin);
   // CREATE is the selector's last entry; no key matches it (a key starts
   // with a letter or digit).
@@ -172,6 +179,12 @@
       await ui.client.status();
       nodeServed = true;
     } catch (err) {
+      const code = deniedCode(err);
+      if (code) {
+        denied = code;
+        nodeServed = false;
+        return;
+      }
       if (!(err instanceof ApiError && err.status === 404)) {
         // Neither the family nor its absence: probe again.
         probeError = err instanceof Error ? err.message : String(err);
@@ -185,7 +198,8 @@
 
   async function probeController() {
     await controller.loadStatus();
-    if (controller.present === null) probeError = controller.statusError;
+    if (controller.statusDenied) denied ??= controller.statusDenied;
+    else if (controller.present === null) probeError = controller.statusError;
   }
 
   // Probes what is still undecided, and again with a backoff while
@@ -194,9 +208,9 @@
     const mine = ++probeGen;
     if (probeTimer) clearTimeout(probeTimer);
     probeTimer = null;
-    await Promise.all([nodeServed === null ? probeNode() : undefined, controller.present === null ? probeController() : undefined]);
+    await Promise.all([nodeServed === null ? probeNode() : undefined, !controllerDecided ? probeController() : undefined]);
     if (mine !== probeGen) return;
-    if (nodeServed !== null && controller.present !== null) {
+    if (nodeServed !== null && controllerDecided) {
       probeError = null;
       return;
     }
@@ -214,7 +228,7 @@
       await ui.client.operationInfo();
       operationServed = true;
     } catch (err) {
-      operationServed = !(err instanceof ApiError && (err.status === 404 || err.status === 503));
+      operationServed = !(err instanceof ApiError && (err.status === 403 || err.status === 404 || err.status === 503));
     }
   }
 
@@ -297,6 +311,8 @@
     </EmptyState>
   {:else if !probed && family === null}
     <LoadingState message={t("common.loading")} />
+  {:else if family === null && denied}
+    <DeniedState code={denied} />
   {:else if family === null}
     <EmptyState message={t("shell.no_family")} />
   {:else}
@@ -311,6 +327,9 @@
       {/key}
     {:else if family === "operation"}
       <Operation />
+    {:else if !controller.isAdmin}
+      <!-- Every controller page but the status is an admin's (0.10.0). -->
+      <DeniedState code={controller.streamDenied ?? "forbidden"} />
     {:else}
       <Tabs items={controllerTabs} active={route.nodeId ? "nodes" : controllerPage} />
       <div class="mt-4">

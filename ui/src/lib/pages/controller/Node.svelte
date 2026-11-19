@@ -3,6 +3,7 @@
      administrator, ICD, the fabrics on it and its pending updates — one
      tab each. The page reloads the node when the stream names it. -->
 <script lang="ts">
+  import DeniedState from "../../kit/DeniedState.svelte";
   import { untrack } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
@@ -80,6 +81,10 @@
   const items = $derived(TABS.map((k) => ({ key: k, label: t(`controller.node.tab.${k}`) })));
 </script>
 
+<!-- Without admin rights the routes of this page are refused (0.10.0): a notice, not an error. -->
+{#if controller.status !== null && !controller.isAdmin}
+  <DeniedState />
+{:else}
 <div class="space-y-4">
   <a href={routes.controllerNodes} class="text-sm text-[var(--fui-primary-text)] hover:underline">← {t("controller.node.back")}</a>
   {#if error}
@@ -125,3 +130,4 @@
     {/key}
   {/if}
 </div>
+{/if}

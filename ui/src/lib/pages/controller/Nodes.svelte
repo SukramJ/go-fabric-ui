@@ -5,6 +5,7 @@
      page. The network: the controller's network graph (Network.svelte,
      brief U3b), linked as #/controller/nodes?tab=network. -->
 <script lang="ts">
+  import DeniedState from "../../kit/DeniedState.svelte";
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
@@ -112,6 +113,10 @@
   ]);
 </script>
 
+<!-- Without admin rights the routes of this page are refused (0.10.0): a notice, not an error. -->
+{#if controller.status !== null && !controller.isAdmin}
+  <DeniedState />
+{:else}
 <div class="space-y-4">
   <Tabs items={tabItems} {active} onSelect={(k) => (chosen = isTab(k) ? k : "list")} ariaLabel={t("controller.nodes.tabs")} />
   {#if active === "network"}
@@ -184,3 +189,4 @@
     {/if}
   {/if}
 </div>
+{/if}

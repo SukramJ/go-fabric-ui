@@ -179,12 +179,13 @@ describe("Fabrics — an erase under an open Pair flow (UR-P2-conc-04, UR-P2-lea
 });
 
 describe("Fabrics — admin rights (UR-P1-ui-133)", () => {
-  it("shows no remove or maintenance control without admin rights", async () => {
+  it("shows the admin notice and no remove or maintenance control without admin rights (0.10.0)", async () => {
     const st = body<Record<string, unknown>>("node-status.200");
     const ui = testUI({ fixtures: ["node-fabrics.200"], answers: { "GET /node/status": { status: 200, body: { ...st, admin: false, csrf_token: undefined, erase: true } } } });
     await ui.node.loadStatus();
     render(Harness, { ui, page: Fabrics });
-    expect(await screen.findByText("0xB2C3D4E5F6071829")).toBeInTheDocument();
+    expect(await screen.findByTestId("denied")).toHaveAttribute("data-code", "forbidden");
+    expect(screen.queryByText("0xB2C3D4E5F6071829")).toBeNull();
     expect(screen.queryByRole("button", { name: "common.remove" })).toBeNull();
     expect(screen.queryByText("node.maint.reassemble")).toBeNull();
     expect(screen.queryByText("node.maint.reset")).toBeNull();

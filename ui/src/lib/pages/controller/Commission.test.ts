@@ -16,6 +16,14 @@ vi.mock("../../scan", () => ({
 
 afterEach(cleanup);
 
+// A commissioning request without its commissioning_id, which the page
+// draws per attempt (decision 59) and the contract's pattern bounds.
+function run(body: unknown): Record<string, unknown> {
+  const { commissioning_id: id, ...rest } = (body ?? {}) as Record<string, unknown>;
+  if (id !== undefined) expect(id).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
+  return rest;
+}
+
 describe("Controller Commission", () => {
   it("commissions by code and links the new node; the code field is cleared", async () => {
     const ui = testUI({ fixtures: ["controller-commission.200", "controller-nodes.200"] });
@@ -26,7 +34,9 @@ describe("Controller Commission", () => {
     expect(await screen.findByText("controller.commission.succeeded")).toBeInTheDocument();
     expect(screen.getByText("Plug").closest("a")?.getAttribute("href")).toBe("#/controller/node/0000000000000013");
     await waitFor(() => expect(input.value).toBe(""));
-    expect(ui.sent.find((s) => s.method === "POST")?.body).toEqual(fixture("controller-commission.200").request.body);
+    const sent = ui.sent.find((s) => s.method === "POST")?.body as Record<string, unknown>;
+    expect(typeof sent.commissioning_id).toBe("string");
+    expect(run(sent)).toEqual(run(fixture("controller-commission.200").request.body));
   });
 
   it("shows the server's problem when no device answers", async () => {
@@ -48,7 +58,7 @@ describe("Controller Commission", () => {
     await fireEvent.input(screen.getByLabelText("controller.commission.passcode"), { target: { value: "20202021" } });
     await fireEvent.click(screen.getByText("controller.commission.pair"));
     await waitFor(() => expect(screen.getByText("controller.commission.succeeded")).toBeInTheDocument());
-    expect(ui.sent.find((s) => s.method === "POST")?.body).toEqual(fixture("controller-commission.200-discovered").request.body);
+    expect(run(ui.sent.find((s) => s.method === "POST")?.body)).toEqual(run(fixture("controller-commission.200-discovered").request.body));
   });
 
   it("refuses a passcode out of range before any request", async () => {
@@ -103,7 +113,7 @@ describe("Controller Commission", () => {
     await fireEvent.input(screen.getByTestId("commission-terms-version"), { target: { value: "1" } });
     await fireEvent.click(screen.getByText("controller.commission.start"));
     await waitFor(() => expect(ui.sent.some((s) => s.method === "POST")).toBe(true));
-    expect(ui.sent.find((s) => s.method === "POST")?.body).toEqual({ code: "34970112332", terms_and_conditions: { version: 1, acknowledgements: 1 } });
+    expect(run(ui.sent.find((s) => s.method === "POST")?.body)).toEqual({ code: "34970112332", terms_and_conditions: { version: 1, acknowledgements: 1 } });
   });
 
   it("opens the terms block on terms_required and sends the same commissioning with the acknowledgement (0.8.0)", async () => {
@@ -129,7 +139,10 @@ describe("Controller Commission", () => {
     await fireEvent.click(retry);
     expect(await screen.findByText("controller.commission.succeeded")).toBeInTheDocument();
     const posts = ff.sent.filter((s) => s.method === "POST");
-    expect(posts.map((s) => s.body)).toEqual([{ code: "34970112332" }, { code: "34970112332", terms_and_conditions: { version: 1, acknowledgements: 1 } }]);
+    expect(posts.map((s) => run(s.body))).toEqual([{ code: "34970112332" }, { code: "34970112332", terms_and_conditions: { version: 1, acknowledgements: 1 } }]);
+    // The retry is a run of its own, with an id of its own.
+    const ids = posts.map((s) => (s.body as { commissioning_id?: string }).commissioning_id);
+    expect(ids[0]).not.toBe(ids[1]);
     expect(screen.queryByTestId("commission-terms-retry")).toBeNull();
   });
 
@@ -145,7 +158,7 @@ describe("Controller Commission", () => {
     await fireEvent.input(screen.getByLabelText("controller.commission.code"), { target: { value: "34970112332" } });
     await fireEvent.click(screen.getByText("controller.commission.start"));
     await waitFor(() => expect(ui.sent.some((s) => s.method === "POST")).toBe(true));
-    expect(ui.sent.find((s) => s.method === "POST")?.body).toEqual({ code: "34970112332", wifi_id: "home" });
+    expect(run(ui.sent.find((s) => s.method === "POST")?.body)).toEqual({ code: "34970112332", wifi_id: "home" });
   });
 
   it("preselects the default among several and names it (0.7.1)", async () => {
