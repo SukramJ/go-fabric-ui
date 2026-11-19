@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.9.0
+  version: 0.10.0
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
@@ -12,13 +12,42 @@ info:
     makes an optional request field required. `contract/previous/` holds
     the last released copy, and a test fails on a removal.
 
+    Contract 0.10.0 makes three breaks on purpose, listed in
+    `x-accepted-breaks`: `Status.fabric_count` is optional (absent when the
+    fabric read failed), the `NodeID` path parameter takes 1 to 16 hex
+    digits only, and the `EndpointNumber` path parameter ends at 65534.
+
+    Request bodies are JSON (`Content-Type: application/json`, parameters
+    allowed; else 415 `unsupported_media_type`) of at most 1 MiB (else 413
+    `payload_too_large`), and strict, nested objects included: an unknown
+    member, a member name in another case, data after the value or a wrong
+    type is 400 `bad_request`.
+
+    A path under the prefix that this contract does not name answers 404
+    `not_found`; a named path asked with a method it does not list answers
+    405 `method_not_allowed` (`MethodNotAllowed`) with an `Allow` header
+    naming the path's methods, plus `HEAD` where `GET` is listed. Neither
+    is listed per operation.
+
     64-bit identifiers travel exactly as 16-digit uppercase hex strings
     (`*_hex`); their numeric twins are informational, since a JSON number
     carries 53 bits and a browser rounds larger ids.
 
-    Admin routes (`x-admin: true`) answer 403 unless the host's admin
-    check admits the request, or, in token mode, the request carries the
+    Admin routes (`x-admin: true`) answer 403 `forbidden` unless, in host
+    mode, the request carries the header `X-Fabric-UI: 1` and the host's
+    admin check admits it, or, in token mode, the request carries the
     `X-Fabric-UI-Token` header with the `csrf_token` of `GET /node/status`.
+    A client sends its admin headers on every request, the event streams
+    included, so it reads the streams through `fetch`. The open routes
+    answer a request without admin rights reduced: `GET /node/status`
+    without `config.store` and with every warning's `message` empty,
+    `GET /controller/status` with its identity members empty or 0, and the
+    node stream with `nodes_changed`, `window_opened` and `window_closed`
+    only.
+  x-accepted-breaks:
+    - "schema Status: field fabric_count no longer required"
+    - "parameter NodeID: narrower (pattern)"
+    - "parameter EndpointNumber: narrower (maximum)"
   license:
     name: Apache-2.0
     identifier: Apache-2.0
@@ -48,17 +77,20 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Status" }
+        "403": { $ref: "#/components/responses/Problem" }
   /node/fabrics:
     get:
       tags: [node]
       operationId: listFabrics
       summary: The commissioned fabrics.
+      x-admin: true
       responses:
         "200":
           description: The fabrics.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/FabricList" }
+        "403": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/fabrics/{index}:
@@ -76,6 +108,7 @@ paths:
         "204": { description: Removed. }
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/pairing:
@@ -112,6 +145,8 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/pairing/window/close:
@@ -130,6 +165,7 @@ paths:
       tags: [node]
       operationId: listEndpoints
       summary: The bridged endpoints a controller sees.
+      x-admin: true
       description: |
         `endpoints` are the bridged endpoints of the node's topology
         (go-fabric `Node.Topology`), each device followed by its parts.
@@ -142,6 +178,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/EndpointList" }
+        "403": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/endpoints/{ep}:
     parameters:
@@ -150,6 +187,7 @@ paths:
       tags: [node]
       operationId: getEndpointDetail
       summary: One endpoint the node serves, with its attribute values (0.4.1).
+      x-admin: true
       description: |
         Read through the node's own read path (go-fabric `Node.ReadCluster`),
         as a controller's read reaches it, without access control: the
@@ -172,6 +210,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EndpointDetail" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
@@ -182,6 +221,7 @@ paths:
       tags: [node]
       operationId: listEndpointEvents
       summary: The events the node's event log holds for one endpoint (0.4.1).
+      x-admin: true
       description: |
         The records a controller's event read is answered from (go-fabric
         `Node.Events` with the endpoint's filter), oldest first: the log is
@@ -191,6 +231,7 @@ paths:
         diagnostic trace of `GET /node/events`.
       parameters:
         - $ref: "#/components/parameters/EventSince"
+        - $ref: "#/components/parameters/EventSinceStr"
         - $ref: "#/components/parameters/EventLimit"
       responses:
         "200":
@@ -199,12 +240,14 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EventRecordList" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/surface:
     get:
       tags: [node]
       operationId: getNodeSurface
       summary: The node's surface report.
+      x-admin: true
       description: |
         go-fabric's `surface.Report` of the node in go-fabric's own JSON
         encoding (`surface.Report.MarshalJSON`): the effective surface per
@@ -218,24 +261,29 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SurfaceReport" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/sessions:
     get:
       tags: [node]
       operationId: listSessions
       summary: The open secure sessions and the session-id occupancy.
+      x-admin: true
       responses:
         "200":
           description: The sessions.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SessionList" }
+        "403": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/topology:
     get:
       tags: [node]
       operationId: getNodeTopology
       summary: The node as a graph — its bridge, its fabrics and the sessions on them.
+      x-admin: true
       description: |
         Built from go-fabric's `Topology`, `FabricInfos` and
         `SessionDiagnostics`: the node, its Aggregator, the bridged devices
@@ -251,6 +299,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TopologyGraph" }
+        "403": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/mdns:
@@ -258,12 +307,14 @@ paths:
       tags: [node]
       operationId: getMdns
       summary: The live DNS-SD advertisement and its diagnosis.
+      x-admin: true
       responses:
         "200":
           description: The advertisement.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Mdns" }
+        "403": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/mdns/reannounce:
     post:
@@ -286,36 +337,43 @@ paths:
       tags: [node]
       operationId: getCompatibility
       summary: The commissioned ecosystems and known incompatibilities.
+      x-admin: true
       responses:
         "200":
           description: The report.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Compatibility" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/events:
     get:
       tags: [node]
       operationId: listDiagnosticEvents
       summary: The pairing, session and discovery trace, newest first.
+      x-admin: true
       responses:
         "200":
           description: The trace.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/DiagnosticEventList" }
+        "403": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/exposure/schema:
     get:
       tags: [node]
       operationId: getExposureSchema
       summary: How the selection page shows the host's items.
+      x-admin: true
       responses:
         "200":
           description: The schema.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ExposureSchema" }
+        "403": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/exposure:
@@ -323,12 +381,14 @@ paths:
       tags: [node]
       operationId: listExposure
       summary: Every item the host could expose.
+      x-admin: true
       responses:
         "200":
           description: The items.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ItemList" }
+        "403": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
     put:
@@ -350,6 +410,8 @@ paths:
         "204": { description: The batch was empty. }
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/exposure/preview:
@@ -371,6 +433,8 @@ paths:
               schema: { $ref: "#/components/schemas/ItemList" }
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/maintenance/reassemble:
@@ -399,6 +463,8 @@ paths:
         "204": { description: Every fabric is removed. }
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /node/maintenance/erase:
@@ -426,6 +492,8 @@ paths:
         "204": { description: Erased; the host brings the node back or restarts. }
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "501": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
@@ -434,6 +502,7 @@ paths:
       tags: [node]
       operationId: stream
       summary: Server-sent events.
+      x-non-admin-events: [nodes_changed, window_opened, window_closed]
       description: |
         `event:` is one of fabric_added, fabric_removed, fabric_updated,
         commissioning_complete, window_opened, window_closed,
@@ -469,12 +538,17 @@ paths:
         session_closed and subscriptions_changed follow only a session
         session_opened reported.
         A comment line arrives every 15 s. No payload carries a passcode.
+        A request without admin rights receives `nodes_changed`,
+        `window_opened` and `window_closed` only (`x-non-admin-events`, 0.10.0);
+        a host's own events reach admin requests only.
       responses:
         "200":
           description: The event stream.
           content:
             text/event-stream:
               schema: { type: string }
+        "403": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/StreamUnavailable" }
   /nodes:
     get:
       tags: [node]
@@ -494,6 +568,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/NodeSummaryList" }
+        "403": { $ref: "#/components/responses/Problem" }
     post:
       tags: [node]
       operationId: createNode
@@ -520,6 +595,8 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}:
@@ -538,6 +615,7 @@ paths:
       x-admin: true
       responses:
         "204": { description: Deleted. }
+        "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
@@ -566,6 +644,8 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/status:
@@ -582,6 +662,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Status" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/fabrics:
     parameters:
@@ -590,6 +672,7 @@ paths:
       tags: [node]
       operationId: listFabricsForNode
       summary: The commissioned fabrics.
+      x-admin: true
       description: "As `GET /node/fabrics` (`listFabrics`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       responses:
         "200":
@@ -597,6 +680,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/FabricList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
@@ -636,6 +721,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Pairing" }
+        "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
@@ -663,6 +749,8 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/pairing/window/close:
@@ -676,6 +764,7 @@ paths:
       x-admin: true
       responses:
         "204": { description: Closed. }
+        "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
@@ -687,6 +776,7 @@ paths:
       tags: [node]
       operationId: listEndpointsForNode
       summary: The bridged endpoints a controller sees.
+      x-admin: true
       description: "As `GET /node/endpoints` (`listEndpoints`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       responses:
         "200":
@@ -694,6 +784,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/EndpointList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/endpoints/{ep}:
@@ -704,6 +796,7 @@ paths:
       tags: [node]
       operationId: getEndpointDetailForNode
       summary: One endpoint the node serves, with its attribute values (0.4.1).
+      x-admin: true
       description: "As `GET /node/endpoints/{ep}` (`getEndpointDetail`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       responses:
         "200":
@@ -712,6 +805,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EndpointDetail" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
@@ -723,9 +817,11 @@ paths:
       tags: [node]
       operationId: listEndpointEventsForNode
       summary: The events the node's event log holds for one endpoint (0.4.1).
+      x-admin: true
       description: "As `GET /node/endpoints/{ep}/events` (`listEndpointEvents`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       parameters:
         - $ref: "#/components/parameters/EventSince"
+        - $ref: "#/components/parameters/EventSinceStr"
         - $ref: "#/components/parameters/EventLimit"
       responses:
         "200":
@@ -734,6 +830,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EventRecordList" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/surface:
@@ -743,6 +840,7 @@ paths:
       tags: [node]
       operationId: getNodeSurfaceForNode
       summary: The node's surface report.
+      x-admin: true
       description: "As `GET /node/surface` (`getNodeSurface`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       responses:
         "200":
@@ -750,7 +848,10 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SurfaceReport" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/sessions:
     parameters:
@@ -759,6 +860,7 @@ paths:
       tags: [node]
       operationId: listSessionsForNode
       summary: The open secure sessions and the session-id occupancy.
+      x-admin: true
       description: "As `GET /node/sessions` (`listSessions`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       responses:
         "200":
@@ -766,6 +868,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SessionList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/topology:
@@ -775,6 +879,7 @@ paths:
       tags: [node]
       operationId: getNodeTopologyForNode
       summary: The node as a graph — its bridge, its fabrics and the sessions on them.
+      x-admin: true
       description: "As `GET /node/topology` (`getNodeTopology`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       responses:
         "200":
@@ -782,6 +887,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TopologyGraph" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
@@ -792,6 +899,7 @@ paths:
       tags: [node]
       operationId: getMdnsForNode
       summary: The live DNS-SD advertisement and its diagnosis.
+      x-admin: true
       description: "As `GET /node/mdns` (`getMdns`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       responses:
         "200":
@@ -799,6 +907,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Mdns" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/mdns/reannounce:
@@ -812,6 +922,7 @@ paths:
       x-admin: true
       responses:
         "204": { description: Announced. }
+        "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
@@ -822,6 +933,7 @@ paths:
       tags: [node]
       operationId: getCompatibilityForNode
       summary: The commissioned ecosystems and known incompatibilities.
+      x-admin: true
       description: "As `GET /node/compatibility` (`getCompatibility`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       responses:
         "200":
@@ -829,7 +941,10 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Compatibility" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/events:
     parameters:
@@ -838,6 +953,7 @@ paths:
       tags: [node]
       operationId: listDiagnosticEventsForNode
       summary: The pairing, session and discovery trace, newest first.
+      x-admin: true
       description: "As `GET /node/events` (`listDiagnosticEvents`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       responses:
         "200":
@@ -845,6 +961,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/DiagnosticEventList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/exposure/schema:
@@ -854,6 +972,7 @@ paths:
       tags: [node]
       operationId: getExposureSchemaForNode
       summary: How the selection page shows the host's items.
+      x-admin: true
       description: "As `GET /node/exposure/schema` (`getExposureSchema`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       responses:
         "200":
@@ -861,6 +980,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ExposureSchema" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
@@ -871,6 +992,7 @@ paths:
       tags: [node]
       operationId: listExposureForNode
       summary: Every item the host could expose.
+      x-admin: true
       description: "As `GET /node/exposure` (`listExposure`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       responses:
         "200":
@@ -878,6 +1000,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ItemList" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
@@ -902,6 +1026,8 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/exposure/preview:
@@ -927,6 +1053,8 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/maintenance/reassemble:
@@ -940,6 +1068,7 @@ paths:
       x-admin: true
       responses:
         "204": { description: Reassembled. }
+        "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
@@ -963,6 +1092,8 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /nodes/{node}/maintenance/erase:
@@ -984,6 +1115,8 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "501": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
@@ -994,6 +1127,7 @@ paths:
       tags: [node]
       operationId: streamForNode
       summary: Server-sent events.
+      x-non-admin-events: [nodes_changed, window_opened, window_closed]
       description: "As `GET /node/stream` (`stream`), for the node `{node}`; 404 for a key `GET /nodes` does not list (0.5.0)."
       responses:
         "200":
@@ -1001,7 +1135,10 @@ paths:
           content:
             text/event-stream:
               schema: { type: string }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/StreamUnavailable" }
   /operation/info:
     get:
       tags: [operation]
@@ -1013,6 +1150,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OperationInfo" }
+        "403": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /operation/log/level:
     get:
@@ -1025,6 +1163,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/LogLevel" }
+        "403": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
     put:
       tags: [operation]
@@ -1044,6 +1183,8 @@ paths:
               schema: { $ref: "#/components/schemas/LogLevel" }
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /operation/log:
@@ -1051,6 +1192,7 @@ paths:
       tags: [operation]
       operationId: listLogRecords
       summary: The records the daemon's log ring holds, oldest first (0.5.0).
+      x-admin: true
       description: |
         The ring is bounded and in memory: a record falls out when it is
         full and every record is gone after a restart. A record below the
@@ -1066,12 +1208,14 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/LogRecordList" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /operation/log/stream:
     get:
       tags: [operation]
       operationId: logStream
       summary: Server-sent log records (0.5.0).
+      x-admin: true
       description: |
         `event:` is log_record; `data:` is the `LogRecord`, one per record
         the ring takes from the moment the stream opens. A page reads
@@ -1084,7 +1228,8 @@ paths:
           content:
             text/event-stream:
               schema: { type: string }
-        "503": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/StreamUnavailable" }
   /controller/status:
     get:
       tags: [controller]
@@ -1093,24 +1238,30 @@ paths:
       description: |
         Answered only when the host serves the controller family
         (`Options.Controller`); without it every `/controller/*` path is
-        404, which is how a page tells the family is absent.
+        404, which is how a page tells the family is absent. Open (0.10.0):
+        a request without admin rights gets `enabled`, `capabilities`,
+        `admin` and `csrf_token` as they are and every other required member
+        empty or 0.
       responses:
         "200":
           description: The status.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ControllerStatus" }
+        "403": { $ref: "#/components/responses/Problem" }
   /controller/nodes:
     get:
       tags: [controller]
       operationId: listControllerNodes
       summary: The commissioned nodes.
+      x-admin: true
       responses:
         "200":
           description: The nodes, by node id.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ControllerNodeList" }
+        "403": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}:
     parameters:
       - $ref: "#/components/parameters/NodeID"
@@ -1118,6 +1269,7 @@ paths:
       tags: [controller]
       operationId: getControllerNode
       summary: One node — record, properties, endpoints with clusters and device types.
+      x-admin: true
       responses:
         "200":
           description: The node.
@@ -1125,6 +1277,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ControllerNodeDetail" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
     delete:
       tags: [controller]
@@ -1136,6 +1289,7 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/endpoints/{ep}:
@@ -1146,6 +1300,7 @@ paths:
       tags: [controller]
       operationId: getNodeEndpoint
       summary: One endpoint of the node from the controller's image — its structure, no attribute values.
+      x-admin: true
       description: |
         Read from the controller's image of the node, never from the node
         (no interaction, no admin): the device types of the Descriptor's
@@ -1162,6 +1317,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EndpointDetail" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}:
     parameters:
@@ -1176,6 +1332,7 @@ paths:
       tags: [controller]
       operationId: getNodeCluster
       summary: One server cluster of an endpoint with its attribute values from the controller's image.
+      x-admin: true
       description: |
         The values are the controller's cache of the node — what its
         subscription and its last read delivered — rendered as JSON by the
@@ -1191,6 +1348,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ClusterDetail" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/events:
@@ -1200,6 +1358,7 @@ paths:
       tags: [controller]
       operationId: listNodeEvents
       summary: The events the controller received from the node (0.4.1).
+      x-admin: true
       description: |
         The node's event history in the controller (go-fabric
         `client.Node.EventHistory`): the events its default subscription,
@@ -1209,6 +1368,7 @@ paths:
         No interaction with the node, no admin. 404 for an unknown node.
       parameters:
         - $ref: "#/components/parameters/EventSince"
+        - $ref: "#/components/parameters/EventSinceStr"
         - $ref: "#/components/parameters/EventLimit"
       responses:
         "200":
@@ -1217,6 +1377,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EventRecordList" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/interview:
     parameters:
@@ -1231,6 +1392,7 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/ping:
     parameters:
@@ -1310,6 +1472,8 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/window:
     parameters:
@@ -1333,6 +1497,9 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/window/close:
     parameters:
@@ -1347,6 +1514,7 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/attributes:
     parameters:
@@ -1355,6 +1523,7 @@ paths:
       tags: [controller]
       operationId: readNodeAttributes
       summary: Read concrete attribute paths from the node.
+      x-admin: true
       description: |
         A targeted read: every path names its endpoint, cluster and
         attribute (no wildcard, at most 32 paths). The value is the JSON
@@ -1373,7 +1542,11 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AttributeValueList" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
     put:
       tags: [controller]
@@ -1394,6 +1567,9 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/commands:
     parameters:
@@ -1417,6 +1593,9 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/acl:
     parameters:
@@ -1425,6 +1604,7 @@ paths:
       tags: [controller]
       operationId: getNodeAcl
       summary: The node's access control entries of our fabric.
+      x-admin: true
       responses:
         "200":
           description: The entries.
@@ -1432,7 +1612,9 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AclEntryList" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
     put:
       tags: [controller]
@@ -1447,7 +1629,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/AclEntryList" }
+            schema: { $ref: "#/components/schemas/AclWriteRequest" }
       responses:
         "200":
           description: The node's status for the write.
@@ -1457,6 +1639,9 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/bindings:
     parameters:
@@ -1465,6 +1650,7 @@ paths:
       tags: [controller]
       operationId: getNodeBindings
       summary: The binding targets of every endpoint with a Binding cluster.
+      x-admin: true
       responses:
         "200":
           description: The bindings by endpoint.
@@ -1472,7 +1658,9 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/BindingList" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
     put:
       tags: [controller]
@@ -1483,7 +1671,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/EndpointBindings" }
+            schema: { $ref: "#/components/schemas/EndpointBindingsWrite" }
       responses:
         "200":
           description: The node's status for the write.
@@ -1493,6 +1681,9 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/icd:
     parameters:
@@ -1501,6 +1692,7 @@ paths:
       tags: [controller]
       operationId: getNodeIcd
       summary: The node's intermittently-connected-device state.
+      x-admin: true
       responses:
         "200":
           description: The state; `supported` is false for a node without ICD Management.
@@ -1508,6 +1700,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/IcdState" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/icd/register:
     parameters:
@@ -1531,6 +1724,8 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/icd/unregister:
     parameters:
@@ -1553,6 +1748,9 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/fabrics:
     parameters:
@@ -1561,6 +1759,7 @@ paths:
       tags: [controller]
       operationId: listNodeFabrics
       summary: Every fabric on the node, ours marked.
+      x-admin: true
       responses:
         "200":
           description: The fabrics.
@@ -1568,7 +1767,9 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/NodeFabricList" }
         "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/nodes/{id}/fabrics/{index}:
     parameters:
@@ -1588,6 +1789,7 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
   /controller/commission:
     post:
@@ -1618,6 +1820,8 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /controller/discovery:
@@ -1653,12 +1857,14 @@ paths:
       tags: [controller]
       operationId: listCredentials
       summary: The stored Wi-Fi and Thread credentials, by name; never a secret.
+      x-admin: true
       responses:
         "200":
           description: The credentials.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CredentialList" }
+        "403": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
     put:
@@ -1675,6 +1881,8 @@ paths:
         "204": { description: Stored. }
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
     delete:
@@ -1713,18 +1921,22 @@ paths:
         "204": { description: The label is set; the nodes get it in the background. }
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
   /controller/updates:
     get:
       tags: [controller]
       operationId: listUpdates
       summary: The software update queue.
+      x-admin: true
       responses:
         "200":
           description: The queue; `available` is false when the controller runs no OTA provider.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/UpdateQueue" }
+        "403": { $ref: "#/components/responses/Problem" }
   /controller/updates/consent:
     post:
       tags: [controller]
@@ -1741,6 +1953,8 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
+        "413": { $ref: "#/components/responses/Problem" }
+        "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
   /controller/updates/check:
@@ -1763,6 +1977,7 @@ paths:
       tags: [controller]
       operationId: getControllerTopology
       summary: The controller's network as a graph — its nodes and the links between them.
+      x-admin: true
       description: |
         `family` is `controller`. Nodes are the controller (`node`), its
         commissioned nodes (`peer:<node_id_hex>`, `role` their Thread role
@@ -1782,17 +1997,18 @@ paths:
         node off Thread and Wi-Fi. Edges are a `session` from the
         controller to every commissioned node and a `link` per Thread pair
         and Wi-Fi station with its strength, LQI and RSSI.
-        `refresh=true` re-reads the nodes' network diagnostics first and
-        needs admin rights (403 without them); 501 `not_implemented` is a
-        host whose controller serves no network graph.
+        `refresh=true` re-reads the nodes' network diagnostics first; a
+        value other than `true` or `false` is 400. 501 `not_implemented` is
+        a host whose controller serves no network graph.
       parameters:
-        - { name: refresh, in: query, x-admin: true, schema: { type: boolean }, description: "Re-read the nodes' network diagnostics before answering; admin only." }
+        - { name: refresh, in: query, schema: { type: boolean }, description: "Re-read the nodes' network diagnostics before answering." }
       responses:
         "200":
           description: The graph.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TopologyGraph" }
+        "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "501": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
@@ -1801,6 +2017,7 @@ paths:
       tags: [controller]
       operationId: getControllerDiagnostics
       summary: The controller's open sessions and one entry per peer (0.9.0).
+      x-admin: true
       description: |
         A snapshot of every peer's secure sessions and its connection state
         (go-fabric `Controller.SessionDiagnostics`, v0.21.0). `sessions` are
@@ -1817,12 +2034,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ControllerDiagnostics" }
+        "403": { $ref: "#/components/responses/Problem" }
         "501": { $ref: "#/components/responses/Problem" }
   /controller/mdns:
     get:
       tags: [controller]
       operationId: getControllerMdns
       summary: What keeps the controller's DNS-SD from working (0.9.0).
+      x-admin: true
       description: |
         The findings of go-fabric `Controller.DiagnoseMDNS` (v0.21.0), errors
         first: the diagnosis of the records the controller advertises, and
@@ -1837,12 +2056,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ControllerMdns" }
+        "403": { $ref: "#/components/responses/Problem" }
         "501": { $ref: "#/components/responses/Problem" }
   /controller/events:
     get:
       tags: [controller]
       operationId: listControllerDiagnosticEvents
       summary: The controller's diagnostic trace, newest first (0.9.0).
+      x-admin: true
       description: |
         The bounded trace of go-fabric `Controller.DiagnosticEvents`
         (v0.21.0): pairing, session, discovery, reachability, icd, ota and
@@ -1855,12 +2076,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/DiagnosticEventList" }
+        "403": { $ref: "#/components/responses/Problem" }
         "501": { $ref: "#/components/responses/Problem" }
   /controller/stream:
     get:
       tags: [controller]
       operationId: controllerStream
       summary: Server-sent events of the controller.
+      x-admin: true
       description: |
         `event:` is one of node_added, node_updated, node_removed,
         connection, subscription, commissioning_progress, update,
@@ -1878,6 +2101,8 @@ paths:
           content:
             text/event-stream:
               schema: { type: string }
+        "403": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/StreamUnavailable" }
 components:
   parameters:
     NodeKey:
@@ -1900,19 +2125,24 @@ components:
       name: id
       in: path
       required: true
-      description: The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free.
-      schema: { type: string }
+      description: The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits.
+      schema: { type: string, pattern: "^[0-9A-Fa-f]{1,16}$" }
     EndpointNumber:
       name: ep
       in: path
       required: true
-      description: The endpoint number.
-      schema: { type: integer, minimum: 0, maximum: 65535 }
+      description: The endpoint number; 65535 is no endpoint (0.10.0).
+      schema: { type: integer, minimum: 0, maximum: 65534 }
     EventSince:
       name: since
       in: query
       description: The lowest event number returned (inclusive); absent is every event the log holds. A page passes the last number it has plus one to fetch only the newer ones.
       schema: { type: integer, minimum: 0 }
+    EventSinceStr:
+      name: since_str
+      in: query
+      description: "`since` in decimal as a string, exact beyond 2^53 (0.10.0); when present it is used and `since` ignored."
+      schema: { type: string, pattern: "^(0|[1-9][0-9]{0,19})$" }
     EventLimit:
       name: limit
       in: query
@@ -1921,6 +2151,25 @@ components:
   responses:
     Problem:
       description: An RFC 9457 problem.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    MethodNotAllowed:
+      description: "405 `method_not_allowed` (0.10.0): the path is served, the method is not. Answered at path level, not listed per operation."
+      headers:
+        Allow:
+          required: true
+          description: The path's methods in this contract, plus `HEAD` where `GET` is listed.
+          schema: { type: string }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    StreamUnavailable:
+      description: "503 (0.10.0): `too_many_streams` while the handler serves its limit of open event streams, with `Retry-After`; else the problem the operation names."
+      headers:
+        Retry-After:
+          description: Seconds after which to try again; present with `too_many_streams`.
+          schema: { type: integer, minimum: 0 }
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
@@ -1936,7 +2185,7 @@ components:
         instance: { type: string }
         code:
           type: string
-          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large, node_error, not_implemented, node_limit, node_is_default, terms_required]
+          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large, node_error, not_implemented, node_limit, node_is_default, terms_required, method_not_allowed, too_many_streams, unsupported_media_type, host_not_allowed, origin_not_allowed]
         version:
           type: integer
           minimum: 0
@@ -1951,7 +2200,7 @@ components:
           description: "terms_required (0.8.0): the device's TCUpdateDeadline in Matter epoch seconds (from 2000-01-01T00:00:00Z), by which a commissioned device expects an updated acceptance; null when the attribute is null."
     Status:
       type: object
-      required: [enabled, listening, endpoint_count, fabric_count, advertising, commissioning_window_open, exposure]
+      required: [enabled, listening, endpoint_count, advertising, commissioning_window_open, exposure]
       properties:
         enabled: { type: boolean }
         listening: { type: boolean }
@@ -1959,7 +2208,7 @@ components:
         healthy: { type: boolean, description: Absent when the node runs no health probe. }
         health_note: { type: string }
         endpoint_count: { type: integer }
-        fabric_count: { type: integer }
+        fabric_count: { type: integer, description: "Absent when the fabric read failed (optional since 0.10.0)." }
         enabled_count: { type: integer, description: Enabled selection items; absent without a selection. }
         advertising: { type: boolean }
         commissioning_window_open: { type: boolean }
@@ -1969,6 +2218,7 @@ components:
           enum: [none, own, basic, enhanced]
           description: Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one; absent without a node.
         window_deadline: { type: string, format: date-time, description: When the open window's timer closes it, on the node's clock; absent while no window is open. }
+        window_remaining_seconds: { type: integer, minimum: 0, description: "Seconds until the open window's timer closes it, on the node's clock when the answer was written (0.10.0); absent while no window is open." }
         exposure: { type: boolean, description: Whether the host serves a selection. }
         exposure_reason: { type: string, description: "Why the host serves no selection, in the host's language; absent when it serves one or gives no reason (0.5.0)." }
         csrf_token: { type: string, description: The admin token of token mode; absent when the host decides admin rights. }
@@ -1984,7 +2234,7 @@ components:
         erase: { type: boolean, description: "Whether the host wires an erase of this node (0.7.0, `Options.Erase` or `NodeEntry.Erase`): `POST /node/maintenance/erase` is served. Absent without one." }
         warnings:
           type: array
-          description: The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing.
+          description: The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing. A request without admin rights gets every entry with its `code`, an empty `message` and no `since` (0.10.0).
           items: { $ref: "#/components/schemas/Warning" }
         counters:
           type: array
@@ -2008,8 +2258,8 @@ components:
       required: [code, message]
       properties:
         code: { type: string, description: "The kind of finding, stable across host releases." }
-        message: { type: string, description: "What is wrong, in the host's language." }
-        since: { type: string, format: date-time, description: "When the host first saw it; absent when unknown." }
+        message: { type: string, description: "What is wrong, in the host's language; empty for a request without admin rights (0.10.0)." }
+        since: { type: string, format: date-time, description: "When the host first saw it; absent when unknown or for a request without admin rights." }
     Counter:
       type: object
       description: "One of the host's counters (0.8.0, Options.Counters)."
@@ -2023,9 +2273,9 @@ components:
       required: [fabric_index, fabric_id, fabric_id_hex, node_id, node_id_hex, vendor_id, vendor_name, compressed_id, root_public_key]
       properties:
         fabric_index: { type: integer }
-        fabric_id: { type: integer, description: Informational; use fabric_id_hex. }
+        fabric_id: { type: integer, deprecated: true, description: Informational; use fabric_id_hex. }
         fabric_id_hex: { type: string }
-        node_id: { type: integer, description: Informational; use node_id_hex. }
+        node_id: { type: integer, deprecated: true, description: Informational; use node_id_hex. }
         node_id_hex: { type: string }
         vendor_id: { type: integer }
         vendor_name: { type: string }
@@ -2050,8 +2300,11 @@ components:
         source: { type: string, enum: [configured, window] }
         window_open: { type: boolean }
         duration_seconds: { type: integer }
+        window_remaining_seconds: { type: integer, minimum: 0, description: "As on `Status` (0.10.0): seconds until the open window's timer closes it; absent while no window is open." }
+        window_match: { type: boolean, description: "True: the open window admits the codes of this answer; false: a window is open on other credentials (0.10.0). Absent while no window is open." }
     WindowRequest:
       type: object
+      additionalProperties: false
       properties:
         duration_seconds: { type: integer, description: "180..900; 0 or absent is 900." }
     Window:
@@ -2122,9 +2375,9 @@ components:
       properties:
         session_id: { type: integer }
         fabric_index: { type: integer }
-        peer_node_id: { type: integer, description: Informational; use peer_node_id_hex. }
+        peer_node_id: { type: integer, format: uint64, deprecated: true, description: Informational; use peer_node_id_hex. }
         peer_node_id_hex: { type: string }
-        local_node_id: { type: integer, description: Informational; use local_node_id_hex. }
+        local_node_id: { type: integer, format: uint64, deprecated: true, description: Informational; use local_node_id_hex. }
         local_node_id_hex: { type: string }
         is_pase: { type: boolean }
         subscriptions: { type: integer }
@@ -2340,9 +2593,10 @@ components:
         vendor_name: { type: string }
         product_id: { type: integer, minimum: 0, maximum: 65535 }
         product_name: { type: string }
-        store: { type: string, description: Where the node keeps its state (a file name); absent when the host does not say. }
+        store: { type: string, description: Where the node keeps its state (a file name); absent when the host does not say, and for a request without admin rights (0.10.0). }
     NodeLabelRequest:
       type: object
+      additionalProperties: false
       description: The body of `POST /nodes` and `PUT /nodes/{node}/label` (0.6.0); an unknown field is refused.
       required: [label]
       properties:
@@ -2369,6 +2623,7 @@ components:
         levels: { type: array, items: { type: string, enum: [debug, info, warn, error] }, description: "The levels the daemon accepts, lowest first." }
     LogLevelRequest:
       type: object
+      additionalProperties: false
       required: [level]
       properties:
         level: { type: string, enum: [debug, info, warn, error] }
@@ -2492,6 +2747,7 @@ components:
           items: { $ref: "#/components/schemas/Item" }
     Update:
       type: object
+      additionalProperties: false
       required: [key, enabled]
       properties:
         key: { type: string }
@@ -2499,6 +2755,7 @@ components:
         name: { type: string, description: Renames the item; absent leaves the name. }
     UpdateList:
       type: object
+      additionalProperties: false
       required: [items]
       properties:
         items:
@@ -2509,13 +2766,16 @@ components:
       required: [applied]
       properties:
         applied: { type: integer }
+        reassembled: { type: boolean, description: "False: the selection is stored, the rebuild failed and it is not in effect (0.10.0)." }
     FactoryResetRequest:
       type: object
+      additionalProperties: false
       required: [confirm]
       properties:
         confirm: { type: string, const: remove-all-fabrics }
     EraseRequest:
       type: object
+      additionalProperties: false
       required: [confirm]
       properties:
         confirm: { type: string, const: erase-node }
@@ -2539,9 +2799,9 @@ components:
       properties:
         session_id: { type: integer }
         fabric_index: { type: integer }
-        peer_node_id: { type: integer, description: Informational; use peer_node_id_hex. }
+        peer_node_id: { type: integer, format: uint64, deprecated: true, description: Informational; use peer_node_id_hex. }
         peer_node_id_hex: { type: string }
-        local_node_id: { type: integer, description: Informational; use local_node_id_hex. }
+        local_node_id: { type: integer, format: uint64, deprecated: true, description: Informational; use local_node_id_hex. }
         local_node_id_hex: { type: string }
         is_pase: { type: boolean }
         subscriptions: { type: integer }
@@ -2704,6 +2964,7 @@ components:
         node_count: { type: integer }
         capabilities: { $ref: "#/components/schemas/ControllerCapabilities" }
         csrf_token: { type: string, description: The admin token of token mode, as on GET /node/status; absent when the host decides admin rights. }
+        admin: { type: boolean, description: "Whether this request has admin rights (0.10.0), as `Status.admin`: present when the host decides admin rights, absent in token mode." }
     ControllerCapabilities:
       type: object
       required: [ota, credentials, ble, diagnostics]
@@ -2774,6 +3035,7 @@ components:
         icd: { type: boolean, description: The node has ICD Management. }
         addresses: { type: array, items: { type: string } }
         commissioned_at: { type: string, format: date-time }
+        auto_subscribe: { type: boolean, description: "The auto-subscribe setting, not the live subscription (`subscription_active`) (0.10.0)." }
     ControllerNodeList:
       type: object
       required: [nodes]
@@ -2992,7 +3254,8 @@ components:
       description: One Matter event (0.4.1), one shape for both families — an event the node served, or one the controller received from a node.
       required: [number, priority, endpoint, cluster_hex, event_hex]
       properties:
-        number: { type: integer, description: The node-wide event number (Matter Core §7.14.2.1). }
+        number: { type: integer, deprecated: true, description: "The node-wide event number (Matter Core §7.14.2.1); use `number_str`." }
+        number_str: { type: string, pattern: "^(0|[1-9][0-9]{0,19})$", description: "The event number in decimal, exact (0.10.0)." }
         priority: { type: string, enum: [debug, info, critical] }
         endpoint: { type: integer }
         cluster_hex: { type: string }
@@ -3020,11 +3283,13 @@ components:
           items: { $ref: "#/components/schemas/NodeEndpoint" }
     AutoSubscribeRequest:
       type: object
+      additionalProperties: false
       required: [enabled]
       properties:
         enabled: { type: boolean }
     NodeWindowRequest:
       type: object
+      additionalProperties: false
       properties:
         timeout_seconds: { type: integer, minimum: 0, maximum: 65535, description: "How long the window stays open; 0 or absent is the node's default (900 s)." }
     NodeWindow:
@@ -3040,6 +3305,7 @@ components:
         timeout_seconds: { type: integer }
     AttributePath:
       type: object
+      additionalProperties: false
       required: [endpoint, cluster_hex, attribute_hex]
       properties:
         endpoint: { type: integer, minimum: 0, maximum: 65535 }
@@ -3047,6 +3313,7 @@ components:
         attribute_hex: { type: string, description: "The attribute id in hex, `0x` optional." }
     ReadRequest:
       type: object
+      additionalProperties: false
       required: [paths]
       properties:
         paths:
@@ -3071,6 +3338,7 @@ components:
           items: { $ref: "#/components/schemas/AttributeValue" }
     WriteRequest:
       type: object
+      additionalProperties: false
       required: [endpoint, cluster_hex, attribute_hex, value]
       properties:
         endpoint: { type: integer, minimum: 0, maximum: 65535 }
@@ -3086,6 +3354,7 @@ components:
         cluster_status: { type: integer }
     InvokeRequest:
       type: object
+      additionalProperties: false
       required: [endpoint, cluster_hex, command_hex]
       properties:
         endpoint: { type: integer, minimum: 0, maximum: 65535 }
@@ -3111,8 +3380,8 @@ components:
       type: object
       required: [privilege, auth_mode, subjects_hex, targets]
       properties:
-        privilege: { type: string, enum: [view, proxy_view, operate, manage, administer] }
-        auth_mode: { type: string, enum: [pase, case, group] }
+        privilege: { type: string, enum: [view, proxy_view, operate, manage, administer, unknown], description: "`unknown` (0.10.0): a value the node sent that this list does not name." }
+        auth_mode: { type: string, enum: [pase, case, group, unknown], description: "`unknown` (0.10.0): a value the node sent that this list does not name." }
         subjects_hex:
           type: array
           description: Node ids (CASE), group ids (Group) or CATs in hex; empty is every subject of the auth mode.
@@ -3129,6 +3398,32 @@ components:
         entries:
           type: array
           items: { $ref: "#/components/schemas/AclEntry" }
+    AclEntryWrite:
+      type: object
+      description: One entry of `PUT /controller/nodes/{id}/acl` (0.10.0); `AclEntry` without `unknown`.
+      additionalProperties: false
+      required: [privilege, auth_mode, subjects_hex, targets]
+      properties:
+        privilege: { type: string, enum: [view, proxy_view, operate, manage, administer] }
+        auth_mode: { type: string, enum: [pase, case, group] }
+        subjects_hex:
+          type: array
+          description: Node ids (CASE), group ids (Group) or CATs in hex; empty is every subject of the auth mode.
+          items: { type: string }
+        targets:
+          type: array
+          description: Empty is the whole node.
+          items: { $ref: "#/components/schemas/AclTarget" }
+        fabric_index: { type: integer, description: Set by the node; ignored. }
+    AclWriteRequest:
+      type: object
+      description: The body of `PUT /controller/nodes/{id}/acl` (0.10.0).
+      additionalProperties: false
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/AclEntryWrite" }
     BindingTarget:
       type: object
       properties:
@@ -3139,6 +3434,17 @@ components:
         fabric_index: { type: integer, description: Set by the node; ignored in a write. }
     EndpointBindings:
       type: object
+      required: [endpoint, bindings]
+      properties:
+        endpoint: { type: integer, minimum: 0, maximum: 65535 }
+        bindings:
+          type: array
+          items: { $ref: "#/components/schemas/BindingTarget" }
+        status: { type: integer, description: "The node's status for this endpoint's read (0.10.0), as `AttributeValue.status`; absent on success, `bindings` then `[]`." }
+    EndpointBindingsWrite:
+      type: object
+      description: The body of `PUT /controller/nodes/{id}/bindings` (0.10.0).
+      additionalProperties: false
       required: [endpoint, bindings]
       properties:
         endpoint: { type: integer, minimum: 0, maximum: 65535 }
@@ -3166,10 +3472,12 @@ components:
         last_check_in: { type: string, format: date-time }
     IcdRegisterRequest:
       type: object
+      additionalProperties: false
       properties:
         allow_multi_admin: { type: boolean, description: Register although other administrators' vendors may not support LIT. }
     IcdUnregisterRequest:
       type: object
+      additionalProperties: false
       properties:
         force: { type: boolean, description: Forget the registration without asking the node. }
     NodeFabric:
@@ -3192,24 +3500,28 @@ components:
           items: { $ref: "#/components/schemas/NodeFabric" }
     DiscoveredRef:
       type: object
+      additionalProperties: false
       required: [instance_name]
       properties:
         instance_name: { type: string }
         long_discriminator: { type: integer, description: Searched for again when the controller no longer holds the discovery. }
     CommissionRequest:
       type: object
+      additionalProperties: false
       description: Either `code`, or `discovered` with `passcode`.
       properties:
         code: { type: string, description: A QR payload ("MT:…") or a manual pairing code. }
         discovered: { $ref: "#/components/schemas/DiscoveredRef" }
-        passcode: { type: integer, minimum: 1, maximum: 99999998 }
+        passcode: { type: integer, minimum: 1, maximum: 99999998, description: "Not 11111111, 22222222, … 88888888, 12345678 or 87654321 (400, 0.10.0)." }
         wifi_id: { type: string, description: The stored Wi-Fi credential to put the device on. }
         thread_id: { type: string, description: The stored Thread dataset to put the device on. }
         network_only: { type: boolean, description: "Never commission over Bluetooth LE, and the `commissioning_progress` event's `ble` reason is `network_only` (0.7.1)." }
         timeout_seconds: { type: integer, minimum: 1, maximum: 600, description: The whole commissioning's bound; absent is the controller's default. }
         terms_and_conditions: { $ref: "#/components/schemas/TermsAcknowledgement" }
+        commissioning_id: { type: string, pattern: "^[A-Za-z0-9_-]{1,64}$", description: "The client's id for this commissioning, echoed as `commissioning_id` on its `commissioning_progress` events (0.10.0); absent: the server draws one." }
     TermsAcknowledgement:
       type: object
+      additionalProperties: false
       description: "The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms fails the commissioning without one, or with one below its version, with 409 terms_required (0.8.0; before 0.8.0 a 502 at CommissioningComplete); absent sends none."
       required: [version, acknowledgements]
       properties:
@@ -3256,6 +3568,7 @@ components:
           items: { $ref: "#/components/schemas/Credential" }
     CredentialRequest:
       type: object
+      additionalProperties: false
       required: [kind, id]
       properties:
         kind: { type: string, enum: [wifi, thread] }
@@ -3265,9 +3578,10 @@ components:
         dataset_hex: { type: string, description: Thread; the operational dataset as hex MeshCoP TLVs, write-only. }
     FabricLabelRequest:
       type: object
+      additionalProperties: false
       required: [label]
       properties:
-        label: { type: string, maxLength: 32 }
+        label: { type: string, maxLength: 32, description: "At most 32 bytes of UTF-8; a longer label is 400 (0.10.0)." }
     PendingUpdate:
       type: object
       required: [node_id_hex, vendor_id, product_id, target_software_version, status]
@@ -3291,6 +3605,7 @@ components:
           items: { $ref: "#/components/schemas/PendingUpdate" }
     UpdateConsentRequest:
       type: object
+      additionalProperties: false
       required: [node_id_hex, vendor_id, product_id, target_software_version]
       properties:
         node_id_hex: { type: string }
@@ -3324,6 +3639,7 @@ components:
         detail: { type: string, description: "commissioning_progress failed: the failure's kind, never its text — invalid_argument, no_device, timeout, node_failed, failed, and terms_required (0.8.0) for a device that requires an accepted version of its terms and conditions." }
         step: { $ref: "#/components/schemas/PairingStep" }
         ble: { $ref: "#/components/schemas/BLEDecision" }
+        commissioning_id: { type: string, description: "commissioning_progress (0.10.0): the commissioning's id, the request's `commissioning_id` or one the server drew; on every such event." }
         update_kind:
           type: string
           enum: [available, consent_changed, check_finished, applying, done, failed, queued, transfer_started]

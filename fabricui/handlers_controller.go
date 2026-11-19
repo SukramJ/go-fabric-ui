@@ -955,11 +955,11 @@ func (s *controllerServer) SetNodeACL(ctx context.Context, req api.SetNodeACLReq
 	}
 	entries := make([]ACLEntry, 0, len(req.Body.Entries))
 	for i, e := range req.Body.Entries {
-		priv, ok := keyOf(privilegeNames, e.Privilege)
+		priv, ok := keyOf(privilegeNames, api.ACLEntryPrivilege(e.Privilege))
 		if !ok {
 			return nil, badRequest("entries[%d].privilege: %q is unknown", i, e.Privilege)
 		}
-		mode, ok := keyOf(authModeNames, e.AuthMode)
+		mode, ok := keyOf(authModeNames, api.ACLEntryAuthMode(e.AuthMode))
 		if !ok {
 			return nil, badRequest("entries[%d].auth_mode: %q is unknown", i, e.AuthMode)
 		}
@@ -1854,9 +1854,9 @@ func controllerSessionOf(c *ControllerSession) api.Session {
 	out := api.Session{
 		SessionID:        int(c.ID),
 		FabricIndex:      int(c.FabricIndex),
-		PeerNodeID:       int(c.PeerNodeID), //nolint:gosec // informational; the hex twin is exact
+		PeerNodeID:       c.PeerNodeID,
 		PeerNodeIDHex:    hex16(c.PeerNodeID),
-		LocalNodeID:      int(c.LocalNodeID), //nolint:gosec // informational; the hex twin is exact
+		LocalNodeID:      c.LocalNodeID,
 		LocalNodeIDHex:   hex16(c.LocalNodeID),
 		IsPase:           c.PASE,
 		Subscriptions:    c.Subscriptions,

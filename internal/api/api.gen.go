@@ -23,9 +23,10 @@ import (
 
 // Defines values for ACLEntryAuthMode.
 const (
-	ACLEntryAuthModeCase  ACLEntryAuthMode = "case"
-	ACLEntryAuthModeGroup ACLEntryAuthMode = "group"
-	ACLEntryAuthModePase  ACLEntryAuthMode = "pase"
+	ACLEntryAuthModeCase    ACLEntryAuthMode = "case"
+	ACLEntryAuthModeGroup   ACLEntryAuthMode = "group"
+	ACLEntryAuthModePase    ACLEntryAuthMode = "pase"
+	ACLEntryAuthModeUnknown ACLEntryAuthMode = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the ACLEntryAuthMode enum.
@@ -36,6 +37,8 @@ func (e ACLEntryAuthMode) Valid() bool {
 	case ACLEntryAuthModeGroup:
 		return true
 	case ACLEntryAuthModePase:
+		return true
+	case ACLEntryAuthModeUnknown:
 		return true
 	default:
 		return false
@@ -48,6 +51,7 @@ const (
 	ACLEntryPrivilegeManage     ACLEntryPrivilege = "manage"
 	ACLEntryPrivilegeOperate    ACLEntryPrivilege = "operate"
 	ACLEntryPrivilegeProxyView  ACLEntryPrivilege = "proxy_view"
+	ACLEntryPrivilegeUnknown    ACLEntryPrivilege = "unknown"
 	ACLEntryPrivilegeView       ACLEntryPrivilege = "view"
 )
 
@@ -62,7 +66,57 @@ func (e ACLEntryPrivilege) Valid() bool {
 		return true
 	case ACLEntryPrivilegeProxyView:
 		return true
+	case ACLEntryPrivilegeUnknown:
+		return true
 	case ACLEntryPrivilegeView:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ACLEntryWriteAuthMode.
+const (
+	ACLEntryWriteAuthModeCase  ACLEntryWriteAuthMode = "case"
+	ACLEntryWriteAuthModeGroup ACLEntryWriteAuthMode = "group"
+	ACLEntryWriteAuthModePase  ACLEntryWriteAuthMode = "pase"
+)
+
+// Valid indicates whether the value is a known member of the ACLEntryWriteAuthMode enum.
+func (e ACLEntryWriteAuthMode) Valid() bool {
+	switch e {
+	case ACLEntryWriteAuthModeCase:
+		return true
+	case ACLEntryWriteAuthModeGroup:
+		return true
+	case ACLEntryWriteAuthModePase:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ACLEntryWritePrivilege.
+const (
+	ACLEntryWritePrivilegeAdminister ACLEntryWritePrivilege = "administer"
+	ACLEntryWritePrivilegeManage     ACLEntryWritePrivilege = "manage"
+	ACLEntryWritePrivilegeOperate    ACLEntryWritePrivilege = "operate"
+	ACLEntryWritePrivilegeProxyView  ACLEntryWritePrivilege = "proxy_view"
+	ACLEntryWritePrivilegeView       ACLEntryWritePrivilege = "view"
+)
+
+// Valid indicates whether the value is a known member of the ACLEntryWritePrivilege enum.
+func (e ACLEntryWritePrivilege) Valid() bool {
+	switch e {
+	case ACLEntryWritePrivilegeAdminister:
+		return true
+	case ACLEntryWritePrivilegeManage:
+		return true
+	case ACLEntryWritePrivilegeOperate:
+		return true
+	case ACLEntryWritePrivilegeProxyView:
+		return true
+	case ACLEntryWritePrivilegeView:
 		return true
 	default:
 		return false
@@ -302,18 +356,23 @@ func (e PingResultMethod) Valid() bool {
 
 // Defines values for ProblemCode.
 const (
-	ProblemCodeBadRequest      ProblemCode = "bad_request"
-	ProblemCodeConflict        ProblemCode = "conflict"
-	ProblemCodeForbidden       ProblemCode = "forbidden"
-	ProblemCodeInternal        ProblemCode = "internal"
-	ProblemCodeNodeError       ProblemCode = "node_error"
-	ProblemCodeNodeIsDefault   ProblemCode = "node_is_default"
-	ProblemCodeNodeLimit       ProblemCode = "node_limit"
-	ProblemCodeNotFound        ProblemCode = "not_found"
-	ProblemCodeNotImplemented  ProblemCode = "not_implemented"
-	ProblemCodePayloadTooLarge ProblemCode = "payload_too_large"
-	ProblemCodeServiceUnready  ProblemCode = "service_unready"
-	ProblemCodeTermsRequired   ProblemCode = "terms_required"
+	ProblemCodeBadRequest           ProblemCode = "bad_request"
+	ProblemCodeConflict             ProblemCode = "conflict"
+	ProblemCodeForbidden            ProblemCode = "forbidden"
+	ProblemCodeHostNotAllowed       ProblemCode = "host_not_allowed"
+	ProblemCodeInternal             ProblemCode = "internal"
+	ProblemCodeMethodNotAllowed     ProblemCode = "method_not_allowed"
+	ProblemCodeNodeError            ProblemCode = "node_error"
+	ProblemCodeNodeIsDefault        ProblemCode = "node_is_default"
+	ProblemCodeNodeLimit            ProblemCode = "node_limit"
+	ProblemCodeNotFound             ProblemCode = "not_found"
+	ProblemCodeNotImplemented       ProblemCode = "not_implemented"
+	ProblemCodeOriginNotAllowed     ProblemCode = "origin_not_allowed"
+	ProblemCodePayloadTooLarge      ProblemCode = "payload_too_large"
+	ProblemCodeServiceUnready       ProblemCode = "service_unready"
+	ProblemCodeTermsRequired        ProblemCode = "terms_required"
+	ProblemCodeTooManyStreams       ProblemCode = "too_many_streams"
+	ProblemCodeUnsupportedMediaType ProblemCode = "unsupported_media_type"
 )
 
 // Valid indicates whether the value is a known member of the ProblemCode enum.
@@ -325,7 +384,11 @@ func (e ProblemCode) Valid() bool {
 		return true
 	case ProblemCodeForbidden:
 		return true
+	case ProblemCodeHostNotAllowed:
+		return true
 	case ProblemCodeInternal:
+		return true
+	case ProblemCodeMethodNotAllowed:
 		return true
 	case ProblemCodeNodeError:
 		return true
@@ -337,11 +400,17 @@ func (e ProblemCode) Valid() bool {
 		return true
 	case ProblemCodeNotImplemented:
 		return true
+	case ProblemCodeOriginNotAllowed:
+		return true
 	case ProblemCodePayloadTooLarge:
 		return true
 	case ProblemCodeServiceUnready:
 		return true
 	case ProblemCodeTermsRequired:
+		return true
+	case ProblemCodeTooManyStreams:
+		return true
+	case ProblemCodeUnsupportedMediaType:
 		return true
 	default:
 		return false
@@ -632,11 +701,14 @@ func (e DiscoverDevicesParamsFilter) Valid() bool {
 
 // ACLEntry defines model for AclEntry.
 type ACLEntry struct {
+	// AuthMode `unknown` (0.10.0): a value the node sent that this list does not name.
 	AuthMode ACLEntryAuthMode `json:"auth_mode"`
 
 	// FabricIndex Set by the node; ignored in a write.
-	FabricIndex *int              `json:"fabric_index,omitempty"`
-	Privilege   ACLEntryPrivilege `json:"privilege"`
+	FabricIndex *int `json:"fabric_index,omitempty"`
+
+	// Privilege `unknown` (0.10.0): a value the node sent that this list does not name.
+	Privilege ACLEntryPrivilege `json:"privilege"`
 
 	// SubjectsHex Node ids (CASE), group ids (Group) or CATs in hex; empty is every subject of the auth mode.
 	SubjectsHex []string `json:"subjects_hex"`
@@ -645,16 +717,37 @@ type ACLEntry struct {
 	Targets []ACLTarget `json:"targets"`
 }
 
-// ACLEntryAuthMode defines model for ACLEntry.AuthMode.
+// ACLEntryAuthMode `unknown` (0.10.0): a value the node sent that this list does not name.
 type ACLEntryAuthMode string
 
-// ACLEntryPrivilege defines model for ACLEntry.Privilege.
+// ACLEntryPrivilege `unknown` (0.10.0): a value the node sent that this list does not name.
 type ACLEntryPrivilege string
 
 // ACLEntryList defines model for AclEntryList.
 type ACLEntryList struct {
 	Entries []ACLEntry `json:"entries"`
 }
+
+// ACLEntryWrite One entry of `PUT /controller/nodes/{id}/acl` (0.10.0); `AclEntry` without `unknown`.
+type ACLEntryWrite struct {
+	AuthMode ACLEntryWriteAuthMode `json:"auth_mode"`
+
+	// FabricIndex Set by the node; ignored.
+	FabricIndex *int                   `json:"fabric_index,omitempty"`
+	Privilege   ACLEntryWritePrivilege `json:"privilege"`
+
+	// SubjectsHex Node ids (CASE), group ids (Group) or CATs in hex; empty is every subject of the auth mode.
+	SubjectsHex []string `json:"subjects_hex"`
+
+	// Targets Empty is the whole node.
+	Targets []ACLTarget `json:"targets"`
+}
+
+// ACLEntryWriteAuthMode defines model for ACLEntryWrite.AuthMode.
+type ACLEntryWriteAuthMode string
+
+// ACLEntryWritePrivilege defines model for ACLEntryWrite.Privilege.
+type ACLEntryWritePrivilege string
 
 // ACLTarget defines model for AclTarget.
 type ACLTarget struct {
@@ -666,6 +759,11 @@ type ACLTarget struct {
 
 	// Endpoint Absent is any endpoint.
 	Endpoint *int `json:"endpoint,omitempty"`
+}
+
+// ACLWriteRequest The body of `PUT /controller/nodes/{id}/acl` (0.10.0).
+type ACLWriteRequest struct {
+	Entries []ACLEntryWrite `json:"entries"`
 }
 
 // AttributePath defines model for AttributePath.
@@ -798,12 +896,17 @@ type ClusterFeature struct {
 // CommissionRequest Either `code`, or `discovered` with `passcode`.
 type CommissionRequest struct {
 	// Code A QR payload ("MT:…") or a manual pairing code.
-	Code       *string        `json:"code,omitempty"`
-	Discovered *DiscoveredRef `json:"discovered,omitempty"`
+	Code *string `json:"code,omitempty"`
+
+	// CommissioningID The client's id for this commissioning, echoed as `commissioning_id` on its `commissioning_progress` events (0.10.0); absent: the server draws one.
+	CommissioningID *string        `json:"commissioning_id,omitempty"`
+	Discovered      *DiscoveredRef `json:"discovered,omitempty"`
 
 	// NetworkOnly Never commission over Bluetooth LE, and the `commissioning_progress` event's `ble` reason is `network_only` (0.7.1).
 	NetworkOnly *bool `json:"network_only,omitempty"`
-	Passcode    *int  `json:"passcode,omitempty"`
+
+	// Passcode Not 11111111, 22222222, … 88888888, 12345678 or 87654321 (400, 0.10.0).
+	Passcode *int `json:"passcode,omitempty"`
 
 	// TermsAndConditions The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms fails the commissioning without one, or with one below its version, with 409 terms_required (0.8.0; before 0.8.0 a 502 at CommissioningComplete); absent sends none.
 	TermsAndConditions *TermsAcknowledgement `json:"terms_and_conditions,omitempty"`
@@ -892,7 +995,10 @@ type ControllerNodeList struct {
 
 // ControllerNodeSummary defines model for ControllerNodeSummary.
 type ControllerNodeSummary struct {
-	Addresses      []string        `json:"addresses"`
+	Addresses []string `json:"addresses"`
+
+	// AutoSubscribe The auto-subscribe setting, not the live subscription (`subscription_active`) (0.10.0).
+	AutoSubscribe  *bool           `json:"auto_subscribe,omitempty"`
 	CommissionedAt *time.Time      `json:"commissioned_at,omitempty"`
 	Connection     ConnectionState `json:"connection"`
 	Disabled       bool            `json:"disabled"`
@@ -952,6 +1058,8 @@ type ControllerPeer struct {
 
 // ControllerStatus defines model for ControllerStatus.
 type ControllerStatus struct {
+	// Admin Whether this request has admin rights (0.10.0), as `Status.admin`: present when the host decides admin rights, absent in token mode.
+	Admin                 *bool                  `json:"admin,omitempty"`
 	Capabilities          ControllerCapabilities `json:"capabilities"`
 	CompressedFabricIDHex string                 `json:"compressed_fabric_id_hex"`
 
@@ -1063,6 +1171,15 @@ type DiscoveredRef struct {
 type EndpointBindings struct {
 	Bindings []BindingTarget `json:"bindings"`
 	Endpoint int             `json:"endpoint"`
+
+	// Status The node's status for this endpoint's read (0.10.0), as `AttributeValue.status`; absent on success, `bindings` then `[]`.
+	Status *int `json:"status,omitempty"`
+}
+
+// EndpointBindingsWrite The body of `PUT /controller/nodes/{id}/bindings` (0.10.0).
+type EndpointBindingsWrite struct {
+	Bindings []BindingTarget `json:"bindings"`
+	Endpoint int             `json:"endpoint"`
 }
 
 // EndpointDetail One endpoint with its inventory (contract 0.4.0), one shape for both
@@ -1141,9 +1258,13 @@ type EventRecord struct {
 	// Name The event's name in go-fabric's schema; absent for one it does not name.
 	Name *string `json:"name,omitempty"`
 
-	// Number The node-wide event number (Matter Core §7.14.2.1).
-	Number   int                 `json:"number"`
-	Priority EventRecordPriority `json:"priority"`
+	// Number The node-wide event number (Matter Core §7.14.2.1); use `number_str`.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	Number int `json:"number"`
+
+	// NumberStr The event number in decimal, exact (0.10.0).
+	NumberStr *string             `json:"number_str,omitempty"`
+	Priority  EventRecordPriority `json:"priority"`
 }
 
 // EventRecordPriority defines model for EventRecord.Priority.
@@ -1157,6 +1278,7 @@ type EventRecordList struct {
 
 // FabricLabelRequest defines model for FabricLabelRequest.
 type FabricLabelRequest struct {
+	// Label At most 32 bytes of UTF-8; a longer label is 400 (0.10.0).
 	Label string `json:"label"`
 }
 
@@ -1446,7 +1568,8 @@ type Session struct {
 	LastPeerActivity time.Time  `json:"last_peer_activity"`
 
 	// LocalNodeID Informational; use local_node_id_hex.
-	LocalNodeID     int    `json:"local_node_id"`
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	LocalNodeID     uint64 `json:"local_node_id"`
 	LocalNodeIDHex  string `json:"local_node_id_hex"`
 	PeerIdleSeconds int    `json:"peer_idle_seconds"`
 
@@ -1454,7 +1577,8 @@ type Session struct {
 	PeerLost *bool `json:"peer_lost,omitempty"`
 
 	// PeerNodeID Informational; use peer_node_id_hex.
-	PeerNodeID    int    `json:"peer_node_id"`
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	PeerNodeID    uint64 `json:"peer_node_id"`
 	PeerNodeIDHex string `json:"peer_node_id_hex"`
 
 	// Resumed The session came from a CASE resumption (0.9.0); the controller's sessions only.
@@ -1659,11 +1783,17 @@ type EventLimit = int
 // EventSince defines model for EventSince.
 type EventSince = int
 
+// EventSinceStr defines model for EventSinceStr.
+type EventSinceStr = string
+
 // NodeID defines model for NodeID.
 type NodeID = string
 
 // NodeKey defines model for NodeKey.
 type NodeKey = string
+
+// StreamUnavailable defines model for StreamUnavailable.
+type StreamUnavailable = Problem
 
 // RemoveCredentialParams defines parameters for RemoveCredential.
 type RemoveCredentialParams struct {
@@ -1694,13 +1824,16 @@ type ListNodeEventsParams struct {
 	// Since The lowest event number returned (inclusive); absent is every event the log holds. A page passes the last number it has plus one to fetch only the newer ones.
 	Since *EventSince `form:"since,omitempty" json:"since,omitempty"`
 
+	// SinceStr `since` in decimal as a string, exact beyond 2^53 (0.10.0); when present it is used and `since` ignored.
+	SinceStr *EventSinceStr `form:"since_str,omitempty" json:"since_str,omitempty"`
+
 	// Limit Only the newest `limit` of the matching events; absent is 100.
 	Limit *EventLimit `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // GetControllerTopologyParams defines parameters for GetControllerTopology.
 type GetControllerTopologyParams struct {
-	// Refresh Re-read the nodes' network diagnostics before answering; admin only.
+	// Refresh Re-read the nodes' network diagnostics before answering.
 	Refresh *bool `form:"refresh,omitempty" json:"refresh,omitempty"`
 }
 
@@ -1714,7 +1847,7 @@ type SetCredentialJSONRequestBody = CredentialRequest
 type SetFabricLabelJSONRequestBody = FabricLabelRequest
 
 // SetNodeACLJSONRequestBody defines body for SetNodeACL for application/json ContentType.
-type SetNodeACLJSONRequestBody = ACLEntryList
+type SetNodeACLJSONRequestBody = ACLWriteRequest
 
 // ReadNodeAttributesJSONRequestBody defines body for ReadNodeAttributes for application/json ContentType.
 type ReadNodeAttributesJSONRequestBody = ReadRequest
@@ -1726,7 +1859,7 @@ type WriteNodeAttributeJSONRequestBody = WriteRequest
 type SetNodeAutoSubscribeJSONRequestBody = AutoSubscribeRequest
 
 // SetNodeBindingsJSONRequestBody defines body for SetNodeBindings for application/json ContentType.
-type SetNodeBindingsJSONRequestBody = EndpointBindings
+type SetNodeBindingsJSONRequestBody = EndpointBindingsWrite
 
 // InvokeNodeCommandJSONRequestBody defines body for InvokeNodeCommand for application/json ContentType.
 type InvokeNodeCommandJSONRequestBody = InvokeRequest
@@ -2515,6 +2648,19 @@ func (siw *ServerInterfaceWrapper) ListNodeEvents(w http.ResponseWriter, r *http
 		return
 	}
 
+	// ------------- Optional query parameter "since_str" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "since_str", r.URL.Query(), &params.SinceStr, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "since_str"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "since_str", Err: err})
+		}
+		return
+	}
+
 	// ------------- Optional query parameter "limit" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
@@ -3051,6 +3197,15 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 type ProblemApplicationProblemPlusJSONResponse Problem
 
+type StreamUnavailableResponseHeaders struct {
+	RetryAfter *int
+}
+type StreamUnavailableApplicationProblemPlusJSONResponse struct {
+	Body Problem
+
+	Headers StreamUnavailableResponseHeaders
+}
+
 type CommissionNodeRequestObject struct {
 	Body *CommissionNodeJSONRequestBody
 }
@@ -3127,6 +3282,34 @@ func (response CommissionNode409ApplicationProblemPlusJSONResponse) VisitCommiss
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommissionNode413ApplicationProblemPlusJSONResponse Problem
+
+func (response CommissionNode413ApplicationProblemPlusJSONResponse) VisitCommissionNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommissionNode415ApplicationProblemPlusJSONResponse Problem
+
+func (response CommissionNode415ApplicationProblemPlusJSONResponse) VisitCommissionNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3268,9 +3451,23 @@ func (response ListCredentials200JSONResponse) VisitListCredentialsResponse(w ht
 	return err
 }
 
-type ListCredentials500ApplicationProblemPlusJSONResponse struct {
+type ListCredentials403ApplicationProblemPlusJSONResponse struct {
 	ProblemApplicationProblemPlusJSONResponse
 }
+
+func (response ListCredentials403ApplicationProblemPlusJSONResponse) VisitListCredentialsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCredentials500ApplicationProblemPlusJSONResponse Problem
 
 func (response ListCredentials500ApplicationProblemPlusJSONResponse) VisitListCredentialsResponse(w http.ResponseWriter) error {
 
@@ -3344,6 +3541,34 @@ func (response SetCredential403ApplicationProblemPlusJSONResponse) VisitSetCrede
 	return err
 }
 
+type SetCredential413ApplicationProblemPlusJSONResponse Problem
+
+func (response SetCredential413ApplicationProblemPlusJSONResponse) VisitSetCredentialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetCredential415ApplicationProblemPlusJSONResponse Problem
+
+func (response SetCredential415ApplicationProblemPlusJSONResponse) VisitSetCredentialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetCredential500ApplicationProblemPlusJSONResponse Problem
 
 func (response SetCredential500ApplicationProblemPlusJSONResponse) VisitSetCredentialResponse(w http.ResponseWriter) error {
@@ -3393,9 +3618,23 @@ func (response GetControllerDiagnostics200JSONResponse) VisitGetControllerDiagno
 	return err
 }
 
-type GetControllerDiagnostics501ApplicationProblemPlusJSONResponse struct {
+type GetControllerDiagnostics403ApplicationProblemPlusJSONResponse struct {
 	ProblemApplicationProblemPlusJSONResponse
 }
+
+func (response GetControllerDiagnostics403ApplicationProblemPlusJSONResponse) VisitGetControllerDiagnosticsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetControllerDiagnostics501ApplicationProblemPlusJSONResponse Problem
 
 func (response GetControllerDiagnostics501ApplicationProblemPlusJSONResponse) VisitGetControllerDiagnosticsResponse(w http.ResponseWriter) error {
 
@@ -3496,9 +3735,23 @@ func (response ListControllerDiagnosticEvents200JSONResponse) VisitListControlle
 	return err
 }
 
-type ListControllerDiagnosticEvents501ApplicationProblemPlusJSONResponse struct {
+type ListControllerDiagnosticEvents403ApplicationProblemPlusJSONResponse struct {
 	ProblemApplicationProblemPlusJSONResponse
 }
+
+func (response ListControllerDiagnosticEvents403ApplicationProblemPlusJSONResponse) VisitListControllerDiagnosticEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListControllerDiagnosticEvents501ApplicationProblemPlusJSONResponse Problem
 
 func (response ListControllerDiagnosticEvents501ApplicationProblemPlusJSONResponse) VisitListControllerDiagnosticEventsResponse(w http.ResponseWriter) error {
 
@@ -3558,6 +3811,34 @@ func (response SetFabricLabel403ApplicationProblemPlusJSONResponse) VisitSetFabr
 	return err
 }
 
+type SetFabricLabel413ApplicationProblemPlusJSONResponse Problem
+
+func (response SetFabricLabel413ApplicationProblemPlusJSONResponse) VisitSetFabricLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetFabricLabel415ApplicationProblemPlusJSONResponse Problem
+
+func (response SetFabricLabel415ApplicationProblemPlusJSONResponse) VisitSetFabricLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetFabricLabel500ApplicationProblemPlusJSONResponse Problem
 
 func (response SetFabricLabel500ApplicationProblemPlusJSONResponse) VisitSetFabricLabelResponse(w http.ResponseWriter) error {
@@ -3593,9 +3874,23 @@ func (response GetControllerMdns200JSONResponse) VisitGetControllerMdnsResponse(
 	return err
 }
 
-type GetControllerMdns501ApplicationProblemPlusJSONResponse struct {
+type GetControllerMdns403ApplicationProblemPlusJSONResponse struct {
 	ProblemApplicationProblemPlusJSONResponse
 }
+
+func (response GetControllerMdns403ApplicationProblemPlusJSONResponse) VisitGetControllerMdnsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetControllerMdns501ApplicationProblemPlusJSONResponse Problem
 
 func (response GetControllerMdns501ApplicationProblemPlusJSONResponse) VisitGetControllerMdnsResponse(w http.ResponseWriter) error {
 
@@ -3626,6 +3921,22 @@ func (response ListControllerNodes200JSONResponse) VisitListControllerNodesRespo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListControllerNodes403ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response ListControllerNodes403ApplicationProblemPlusJSONResponse) VisitListControllerNodesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3686,6 +3997,20 @@ func (response DecommissionNode404ApplicationProblemPlusJSONResponse) VisitDecom
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DecommissionNode409ApplicationProblemPlusJSONResponse Problem
+
+func (response DecommissionNode409ApplicationProblemPlusJSONResponse) VisitDecommissionNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3756,6 +4081,20 @@ func (response GetControllerNode400ApplicationProblemPlusJSONResponse) VisitGetC
 	return err
 }
 
+type GetControllerNode403ApplicationProblemPlusJSONResponse Problem
+
+func (response GetControllerNode403ApplicationProblemPlusJSONResponse) VisitGetControllerNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetControllerNode404ApplicationProblemPlusJSONResponse Problem
 
 func (response GetControllerNode404ApplicationProblemPlusJSONResponse) VisitGetControllerNodeResponse(w http.ResponseWriter) error {
@@ -3808,6 +4147,20 @@ func (response GetNodeACL400ApplicationProblemPlusJSONResponse) VisitGetNodeACLR
 	return err
 }
 
+type GetNodeACL403ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeACL403ApplicationProblemPlusJSONResponse) VisitGetNodeACLResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetNodeACL404ApplicationProblemPlusJSONResponse Problem
 
 func (response GetNodeACL404ApplicationProblemPlusJSONResponse) VisitGetNodeACLResponse(w http.ResponseWriter) error {
@@ -3818,6 +4171,20 @@ func (response GetNodeACL404ApplicationProblemPlusJSONResponse) VisitGetNodeACLR
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeACL409ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeACL409ApplicationProblemPlusJSONResponse) VisitGetNodeACLResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3903,6 +4270,48 @@ func (response SetNodeACL404ApplicationProblemPlusJSONResponse) VisitSetNodeACLR
 	return err
 }
 
+type SetNodeACL409ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeACL409ApplicationProblemPlusJSONResponse) VisitSetNodeACLResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeACL413ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeACL413ApplicationProblemPlusJSONResponse) VisitSetNodeACLResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeACL415ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeACL415ApplicationProblemPlusJSONResponse) VisitSetNodeACLResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetNodeACL502ApplicationProblemPlusJSONResponse Problem
 
 func (response SetNodeACL502ApplicationProblemPlusJSONResponse) VisitSetNodeACLResponse(w http.ResponseWriter) error {
@@ -3956,6 +4365,20 @@ func (response ReadNodeAttributes400ApplicationProblemPlusJSONResponse) VisitRea
 	return err
 }
 
+type ReadNodeAttributes403ApplicationProblemPlusJSONResponse Problem
+
+func (response ReadNodeAttributes403ApplicationProblemPlusJSONResponse) VisitReadNodeAttributesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ReadNodeAttributes404ApplicationProblemPlusJSONResponse Problem
 
 func (response ReadNodeAttributes404ApplicationProblemPlusJSONResponse) VisitReadNodeAttributesResponse(w http.ResponseWriter) error {
@@ -3966,6 +4389,48 @@ func (response ReadNodeAttributes404ApplicationProblemPlusJSONResponse) VisitRea
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReadNodeAttributes409ApplicationProblemPlusJSONResponse Problem
+
+func (response ReadNodeAttributes409ApplicationProblemPlusJSONResponse) VisitReadNodeAttributesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReadNodeAttributes413ApplicationProblemPlusJSONResponse Problem
+
+func (response ReadNodeAttributes413ApplicationProblemPlusJSONResponse) VisitReadNodeAttributesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReadNodeAttributes415ApplicationProblemPlusJSONResponse Problem
+
+func (response ReadNodeAttributes415ApplicationProblemPlusJSONResponse) VisitReadNodeAttributesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4051,6 +4516,48 @@ func (response WriteNodeAttribute404ApplicationProblemPlusJSONResponse) VisitWri
 	return err
 }
 
+type WriteNodeAttribute409ApplicationProblemPlusJSONResponse Problem
+
+func (response WriteNodeAttribute409ApplicationProblemPlusJSONResponse) VisitWriteNodeAttributeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WriteNodeAttribute413ApplicationProblemPlusJSONResponse Problem
+
+func (response WriteNodeAttribute413ApplicationProblemPlusJSONResponse) VisitWriteNodeAttributeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WriteNodeAttribute415ApplicationProblemPlusJSONResponse Problem
+
+func (response WriteNodeAttribute415ApplicationProblemPlusJSONResponse) VisitWriteNodeAttributeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type WriteNodeAttribute502ApplicationProblemPlusJSONResponse Problem
 
 func (response WriteNodeAttribute502ApplicationProblemPlusJSONResponse) VisitWriteNodeAttributeResponse(w http.ResponseWriter) error {
@@ -4126,6 +4633,34 @@ func (response SetNodeAutoSubscribe404ApplicationProblemPlusJSONResponse) VisitS
 	return err
 }
 
+type SetNodeAutoSubscribe413ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeAutoSubscribe413ApplicationProblemPlusJSONResponse) VisitSetNodeAutoSubscribeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeAutoSubscribe415ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeAutoSubscribe415ApplicationProblemPlusJSONResponse) VisitSetNodeAutoSubscribeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetNodeAutoSubscribe500ApplicationProblemPlusJSONResponse Problem
 
 func (response SetNodeAutoSubscribe500ApplicationProblemPlusJSONResponse) VisitSetNodeAutoSubscribeResponse(w http.ResponseWriter) error {
@@ -4178,6 +4713,20 @@ func (response GetNodeBindings400ApplicationProblemPlusJSONResponse) VisitGetNod
 	return err
 }
 
+type GetNodeBindings403ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeBindings403ApplicationProblemPlusJSONResponse) VisitGetNodeBindingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetNodeBindings404ApplicationProblemPlusJSONResponse Problem
 
 func (response GetNodeBindings404ApplicationProblemPlusJSONResponse) VisitGetNodeBindingsResponse(w http.ResponseWriter) error {
@@ -4188,6 +4737,20 @@ func (response GetNodeBindings404ApplicationProblemPlusJSONResponse) VisitGetNod
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeBindings409ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeBindings409ApplicationProblemPlusJSONResponse) VisitGetNodeBindingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4273,6 +4836,48 @@ func (response SetNodeBindings404ApplicationProblemPlusJSONResponse) VisitSetNod
 	return err
 }
 
+type SetNodeBindings409ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeBindings409ApplicationProblemPlusJSONResponse) VisitSetNodeBindingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeBindings413ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeBindings413ApplicationProblemPlusJSONResponse) VisitSetNodeBindingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeBindings415ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeBindings415ApplicationProblemPlusJSONResponse) VisitSetNodeBindingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetNodeBindings502ApplicationProblemPlusJSONResponse Problem
 
 func (response SetNodeBindings502ApplicationProblemPlusJSONResponse) VisitSetNodeBindingsResponse(w http.ResponseWriter) error {
@@ -4350,6 +4955,48 @@ func (response InvokeNodeCommand404ApplicationProblemPlusJSONResponse) VisitInvo
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InvokeNodeCommand409ApplicationProblemPlusJSONResponse Problem
+
+func (response InvokeNodeCommand409ApplicationProblemPlusJSONResponse) VisitInvokeNodeCommandResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InvokeNodeCommand413ApplicationProblemPlusJSONResponse Problem
+
+func (response InvokeNodeCommand413ApplicationProblemPlusJSONResponse) VisitInvokeNodeCommandResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InvokeNodeCommand415ApplicationProblemPlusJSONResponse Problem
+
+func (response InvokeNodeCommand415ApplicationProblemPlusJSONResponse) VisitInvokeNodeCommandResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4555,6 +5202,20 @@ func (response GetNodeEndpoint400ApplicationProblemPlusJSONResponse) VisitGetNod
 	return err
 }
 
+type GetNodeEndpoint403ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeEndpoint403ApplicationProblemPlusJSONResponse) VisitGetNodeEndpointResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetNodeEndpoint404ApplicationProblemPlusJSONResponse Problem
 
 func (response GetNodeEndpoint404ApplicationProblemPlusJSONResponse) VisitGetNodeEndpointResponse(w http.ResponseWriter) error {
@@ -4605,6 +5266,20 @@ func (response GetNodeCluster400ApplicationProblemPlusJSONResponse) VisitGetNode
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeCluster403ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeCluster403ApplicationProblemPlusJSONResponse) VisitGetNodeClusterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4676,6 +5351,20 @@ func (response ListNodeEvents400ApplicationProblemPlusJSONResponse) VisitListNod
 	return err
 }
 
+type ListNodeEvents403ApplicationProblemPlusJSONResponse Problem
+
+func (response ListNodeEvents403ApplicationProblemPlusJSONResponse) VisitListNodeEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListNodeEvents404ApplicationProblemPlusJSONResponse Problem
 
 func (response ListNodeEvents404ApplicationProblemPlusJSONResponse) VisitListNodeEventsResponse(w http.ResponseWriter) error {
@@ -4728,6 +5417,20 @@ func (response ListNodeFabrics400ApplicationProblemPlusJSONResponse) VisitListNo
 	return err
 }
 
+type ListNodeFabrics403ApplicationProblemPlusJSONResponse Problem
+
+func (response ListNodeFabrics403ApplicationProblemPlusJSONResponse) VisitListNodeFabricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListNodeFabrics404ApplicationProblemPlusJSONResponse Problem
 
 func (response ListNodeFabrics404ApplicationProblemPlusJSONResponse) VisitListNodeFabricsResponse(w http.ResponseWriter) error {
@@ -4738,6 +5441,20 @@ func (response ListNodeFabrics404ApplicationProblemPlusJSONResponse) VisitListNo
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNodeFabrics409ApplicationProblemPlusJSONResponse Problem
+
+func (response ListNodeFabrics409ApplicationProblemPlusJSONResponse) VisitListNodeFabricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4817,6 +5534,20 @@ func (response RemoveNodeFabric404ApplicationProblemPlusJSONResponse) VisitRemov
 	return err
 }
 
+type RemoveNodeFabric409ApplicationProblemPlusJSONResponse Problem
+
+func (response RemoveNodeFabric409ApplicationProblemPlusJSONResponse) VisitRemoveNodeFabricResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RemoveNodeFabric502ApplicationProblemPlusJSONResponse Problem
 
 func (response RemoveNodeFabric502ApplicationProblemPlusJSONResponse) VisitRemoveNodeFabricResponse(w http.ResponseWriter) error {
@@ -4865,6 +5596,20 @@ func (response GetNodeIcd400ApplicationProblemPlusJSONResponse) VisitGetNodeIcdR
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeIcd403ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeIcd403ApplicationProblemPlusJSONResponse) VisitGetNodeIcdResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4964,6 +5709,34 @@ func (response RegisterNodeIcd409ApplicationProblemPlusJSONResponse) VisitRegist
 	return err
 }
 
+type RegisterNodeIcd413ApplicationProblemPlusJSONResponse Problem
+
+func (response RegisterNodeIcd413ApplicationProblemPlusJSONResponse) VisitRegisterNodeIcdResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterNodeIcd415ApplicationProblemPlusJSONResponse Problem
+
+func (response RegisterNodeIcd415ApplicationProblemPlusJSONResponse) VisitRegisterNodeIcdResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RegisterNodeIcd502ApplicationProblemPlusJSONResponse Problem
 
 func (response RegisterNodeIcd502ApplicationProblemPlusJSONResponse) VisitRegisterNodeIcdResponse(w http.ResponseWriter) error {
@@ -5045,6 +5818,48 @@ func (response UnregisterNodeIcd404ApplicationProblemPlusJSONResponse) VisitUnre
 	return err
 }
 
+type UnregisterNodeIcd409ApplicationProblemPlusJSONResponse Problem
+
+func (response UnregisterNodeIcd409ApplicationProblemPlusJSONResponse) VisitUnregisterNodeIcdResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnregisterNodeIcd413ApplicationProblemPlusJSONResponse Problem
+
+func (response UnregisterNodeIcd413ApplicationProblemPlusJSONResponse) VisitUnregisterNodeIcdResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnregisterNodeIcd415ApplicationProblemPlusJSONResponse Problem
+
+func (response UnregisterNodeIcd415ApplicationProblemPlusJSONResponse) VisitUnregisterNodeIcdResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type UnregisterNodeIcd502ApplicationProblemPlusJSONResponse Problem
 
 func (response UnregisterNodeIcd502ApplicationProblemPlusJSONResponse) VisitUnregisterNodeIcdResponse(w http.ResponseWriter) error {
@@ -5115,6 +5930,20 @@ func (response InterviewNode404ApplicationProblemPlusJSONResponse) VisitIntervie
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InterviewNode409ApplicationProblemPlusJSONResponse Problem
+
+func (response InterviewNode409ApplicationProblemPlusJSONResponse) VisitInterviewNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5266,6 +6095,48 @@ func (response OpenNodeWindow404ApplicationProblemPlusJSONResponse) VisitOpenNod
 	return err
 }
 
+type OpenNodeWindow409ApplicationProblemPlusJSONResponse Problem
+
+func (response OpenNodeWindow409ApplicationProblemPlusJSONResponse) VisitOpenNodeWindowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenNodeWindow413ApplicationProblemPlusJSONResponse Problem
+
+func (response OpenNodeWindow413ApplicationProblemPlusJSONResponse) VisitOpenNodeWindowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenNodeWindow415ApplicationProblemPlusJSONResponse Problem
+
+func (response OpenNodeWindow415ApplicationProblemPlusJSONResponse) VisitOpenNodeWindowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type OpenNodeWindow502ApplicationProblemPlusJSONResponse Problem
 
 func (response OpenNodeWindow502ApplicationProblemPlusJSONResponse) VisitOpenNodeWindowResponse(w http.ResponseWriter) error {
@@ -5340,6 +6211,20 @@ func (response CloseNodeWindow404ApplicationProblemPlusJSONResponse) VisitCloseN
 	return err
 }
 
+type CloseNodeWindow409ApplicationProblemPlusJSONResponse Problem
+
+func (response CloseNodeWindow409ApplicationProblemPlusJSONResponse) VisitCloseNodeWindowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CloseNodeWindow502ApplicationProblemPlusJSONResponse Problem
 
 func (response CloseNodeWindow502ApplicationProblemPlusJSONResponse) VisitCloseNodeWindowResponse(w http.ResponseWriter) error {
@@ -5371,6 +6256,22 @@ func (response GetControllerStatus200JSONResponse) VisitGetControllerStatusRespo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetControllerStatus403ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetControllerStatus403ApplicationProblemPlusJSONResponse) VisitGetControllerStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5425,6 +6326,41 @@ func (response ControllerStream200TextEventStreamResponse) VisitControllerStream
 	}
 }
 
+type ControllerStream403ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response ControllerStream403ApplicationProblemPlusJSONResponse) VisitControllerStreamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ControllerStream503ApplicationProblemPlusJSONResponse struct {
+	StreamUnavailableApplicationProblemPlusJSONResponse
+}
+
+func (response ControllerStream503ApplicationProblemPlusJSONResponse) VisitControllerStreamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetControllerTopologyRequestObject struct {
 	Params GetControllerTopologyParams
 }
@@ -5447,9 +6383,23 @@ func (response GetControllerTopology200JSONResponse) VisitGetControllerTopologyR
 	return err
 }
 
-type GetControllerTopology403ApplicationProblemPlusJSONResponse struct {
+type GetControllerTopology400ApplicationProblemPlusJSONResponse struct {
 	ProblemApplicationProblemPlusJSONResponse
 }
+
+func (response GetControllerTopology400ApplicationProblemPlusJSONResponse) VisitGetControllerTopologyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetControllerTopology403ApplicationProblemPlusJSONResponse Problem
 
 func (response GetControllerTopology403ApplicationProblemPlusJSONResponse) VisitGetControllerTopologyResponse(w http.ResponseWriter) error {
 
@@ -5508,6 +6458,22 @@ func (response ListUpdates200JSONResponse) VisitListUpdatesResponse(w http.Respo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListUpdates403ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response ListUpdates403ApplicationProblemPlusJSONResponse) VisitListUpdatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5633,6 +6599,34 @@ func (response ConsentUpdate404ApplicationProblemPlusJSONResponse) VisitConsentU
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConsentUpdate413ApplicationProblemPlusJSONResponse Problem
+
+func (response ConsentUpdate413ApplicationProblemPlusJSONResponse) VisitConsentUpdateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConsentUpdate415ApplicationProblemPlusJSONResponse Problem
+
+func (response ConsentUpdate415ApplicationProblemPlusJSONResponse) VisitConsentUpdateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
 	_, err := buf.WriteTo(w)
 	return err
 }
