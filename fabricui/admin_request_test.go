@@ -23,7 +23,7 @@ func TestAdminRoutes_HeaderOriginAndMediaType(t *testing.T) {
 	}
 	admin := func(*http.Request) bool { return true }
 
-	t.Run("text/plain factory reset", func(t *testing.T) {
+	t.Run("factory reset, foreign Origin, text/plain body", func(t *testing.T) {
 		n := sampleNode()
 		_, mux := newTestHandler(t, testOptions{node: n, admin: admin})
 		rec := reqWith(t, mux, http.MethodPost, DefaultPrefix+"/node/maintenance/factory-reset", `{"confirm":"remove-all-fabrics"}`, cross("text/plain;charset=UTF-8"))
@@ -31,7 +31,7 @@ func TestAdminRoutes_HeaderOriginAndMediaType(t *testing.T) {
 			t.Errorf("→ %d, fabrics removed %v; want 403", rec.Code, n.removed)
 		}
 	})
-	t.Run("text/plain erase", func(t *testing.T) {
+	t.Run("erase, foreign Origin, text/plain body", func(t *testing.T) {
 		erased := 0
 		_, mux := newTestHandler(t, testOptions{admin: admin, erase: func(context.Context) error { erased++; return nil }})
 		rec := reqWith(t, mux, http.MethodPost, DefaultPrefix+"/node/maintenance/erase", "{\"confirm\":\"erase-node\",\"x\":\"=\"}\r\n", cross("text/plain"))
@@ -39,7 +39,7 @@ func TestAdminRoutes_HeaderOriginAndMediaType(t *testing.T) {
 			t.Errorf("→ %d, Erase called %d times; want 403", rec.Code, erased)
 		}
 	})
-	t.Run("text/plain commission", func(t *testing.T) {
+	t.Run("commission, foreign Origin, text/plain body", func(t *testing.T) {
 		ctrl := NewMemoryController()
 		_, mux := newTestHandler(t, testOptions{admin: admin, controller: ctrl})
 		before := ctrl.Nodes()
@@ -60,7 +60,7 @@ func TestAdminRoutes_HeaderOriginAndMediaType(t *testing.T) {
 			t.Errorf("→ %d; want 403", rec.Code)
 		}
 	})
-	t.Run("text/plain window open", func(t *testing.T) {
+	t.Run("window open, foreign Origin, text/plain body", func(t *testing.T) {
 		n := sampleNode()
 		_, mux := newTestHandler(t, testOptions{node: n, admin: admin})
 		rec := reqWith(t, mux, http.MethodPost, DefaultPrefix+"/node/pairing/window", `{}`, cross("text/plain;charset=UTF-8"))
@@ -69,8 +69,8 @@ func TestAdminRoutes_HeaderOriginAndMediaType(t *testing.T) {
 		}
 	})
 	for name, c := range map[string]struct{ path, body, ct string }{
-		"form shape against a strict route": {"/node/pairing/window", "{\"timeout_seconds\":180,\"x\":\"=\"}\r\n", "text/plain"},
-		"urlencoded":                        {"/node/maintenance/erase", "confirm=erase-node", "application/x-www-form-urlencoded"},
+		"JSON as text/plain on a strict route": {"/node/pairing/window", "{\"timeout_seconds\":180,\"x\":\"=\"}\r\n", "text/plain"},
+		"urlencoded":                           {"/node/maintenance/erase", "confirm=erase-node", "application/x-www-form-urlencoded"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, mux := newTestHandler(t, testOptions{admin: admin, erase: func(context.Context) error { return nil }})
@@ -100,8 +100,8 @@ func TestAdminRoutes_HeaderOriginAndMediaType(t *testing.T) {
 	}
 }
 
-// The admin GETs with an effect, as a page of another site requests them
-// without a header: refused in host mode.
+// The admin GETs with an effect need the request header in host mode:
+// without it they are refused.
 func TestAdminRoutes_GETWithAnEffectNeedsTheHeader(t *testing.T) {
 	ctrl := NewMemoryController()
 	topo := controllerTopology()

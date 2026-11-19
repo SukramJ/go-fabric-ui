@@ -5,6 +5,7 @@ package fabricui
 
 import (
 	"context"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -33,8 +34,8 @@ func reqWith(t *testing.T, mux http.Handler, method, path, body string, hdr map[
 	return rec
 }
 
-// foreignHost is a request under a name the handler does not list, sent
-// from a page of that same name.
+// foreignHost is a request under a name the handler does not list, with
+// an Origin of that same name.
 func foreignHost(extra map[string]string) map[string]string {
 	h := map[string]string{"Host": "unlisted.example:8099", "Origin": "http://unlisted.example:8099", "Sec-Fetch-Site": "same-origin"}
 	for k, v := range extra {
@@ -78,8 +79,8 @@ func TestHost_EveryStatusRouteRefusesAnUnlistedHost(t *testing.T) {
 	}
 }
 
-// What holds without the Host check: a cross-site admin request without
-// the token is 403, a preflight gets an error and no Access-Control-*
+// Independent of the Host check: an admin request from another origin
+// without the token is 403, a preflight gets an error and no Access-Control-*
 // header, the status sends no Access-Control-Allow-Origin.
 func TestHost_ControlsThatHold(t *testing.T) {
 	_, mux := newTestHandler(t, testOptions{})
@@ -155,7 +156,7 @@ func TestHost_NameRules(t *testing.T) {
 		"localhost": true, "LOCALHOST:8080": true, "ui.localhost": true, "localhost.": true,
 		"127.0.0.1:80": true, "[::1]:8099": true, "::1": true, "192.168.1.20": true, "[fe80::1%25eth0]:80": false,
 		"fabric.example": true, "Fabric.Example.:443": true,
-		"": false, "other.example": false, "localhost.example": false, "fabric.example.evil": false,
+		"": false, "other.example": false, "localhost.example": false, "fabric.example.other": false,
 	} {
 		if got := h.nameAllowed(hostName(host)); got != want {
 			t.Errorf("%q: %v, want %v", host, got, want)
@@ -273,5 +274,40 @@ func TestAllowHost_EmptyHostIsRefusedUnasked(t *testing.T) {
 	_, mux := newTestHandler(t, testOptions{allowHost: pred})
 	if rec := reqWith(t, mux, http.MethodGet, DefaultPrefix+"/node/status", "", map[string]string{"Host": ""}); !isHostRefusal(rec) || calls.Load() != 0 {
 		t.Fatalf("%d, %d calls", rec.Code, calls.Load())
+	}
+}
+
+// NewHandler refuses an unlisted Host on every path it serves, in both
+// modes: the bundle, its index, an asset, an unknown path, the mux's
+// redirect and HEAD answer 403 host_not_allowed, no page and no Location;
+// a listed Host gets the page (decision 37).
+func TestNewHandler_UnlistedHostGetsNoPage(t *testing.T) {
+	assets, err := fs.ReadDir(distFS, "dist/assets")
+	if err != nil || len(assets) == 0 {
+		t.Fatalf("no asset in the bundle: %v", err)
+	}
+	asset := "/assets/" + assets[0].Name()
+	for mode, admin := range map[string]func(*http.Request) bool{"token": nil, "host": func(*http.Request) bool { return true }} {
+		h, err := NewHandler(Options{Admin: admin, AllowedHosts: []string{"example.com"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range []struct{ method, path string }{
+			{http.MethodGet, "/"},
+			{http.MethodGet, "/index.html"},
+			{http.MethodGet, asset},
+			{http.MethodGet, "/no/such/page"},
+			{http.MethodGet, "/api/fabric"},
+			{http.MethodGet, DefaultPrefix},
+			{http.MethodHead, "/"},
+		} {
+			rec := reqWith(t, h, c.method, c.path, "", map[string]string{"Host": "unlisted.example:8099"})
+			if !isHostRefusal(rec) || strings.Contains(rec.Body.String(), "<script") || rec.Header().Get("Location") != "" {
+				t.Errorf("%s: %s %s: %d, Location %q", mode, c.method, c.path, rec.Code, rec.Header().Get("Location"))
+			}
+		}
+		if rec := reqWith(t, h, http.MethodGet, "/", "", nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "<script") {
+			t.Errorf("%s: listed Host: %d", mode, rec.Code)
+		}
 	}
 }
