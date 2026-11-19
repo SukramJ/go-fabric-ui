@@ -102,10 +102,20 @@ dist-check: ## rebuild the bundle into a temporary directory and fail on any byt
 	cd $(UI_DIR) && FABRIC_UI_OUT_DIR=$(CHECK_DIR)/dist $(NPM) run build >/dev/null
 	diff -r $(DIST_DIR) $(CHECK_DIR)/dist && echo "dist-check: fabricui/dist is the build of this tree"
 
-notices-check: ## fail when a bundled npm package is missing from THIRD-PARTY-NOTICES.md
+# CSS_PACKAGES reach the bundle as generated CSS, which the vendor list of
+# the JavaScript chunks does not see; notices-check requires each of them
+# in THIRD-PARTY-NOTICES.md at its installed version, MIT, with its text.
+CSS_PACKAGES := tailwindcss
+
+notices-check: ## fail when a bundled npm package (JS chunks and CSS_PACKAGES) is missing from THIRD-PARTY-NOTICES.md
 	rm -rf $(CHECK_DIR)/notices && mkdir -p $(CHECK_DIR)
 	cd $(UI_DIR) && FABRIC_UI_OUT_DIR=$(CHECK_DIR)/notices FABRIC_UI_VENDOR_LIST=$(CHECK_DIR)/vendor.json $(NPM) run build >/dev/null
 	node $(UI_DIR)/scripts/check-notices.mjs $(CHECK_DIR)/vendor.json THIRD-PARTY-NOTICES.md licenses/npm
+	@for p in $(CSS_PACKAGES); do \
+		v=$$(node -p "require('./$(UI_DIR)/node_modules/$$p/package.json').version"); \
+		grep -qF "| \`$$p\` | $$v | MIT |" THIRD-PARTY-NOTICES.md || { echo "notices-check: $$p@$$v (CSS) is not in THIRD-PARTY-NOTICES.md"; exit 1; }; \
+		test -f licenses/npm/$$p.txt || { echo "notices-check: no licence text at licenses/npm/$$p.txt"; exit 1; }; \
+	done; echo "notices-check: CSS packages $(CSS_PACKAGES) listed with their licence texts"
 
 contract-check: ## the contract guard (no removal against contract/previous) and fixture use on both sides
 	cd $(UI_DIR) && $(NPM) run contract:check
