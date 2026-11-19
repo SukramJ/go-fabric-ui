@@ -113,7 +113,11 @@ Ingress frame and are inert elsewhere. A host on a skin of its own (any
 other `data-skin`, or none) keeps the standalone tokens; the HA skin's
 extras (`accent-color` and `color-scheme` on native controls,
 `--ha-on-primary-color` from Home Assistant's `--text-primary-color`) apply
-only under `data-skin="ha"`. The standalone shell sets the HA skin and the
+only under `data-skin="ha"`. Status text reads `--fui-<status>-text` and a
+filled button `--fui-primary-fill`, `--fui-error-fill` (and their
+`-hover`) under `--fui-on-primary`, `--fui-on-error` (v0.12.0): each
+reaches 4.5:1 in every palette, and a host sets an exact value through the
+same name with `-color` appended (`--fui-primary-fill-color`, …). The standalone shell sets the HA skin and the
 mode in a pre-paint script (`src/shell/index.html`) so the first frame
 already wears them; a host that wants the same does it in its own
 `index.html`.
