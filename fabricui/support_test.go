@@ -144,8 +144,10 @@ type fakeNode struct {
 	fabricList []node.FabricInfo
 	fabricsErr error
 	removeErr  error
-	// removeFailAt fails the removal of this fabric index.
+	// removeFailAt fails the removal of this fabric index; removeGone
+	// answers it node.ErrFabricNotFound, a fabric removed meanwhile.
 	removeFailAt uint8
+	removeGone   uint8
 	removed      []uint8
 	// afterRemove, when set, runs after each removal: a client that
 	// leaves mid-reset.
@@ -358,6 +360,10 @@ func (f *fakeNode) removeFabric(ctx context.Context, idx uint8) error {
 		return err
 	}
 	f.mu.Lock()
+	if f.removeGone != 0 && idx == f.removeGone {
+		f.mu.Unlock()
+		return fmt.Errorf("remove fabric %d: %w", idx, node.ErrFabricNotFound)
+	}
 	if f.removeErr != nil || (f.removeFailAt != 0 && idx == f.removeFailAt) {
 		defer f.mu.Unlock()
 		if f.removeErr != nil {

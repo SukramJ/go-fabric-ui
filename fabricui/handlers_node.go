@@ -412,7 +412,14 @@ func (h *handler) factoryReset(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	removed := make([]uint8, 0, len(infos))
 	for _, f := range infos {
-		if err := h.node.removeFabric(ctx, f.FabricIndex); err != nil {
+		err := h.node.removeFabric(ctx, f.FabricIndex)
+		if errors.Is(err, node.ErrFabricNotFound) {
+			// Removed meanwhile by its controller: gone, as the reset
+			// wants; go-fabric's own FactoryReset passes over it too
+			// (node/factory_reset.go:78 at v0.23.0, UR-P4-err-261).
+			continue
+		}
+		if err != nil {
 			// Reported rather than skipped: a partial reset leaves the
 			// node paired to a controller the operator believes removed.
 			h.log.WarnContext(r.Context(), "fabricui.factory_reset.partial",

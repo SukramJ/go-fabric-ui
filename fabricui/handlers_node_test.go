@@ -394,6 +394,27 @@ func TestFactoryReset_ReportsAPartialReset(t *testing.T) {
 	}
 }
 
+// A fabric its controller removed between the reset's list and its turn
+// is gone already, which is what the reset wants: the reset goes on to
+// the later fabrics and succeeds, as go-fabric's own FactoryReset passes
+// over node.ErrFabricNotFound (UR-P4-err-261).
+func TestFactoryReset_PassesOverAFabricGoneMeanwhile(t *testing.T) {
+	n := sampleNode()
+	n.removeGone = 1
+	var log bytes.Buffer
+	_, mux := newTestHandler(t, testOptions{node: n, log: &log})
+	rec := do(t, mux, http.MethodPost, "/node/maintenance/factory-reset", `{"confirm":"remove-all-fabrics"}`)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status %d %s, want 204", rec.Code, rec.Body)
+	}
+	if !slices.Equal(n.removed, []uint8{2}) {
+		t.Fatalf("removed %v, want the later fabric 2", n.removed)
+	}
+	if strings.Contains(log.String(), "factory_reset.partial") {
+		t.Fatalf("logged as partial: %s", log.String())
+	}
+}
+
 // The status names a refused attestation chain and the boot reason
 // (go-fabric Node.AttestationError, Node.BootReason), and reports erase
 // when the host wires one (contract 0.7.0).
