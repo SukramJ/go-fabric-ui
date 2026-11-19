@@ -433,3 +433,20 @@ describe("Controller Node — dates in the UI's language (UR-P1-ui-182)", () => 
     expect(await screen.findByTestId("node-overview")).toHaveTextContent(/10\/20\/2026/);
   });
 });
+
+describe("Controller Node — the ACL refusal before the lock-out question (UR-P4-ui-66)", () => {
+  it("refuses a list with an unknown entry without asking about a lock-out first", async () => {
+    const ui = renderNode(L, "acl", [], {
+      answers: {
+        [`GET /controller/nodes/${L}/acl`]: { status: 200, body: { entries: [{ privilege: "unknown", auth_mode: "pase", subjects_hex: [], targets: [] }] } },
+      },
+    });
+    await screen.findByTestId("acl-entries");
+    await fireEvent.input(screen.getByLabelText("controller.acl.subjects"), { target: { value: "1" } });
+    await fireEvent.click(screen.getByText("controller.acl.add_entry"));
+    await fireEvent.click(screen.getByText("common.save"));
+    await waitFor(() => expect(ui.toastSpy.error).toHaveBeenCalledWith("controller.acl.unknown_entry"));
+    expect(ui.confirmSpy).not.toHaveBeenCalled();
+    expect(ui.sent.some((s) => s.method === "PUT")).toBe(false);
+  });
+});
