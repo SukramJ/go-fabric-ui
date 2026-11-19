@@ -1399,6 +1399,10 @@ const nocInvalidFabricIndex = 11
 
 // --- commissioning, discovery ---
 
+// defaultCommissionTimeout bounds a discovered device's commissioning
+// without timeout_seconds (contract 0.11.0).
+const defaultCommissionTimeout = 600 * time.Second
+
 func pairOptionsOf(b *api.CommissionRequest) PairOptions {
 	var o PairOptions
 	if b.WifiID != nil {
@@ -1443,12 +1447,22 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 		(*b.Discovered.LongDiscriminator < 0 || *b.Discovered.LongDiscriminator > maxLongDiscriminator):
 		return nil, badRequest("discovered.long_discriminator: %d is not 0 to %d", *b.Discovered.LongDiscriminator, maxLongDiscriminator)
 	}
-	if b.TimeoutSeconds != nil {
+	switch {
+	case b.TimeoutSeconds != nil:
 		if *b.TimeoutSeconds < 1 || *b.TimeoutSeconds > 600 {
 			return nil, badRequest("timeout_seconds: %d is not 1 to 600", *b.TimeoutSeconds)
 		}
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(*b.TimeoutSeconds)*time.Second)
+		defer cancel()
+	case !hasCode:
+		// A discovered device's commissioning is bounded at 600 s, the
+		// contract's maximum: go-fabric bounds it by ctx and the device's
+		// own budgets only. A code's is not: go-fabric's Pair bounds its
+		// search for the device at one minute only while ctx has no
+		// deadline (decision 71, UR-P4-bound-02).
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, defaultCommissionTimeout)
 		defer cancel()
 	}
 	opts := pairOptionsOf(b)
