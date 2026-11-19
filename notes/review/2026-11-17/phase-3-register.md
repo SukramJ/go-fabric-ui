@@ -169,7 +169,7 @@ merged 5, struck 0.
 
 ## Guards
 
-GUARDS: filled by the coordinator
+At `512f2bc` (the code head; `c15727e` adds notes only), local, all exit 0: `make ci`, `make race`, `make cover-check`, `make vuln licenses secrets`, `GOARCH=386 make build`, `make notices-check`, `make version-check`, `make contract-check`, `make e2e`, `make e2e-web` (44/44).
 
 ## Differences from the brief
 
