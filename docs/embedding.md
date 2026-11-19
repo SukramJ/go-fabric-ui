@@ -467,9 +467,10 @@ path prefix it chooses:
     equals its `Host`, so reads and writes pass under any name. The
     check is then the proxy's — its authentication of the user, its
     server names — as for the Ingress, whose proxy authenticates.
-  - It replaces `Host` — with a name of its own or with the upstream's
-    address: the check is constant, every request passes it whatever
-    name the browser used.
+  - It replaces `Host` — with a name of its own, which the host lists in
+    `AllowedHosts` (an unlisted one is refused on every request, 403
+    `host_not_allowed`), or with the upstream's address: the check is
+    constant, every request passes it whatever name the browser used.
 
   In the second and third case a page under a name that resolves to the
   proxy (DNS rebinding) reads what a page under the proxy's own name

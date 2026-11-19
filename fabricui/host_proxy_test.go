@@ -40,6 +40,9 @@ func TestHostCheck_BehindAProxyThatReplacesHost(t *testing.T) {
 	}{
 		{"the upstream's address", func(pr *httputil.ProxyRequest) { pr.SetURL(target) }, http.StatusOK},
 		{"a listed name of its own", func(pr *httputil.ProxyRequest) { pr.SetURL(target); pr.Out.Host = "ui.lan" }, http.StatusOK},
+		// A name of its own the host did not list: refused on every
+		// request, whatever the browser used (UR-P4-doc-202).
+		{"an unlisted name of its own", func(pr *httputil.ProxyRequest) { pr.SetURL(target); pr.Out.Host = "fabric-upstream" }, http.StatusForbidden},
 		{"Host forwarded", func(pr *httputil.ProxyRequest) { pr.SetURL(target); pr.Out.Host = pr.In.Host }, http.StatusForbidden},
 	} {
 		proxy := httptest.NewServer(&httputil.ReverseProxy{Rewrite: tc.rewrite})
@@ -64,7 +67,7 @@ func TestHostCheck_BehindAProxyThatReplacesHost(t *testing.T) {
 	for _, want := range []string{
 		"the host **lists** the names the browser uses in `AllowedHosts`: the handler checks the name — the one setup in which the check is the handler's",
 		"every name the proxy forwards passes, and the page's own `Origin` equals its `Host`, so reads and writes pass under any name. The check is then the proxy's",
-		"It replaces `Host` — with a name of its own or with the upstream's address: the check is constant",
+		"It replaces `Host` — with a name of its own, which the host lists in `AllowedHosts` (an unlisted one is refused on every request, 403 `host_not_allowed`), or with the upstream's address: the check is constant",
 		"There the proxy authenticates the user, or serves only its own names, with no catch-all server, and refuses any other `Host`",
 	} {
 		if !strings.Contains(flat, want) {
