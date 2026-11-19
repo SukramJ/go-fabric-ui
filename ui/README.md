@@ -52,11 +52,14 @@ provider's schema (see the repository's `docs/provider.md`).
 Controller pages (v0.2.0): `ControllerNodes` (with the tabs `list` and
 `network`, prop `tab`, v0.4.1), `ControllerNetwork` (the network graph
 alone, v0.4.1), `ControllerCommission`,
-`ControllerSettings`, and `ControllerNode` with the props `nodeId` (the
+`ControllerSettings`, `ControllerDiagnosticsPage` (the controller's
+diagnostics, contract 0.9.0, exported from v0.11.0; the name avoids the API
+type `ControllerDiagnostics`), and `ControllerNode` with the props `nodeId` (the
 16-digit hex `node_id_hex`) and an optional first `tab` (`overview`,
 `endpoints`, `inventory` and `events` (v0.5.0), `attributes`, `acl`, `bindings`,
 `window`, `icd`, `fabrics`, `updates`). They read `ui.controller` (`createControllerStore`); the
-routes `controllerNodes`, `controllerCommission`, `controllerSettings` and
+routes `controllerNodes`, `controllerCommission`, `controllerSettings`,
+`controllerDiagnostics` and
 the prefix `controllerNode` link them. `ui.controller.loadStatus()` sets
 `present` to false on a 404: the host serves no controller.
 
