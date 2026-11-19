@@ -210,8 +210,14 @@ test("a commissioning without a choice uses the preselected network", async ({ p
   await expect(page.getByLabel("Network for the device")).toHaveValue("thread:mesh");
   await expect(page.getByTestId("commission-ble-hint")).toHaveCount(0);
   await page.getByLabel("Pairing code").fill("34970112332");
+  const answer = page.waitForResponse((r) => r.url().endsWith("/controller/commission") && r.request().method() === "POST");
   await page.getByRole("button", { name: "Commission", exact: true }).click();
   await expect(page.getByTestId("commission-ble")).toHaveText("Bluetooth LE: used");
+  // The device is commissioned already: the answer is 404, and the
+  // browser logs that one resource error.
+  expect((await answer).status()).toBe(404);
+  const i = w.errors.findIndex((e) => e.includes("status of 404"));
+  if (i >= 0) w.errors.splice(i, 1);
   await w.clean();
 });
 
