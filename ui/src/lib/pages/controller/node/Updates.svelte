@@ -86,7 +86,7 @@
       {/each}
     </div>
     {#if checkError !== null}
-      <p class="mt-2 text-sm text-[var(--ha-error-color)]" role="alert" data-testid="updates-check-error">{t("controller.updates.check_failed", { error: checkError })}</p>
+      <p class="mt-2 text-sm text-[var(--fui-error-text)]" role="alert" data-testid="updates-check-error">{t("controller.updates.check_failed", { error: checkError })}</p>
     {/if}
   </Card>
 {/if}
