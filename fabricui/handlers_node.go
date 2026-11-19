@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/SukramJ/go-fabric/eligibility"
@@ -41,7 +42,7 @@ type statusResponse struct {
 	WindowOpen     bool   `json:"commissioning_window_open"`
 	WindowDuration uint16 `json:"commissioning_window_duration_seconds,omitempty"`
 	// WindowKind is which window is open (node.WindowKind: none, own,
-	// basic, enhanced); absent without a node.
+	// basic, enhanced, administrator_basic); absent without a node.
 	WindowKind string `json:"window_kind,omitempty"`
 	// WindowDeadline is when the open window's timer closes it, on the
 	// node's clock (node.Window); absent while none is open.
@@ -215,7 +216,9 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	res.Advertising = h.node.mdns().Advertising
 	win := h.node.window()
 	res.WindowOpen = win.Open
-	res.WindowKind = win.Kind.String()
+	// go-fabric's names, its "administrator-basic" (v0.23.0) as the
+	// contract's administrator_basic (0.11.0, decision 30).
+	res.WindowKind = strings.ReplaceAll(win.Kind.String(), "-", "_")
 	if win.Open {
 		res.WindowDuration = durationSeconds(win.Timeout)
 		if !win.Deadline.IsZero() {

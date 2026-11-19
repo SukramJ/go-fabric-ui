@@ -692,7 +692,10 @@ is 400, and 502 stays the node's failure. `CommissionRequest.timeout_seconds`
 states what its absence means on both paths: a discovered device's
 commissioning is bounded at 600 s, a code keeps go-fabric's one-minute
 search bound. `POST /node/pairing/window/close` says that a node without
-a fabric has its own window open again afterwards. The response integers
+a fabric has its own window open again afterwards. `Status.window_kind`
+gains `administrator_basic`: an administrator's basic window
+(OpenBasicCommissioningWindow, on the node's own passcode), which
+go-fabric 0.22 reported as `enhanced`. The response integers
 that range over 32 bits unsigned or wider are `format: int64` and
 `UpdateConsentRequest.target_software_version` is `x-go-type: int64`, so a
 generated server holds them in 64 bits on a 32-bit platform; the wire is

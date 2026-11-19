@@ -2241,8 +2241,8 @@ components:
         commissioning_window_duration_seconds: { type: integer }
         window_kind:
           type: string
-          enum: [none, own, basic, enhanced]
-          description: Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one; absent without a node.
+          enum: [none, own, basic, enhanced, administrator_basic]
+          description: "Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one, or (0.11.0) an administrator's basic one (OpenBasicCommissioningWindow, on the node's own passcode); absent without a node."
         window_deadline: { type: string, format: date-time, description: When the open window's timer closes it, on the node's clock; absent while no window is open. }
         window_remaining_seconds: { type: integer, minimum: 0, description: "Seconds until the open window's timer closes it, on the node's clock when the answer was written (0.10.0); absent while no window is open." }
         exposure: { type: boolean, description: Whether the host serves a selection. }
