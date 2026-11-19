@@ -137,3 +137,9 @@ took every recommendation. Source: `notes/briefs/2026-11-18-review-p3-contract.m
 | --- | --- | --- |
 | 61 | Held row UR-P0-auth-20 (decision 37): a measurement of the pinned hosts' proxy contradicts one premise of the decided shape (detail in `held/`) | **A per-request predicate beside the name list**: a new `Options` field lets a host admit a request by its own trusted signal; the check stays in every mode and on every route. Fable fixes name and signature in the held note. Held until the fix merges |
 | 62 | Owner rule, 2026-11-19: deprecated go-fabric identifiers | **None is used**, also not in tests. Held by staticcheck SA1019 in `make lint` (enabled, not excluded; clean at the v0.22.2 pin). Phase 4's lift to go-fabric v0.23.0 migrates every identifier v0.23.0 deprecates in the same change, by the migrations in go-fabric's `docs/guides/migrating-to-the-facade.md`; no `//nolint:staticcheck` for SA1019 |
+
+## 2026-11-19, the pre-merge read
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 63 | UR-P3-web-195: `attestation_error` on the node status carries the loader's error text to a non-admin, the class decision 34 withheld | **A fixed sentence for a non-admin**: the field stays present when the node refuses commissioning, its text a fixed neutral sentence; an administrator gets the loader's text. Additive, no guard break; a `docs/contract.md` line |
