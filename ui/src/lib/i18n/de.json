@@ -593,6 +593,7 @@
   "node.pair.loading": "Kopplungszustand wird geladen…",
   "node.pair.manual_code": "Manueller Code",
   "node.pair.minutes": "Min.",
+  "node.pair.own_window_back": "Geschlossen. Ein Knoten, den noch kein Controller hält, öffnet danach sein eigenes Kopplungsfenster mit den fest eingestellten Codes wieder, wie unten gezeigt; auch dieses schließen, um das Koppeln zu beenden.",
   "node.pair.qr_caption": "QR-Code mit der App des Controllers scannen",
   "node.pair.qr_payload": "QR-Inhalt",
   "node.pair.success": "Controller erfolgreich gekoppelt.",
