@@ -294,7 +294,7 @@
   "controller.settings.fabric_id": "Fabric ID",
   "controller.settings.info": "Controller",
   "controller.settings.label": "Fabric label",
-  "controller.settings.label_hint": "Up to 32 characters; the nodes get it in the background.",
+  "controller.settings.label_hint": "Up to {max} bytes (fewer characters with accents or emoji); the nodes get it in the background.",
   "controller.settings.label_saved": "The label is set.",
   "controller.settings.label_too_long": "The label is longer than {max} bytes.",
   "controller.settings.no_store": "The host stores no network credentials.",

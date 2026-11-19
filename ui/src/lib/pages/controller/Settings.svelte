@@ -124,7 +124,7 @@
     {#if labelTooLong}
       <p class="mt-1 text-xs text-[var(--fui-error-text)]" data-testid="label-too-long">{t("controller.settings.label_too_long", { max: FABRIC_LABEL_MAX_BYTES })}</p>
     {/if}
-    <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("controller.settings.label_hint")}</p>
+    <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("controller.settings.label_hint", { max: FABRIC_LABEL_MAX_BYTES })}</p>
   </Card>
 
   <Card class="p-4" data-testid="credentials">

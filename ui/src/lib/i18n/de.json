@@ -294,7 +294,7 @@
   "controller.settings.fabric_id": "Fabric-ID",
   "controller.settings.info": "Controller",
   "controller.settings.label": "Fabric-Bezeichnung",
-  "controller.settings.label_hint": "Bis zu 32 Zeichen; die Knoten erhalten sie im Hintergrund.",
+  "controller.settings.label_hint": "Bis zu {max} Bytes (weniger Zeichen mit Umlauten oder Emoji); die Knoten erhalten sie im Hintergrund.",
   "controller.settings.label_saved": "Die Bezeichnung ist gesetzt.",
   "controller.settings.label_too_long": "Die Bezeichnung ist länger als {max} Bytes.",
   "controller.settings.no_store": "Der Host speichert keine Netz-Zugangsdaten.",
