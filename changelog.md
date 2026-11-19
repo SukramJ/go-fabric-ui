@@ -60,7 +60,7 @@ the contract's changes for the hosts.
   `administrator-basic`, outside its enum. A new value of a response
   enum is additive: a client tolerates a value it does not know.
 - Web: the controller Diagnostics page exported from `./pages` as
-  `ControllerDiagnosticsPage`; `NodeStore.reassemble()`; i18n keys
+  `ControllerDiagnosticsPage`; `NodeStore.reassemble()`; `FabricClient.currentToken()`; i18n keys
   `controller.updates.check_failed`, `node.pair.own_window_back`,
   `node.warnings.viewer`; `controller.settings.label_hint` takes `{max}`.
 
@@ -82,7 +82,8 @@ the contract's changes for the hosts.
   `AllowedHosts` and `AllowHost` (UR-P4-auth-01).
 - The open status and node list log a failed fabric read or a skipped
   registry entry when it starts, not per request (UR-P4-leak-91).
-- Web: the node stream reopens on a token change (UR-P3-web-191); the
+- Web: the node stream reopens on a token change (UR-P3-web-191), and a
+  non-default node's stream opens once per mount, not twice (UR-P4-web-195); the
   token's same-origin test honours `<base href>` (UR-P4-web-04).
 
 ### Changed

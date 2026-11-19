@@ -550,7 +550,11 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       // no event falls between the reload and the subscription
       // (UR-P1-conc-192).
       streamDenied = null;
-      streamToken = status?.csrf_token;
+      // The token the stream opens with is the one the shared client
+      // sends now, not this store's last status: a scoped store connects
+      // before its first status, with the token the shell's probe set
+      // (UR-P4-web-195).
+      streamToken = client.currentToken ? client.currentToken() : status?.csrf_token;
       unsub = subscribeStream(client.streamUrl(), applyEvent, client.openStream, {
         onResync: resync,
         resyncOnFirstOpen: connectedBefore,

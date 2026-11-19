@@ -227,6 +227,12 @@ export interface FabricClient {
    */
   setToken(token: string | undefined): void;
   /**
+   * The admin token the client sends now, shared by every node's client
+   * (0.11.0); undefined without one. A store compares a status's token
+   * with it to tell whether a stream was opened with that token.
+   */
+  currentToken?(): string | undefined;
+  /**
    * The event source the client's streams open with (0.10.0): fetch with
    * the client's request headers, as every other request (fetchEventSource);
    * the token only to a URL of the page's origin. A 403 forbidden to an
@@ -542,6 +548,7 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       setToken(t) {
         auth.token = t || undefined;
       },
+      currentToken: () => auth.token,
       status: () => statusWithToken<Status>(np + "/status"),
       fabrics: () => call("GET", np + "/fabrics"),
       removeFabric: (i) => call("DELETE", `${np}/fabrics/${encodeURIComponent(String(i))}`),
