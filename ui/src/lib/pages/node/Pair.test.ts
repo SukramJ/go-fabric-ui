@@ -265,6 +265,20 @@ describe("UR-P1-ui-133: a viewer without admin rights", () => {
     expect(screen.queryByText("node.pair.load_error")).toBeNull();
     expect(ui.sent.some((s) => s.path.endsWith("/pairing"))).toBe(false);
   });
+
+  it("counts the open window down while the page is shown (UR-P4-ui-60)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await renderPair({ admin: false, csrf_token: undefined, commissioning_window_open: true, window_remaining_seconds: 300, window_deadline: undefined });
+      const v = await screen.findByTestId("pair-viewer");
+      expect(v).toHaveTextContent(/n.":300\b/);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(v).toHaveTextContent(/n.":29\d\b/);
+      expect(v).not.toHaveTextContent(/n.":300\b/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("UR-P1-ui-141: the countdown's unit is translated", () => {

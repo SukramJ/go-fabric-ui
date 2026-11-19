@@ -58,7 +58,17 @@
   const isAdmin = $derived(node.isAdmin);
   // Without admin rights: the window the status names, and what is left of it.
   const viewerWindowOpen = $derived(node.status?.enabled === true && node.status.commissioning_window_open);
-  const viewerLeft = $derived(windowSecondsLeft(node.status, node.statusAt));
+  // A clock for it: Date.now() alone is not tracked, and the number would
+  // stand still between two status reads (UR-P4-ui-60). It ticks only
+  // while such a window is shown.
+  let now = $state(Date.now());
+  $effect(() => {
+    if (!viewerWindowOpen || phase !== "idle" || isAdmin) return;
+    now = Date.now();
+    const tick = setInterval(() => (now = Date.now()), 1000);
+    return () => clearInterval(tick);
+  });
+  const viewerLeft = $derived(windowSecondsLeft(node.status, node.statusAt, now));
 
   // Opening a window on a node controllers already hold adds a controller;
   // the card says which of the two the operator is doing.
