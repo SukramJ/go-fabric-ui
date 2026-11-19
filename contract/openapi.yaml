@@ -2722,7 +2722,7 @@ components:
         key: { type: string }
         label: { type: string }
         filter: { type: boolean, description: Offer a value filter built from the listed values. }
-        multi: { type: boolean, description: "Default false. The field is list-valued: its values are the item's lists entry for the key (or, deprecated until v0.2.0, the comma split of its fields entry when lists has no such key); shown as chips, filtered by membership, the filter's options built from the individual values." }
+        multi: { type: boolean, description: "Default false. The field is list-valued: its values are the item's lists entry for the key (or, deprecated and still accepted, the comma split of its fields entry when lists has no such key); shown as chips, filtered by membership, the filter's options built from the individual values." }
     FilterOption:
       type: object
       required: [value, label]
@@ -2738,7 +2738,7 @@ components:
         options:
           type: array
           items: { $ref: "#/components/schemas/FilterOption" }
-        multi: { type: boolean, description: "Default false. Match by membership in the item's list for the field (its lists entry, or, deprecated until v0.2.0, the comma split of its fields entry, values trimmed; an empty value never matches) instead of equality." }
+        multi: { type: boolean, description: "Default false. Match by membership in the item's list for the field (its lists entry, or, deprecated and still accepted, the comma split of its fields entry, values trimmed; an empty value never matches) instead of equality." }
     ExposureSchema:
       type: object
       required: [columns, groups, filters]
