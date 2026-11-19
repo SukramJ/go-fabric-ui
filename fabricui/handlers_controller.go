@@ -1380,12 +1380,22 @@ func (s *controllerServer) RemoveNodeFabric(ctx context.Context, req api.RemoveN
 		if err := json.Unmarshal(res.Response, &noc); err != nil {
 			return nil, fmt.Errorf("%w: RemoveFabric answered a NOCResponse that does not decode", ErrNodeFailed)
 		}
-		if noc.StatusCode != 0 {
+		switch noc.StatusCode {
+		case 0:
+		case nocInvalidFabricIndex:
+			// The node holds no such fabric: 404 (contract 0.11.0,
+			// UR-P1-err-33).
+			return nil, &apiProblem{http.StatusNotFound, codeNotFound, "No such fabric", fmt.Sprintf("the node has no fabric %d", req.Index)}
+		default:
 			return nil, fmt.Errorf("%w: RemoveFabric answered NOCResponse status %d", ErrNodeFailed, noc.StatusCode)
 		}
 	}
 	return api.RemoveNodeFabric204Response{}, nil
 }
+
+// nocInvalidFabricIndex is the NOCResponse status InvalidFabricIndex
+// (NodeOperationalCertStatusEnum, value 11).
+const nocInvalidFabricIndex = 11
 
 // --- commissioning, discovery ---
 

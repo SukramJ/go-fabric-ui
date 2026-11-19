@@ -332,6 +332,12 @@ func (h *handler) removeFabric(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.node.removeFabric(r.Context(), uint8(idx)); err != nil {
+		if errors.Is(err, node.ErrFabricNotFound) {
+			// Removed meanwhile, by another admin or the controller itself
+			// (UR-P1-err-33).
+			writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such fabric", fmt.Sprintf("the node has no fabric %d", idx))
+			return
+		}
 		h.serverError(w, r, "Failed to remove fabric", err)
 		return
 	}
