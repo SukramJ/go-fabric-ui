@@ -63,7 +63,8 @@ describe("UR-P1-err-107: a failed probe is repeated", () => {
     // The node probe answers 404 (no fixture), the controller's 502: undecided.
     expect(await screen.findByText("The server did not answer. The page tries again by itself.")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("heading", { name: "Controller" })).toBeInTheDocument(), { timeout: 4000 });
-    expect(calls).toBe(2);
+    // The 502, the answer without the token, its repeat with it (UR-P3-web-190).
+    expect(calls).toBe(3);
   });
 });
 

@@ -252,6 +252,13 @@ a client without admin rights; `docs/contract.md` ("Admin rights",
   (UR-P0-leak-25): pairing codes, the token and the daemon's state are
   kept by no cache. It also carries `X-Content-Type-Options: nosniff` and
   `Referrer-Policy: no-referrer`, as the bundle does (UR-P0-web-24).
+- The client's token path (UR-P3-web-190, -191, -194): `status()` and
+  `controllerStatus()` repeat their request once when the answer's token
+  is not the one sent, so the first load is an administrator's; the ACL
+  page asks before a write when it does not know its own node id; a
+  stream of `FabricClient.openStream` refused with 403 `forbidden` while
+  it carried the token reloads the token and reopens once; the token goes
+  only to a base or stream URL that resolves to the page's origin.
 
 ## [0.9.2] - 2026-11-12
 

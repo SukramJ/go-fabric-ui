@@ -116,7 +116,11 @@ describe("client against the contract fixtures", () => {
     } else {
       expect(await result).toEqual(f.response.body);
     }
-    expect(ff.sent).toHaveLength(1);
+    // A status whose token is not the one sent is repeated once with it (UR-P3-web-190).
+    const answered = (f.response.body as { csrf_token?: string } | undefined)?.csrf_token;
+    const again = f.response.status === 200 && answered !== undefined && answered !== token;
+    expect(ff.sent).toHaveLength(again ? 2 : 1);
+    if (again) expect(ff.sent[1].headers[TOKEN_HEADER]).toBe(answered);
     const sent = ff.sent[0];
     expect(`${sent.method} ${sent.path}`).toBe(`${f.request.method} /api/v1${f.request.path}`);
     expect(sent.headers[TOKEN_HEADER]).toBe(token);
@@ -163,6 +167,7 @@ describe("client against the contract fixtures", () => {
     await client.closeWindow().catch(() => undefined);
     expect(ff.sent.map((s) => `${s.method} ${s.path} ${s.headers[TOKEN_HEADER] ?? "-"}`)).toEqual([
       "GET /api/v1/nodes/second/status -",
+      "GET /api/v1/nodes/second/status test-token",
       "POST /api/v1/nodes/second/pairing/window/close test-token",
       "POST /api/v1/node/pairing/window/close test-token",
     ]);

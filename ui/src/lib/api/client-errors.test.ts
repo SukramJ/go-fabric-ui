@@ -65,6 +65,7 @@ describe("UR-P1-err-108: a rotated token", () => {
     await expect(client.closeWindow()).resolves.toBeUndefined();
     expect(s.seen).toEqual([
       "GET /node/status -",
+      "GET /node/status a",
       "POST /node/pairing/window/close a",
       "GET /node/status a",
       "POST /node/pairing/window/close b",

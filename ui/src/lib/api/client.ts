@@ -5,7 +5,7 @@
 // assets/ui/src/lib/api/client.ts:1806-1875 at b40b289a, on the node routes.
 import type { components } from "./schema.gen";
 import { parseJson, stringifyJson } from "./json";
-import { fetchEventSource, type EventSourceFactory } from "./stream";
+import { fetchEventSource, type EventSourceFactory, type EventSourceLike } from "./stream";
 
 type S = components["schemas"];
 export type Problem = S["Problem"];
@@ -220,12 +220,19 @@ export class ApiError extends Error {
 export interface FabricClient {
   /** The base URL the routes are relative to (the mount prefix). */
   readonly baseUrl: string;
-  /** Sets the admin token sent on every request to a same-origin base; status() sets it from csrf_token. */
+  /**
+   * Sets the admin token sent on every request to a same-origin base;
+   * status() and controllerStatus() set it from csrf_token, and repeat
+   * their request once when the answer's token is not the one they sent.
+   */
   setToken(token: string | undefined): void;
   /**
    * The event source the client's streams open with (0.10.0): fetch with
-   * the client's request headers, as every other request (fetchEventSource).
-   * Pass it to subscribeStream, subscribeControllerStream and subscribeLogStream.
+   * the client's request headers, as every other request (fetchEventSource);
+   * the token only to a URL of the page's origin. A 403 forbidden to an
+   * open that carried the token reloads the token and reopens once; a
+   * second refusal ends the source as any other. Pass it to
+   * subscribeStream, subscribeControllerStream and subscribeLogStream.
    */
   readonly openStream: EventSourceFactory;
   status(): Promise<Status>;
@@ -358,13 +365,86 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
   // The token goes only to a base of the page's own origin (UR-P1-web-197).
   const sameOrigin = isSameOrigin(base);
 
-  // The headers of every request, the streams included (UR-P3-ctr-07).
-  function requestHeaders(): Record<string, string> {
+  // The headers of every request, the streams included (UR-P3-ctr-07);
+  // a stream's URL is tested on its own (UR-P3-web-194).
+  function requestHeaders(url?: string): Record<string, string> {
     const h: Record<string, string> = { [REQUEST_HEADER]: REQUEST_HEADER_VALUE };
-    if (sameOrigin && auth.token) h[TOKEN_HEADER] = auth.token;
+    if (auth.token && (url === undefined ? sameOrigin : isSameOrigin(url))) h[TOKEN_HEADER] = auth.token;
     return h;
   }
-  const openStream = fetchEventSource({ headers: requestHeaders, fetch: fetchImpl });
+
+  // A stream over fetch whose open is refused with 403 forbidden while it
+  // carried the token: the token is reloaded once and the stream reopened
+  // once (UR-P3-web-191). Any other end reaches the listeners as it is.
+  const openStream: EventSourceFactory = (url) => {
+    const listeners = new Map<string, ((ev: MessageEvent) => void)[]>();
+    let closed = false;
+    let retried = false;
+    let src: EventSourceLike;
+    const dispatch = (type: string, ev: MessageEvent) => {
+      for (const fn of listeners.get(type) ?? []) fn(ev);
+    };
+    const forward = (s: EventSourceLike, type: string) => s.addEventListener(type, (ev) => src === s && dispatch(type, ev));
+    const attach = () => {
+      const headers = requestHeaders(url);
+      const token = headers[TOKEN_HEADER];
+      const s = fetchEventSource({ headers: () => headers, fetch: fetchImpl })(url);
+      src = s;
+      s.addEventListener("error", (ev) => {
+        if (src !== s || closed) return;
+        if (s.status === 403 && s.problemCode === "forbidden" && token && !retried) {
+          retried = true;
+          void refreshToken(token).then((changed) => {
+            if (closed || src !== s) return;
+            if (changed) attach();
+            else dispatch("error", ev);
+          });
+          return;
+        }
+        dispatch("error", ev);
+      });
+      for (const type of listeners.keys()) if (type !== "error") forward(s, type);
+    };
+    attach();
+    return {
+      addEventListener(type, fn) {
+        const l = listeners.get(type);
+        if (l) {
+          l.push(fn);
+          return;
+        }
+        listeners.set(type, [fn]);
+        if (type !== "error") forward(src, type);
+      },
+      close() {
+        closed = true;
+        src.close();
+      },
+      get readyState() {
+        return src.readyState;
+      },
+      get status() {
+        return src.status;
+      },
+      get retryAfter() {
+        return src.retryAfter;
+      },
+      get problemCode() {
+        return src.problemCode;
+      },
+    };
+  };
+
+  // A status route: it carries the token, and the request that fetched it
+  // without (or with a stale one) was answered as one without admin
+  // rights; it is repeated once with the token (UR-P3-web-190).
+  async function statusWithToken<T extends { csrf_token?: string }>(path: string): Promise<T> {
+    const sent = requestHeaders()[TOKEN_HEADER];
+    const s = await call<T>("GET", path);
+    if (!s.csrf_token || s.csrf_token === sent) return s;
+    auth.token = s.csrf_token;
+    return sameOrigin ? call<T>("GET", path) : s;
+  }
 
   // keep names the members whose integers beyond 2^53 are kept exact
   // (json.ts): the generic values of attributes, events and commands.
@@ -462,11 +542,7 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       setToken(t) {
         auth.token = t || undefined;
       },
-      async status() {
-        const s = await call<Status>("GET", np + "/status");
-        if (s.csrf_token) auth.token = s.csrf_token;
-        return s;
-      },
+      status: () => statusWithToken<Status>(np + "/status"),
       fabrics: () => call("GET", np + "/fabrics"),
       removeFabric: (i) => call("DELETE", `${np}/fabrics/${encodeURIComponent(String(i))}`),
       pairing: () => call("GET", np + "/pairing"),
@@ -504,11 +580,7 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       logRecords: (w) => call("GET", `/operation/log${eventQuery(w)}`),
       logStreamUrl: () => base + "/operation/log/stream",
 
-      async controllerStatus() {
-        const s = await call<ControllerStatus>("GET", "/controller/status");
-        if (s.csrf_token) auth.token = s.csrf_token;
-        return s;
-      },
+      controllerStatus: () => statusWithToken<ControllerStatus>("/controller/status"),
       controllerNodes: () => call("GET", "/controller/nodes"),
       controllerNode: (id) => call("GET", node(id)),
       controllerEndpointDetail: (id, endpoint) => call("GET", `${node(id)}/endpoints/${endpoint}`, { keep: VALUE_KEYS }),
@@ -590,15 +662,14 @@ function eventQuery(w: EventWindow | LogWindow = {}): string {
 }
 
 /**
- * Whether base addresses the page's own origin: a relative base does; an
- * absolute one when its origin is the page's. Without a page (no
- * location) only a relative base does.
+ * Whether base addresses the page's own origin, decided as fetch resolves
+ * it: against the page's URL, the origin compared (UR-P3-web-194). Without
+ * a page (no location) against a placeholder origin, so only a base that
+ * stays on it — a path — does.
  */
 function isSameOrigin(base: string): boolean {
-  const absolute = /^[A-Za-z][A-Za-z0-9+.-]*:|^\/\//.test(base);
-  const here = typeof location !== "undefined" ? location.href : undefined;
-  if (!here || here === "about:blank") return !absolute;
-  if (!absolute) return true;
+  let here = typeof location !== "undefined" ? location.href : undefined;
+  if (!here || here === "about:blank") here = "http://fabric-ui.invalid/";
   try {
     return new URL(base, here).origin === new URL(here).origin;
   } catch {

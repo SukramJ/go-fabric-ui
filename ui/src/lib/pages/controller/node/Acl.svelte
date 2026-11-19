@@ -94,10 +94,12 @@
     return list as AclEntryWrite[];
   }
 
-  // Does the list keep this controller's Administer access?
+  // Does the list keep this controller's Administer access? An entry for
+  // every subject does; one naming subjects only when the own id is known
+  // and among them, so an unknown id asks (UR-P3-web-190).
   function keepsUs(list: AclEntry[]): boolean {
     const own = controller.status?.node_id_hex;
-    return list.some((e) => e.privilege === "administer" && e.auth_mode === "case" && (!own || e.subjects_hex.length === 0 || e.subjects_hex.includes(own)));
+    return list.some((e) => e.privilege === "administer" && e.auth_mode === "case" && (e.subjects_hex.length === 0 || (!!own && e.subjects_hex.includes(own))));
   }
 
   async function save() {
