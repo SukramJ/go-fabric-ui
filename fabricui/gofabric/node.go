@@ -133,6 +133,14 @@ func (w *node) Basic() fabricui.NodeBasic {
 	return b
 }
 
+// softwareVersion is BasicInformation's numeric SoftwareVersion from the
+// image, 0 while unread.
+func (w *node) softwareVersion() uint32 {
+	var v uint32
+	w.imageValue(basicinformation.ClusterID, basicinformation.AttrSoftwareVersion, &v)
+	return v
+}
+
 func (w *node) ConnectionState() fabricui.ConnectionState { return connectionOf(w.n.ConnectionState()) }
 
 func (w *node) SubscriptionActive() bool { return w.n.SubscriptionActive() }

@@ -28,7 +28,7 @@ type updates struct {
 }
 
 // productNode is a node and its product as the update manager groups
-// nodes for a check: vendor, product and software version.
+// nodes for a check: vendor, product and numeric software version.
 type productNode struct {
 	id      uint64
 	product string
@@ -51,7 +51,14 @@ func newUpdates(s *source, m *softwareupdate.Manager) *updates {
 		out := make([]productNode, 0, len(nodes))
 		for _, n := range nodes {
 			b := n.Basic()
-			out = append(out, productNode{id: n.ID(), product: fmt.Sprintf("%04X/%04X/%s", b.VendorID, b.ProductID, b.SoftwareVersion)})
+			// The numeric SoftwareVersion, as QueryUpdates groups
+			// (controller/softwareupdate/manager.go:995 at v0.23.0), not
+			// the display string (UR-P4-adpt-197).
+			var version uint32
+			if w, ok := n.(*node); ok {
+				version = w.softwareVersion()
+			}
+			out = append(out, productNode{id: n.ID(), product: fmt.Sprintf("%04X/%04X/%d", b.VendorID, b.ProductID, version)})
 		}
 		return out
 	}

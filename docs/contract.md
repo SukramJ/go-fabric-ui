@@ -854,7 +854,8 @@ Details the fixtures pin:
   `error`), every node whose check failed; such a node is not in
   `updates`. A check that fails as a whole is 500. go-fabric reports one
   joined error that names no node, so the adapter asks again one node per
-  product (vendor, product, software version) among the nodes without an
+  product (vendor, product and the numeric `SoftwareVersion`, as
+  go-fabric groups them; not the display string) among the nodes without an
   update found, and gives a failure to every node of that product; each
   such check ends with its own `check_finished` event.
 - **Commissioning**: `{code}` or `{discovered, passcode}`, not both; a
