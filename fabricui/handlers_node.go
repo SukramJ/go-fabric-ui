@@ -138,6 +138,10 @@ func summariseSurface(r *surface.Report) *surfaceSummary {
 	return out
 }
 
+// attestationErrorNonAdmin is attestation_error for a request without
+// admin rights (decision 63).
+const attestationErrorNonAdmin = "The node's attestation files did not load."
+
 // status serves GET /node/status. A host without a node is answered with
 // 200 and enabled false, not 503: the status is what tells a page the
 // family is off (loom matter_exposures.go:363-372).
@@ -190,7 +194,12 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	res.Enabled = true
 	if err := h.node.attestationError(); err != nil {
-		res.AttestationError = err.Error()
+		// The loader's text names files: an administrator's only
+		// (decision 63).
+		res.AttestationError = attestationErrorNonAdmin
+		if admin {
+			res.AttestationError = err.Error()
+		}
 	}
 	boot := h.node.bootReason()
 	res.BootReason = &boot

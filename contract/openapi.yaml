@@ -2232,7 +2232,7 @@ components:
         admin: { type: boolean, description: "Whether the host's admin check admits this request (0.6.0); present when the host decides admin rights, absent in token mode, where `csrf_token` says it." }
         node_registry: { type: boolean, description: "Whether the host keeps a node registry (0.6.0): `POST /nodes` creates a node and a `managed` node can be renamed and deleted. Absent without one." }
         config: { $ref: "#/components/schemas/NodeConfig" }
-        attestation_error: { type: string, description: "Why the node's attestation files did not load (0.7.0, go-fabric `Node.AttestationError`): the node runs on the test chain and refuses every commissioning until the files are fixed and a new node is built. Absent when the files loaded, named nothing, or without a node." }
+        attestation_error: { type: string, description: "Why the node's attestation files did not load (0.7.0, go-fabric `Node.AttestationError`): the node runs on the test chain and refuses every commissioning until the files are fixed and a new node is built. Absent when the files loaded, named nothing, or without a node. Without admin rights (0.10.0, decision 63) a fixed sentence, \"The node's attestation files did not load.\", not the loader's text." }
         boot_reason:
           type: integer
           minimum: 0

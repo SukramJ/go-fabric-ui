@@ -402,7 +402,9 @@ Open to a request without admin rights, with this answer:
 
 - `GET /node/status`, `/nodes/{node}/status`: without `config.store`;
   every `warnings[]` entry with its `code`, an empty `message` and no
-  `since`; `counters` unchanged.
+  `since`; `attestation_error`, when present, the fixed sentence "The
+  node's attestation files did not load." instead of the loader's text;
+  `counters` unchanged.
 - `GET /nodes`, `/operation/info`, `/operation/log/level`: unchanged.
 - `GET /controller/status`: `enabled`, `capabilities`, `admin` and
   `csrf_token` as they are, every other member empty (`""`) or 0.

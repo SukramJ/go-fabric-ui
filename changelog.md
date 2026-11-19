@@ -22,8 +22,9 @@ a client without admin rights; `docs/contract.md` ("Admin rights",
   `GET /node/status`, `/nodes/{node}/status`, `/nodes`,
   `/operation/info`, `/operation/log/level`, `/controller/status` and the
   node stream. Without admin rights the node status has no
-  `config.store` and every warning its code only (`message` empty, no
-  `since`); the controller status keeps `enabled`, `capabilities`,
+  `config.store`, every warning its code only (`message` empty, no
+  `since`) and `attestation_error` a fixed sentence instead of the
+  loader's text (decision 63); the controller status keeps `enabled`, `capabilities`,
   `admin` and `csrf_token`, every other member empty or 0; the node
   stream carries `nodes_changed`, `window_opened` and `window_closed`
   only.

@@ -406,6 +406,16 @@ func TestStatus_AttestationBootReasonAndErase(t *testing.T) {
 		erase: func(context.Context) error { return nil },
 	})
 	runFixture(t, mux, "node-status.200-attestation")
+	// Without admin rights the field is the fixed sentence, not the
+	// loader's text (decision 63).
+	_, mux = newTestHandler(t, testOptions{node: n, admin: func(*http.Request) bool { return false }})
+	var st statusResponse
+	if err := json.Unmarshal(do(t, mux, http.MethodGet, "/node/status", "").Body.Bytes(), &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.AttestationError != attestationErrorNonAdmin {
+		t.Errorf("attestation_error without admin rights: %q", st.AttestationError)
+	}
 	// Without a node there is neither a boot reason nor an attestation.
 	_, mux = newTestHandler(t, testOptions{noNode: true, erase: func(context.Context) error { return nil }})
 	var m map[string]json.RawMessage

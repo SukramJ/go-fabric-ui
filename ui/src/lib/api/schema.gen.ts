@@ -2056,7 +2056,7 @@ export interface components {
             /** @description Whether the host keeps a node registry (0.6.0): `POST /nodes` creates a node and a `managed` node can be renamed and deleted. Absent without one. */
             node_registry?: boolean;
             config?: components["schemas"]["NodeConfig"];
-            /** @description Why the node's attestation files did not load (0.7.0, go-fabric `Node.AttestationError`): the node runs on the test chain and refuses every commissioning until the files are fixed and a new node is built. Absent when the files loaded, named nothing, or without a node. */
+            /** @description Why the node's attestation files did not load (0.7.0, go-fabric `Node.AttestationError`): the node runs on the test chain and refuses every commissioning until the files are fixed and a new node is built. Absent when the files loaded, named nothing, or without a node. Without admin rights (0.10.0, decision 63) a fixed sentence, "The node's attestation files did not load.", not the loader's text. */
             attestation_error?: string;
             /** @description The GeneralDiagnostics BootReason the node was built with (0.7.0, go-fabric `Node.BootReason`; BootReasonEnum: 0 Unspecified, 1 PowerOnReboot, 2 BrownOutReset, 3 SoftwareWatchdogReset, 4 HardwareWatchdogReset, 5 SoftwareUpdateCompleted, 6 SoftwareReset). Absent without a node. */
             boot_reason?: number;
