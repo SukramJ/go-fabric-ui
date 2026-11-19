@@ -2,7 +2,7 @@
 // the client against the golden fixtures the Go handler tests check the
 // server with.
 import { describe, expect, it } from "vitest";
-import { ApiError, createClient, TOKEN_HEADER, type FabricClient } from "./client";
+import { ApiError, createClient, REQUEST_HEADER, TOKEN_HEADER, type FabricClient } from "./client";
 import { fixture, fixtureFetch } from "../../test/support";
 
 type Call = (c: FabricClient, body: unknown) => Promise<unknown>;
@@ -82,6 +82,9 @@ const cases: [string, Call][] = [
   ["controller-events.200", (c) => c.controllerEvents()],
 ];
 
+/** The fixtures whose request the client refuses unsent (RangeError). */
+const REFUSED_UNSENT = new Set(["controller-node.400"]);
+
 describe("controller client against the contract fixtures", () => {
   it.each(cases)("%s", async (name, call) => {
     const f = fixture(name);
@@ -90,6 +93,14 @@ describe("controller client against the contract fixtures", () => {
     const token = f.request.headers?.[TOKEN_HEADER];
     client.setToken(token);
     const result = call(client, f.request.body);
+    // An id outside the contract's NodeID pattern is refused before it is
+    // sent (0.10.0); the fixture is the server's answer to it.
+    if (REFUSED_UNSENT.has(name)) {
+      await expect(result).rejects.toThrow(RangeError);
+      expect(ff.sent).toHaveLength(0);
+      expect(f.response.status).toBe(400);
+      return;
+    }
     if (f.response.status >= 400) {
       const err = await result.then(
         () => null,
@@ -107,6 +118,7 @@ describe("controller client against the contract fixtures", () => {
     const sent = ff.sent[0];
     expect(`${sent.method} ${sent.path}`).toBe(`${f.request.method} /api/v1${f.request.path}`);
     expect(sent.headers[TOKEN_HEADER]).toBe(token);
+    expect(sent.headers[REQUEST_HEADER]).toBe("1");
     expect(sent.body).toEqual(f.request.body);
   });
 
@@ -119,7 +131,7 @@ describe("controller client against the contract fixtures", () => {
     expect(client.controllerStreamUrl()).toBe("/api/v1/controller/stream");
   });
 
-  it("asks for a refreshed topology with the admin token, a plain one without", async () => {
+  it("asks for a refreshed topology and a plain one, each with the headers of every request", async () => {
     const ff = fixtureFetch(["controller-topology.501"]);
     ff.routes.set("GET /api/v1/controller/topology?refresh=true", fixture("controller-topology.501"));
     const client = createClient("/api/v1", ff.fetch);
@@ -128,7 +140,7 @@ describe("controller client against the contract fixtures", () => {
     await client.controllerTopology().catch(() => null);
     expect(ff.sent.map((s) => [s.path, s.headers[TOKEN_HEADER]])).toEqual([
       ["/api/v1/controller/topology?refresh=true", "t"],
-      ["/api/v1/controller/topology", undefined],
+      ["/api/v1/controller/topology", "t"],
     ]);
   });
 

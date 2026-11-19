@@ -59,9 +59,161 @@ export interface EventSourceLike {
   close(): void;
   /** 2 (CLOSED) after an error the browser does not retry: an answer other than 200 text/event-stream. */
   readonly readyState?: number;
+  /**
+   * The HTTP status of an answer other than 200 text/event-stream, when the
+   * source knows it (fetchEventSource does; the browser's EventSource does
+   * not). 403 ends the subscription; 503 waits for retryAfter (0.10.0).
+   */
+  readonly status?: number;
+  /** The answer's Retry-After in seconds, when it carried one (0.10.0). */
+  readonly retryAfter?: number;
+  /** The problem code of the refused answer, when it carried a problem (0.10.0). */
+  readonly problemCode?: string;
 }
 
+/**
+ * Opens an event source on a URL. The browser's EventSource is one and
+ * stays the default of the subscribe functions; it sends no request
+ * header, so a host whose routes need them passes fetchEventSource (or
+ * FabricClient.openStream) instead.
+ */
 export type EventSourceFactory = (url: string) => EventSourceLike;
+
+type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
+
+/** What fetchEventSource takes: the headers of every request and the fetch to send it with. */
+export interface FetchEventSourceInit {
+  /** Read on every open, so a header that changes (a token) is current. */
+  headers?: () => Record<string, string>;
+  fetch?: Fetch;
+}
+
+/**
+ * An EventSourceFactory over fetch (0.10.0): the stream is a GET with the
+ * headers of init (credentials "same-origin"). It fires "open" on a 200
+ * text/event-stream answer and "error" with readyState 2 on any other
+ * answer, a read error or the end of the stream; status, retryAfter and
+ * problemCode then say what the server answered. close() aborts the
+ * request. Comments and multi-line data are parsed as EventSource does;
+ * it does not reconnect by itself (the subscribe functions do).
+ */
+export function fetchEventSource(init: FetchEventSourceInit = {}): EventSourceFactory {
+  return (url) => new FetchEventSource(url, init);
+}
+
+class FetchEventSource implements EventSourceLike {
+  readyState = 0;
+  status?: number;
+  retryAfter?: number;
+  problemCode?: string;
+  private readonly listeners = new Map<string, ((ev: MessageEvent) => void)[]>();
+  private readonly ctrl = new AbortController();
+  private closed = false;
+
+  constructor(url: string, init: FetchEventSourceInit) {
+    void this.run(url, init);
+  }
+
+  addEventListener(type: string, fn: (ev: MessageEvent) => void): void {
+    const l = this.listeners.get(type);
+    if (l) l.push(fn);
+    else this.listeners.set(type, [fn]);
+  }
+
+  close(): void {
+    this.closed = true;
+    this.readyState = CLOSED;
+    this.ctrl.abort();
+  }
+
+  private emit(type: string, data?: string, lastEventId = ""): void {
+    if (this.closed && type !== "error") return;
+    const ev =
+      typeof MessageEvent === "function"
+        ? new MessageEvent(type, { data, lastEventId })
+        : ({ type, data, lastEventId } as unknown as MessageEvent);
+    for (const fn of this.listeners.get(type) ?? []) fn(ev);
+  }
+
+  private fail(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.readyState = CLOSED;
+    this.ctrl.abort();
+    for (const fn of this.listeners.get("error") ?? []) fn(new Event("error") as MessageEvent);
+  }
+
+  private async run(url: string, init: FetchEventSourceInit): Promise<void> {
+    const doFetch: Fetch = init.fetch ?? ((i, o) => fetch(i, o));
+    let res: Response;
+    try {
+      res = await doFetch(url, {
+        method: "GET",
+        headers: { Accept: "text/event-stream", ...(init.headers?.() ?? {}) },
+        credentials: "same-origin",
+        cache: "no-store",
+        signal: this.ctrl.signal,
+      });
+    } catch {
+      this.fail();
+      return;
+    }
+    if (this.closed) return;
+    const type = (res.headers.get("Content-Type") ?? "").split(";")[0].trim().toLowerCase();
+    if (res.status !== 200 || type !== "text/event-stream" || !res.body) {
+      this.status = res.status;
+      const ra = Number.parseInt(res.headers.get("Retry-After") ?? "", 10);
+      if (Number.isFinite(ra) && ra >= 0) this.retryAfter = ra;
+      try {
+        const p: unknown = JSON.parse(await res.text());
+        if (p && typeof p === "object" && typeof (p as { code?: unknown }).code === "string") this.problemCode = (p as { code: string }).code;
+      } catch {
+        // not a problem
+      }
+      this.fail();
+      return;
+    }
+    this.readyState = 1;
+    this.emit("open");
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    const frame = { event: "", data: [] as string[], id: "" };
+    let buf = "";
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (this.closed) return;
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        // A CR at the end may be the first half of a CRLF: kept for the next chunk.
+        const hold = buf.endsWith("\r") ? "\r" : "";
+        const lines = (hold ? buf.slice(0, -1) : buf).split(/\r\n|\r|\n/);
+        buf = (lines.pop() ?? "") + hold;
+        for (const line of lines) this.line(line, frame);
+      }
+    } catch {
+      // a read error ends the stream as its end does
+    }
+    this.fail();
+  }
+
+  private line(line: string, f: { event: string; data: string[]; id: string }): void {
+    if (line === "") {
+      if (f.data.length > 0) this.emit(f.event || "message", f.data.join("\n"), f.id);
+      f.event = "";
+      f.data = [];
+      return;
+    }
+    if (line.startsWith(":")) return;
+    const i = line.indexOf(":");
+    const name = i < 0 ? line : line.slice(0, i);
+    let value = i < 0 ? "" : line.slice(i + 1);
+    if (value.startsWith(" ")) value = value.slice(1);
+    if (name === "event") f.event = value;
+    else if (name === "data") f.data.push(value);
+    else if (name === "id" && !value.includes("\0")) f.id = value;
+  }
+}
 
 /** What the stream helpers take beside the callbacks. */
 export interface StreamOptions {
@@ -79,6 +231,12 @@ export interface StreamOptions {
    * reload then follows the server-side subscription, not precedes it.
    */
   resyncOnFirstOpen?: boolean;
+  /**
+   * Called once when the server refuses the stream with 403 (a source that
+   * reports the status, as fetchEventSource does): the subscription ends
+   * and is not reopened. The argument is the problem code, when one came.
+   */
+  onDenied?: (code: string | undefined) => void;
 }
 
 /** onResync runs at most once per this many ms; opens within it share one trailing call (UR-P1-bound-195). */
@@ -151,7 +309,15 @@ function openStream(
       if (es !== src || src.readyState !== CLOSED) return; // the browser retries by itself
       stop();
       resyncDue = true;
-      const wait = BACKOFF_MS[Math.min(attempt++, BACKOFF_MS.length - 1)];
+      if (src.status === 403) {
+        // Refused for good: no retry loop; the caller shows why.
+        end();
+        opts.onDenied?.(src.problemCode);
+        return;
+      }
+      let wait = BACKOFF_MS[Math.min(attempt++, BACKOFF_MS.length - 1)];
+      // The server's limit of open streams: not before its Retry-After.
+      if (src.status === 503 && src.retryAfter !== undefined) wait = Math.max(wait, src.retryAfter * 1000);
       timer = setTimeout(() => {
         timer = null;
         if (!done && !doc?.hidden) start();
@@ -172,15 +338,17 @@ function openStream(
     }
   };
 
-  doc?.addEventListener("visibilitychange", onVisibility);
-  if (!doc?.hidden) start();
-  return () => {
+  function end() {
     done = true;
     if (timer) clearTimeout(timer);
     if (resyncTimer) clearTimeout(resyncTimer);
     doc?.removeEventListener("visibilitychange", onVisibility);
     stop();
-  };
+  }
+
+  doc?.addEventListener("visibilitychange", onVisibility);
+  if (!doc?.hidden) start();
+  return end;
 }
 
 /** The data of msg as JSON, or undefined when it is not JSON. */

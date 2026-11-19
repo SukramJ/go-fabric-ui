@@ -123,7 +123,8 @@ a shadow root adapts that selector itself.
 
 ### Event stream
 
-`ui.node.connect()` opens `GET /node/stream` with an `EventSource`. A host
+`ui.node.connect()` opens `GET /node/stream` through `fetch`, with the
+client's request headers (`client.openStream`, contract 0.10.0). A host
 with a hub of its own feeds it instead:
 
 ```ts
@@ -131,12 +132,34 @@ import { subscribeStream } from "@sukramj/fabric-ui/client";
 
 createFabricUI({ client, subscribe: (onEvent) => hub.on("fabric-ui", onEvent) });
 // or bridge the stream into the hub:
-const close = subscribeStream(client.streamUrl(), (ev) => hub.publish(ev.type, ev.data));
+const close = subscribeStream(client.streamUrl(), (ev) => hub.publish(ev.type, ev.data), client.openStream);
 ```
 
 `ui.controller.connect()` opens `GET /controller/stream` the same way;
 `subscribeControllerStream` and the `subscribeController` option of
-`createFabricUI` are its twins.
+`createFabricUI` are its twins, and the log (`subscribeLogStream`) the
+third.
+
+The third argument of the `subscribe*` functions is an
+`EventSourceFactory`. Left out, it is the browser's `EventSource`, which
+sends no request header: the node stream then carries what a request
+without admin rights receives (`nodes_changed`, `window_opened`,
+`window_closed`), and the controller and log streams answer 403. Pass
+`client.openStream`, or `fetchEventSource({ headers, fetch })` for a
+client of the host's own; either sends `X-Fabric-UI: 1`
+(`REQUEST_HEADER`) and, to a base of the page's own origin, the admin
+token. A host's own client or factory sends the same header on every
+request. A stream refused with 403 is not reopened (`onDenied` says
+why); a 503 `too_many_streams` is reopened after its `Retry-After`.
+
+### Requests
+
+The client sends `X-Fabric-UI: 1` on every request, and the admin token
+(`X-Fabric-UI-Token`, token mode) on every request to a base of the page's
+own origin; a base on another origin never receives the token. Without
+admin rights most routes answer 403 `forbidden` (contract 0.10.0): the
+shell shows the node family's status and pairing only, and a page whose
+routes are refused shows a notice (`DeniedState`) instead of an error.
 
 ## Developing
 
