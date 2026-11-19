@@ -774,7 +774,10 @@ func nodeError(err error) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, client.ErrJSONValue):
+	case errors.Is(err, client.ErrJSONValue), errors.Is(err, client.ErrRequestTooLarge), errors.Is(err, client.ErrMalformedRequest):
+		// A value that does not fit, or a request go-fabric refuses before
+		// it sends anything (too large for one message where it must fit,
+		// malformed): the request's error, not the node's (UR-P2-err-37).
 		return fmt.Errorf("%w: %w", fabricui.ErrInvalidArgument, err)
 	case errors.Is(err, context.Canceled):
 		return err
