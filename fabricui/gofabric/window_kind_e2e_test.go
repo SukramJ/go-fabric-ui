@@ -48,4 +48,16 @@ func TestEndToEnd_AnAdministratorsBasicWindowReadsAdministratorBasic(t *testing.
 	if !st.Open || st.Kind != "administrator_basic" {
 		t.Fatalf("after an administrator's basic window: open %v, kind %q", st.Open, st.Kind)
 	}
+	// The window runs on the node's configured passcode and
+	// discriminator, so the configured codes of GET /node/pairing
+	// commission through it: window_match is true (UR-P4-ctr-193).
+	var p struct {
+		Source string `json:"source"`
+		Open   bool   `json:"window_open"`
+		Match  *bool  `json:"window_match"`
+	}
+	s.json(http.MethodGet, "/node/pairing", "", http.StatusOK, &p)
+	if !p.Open || p.Source != "configured" || p.Match == nil || !*p.Match {
+		t.Errorf("GET /node/pairing under administrator_basic: source %q open %v window_match %v, want true", p.Source, p.Open, p.Match != nil && *p.Match)
+	}
 }
