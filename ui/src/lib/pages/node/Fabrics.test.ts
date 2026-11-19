@@ -228,6 +228,26 @@ describe("UR-P4-ui-61: the not-in-effect notice after a reassemble", () => {
     expect(ui.node.exposureNotInEffect).toBe(false);
   });
 
+  // The other-tab path: another tab's apply (or the host) rebuilt the
+  // node; the stream's surface_changed or endpoints_changed is the sign of
+  // that rebuild, and exposure_changed alone is not.
+  for (const type of ["surface_changed", "endpoints_changed"] as const) {
+    it(`goes on the stream's ${type}, the sign of a rebuild elsewhere`, async () => {
+      const ui = testUI({
+        fixtures: ["node-status.200", "node-exposure-schema.200", "node-exposure.200"],
+        answers: { "PUT /node/exposure": { status: 200, body: { applied: 1, reassembled: false } } },
+      });
+      await ui.node.loadExposure();
+      const item = ui.node.items[0];
+      ui.node.markDirty(item, { enabled: !item.enabled });
+      await ui.node.saveBulk();
+      ui.node.applyEvent({ type: "exposure_changed", data: {} } as never);
+      expect(ui.node.exposureNotInEffect).toBe(true);
+      ui.node.applyEvent({ type, data: { endpoints: ["1"] } } as never);
+      expect(ui.node.exposureNotInEffect).toBe(false);
+    });
+  }
+
   it("stays when the reassemble fails", async () => {
     const ui = testUI({
       fixtures: ["node-status.200", "node-exposure-schema.200", "node-exposure.200", "node-fabrics.200"],

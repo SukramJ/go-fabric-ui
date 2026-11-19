@@ -479,6 +479,12 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         break;
       case "endpoints_changed":
       case "surface_changed":
+        // An assembly ran: the node was rebuilt (another tab's apply, a
+        // reassemble, the host), so the stored selection is in effect and
+        // the last apply's notice is stale (UR-P4-ui-61, its other-tab
+        // path). A rebuild that changes no endpoint's surface sends
+        // neither; the notice then stays until a rebuild here.
+        exposureNotInEffect = false;
         void loadStatus();
         topologyEpoch++;
         break;
