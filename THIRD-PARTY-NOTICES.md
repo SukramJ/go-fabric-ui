@@ -61,8 +61,10 @@ fails on a forbidden, restricted or reciprocal licence.
 | `modernc.org/sqlite` | BSD-3-Clause |
 
 The generator `github.com/oapi-codegen/oapi-codegen/v2` (Apache-2.0) is a
-pinned `tool` of `go.mod` (`make generate`); it writes `internal/api` and
-is not linked into the module's packages.
+pinned `tool` of `tools/go.mod`, a module of its own (`make generate`); it
+writes `internal/api`, is not linked into the module's packages, and its
+requirements are not in the root `go.mod`, so they do not reach a
+consumer's module graph.
 
 ## Ported source
 

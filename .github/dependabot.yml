@@ -21,6 +21,26 @@ updates:
       go-minor-patch:
         update-types: ["minor", "patch"]
 
+  # Go modules (tools/: the pinned oapi-codegen, a module of its own so
+  # that the generator's requirements stay out of the root go.mod)
+  - package-ecosystem: gomod
+    directory: "/tools"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    reviewers:
+      - "SukramJ"
+    labels:
+      - "dependencies"
+      - "go"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      go-tools-minor-patch:
+        update-types: ["minor", "patch"]
+
   # GitHub Actions (pinned by commit SHA; Dependabot bumps the SHA and
   # keeps the `# vX` version comment in sync).
   - package-ecosystem: github-actions

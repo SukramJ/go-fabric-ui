@@ -53,15 +53,14 @@ fmt: ## gofumpt -w .
 fmt-check: ## fail when a file is not gofumpt-clean
 	@diff=$$(gofumpt -l .); if [ -n "$$diff" ]; then echo "gofumpt would rewrite:"; echo "$$diff"; exit 1; fi
 
-lint: fmt-check ## gofumpt check + golangci-lint + go mod tidy -diff + go mod verify
+lint: fmt-check tidy-check ## gofumpt check + golangci-lint + tidy-check
 	golangci-lint config verify
 	golangci-lint run --timeout=5m ./...
-	$(GO) mod tidy -diff
-	$(GO) mod verify
 
-tidy-check: ## verify go.mod/go.sum are tidy and the module checksums verify
+tidy-check: ## verify go.mod/go.sum (root and tools/) are tidy and the module checksums verify
 	$(GO) mod tidy -diff
 	$(GO) mod verify
+	cd tools && $(GO) mod tidy -diff && $(GO) mod verify
 
 cover: ## coverage profile of every package
 	CGO_ENABLED=0 $(GO) test -count=1 -timeout 300s -coverpkg=./... -coverprofile=coverage.out ./...
@@ -113,7 +112,7 @@ contract-check: ## the contract guard (no removal against contract/previous) and
 	CGO_ENABLED=0 $(GO) test -count=1 -run 'TestEveryFixtureIsUsedByTheGoTests' ./fabricui/
 	cd $(UI_DIR) && npx vitest run src/lib/api/fixtures.test.ts scripts/contract-guard.test.mjs
 
-generate: ## regenerate the controller family's handlers (internal/api) from contract/openapi.yaml with the pinned oapi-codegen
+generate: ## regenerate the controller family's handlers (internal/api) from contract/openapi.yaml with the pinned oapi-codegen (tools/go.mod)
 	script/gen-api.sh internal/api/api.gen.go
 
 generate-check: ## fail when internal/api/api.gen.go is not the generation of contract/openapi.yaml
