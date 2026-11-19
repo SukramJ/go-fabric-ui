@@ -298,10 +298,14 @@ type Options struct {
 	// nil omits the status response's warnings.
 	Warnings func(ctx context.Context) []Warning
 	// AllowedHosts are the DNS names besides loopback names and IP
-	// addresses under which requests reach the handler; a host behind a
-	// proxy lists the name the proxy sends as Host. Every other Host is
-	// answered 403 host_not_allowed, on every route and in every mode, the
-	// web interface included. Entries are host names only — no scheme,
+	// addresses under which requests reach the handler. Every other Host
+	// is answered 403 host_not_allowed, on every route and in every mode,
+	// the web interface included. The check sees the Host a request
+	// arrives with: behind a proxy that forwards the browser's Host, list
+	// the names the browser uses; a proxy that replaces Host — with a name
+	// of its own or the upstream's address — makes the check constant, and
+	// the check is then the proxy's: it serves only its own names and
+	// refuses any other Host (docs/embedding.md, Behind an Ingress). Entries are host names only — no scheme,
 	// port, path, wildcard or white space — compared case-insensitively;
 	// [NewHandler] and [Mount] refuse anything else.
 	AllowedHosts []string

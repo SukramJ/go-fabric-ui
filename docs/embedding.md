@@ -455,11 +455,19 @@ path prefix it chooses:
 - **Host names.** The handler answers only a `Host` it admits — a
   loopback name, an IP address, a name in `Options.AllowedHosts`, or a
   request `Options.AllowHost` admits — and answers any other 403
-  `host_not_allowed`, the page included. A proxy that sends a name of its
-  own as `Host`: list that name in `AllowedHosts`. A proxy that forwards
-  the browser's `Host` unchanged: set `AllowHost`, and answer it from what
-  only the proxy produces, such as its source address — never from `Host`
-  or anything else the browser chooses.
+  `host_not_allowed`, the page included. The check sees the `Host` the
+  proxy sends, not the browser's. A proxy that forwards the browser's
+  `Host` unchanged keeps the check: list the names the browser uses in
+  `AllowedHosts`, or set `AllowHost` and answer it from what only the
+  proxy produces, such as its source address — never from `Host` or
+  anything else the browser chooses. A proxy that replaces `Host` — with
+  a name of its own or with the upstream's address — makes the check
+  constant: every request passes it, whatever name the browser used, so
+  a page under a name that resolves to the proxy (DNS rebinding) reads
+  what a page under the proxy's own name reads, the token and the admin
+  answers included. Behind such a proxy the check is the proxy's: it
+  serves only its own names, with no catch-all server, and refuses any
+  other `Host` — or it forwards `Host`, as above.
 - **Admin gate by the host.** The proxy authenticates the user; the host's
   `Options.Admin` admits a request when it came through the proxy (for
   example by the proxy's source address), and the page's client sends
