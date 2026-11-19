@@ -318,7 +318,7 @@ func (h *handler) removeFabric(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r, "Failed to list fabrics", err)
 		return
 	}
-	if !slices.ContainsFunc(infos, func(f node.FabricInfo) bool { return f.FabricIndex == uint8(idx) }) {
+	if !slices.ContainsFunc(infos, func(f node.FabricInfo) bool { return uint64(f.FabricIndex) == idx }) {
 		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such fabric", fmt.Sprintf("the node has no fabric %d", idx))
 		return
 	}

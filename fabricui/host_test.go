@@ -248,7 +248,8 @@ func TestAllowHost_EveryModeAndRoute(t *testing.T) {
 			exposure: newMemoryProvider(), registry: newMemoryRegistry(0), nodeConfig: defaultNodeConfig(),
 		})
 		mux.Handle("/", h.hostCheck(spaHandler(nil)))
-		targets := []string{"GET /", "GET /index.html"}
+		targets := make([]string, 0, 2+len(ops))
+		targets = append(targets, "GET /", "GET /index.html")
 		for _, op := range ops {
 			m := op.method
 			if strings.HasSuffix(op.path, "/stream") {

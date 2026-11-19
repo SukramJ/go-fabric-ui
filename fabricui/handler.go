@@ -27,8 +27,8 @@ import (
 // [Options].Admin).
 const TokenHeader = "X-Fabric-UI-Token" //nolint:gosec // a header name, not a credential
 
-// RequestHeader, with the value "1", marks a request of the web
-// interface's client: in host mode (a non-nil [Options].Admin) a request
+// RequestHeader is the header that, with the value "1", marks a request of
+// the web interface's client: in host mode (a non-nil [Options].Admin) a request
 // has admin rights only with it and Admin's yes. The shipped client sends
 // it on every request.
 const RequestHeader = "X-Fabric-UI"

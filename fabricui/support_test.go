@@ -795,8 +795,8 @@ type testOptions struct {
 
 // newTestHandler builds a handler on the fake node and returns it with its
 // routes.
-func newTestHandler(t testing.TB, o testOptions) (*handler, *http.ServeMux) {
-	t.Helper()
+func newTestHandler(tb testing.TB, o testOptions) (*handler, *http.ServeMux) {
+	tb.Helper()
 	logger := slog.New(slog.DiscardHandler)
 	if o.log != nil {
 		logger = slog.New(slog.NewTextHandler(o.log, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -814,7 +814,7 @@ func newTestHandler(t testing.TB, o testOptions) (*handler, *http.ServeMux) {
 		AllowedHosts: []string{"example.com"}, AllowHost: o.allowHost,
 	})
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	if !o.noNode {
 		if o.node == nil {

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -96,7 +97,7 @@ func FuzzOrigin(f *testing.F) {
 			t.Fatalf("%q admitted without http(s)", origin)
 		}
 		rest := origin[strings.Index(origin, "://")+3:]
-		if !h.nameAllowed(hostName(rest)) && !(byPredicate && strings.EqualFold(rest, req.Host)) {
+		if !h.nameAllowed(hostName(rest)) && (!byPredicate || !strings.EqualFold(rest, req.Host)) {
 			t.Fatalf("%q admitted (byPredicate %v)", origin, byPredicate)
 		}
 	})
@@ -191,7 +192,7 @@ func FuzzEventSince(f *testing.F) {
 	f.Fuzz(func(t *testing.T, s string) {
 		v, err := eventSince(7, &s)
 		if err != nil {
-			if p, ok := err.(*apiProblem); !ok || p.status != http.StatusBadRequest {
+			if p, ok := errors.AsType[*apiProblem](err); !ok || p.status != http.StatusBadRequest {
 				t.Fatalf("%q: %v", s, err)
 			}
 			return

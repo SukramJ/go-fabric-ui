@@ -14,8 +14,8 @@ import (
 )
 
 // openStream opens path on srv with the token and returns the response
-// once the stream answered.
-func openStream(t *testing.T, ctx context.Context, srv *httptest.Server, path string) *http.Response {
+// once the stream answered; the test's cleanup closes its body.
+func openStream(ctx context.Context, t *testing.T, srv *httptest.Server, path string) *http.Response {
 	t.Helper()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+path, http.NoBody)
 	req.Header.Set(TokenHeader, testToken)
@@ -36,10 +36,10 @@ func TestStreams_MaxStreams(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close) // after the streams' bodies close
 	ctx, cancel := context.WithCancel(context.Background())
-	first := openStream(t, ctx, srv, "/node/stream")
-	_ = openStream(t, context.Background(), srv, "/controller/stream")
+	first := openStream(ctx, t, srv, "/node/stream")                   //nolint:bodyclose // openStream's cleanup closes it
+	_ = openStream(context.Background(), t, srv, "/controller/stream") //nolint:bodyclose // openStream's cleanup closes it
 	for _, p := range []string{"/node/stream", "/operation/log/stream", "/controller/stream"} {
-		res := openStream(t, context.Background(), srv, p)
+		res := openStream(context.Background(), t, srv, p) //nolint:bodyclose // openStream's cleanup closes it
 		body, _ := io.ReadAll(res.Body)
 		if res.StatusCode != http.StatusServiceUnavailable || res.Header.Get("Retry-After") != "5" || !strings.Contains(string(body), `"code":"too_many_streams"`) {
 			t.Fatalf("%s at the limit: %d Retry-After %q %s", p, res.StatusCode, res.Header.Get("Retry-After"), body)
@@ -50,7 +50,7 @@ func TestStreams_MaxStreams(t *testing.T) {
 	}
 	cancel()
 	waitFor(t, func() bool { return h.streams.open.Load() == 1 })
-	if res := openStream(t, context.Background(), srv, "/node/stream"); res.StatusCode != http.StatusOK {
+	if res := openStream(context.Background(), t, srv, "/node/stream"); res.StatusCode != http.StatusOK { //nolint:bodyclose // openStream's cleanup closes it
 		t.Fatalf("after one ended: %d", res.StatusCode)
 	}
 }
@@ -64,7 +64,7 @@ func TestStreams_DoneEndsThem(t *testing.T) {
 	t.Cleanup(srv.Close) // after the streams' bodies close
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res := openStream(t, ctx, srv, "/controller/stream")
+	res := openStream(ctx, t, srv, "/controller/stream") //nolint:bodyclose // openStream's cleanup closes it
 	waitFor(t, func() bool { return h.streams.open.Load() == 1 })
 	close(done)
 	if _, err := io.ReadAll(res.Body); err != nil {
