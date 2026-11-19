@@ -741,6 +741,7 @@
   "node.warnings.since": "since {time}",
   "node.warnings.summary": "{count} configuration warnings",
   "node.warnings.title": "Configuration warnings",
+  "node.warnings.viewer": "The host reports findings about its configuration; an administrator sees the details.",
   "operation.filter_level": "Lowest level shown",
   "operation.filter_text": "Filter the log",
   "operation.go_fabric": "go-fabric {version}",
