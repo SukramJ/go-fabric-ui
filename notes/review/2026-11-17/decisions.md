@@ -149,3 +149,15 @@ took every recommendation. Source: `notes/briefs/2026-11-18-review-p3-contract.m
 | # | Subject | Decision |
 | --- | --- | --- |
 | 64 | Owner, 2026-11-19: "In das Release soll auch die neuste Go-fabric Version" — the go-fabric pin of `v0.10.0` | **go-fabric v0.23.0 in PR #78**, not in phase 4: the pin lift with decision 62's migration (two deprecated window errors no node method returns, their branches and their test dropped) and the adapter's label push fixed, whose lost update v0.23.0's timing exposed. The fixes that use what v0.23.0 exports (UR-P1-err-33's controller route, UR-P2-err-37, decision 30's window kind, UR-P2-err-09) stay phase 4. |
+
+## 2026-11-19, before phase 4
+
+Put as one wizard of four questions, the recommendation first; the owner
+took every recommendation.
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 65 | Order of phase 4's first run and the six carried rows (UR-P1-err-33's controller route, UR-P2-err-37, decision 30's window kind, UR-P2-err-09, UR-P1-api-171, UR-P3-web-191's rest) | **Review first, then one fix wave** (as decision 39): run 1 reads `979a67a`, the carried rows are not re-reported; one fix wave (at most two agents) implements them with run 1's findings, one pull request `review/p4` |
+| 66 | Breadth of run 1 | **The full cut, the delta first**: the README's four agents read every hand-written file of their half; the files changed since `f4b8573` (phase 3's fix bundle, the held rows' fixes, the v0.23.0 lift), which only the pre-merge read saw, line by line first |
+| 67 | The release after phase 4 (decision 15) | **v0.11.0 with contract 0.11.0**: the controller route's 404 for an unknown fabric is a contract change; `contract/previous/` is copied from `v0.10.0`, a `docs/contract.md` line for the hosts |
+| 68 | Where go-fabric-server's plan is written (decision 6: while go-fabric-ui is in phase 4) | **Its own fresh session**, started by the owner in parallel; this session stays phase 4's coordinator |
