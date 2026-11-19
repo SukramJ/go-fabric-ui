@@ -5,6 +5,7 @@ package fabricui
 
 import (
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -37,5 +38,20 @@ func TestConsentOfAHighVersionDecodesOnA32BitHost(t *testing.T) {
 	}
 	if b.TargetSoftwareVersion != 3_000_000_000 {
 		t.Errorf("version %d", b.TargetSoftwareVersion)
+	}
+}
+
+// A vendor-specific device type (0xFFF1xxxx, at or above 2^31) is a
+// discovery filter value on a 32-bit host too: the query parameter is
+// x-go-type int64 (contract 0.12.0, UR-P4-ctr-260).
+func TestDiscoveryOfAHighDeviceTypeOnA32BitHost(t *testing.T) {
+	_, mux, _ := controllerHandler(t, nil)
+	rec := do(t, mux, http.MethodGet, "/controller/discovery?filter=device_type&value=4293984256&timeout=1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("device_type 0xFFF10000: %d %s", rec.Code, rec.Body)
+	}
+	rec = do(t, mux, http.MethodGet, "/controller/discovery?filter=device_type&value=4294967296&timeout=1", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("device_type 2^32: %d %s, want 400", rec.Code, rec.Body)
 	}
 }
