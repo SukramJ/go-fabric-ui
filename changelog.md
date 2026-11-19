@@ -126,6 +126,16 @@ a client without admin rights; `docs/contract.md` ("Admin rights",
 
 ### Fixed
 
+- A fabric label set twice in quick succession ended at the first one:
+  the background push of the first label set the controller's fabric
+  label back to it after the second was set. The push now sends the
+  last label set through `SetFabricLabel`, and a label set during a push
+  asks for another round with it.
+- The standalone shell no longer shows the Operation page before its
+  status probes answered: on a node page whose status answered after
+  `GET /operation/info`, the shell briefly chose the Operation page,
+  which read the log without the token the status brings and was
+  refused (403).
 - Every status a route answers is declared on its operation, guarded by
   a test (UR-P3-ctr-01): 404 for an unknown fabric index on
   `DELETE /node/fabrics/{index}`; 500 on `GET /node/compatibility` when
@@ -196,6 +206,15 @@ a client without admin rights; `docs/contract.md` ("Admin rights",
 
 ### Changed
 
+- go-fabric `v0.23.0` (go-fabric's review II; breaking upstream, with
+  its migration guide): the pages build on it unchanged but for two
+  error branches. `POST /node/pairing/window` no longer tests
+  `node.ErrCommissioningWindowAlreadyOpen` and
+  `node.ErrCommissioningWindowNotConfigured`, which v0.23.0 deprecates
+  because no node method returns them; an open window still answers 409
+  (the handler's own check and `node.ErrAdministratorWindowOpen`). The
+  controller's fabric label is checked in bytes there as here
+  (UR-P1-adpt-40).
 - The bundle's handler serves the index for the root (`/`,
   `/index.html`) only; any other path that is no file of the bundle
   answers 404 (UR-P2-web-91). The page routes by hash and loads its assets

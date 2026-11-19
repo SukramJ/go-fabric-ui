@@ -151,7 +151,7 @@ func TestSource_CloseEndsTheLabelPush(t *testing.T) {
 	s := ControllerOf(&controller.Controller{}, ControllerOptions{}).(*source)
 	started := make(chan struct{})
 	var ended, pushes atomic.Int32
-	s.push = func(ctx context.Context) error {
+	s.push = func(ctx context.Context, _ string) error {
 		if pushes.Add(1) == 1 {
 			close(started)
 		}

@@ -7,26 +7,10 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"github.com/SukramJ/go-fabric/node"
 )
 
 // The error branches phase 0 of the review found without a test
 // (UR-P0-test-01): each answers its problem's status and code.
-
-// A node without configured credentials answers 503 service_unready on
-// POST /node/pairing/window in ConfiguredWindow mode
-// (handlers_pairing.go, ErrCommissioningWindowNotConfigured).
-func TestOpenWindow_NotConfigured_Returns503(t *testing.T) {
-	n := sampleNode()
-	n.openErr = node.ErrCommissioningWindowNotConfigured
-	_, mux := newTestHandler(t, testOptions{node: n, configured: true})
-	rec := do(t, mux, http.MethodPost, "/node/pairing/window", `{"duration_seconds":300}`)
-	if p := problemOf(t, rec); rec.Code != http.StatusServiceUnavailable || p.Code != codeServiceUnready ||
-		!strings.Contains(p.Detail, "no commissioning credentials") {
-		t.Fatalf("%d %+v", rec.Code, p)
-	}
-}
 
 // Without Options.Registry the rename and the delete answer 503
 // service_unready (registry.go, registryTarget).

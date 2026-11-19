@@ -45,7 +45,8 @@ them are defined in go-fabric's [glossary](https://sukramj.github.io/go-fabric/r
 >   go-fabric v0.21.0 to v0.22.2.
 > - `v0.10.0` — review phases 0 to 3: admin rights on the reading routes
 >   and streams, a Host check on every route, strict request bodies,
->   `NewHandler`, stream limits; see the [changelog](changelog.md).
+>   `NewHandler`, stream limits; go-fabric v0.23.0; see the
+>   [changelog](changelog.md).
 
 ## Two artefacts, one version
 

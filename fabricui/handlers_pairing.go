@@ -212,15 +212,13 @@ func (h *handler) openWindow(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		switch {
-		case errors.Is(err, node.ErrCommissioningWindowAlreadyOpen), errors.Is(err, node.ErrAdministratorWindowOpen):
+		case errors.Is(err, node.ErrAdministratorWindowOpen):
 			writeProblem(w, r, http.StatusConflict, codeConflict, title, "a commissioning window is already open")
 		case errors.Is(err, node.ErrCommissioningBlocked):
 			// The cause can name file paths; it stays in the log.
 			h.log.WarnContext(r.Context(), "fabricui.window.blocked", slog.String("error", err.Error()))
 			writeProblem(w, r, http.StatusConflict, codeConflict, title,
 				"commissioning is blocked on this node; the node's log names the cause")
-		case errors.Is(err, node.ErrCommissioningWindowNotConfigured):
-			unready(w, r, title, "the node has no commissioning credentials configured")
 		default:
 			h.serverError(w, r, title, err)
 		}

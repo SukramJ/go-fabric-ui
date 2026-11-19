@@ -3,7 +3,7 @@ module github.com/SukramJ/go-fabric-ui
 go 1.27.4
 
 require (
-	github.com/SukramJ/go-fabric v0.22.2
+	github.com/SukramJ/go-fabric v0.23.0
 	github.com/oapi-codegen/runtime v1.8.0
 )
 
@@ -23,5 +23,5 @@ require (
 	modernc.org/libc v1.79.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
-	modernc.org/sqlite v1.61.0 // indirect
+	modernc.org/sqlite v1.61.1 // indirect
 )

@@ -119,7 +119,7 @@ type Source interface {
 func ControllerOf(ctrl *controller.Controller, opts ControllerOptions) Source {
 	s := &source{ctrl: ctrl, opts: opts, events: fabricui.NewEvents(), log: opts.Logger, now: time.Now}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
-	s.push = s.pushCurrentLabel
+	s.push = s.pushLabelTo
 	if s.log == nil {
 		s.log = slog.Default()
 	}
@@ -158,16 +158,17 @@ type source struct {
 	// derives from it.
 	ctx    context.Context //nolint:containedctx // the source's own lifetime, not a request's
 	cancel context.CancelFunc
-	// labelMu guards the label push's state: closed after Close, pushing
-	// while the push worker runs, again when a label was set during a
-	// push. pushes counts the running worker; Close waits for it.
+	// labelMu guards the label push's state: label, the last label set
+	// through SetFabricLabel; closed after Close, pushing while the push
+	// worker runs, again when a label was set during a push. pushes
+	// counts the running worker; Close waits for it.
 	labelMu        sync.Mutex
+	label          string
 	closed         bool
 	pushing, again bool
 	pushes         sync.WaitGroup
-	// push sends the fabric's current label to the nodes; a test
-	// replaces it.
-	push func(ctx context.Context) error
+	// push sends label to the nodes; a test replaces it.
+	push func(ctx context.Context, label string) error
 }
 
 func (s *source) publish(e fabricui.ControllerEvent) {
@@ -655,12 +656,20 @@ func (s *source) SetFabricLabel(_ context.Context, label string) error {
 	if f == nil {
 		return fmt.Errorf("%w: the controller has no fabric", fabricui.ErrNodeFailed)
 	}
+	// The fabric's label and the label the worker pushes change together:
+	// a push of an older label sets the fabric's label back to it
+	// (client.Registry.SetFabricLabel sets it on the fabrics), so the
+	// worker pushes this label, never the fabric's label as it read it.
+	s.labelMu.Lock()
 	if err := f.SetLabel(label); err != nil {
+		s.labelMu.Unlock()
 		if errors.Is(err, commissioner.ErrLabel) {
 			return fmt.Errorf("%w: %w", fabricui.ErrInvalidArgument, err)
 		}
 		return err
 	}
+	s.label = label
+	s.labelMu.Unlock()
 	s.pushLabel() //nolint:contextcheck // the push outlives the request by design
 	return nil
 }
@@ -692,9 +701,10 @@ func (s *source) pushRounds() {
 	for {
 		s.labelMu.Lock()
 		s.again = false
+		label := s.label
 		s.labelMu.Unlock()
 		ctx, cancel := context.WithTimeout(s.ctx, labelPushTimeout)
-		if err := s.push(ctx); err != nil {
+		if err := s.push(ctx, label); err != nil {
 			s.log.Warn("fabricui.gofabric.label_push_failed", slog.String("error", err.Error()))
 		}
 		cancel()
@@ -708,15 +718,17 @@ func (s *source) pushRounds() {
 	}
 }
 
-// pushCurrentLabel sends the fabric's current label to the connected
-// nodes (client.Registry.SetFabricLabel, which sets that label on the
-// fabrics again: the current one, so nothing older returns).
-func (s *source) pushCurrentLabel(ctx context.Context) error {
-	f, reg := s.ctrl.Fabric(), s.ctrl.Registry()
-	if f == nil || reg == nil {
+// pushLabelTo sends label to the connected nodes
+// (client.Registry.SetFabricLabel, which sets it on the fabrics again).
+// A round pushes the last label set when it starts, and a label set
+// during it asks for another round, so the last round leaves the last
+// label on the fabric and nothing older returns.
+func (s *source) pushLabelTo(ctx context.Context, label string) error {
+	reg := s.ctrl.Registry()
+	if reg == nil {
 		return nil
 	}
-	return reg.SetFabricLabel(ctx, f.CurrentLabel())
+	return reg.SetFabricLabel(ctx, label)
 }
 
 // Close implements [Source].
