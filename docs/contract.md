@@ -763,40 +763,40 @@ hand-written.
 
 | Route | Method | Admin | Answers |
 | --- | --- | --- | --- |
-| `/controller/status` | GET | – | 200, 403 |
-| `/controller/nodes` | GET | yes | 200, 403 |
-| `/controller/nodes/{id}` | GET | yes | 200, 400, 403, 404 |
-| `/controller/nodes/{id}/endpoints/{ep}` | GET | yes | 200, 400, 403, 404 — served from 0.4.0 |
-| `/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}` | GET | yes | 200, 400, 403, 404, 503 — served from 0.4.0 |
-| `/controller/nodes/{id}/events` | GET | yes | 200, 400, 403, 404 — served from 0.4.1 |
+| `/controller/status` | GET | – | 200, 403, 500 |
+| `/controller/nodes` | GET | yes | 200, 403, 500 |
+| `/controller/nodes/{id}` | GET | yes | 200, 400, 403, 404, 500 |
+| `/controller/nodes/{id}/endpoints/{ep}` | GET | yes | 200, 400, 403, 404, 500 — served from 0.4.0 |
+| `/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}` | GET | yes | 200, 400, 403, 404, 500, 503 — served from 0.4.0 |
+| `/controller/nodes/{id}/events` | GET | yes | 200, 400, 403, 404, 500 — served from 0.4.1 |
 | `/controller/nodes/{id}` | DELETE | yes | 204, 400, 403, 404, 409, 500, 502 |
-| `/controller/nodes/{id}/interview` | POST | yes | 204, 400, 403, 404, 409, 502 |
-| `/controller/nodes/{id}/ping` | POST | yes | 200, 400, 403, 404 — served from 0.5.0 |
+| `/controller/nodes/{id}/interview` | POST | yes | 204, 400, 403, 404, 409, 500, 502 |
+| `/controller/nodes/{id}/ping` | POST | yes | 200, 400, 403, 404, 500 — served from 0.5.0 |
 | `/controller/nodes/{id}/enable`, `/disable` | POST | yes | 204, 400, 403, 404, 409, 500, 502 |
 | `/controller/nodes/{id}/auto-subscribe` | POST | yes | 204, 400, 403, 404, 409, 413, 415, 500, 502 |
-| `/controller/nodes/{id}/window` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
-| `/controller/nodes/{id}/window/close` | POST | yes | 204, 400, 403, 404, 409, 502 |
-| `/controller/nodes/{id}/attributes` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
-| `/controller/nodes/{id}/attributes` | PUT | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
-| `/controller/nodes/{id}/commands` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
-| `/controller/nodes/{id}/acl` | GET / PUT | yes | 200, 400, 403, 404, 409, 413 and 415 (PUT), 502 |
-| `/controller/nodes/{id}/bindings` | GET / PUT | yes | 200, 400, 403, 404, 409, 413 and 415 (PUT), 502 |
-| `/controller/nodes/{id}/icd` | GET | yes | 200, 400, 403, 404 |
-| `/controller/nodes/{id}/icd/register`, `/unregister` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
-| `/controller/nodes/{id}/fabrics` | GET | yes | 200, 400, 403, 404, 409, 502 |
-| `/controller/nodes/{id}/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 409, 502 |
-| `/controller/commission` | POST | yes | 200, 400, 403, 404, 409 (0.8.0), 413, 415, 502, 503 |
+| `/controller/nodes/{id}/window` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 500, 502 |
+| `/controller/nodes/{id}/window/close` | POST | yes | 204, 400, 403, 404, 409, 500, 502 |
+| `/controller/nodes/{id}/attributes` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 500, 502 |
+| `/controller/nodes/{id}/attributes` | PUT | yes | 200, 400, 403, 404, 409, 413, 415, 500, 502 |
+| `/controller/nodes/{id}/commands` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 500, 502 |
+| `/controller/nodes/{id}/acl` | GET / PUT | yes | 200, 400, 403, 404, 409, 413 and 415 (PUT), 500, 502 |
+| `/controller/nodes/{id}/bindings` | GET / PUT | yes | 200, 400, 403, 404, 409, 413 and 415 (PUT), 500, 502 |
+| `/controller/nodes/{id}/icd` | GET | yes | 200, 400, 403, 404, 500 |
+| `/controller/nodes/{id}/icd/register`, `/unregister` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 500, 502 |
+| `/controller/nodes/{id}/fabrics` | GET | yes | 200, 400, 403, 404, 409, 500, 502 |
+| `/controller/nodes/{id}/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 409, 500, 502 |
+| `/controller/commission` | POST | yes | 200, 400, 403, 404, 409 (0.8.0), 413, 415, 500, 502, 503 |
 | `/controller/discovery` | GET | yes | 200, 400, 403, 500, 502 |
 | `/controller/credentials` | GET | yes | 200, 403, 500, 503 |
 | `/controller/credentials` | PUT / DELETE | yes | 204, 400, 403, 404 (DELETE), 413 and 415 (PUT), 500, 503 |
 | `/controller/fabric/label` | PUT | yes | 204, 400, 403, 413, 415, 500 |
-| `/controller/updates` | GET | yes | 200, 403 |
+| `/controller/updates` | GET | yes | 200, 403, 500 |
 | `/controller/updates/consent`, `/check` | POST | yes | 200/204, 400, 403, 404, 413 and 415 (`consent`), 500, 503; `check` answers 200 with `errors` for the nodes whose check failed (0.11.0) |
-| `/controller/topology` | GET | yes | 200, 400, 403, 501, 502 — served from 0.3.1; 501 `not_implemented` from a host without a topology service |
-| `/controller/diagnostics` | GET | yes | 200, 403, 501 — served from 0.9.0 |
-| `/controller/mdns` | GET | yes | 200, 403, 501 — served from 0.9.0 |
-| `/controller/events` | GET | yes | 200, 403, 501 — served from 0.9.0 |
-| `/controller/stream` | GET | yes | 200 (`text/event-stream`), 403, 503 |
+| `/controller/topology` | GET | yes | 200, 400, 403, 500, 501, 502 — served from 0.3.1; 501 `not_implemented` from a host without a topology service |
+| `/controller/diagnostics` | GET | yes | 200, 403, 500, 501 — served from 0.9.0 |
+| `/controller/mdns` | GET | yes | 200, 403, 500, 501 — served from 0.9.0 |
+| `/controller/events` | GET | yes | 200, 403, 500, 501 — served from 0.9.0 |
+| `/controller/stream` | GET | yes | 200 (`text/event-stream`), 403, 500, 503 |
 
 Details the fixtures pin:
 

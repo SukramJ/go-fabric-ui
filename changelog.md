@@ -15,7 +15,7 @@ additive over 0.11.0 (no accepted break). `docs/contract.md`
 
 - **A proxy that replaces `Host` with a name of its own** needs that name
   in `AllowedHosts`; an unlisted name is refused on every request (403
-  `host_not_allowed`). 0.11.0's line above said such a proxy makes the
+  `host_not_allowed`). 0.11.0's line below said such a proxy makes the
   check pass every request; that holds for the upstream's address and a
   listed name only (`docs/embedding.md`, "Behind an Ingress";
   UR-P4-doc-202).
@@ -67,8 +67,9 @@ additive over 0.11.0 (no accepted break). `docs/contract.md`
   node stream on a stale token.
 - Web: the token reload no longer hangs when the status route is refused
   as well.
-- Web: a refused event or log stream is now shown; the status is
-  reloaded and the stream reopens when admin rights return;
+- Web: a refused event or log stream is now shown; for the event
+  stream the status is reloaded and the stream reopens when admin
+  rights return (the log stream is only shown as refused);
   `subscribeLog` takes an optional `onDenied`.
 - Web: the Operation tab appears only when the daemon answers; an
   undecided probe is retried.
@@ -81,11 +82,11 @@ additive over 0.11.0 (no accepted break). `docs/contract.md`
 - Web: the controller's fabric removal is busy while one is in flight.
 - Web: node labels count characters, not UTF-16 units.
 - Web: the erase poll stops with its page.
-- Web: button labels reach 4.5:1 on their fill in every theme (new
-  `--fui-primary-fill`, `--fui-error-fill`, `--fui-on-primary`, `--fui-
-  on-error` tokens, each overridable with a `-color` suffix); empty-
-  state descriptions use the secondary text colour; the update-check
-  error is text-safe.
+- Web: button labels reach 4.5:1 on their fill in each of the four
+  built-in palettes (new `--fui-primary-fill`, `--fui-error-fill`,
+  `--fui-on-primary`, `--fui-on-error` tokens, each overridable with a
+  `-color` suffix); empty-state descriptions use the secondary text
+  colour; the update-check error is text-safe.
 - Web: diagnostics name the peers on first open; session peers link only
   to known nodes.
 - Web: an event time outside the Date range, or absent, no longer breaks

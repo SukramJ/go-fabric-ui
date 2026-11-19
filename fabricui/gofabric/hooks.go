@@ -19,8 +19,9 @@ const updateDelay = 500 * time.Millisecond
 
 // Hooks turn the controller's node hooks (client.Hooks) into the
 // controller stream's events: node_added on Commissioned, node_removed
-// on Decommissioned, connection, subscription, and node_updated for a
-// structure change, a report or an event the node delivered (coalesced;
+// once per node on decommission, leave or forget, connection,
+// subscription, and node_updated for a structure change, a report or an
+// event the node delivered (coalesced;
 // the event is in client.Node.EventHistory when its hook runs, go-fabric
 // controller/client/config.go Hooks.Event at 894adbcd). The host builds them before
 // controller.New, wires [Hooks.For] or [Hooks.Wrap] into
