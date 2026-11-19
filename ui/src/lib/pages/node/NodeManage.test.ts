@@ -5,7 +5,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
-import { testUI, type TestUI } from "../../../test/support";
+import { body, testUI, type TestUI } from "../../../test/support";
+import type { Status as NodeStatus } from "../../api/client";
 import { createNodeStore } from "../../store.svelte";
 import Status from "./Status.svelte";
 
@@ -33,6 +34,15 @@ describe("the configuration block", () => {
     expect(block.textContent).not.toMatch(/passcode/i);
     // The default node is configuration: no manage card.
     expect(screen.queryByTestId("node-manage")).toBeNull();
+  });
+
+  it("shows the store to an administrator (UR-P3-test-193)", async () => {
+    const admin = body<NodeStatus>("node-status.200-config");
+    admin.config = { ...admin.config!, store: "bridge.db" };
+    render(Harness, { ui: testUI({ answers: { "GET /node/status": { status: 200, body: admin } } }), page: Status });
+    const block = await screen.findByTestId("node-config");
+    expect(block).toHaveTextContent("node.config.store");
+    expect(block).toHaveTextContent("bridge.db");
   });
 
   it("is absent when the host describes no configuration", async () => {
