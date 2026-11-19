@@ -32,8 +32,15 @@
   type Tab = (typeof TABS)[number];
   const isTab = (v: string): v is Tab => (TABS as readonly string[]).includes(v);
 
-  // svelte-ignore state_referenced_locally
-  let active = $state<Tab>(isTab(tab) ? tab : "overview");
+  // The route's tab, and a click on a tab (or the endpoints tab's jump to
+  // the inventory) until the route names another: a new tab for the same
+  // node is followed (UR-P4-ui-293), as the nodes page does.
+  let chosen = $state<Tab | null>(null);
+  const active = $derived<Tab>(chosen ?? (isTab(tab) ? tab : "overview"));
+  $effect(() => {
+    void tab;
+    chosen = null;
+  });
   let detail = $state<ControllerNodeDetail | null>(null);
   let error = $state<string | null>(null);
   // The endpoint the endpoints tab opened the inventory at.
@@ -93,7 +100,7 @@
     <LoadingState message={t("common.loading")} />
   {:else}
     <h2 class="text-lg font-medium text-[var(--ha-primary-text-color)]" data-testid="node-title">{nodeName(detail.node)}</h2>
-    <Tabs {items} {active} onSelect={(k) => (active = isTab(k) ? k : "overview")} ariaLabel={t("controller.node.tabs")} />
+    <Tabs {items} {active} onSelect={(k) => (chosen = isTab(k) ? k : "overview")} ariaLabel={t("controller.node.tabs")} />
     <!-- Keyed by the node as well: a tab never outlives the node it loaded. -->
     {#key nodeId}
     <div class="mt-2">
@@ -104,7 +111,7 @@
           {detail}
           onInventory={(n) => {
             focus = n;
-            active = "inventory";
+            chosen = "inventory";
           }}
         />
       {:else if active === "inventory"}

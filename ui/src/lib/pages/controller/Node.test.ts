@@ -498,3 +498,13 @@ describe("Controller Node — the ACL refusal before the lock-out question (UR-P
     expect(ui.sent.some((s) => s.method === "PUT")).toBe(false);
   });
 });
+
+describe("UR-P4-ui-293: the controller node page follows its tab prop", () => {
+  it("shows the tab a new route names for the same node", async () => {
+    const ui = testUI({ fixtures: ["controller-node.200", "controller-node-acl.200"] });
+    const view = render(NodeHarness, { ui, nodeId: L, tab: "overview" });
+    await screen.findByTestId("node-overview");
+    await view.rerender({ ui, nodeId: L, tab: "acl" });
+    expect(await screen.findByTestId("acl-entries", {}, { timeout: 500 })).toBeInTheDocument();
+  });
+});
