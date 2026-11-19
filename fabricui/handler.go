@@ -415,9 +415,48 @@ func apiHeaders(next http.Handler) http.Handler {
 		hdr := w.Header()
 		hdr.Set("Cache-Control", "no-store")
 		setCommonHeaders(hdr)
-		next.ServeHTTP(w, r)
+		if observeStatus == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(sw, r)
+		if !sw.pathLevel {
+			observeStatus(r.Method, r.URL.Path, sw.status)
+		}
 	})
 }
+
+// observeStatus, set by the package's tests only, sees every status the
+// API answers: the guard that each is declared for its operation in the
+// contract (decision 47, TestMain).
+var observeStatus func(method, path string, status int)
+
+// statusWriter records the status written through it.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+	wrote  bool
+	// pathLevel marks an answer no operation gives: noRoute's 404 and
+	// 405, and the 404 of an absent family.
+	pathLevel bool
+}
+
+func (s *statusWriter) WriteHeader(code int) {
+	if !s.wrote {
+		s.status, s.wrote = code, true
+	}
+	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusWriter) Write(b []byte) (int, error) {
+	s.wrote = true
+	return s.ResponseWriter.Write(b)
+}
+
+// Unwrap lets http.ResponseController reach the writer's flush and
+// deadlines.
+func (s *statusWriter) Unwrap() http.ResponseWriter { return s.ResponseWriter }
 
 // setCommonHeaders sets what every response of the handler carries, the
 // API's and the bundle's: nosniff and no-referrer (UR-P0-web-24).

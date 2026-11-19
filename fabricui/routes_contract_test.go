@@ -6,7 +6,6 @@ package fabricui
 import (
 	"net/http"
 	"os"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -19,52 +18,14 @@ type contractOperation struct {
 	statuses     []string
 }
 
-// contractOps scans contract/openapi.yaml's layout (a path at two
-// spaces, a method at four, requestBody and responses at six, a status at
-// eight) into its operations.
+// contractOps are the operations of contract/openapi.yaml (scanOperations).
 func contractOps(t *testing.T) []contractOperation {
 	t.Helper()
 	b, err := os.ReadFile("../contract/openapi.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	pathRe := regexp.MustCompile(`^ {2}(/\S+):\s*$`)
-	methodRe := regexp.MustCompile(`^ {4}(get|put|post|delete|patch):\s*$`)
-	statusRe := regexp.MustCompile(`^ {8}"(\d{3})":`)
-	var out []contractOperation
-	var path string
-	inResponses := false
-	for line := range strings.SplitSeq(string(b), "\n") {
-		if line == "components:" {
-			break
-		}
-		switch m := pathRe.FindStringSubmatch(line); {
-		case m != nil:
-			path = m[1]
-			continue
-		}
-		if m := methodRe.FindStringSubmatch(line); m != nil {
-			out = append(out, contractOperation{method: strings.ToUpper(m[1]), path: path})
-			inResponses = false
-			continue
-		}
-		if len(out) == 0 {
-			continue
-		}
-		op := &out[len(out)-1]
-		switch {
-		case line == "      requestBody:":
-			op.body = true
-		case line == "      responses:":
-			inResponses = true
-		case strings.HasPrefix(line, "      ") && !strings.HasPrefix(line, "       "):
-			inResponses = false
-		case inResponses:
-			if m := statusRe.FindStringSubmatch(line); m != nil {
-				op.statuses = append(op.statuses, m[1])
-			}
-		}
-	}
+	out := scanOperations(string(b))
 	if len(out) < 90 {
 		t.Fatalf("found %d operations; the scan is not reading the contract", len(out))
 	}

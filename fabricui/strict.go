@@ -149,6 +149,9 @@ func allowedMethods(mux *http.ServeMux, r *http.Request, catchAll string) []stri
 // noRoute answers a request no route of mux serves: 405 with Allow when
 // the path is served with another method, else 404.
 func noRoute(w http.ResponseWriter, r *http.Request, mux *http.ServeMux, catchAll string) {
+	if sw, ok := w.(*statusWriter); ok {
+		sw.pathLevel = true
+	}
 	if allow := allowedMethods(mux, r, catchAll); len(allow) > 0 {
 		w.Header().Set("Allow", strings.Join(allow, ", "))
 		writeProblem(w, r, http.StatusMethodNotAllowed, codeMethodNotAllowed, "Method not allowed", r.Method+" "+r.URL.Path)

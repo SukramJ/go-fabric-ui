@@ -3714,6 +3714,20 @@ func (response DiscoverDevices500ApplicationProblemPlusJSONResponse) VisitDiscov
 	return err
 }
 
+type DiscoverDevices502ApplicationProblemPlusJSONResponse Problem
+
+func (response DiscoverDevices502ApplicationProblemPlusJSONResponse) VisitDiscoverDevicesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListControllerDiagnosticEventsRequestObject struct {
 }
 
@@ -4633,6 +4647,20 @@ func (response SetNodeAutoSubscribe404ApplicationProblemPlusJSONResponse) VisitS
 	return err
 }
 
+type SetNodeAutoSubscribe409ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeAutoSubscribe409ApplicationProblemPlusJSONResponse) VisitSetNodeAutoSubscribeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetNodeAutoSubscribe413ApplicationProblemPlusJSONResponse Problem
 
 func (response SetNodeAutoSubscribe413ApplicationProblemPlusJSONResponse) VisitSetNodeAutoSubscribeResponse(w http.ResponseWriter) error {
@@ -4671,6 +4699,20 @@ func (response SetNodeAutoSubscribe500ApplicationProblemPlusJSONResponse) VisitS
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeAutoSubscribe502ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeAutoSubscribe502ApplicationProblemPlusJSONResponse) VisitSetNodeAutoSubscribeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5075,6 +5117,20 @@ func (response DisableNode404ApplicationProblemPlusJSONResponse) VisitDisableNod
 	return err
 }
 
+type DisableNode409ApplicationProblemPlusJSONResponse Problem
+
+func (response DisableNode409ApplicationProblemPlusJSONResponse) VisitDisableNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DisableNode500ApplicationProblemPlusJSONResponse Problem
 
 func (response DisableNode500ApplicationProblemPlusJSONResponse) VisitDisableNodeResponse(w http.ResponseWriter) error {
@@ -5085,6 +5141,20 @@ func (response DisableNode500ApplicationProblemPlusJSONResponse) VisitDisableNod
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DisableNode502ApplicationProblemPlusJSONResponse Problem
+
+func (response DisableNode502ApplicationProblemPlusJSONResponse) VisitDisableNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5149,6 +5219,20 @@ func (response EnableNode404ApplicationProblemPlusJSONResponse) VisitEnableNodeR
 	return err
 }
 
+type EnableNode409ApplicationProblemPlusJSONResponse Problem
+
+func (response EnableNode409ApplicationProblemPlusJSONResponse) VisitEnableNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type EnableNode500ApplicationProblemPlusJSONResponse Problem
 
 func (response EnableNode500ApplicationProblemPlusJSONResponse) VisitEnableNodeResponse(w http.ResponseWriter) error {
@@ -5159,6 +5243,20 @@ func (response EnableNode500ApplicationProblemPlusJSONResponse) VisitEnableNodeR
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnableNode502ApplicationProblemPlusJSONResponse Problem
+
+func (response EnableNode502ApplicationProblemPlusJSONResponse) VisitEnableNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
 	_, err := buf.WriteTo(w)
 	return err
 }
