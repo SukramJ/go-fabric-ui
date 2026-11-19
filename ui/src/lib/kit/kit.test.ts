@@ -62,10 +62,11 @@ describe("ErrorState", () => {
 });
 
 describe("theme tokens on the kit", () => {
-  it("renders Button variants and the focus ring with --ha-* tokens, not hard-coded colours", () => {
+  it("renders Button variants and the focus ring with the theme's tokens, not hard-coded colours", () => {
     render(Button, { children: createRawSnippet(() => ({ render: () => "<span>Go</span>" })) });
     const cls = screen.getByRole("button").className;
-    expect(cls).toContain("bg-[var(--ha-primary-color)]");
+    // The fill token of decision 77 (UR-P4-ui-299).
+    expect(cls).toContain("bg-[var(--fui-primary-fill)]");
     expect(cls).toContain("focus-visible:ring-[var(--ha-primary-color)]");
     expect(cls).not.toMatch(/\b(bg|text)-(slate|teal|brand)-\d/);
   });
