@@ -97,7 +97,30 @@ type handler struct {
 	// openMu serialises POST /node/pairing/window from its check of the
 	// node's window to the stored credentials.
 	openMu sync.Mutex
+
+	// streams counts the open event streams of every kind and node,
+	// shared by the siblings (Options.MaxStreams); hostDone is
+	// Options.Done.
+	streams  *streamCount
+	hostDone <-chan struct{}
 }
+
+// streamCount is the open streams and their bound.
+type streamCount struct {
+	open atomic.Int64
+	max  int64
+}
+
+// acquire takes one stream if fewer than max are open.
+func (c *streamCount) acquire() bool {
+	if c.open.Add(1) > c.max {
+		c.open.Add(-1)
+		return false
+	}
+	return true
+}
+
+func (c *streamCount) release() { c.open.Add(-1) }
 
 // nodeEntry is one node of the family in the handler's terms.
 type nodeEntry struct {
@@ -218,6 +241,13 @@ func newHandler(o Options) (*handler, error) {
 	if err := validFrameAncestors(o.FrameAncestors); err != nil {
 		return nil, err
 	}
+	maxStreams := o.MaxStreams
+	switch {
+	case maxStreams < 0:
+		return nil, errors.New("fabricui: Options.MaxStreams is negative")
+	case maxStreams == 0:
+		maxStreams = DefaultMaxStreams
+	}
 	nodes, err := nodeEntries(&o)
 	if err != nil {
 		return nil, err
@@ -264,6 +294,8 @@ func newHandler(o Options) (*handler, error) {
 		allowEmpty:     o.AllowEmptyTopology,
 		heartbeat:      15 * time.Second,
 		fresh:          node.NewWindowCredentials,
+		streams:        &streamCount{max: int64(maxStreams)},
+		hostDone:       o.Done,
 	}
 	h.hooks.Store(&nodeHooks{reassemble: o.Reassemble, erase: o.Erase})
 	if h.log == nil {
@@ -523,6 +555,8 @@ func (h *handler) sibling(e nodeEntry) *handler {
 		fresh:          h.fresh,
 		ops:            h.ops,
 		exposureReason: h.exposureReason,
+		streams:        h.streams,
+		hostDone:       h.hostDone,
 	}
 	s.hub, s.extra = hubOf(e.events)
 	s.config.Store(e.config)

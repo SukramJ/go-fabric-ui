@@ -6,6 +6,7 @@ package fabricui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"path"
@@ -216,13 +217,16 @@ type Options struct {
 	// serves no controller family, and every /controller/* path answers
 	// 404 like an unknown path.
 	Controller ControllerSource
-	// Admin decides whether a request may write (every POST, PUT and
-	// DELETE route) or read a secret (GET /node/pairing), and whether it
-	// may use a controller route the contract marks x-admin. A host behind a
-	// proxy that authenticates (an Ingress) answers from what the proxy
-	// vouches for. Nil selects the token mode: the handler issues a
-	// per-process random token in GET /node/status (csrf_token) and
-	// requires it in the X-Fabric-UI-Token header of every such request.
+	// Admin decides whether a request may use a route the contract marks
+	// x-admin — every writing route, the pairing codes and, from contract
+	// 0.10.0, the reading routes of both families and the controller and
+	// log streams — and whether an open route answers it in full: the
+	// node status's store and warning messages, the controller status's
+	// identity, every event type of the node stream. A host behind a proxy
+	// that authenticates (an Ingress) answers from what the proxy vouches
+	// for. Nil selects the token mode: the handler issues a per-process
+	// random token in GET /node/status (csrf_token) and requires it in the
+	// X-Fabric-UI-Token header of every such request.
 	Admin func(*http.Request) bool
 	// Reassemble rebuilds the node's endpoints from the host's current
 	// selection: POST /node/maintenance/reassemble, and after an exposure
@@ -247,12 +251,17 @@ type Options struct {
 	Erase func(ctx context.Context) error
 	// Events is a source of events beside the handler's own and the
 	// node's: what the host publishes (an exposure change it made outside
-	// the page). The node's fabric and window transitions reach the
-	// stream through Node.Observe, registered for each stream while it is
-	// open, so a handler mounted after the node started sees them too.
+	// the page). Its events reach admin streams only, whatever their type,
+	// and it no longer carries the handler's own events (contract 0.10.0):
+	// the handler keeps a hub of its own. The node's fabric and window
+	// transitions reach the stream through Node.Observe, registered for
+	// each stream while it is open, so a handler mounted after the node
+	// started sees them too.
 	Events EventSource
-	// Prefix is the path the API is mounted under; empty is
+	// Prefix is the path [Mount] mounts the API under; empty is
 	// [DefaultPrefix]. It starts with "/" and does not end with one.
+	// [NewHandler] and [Handler] serve the web interface, which reaches
+	// its API under [DefaultPrefix] only, and refuse any other.
 	Prefix string
 	// Logger receives the handlers' logs; nil is slog.Default(). Nothing
 	// a handler logs carries a passcode.
@@ -271,14 +280,16 @@ type Options struct {
 	// FrameAncestors are the origins besides the page's own that may frame
 	// the web interface [Handler] serves: its Content-Security-Policy says
 	// frame-ancestors 'self' and these. Each is a CSP host-source
-	// ("https://dash.example:8123", "https://*.example.com"); New and
-	// [Mount] refuse anything else, a quoted keyword included, and an entry
-	// that admits any parent ("*", "https:", "https://*", a wildcard over
-	// one label such as "https://*.com"), which is what the default
-	// prevents: a page that frames the interface acts with the operator's
-	// admin rights. An Ingress parent is the same
-	// origin and needs no entry. [Mount] serves no page and only checks
-	// the field.
+	// ("https://dash.example:8123", "https://*.example.com"); [NewHandler],
+	// [Handler] and [Mount] refuse anything else, a quoted keyword
+	// included, and an entry that admits any parent ("*", "https:",
+	// "https://*", a wildcard over one label such as "https://*.com"),
+	// which is what the default prevents: a page that frames the interface
+	// acts with the operator's admin rights. A wildcard over a public
+	// suffix of more than one label ("https://*.co.uk") is not recognised
+	// and admits every site under it: name the parent's own domain. An
+	// Ingress parent is the same origin and needs no entry. [Mount] serves
+	// no page and only checks the field.
 	FrameAncestors []string
 	// Warnings reports what the host found half-valid in its own
 	// configuration — a label that resolves to nothing, a rule that
@@ -286,6 +297,13 @@ type Options struct {
 	// than only the host's log. It is called on every GET /node/status;
 	// nil omits the status response's warnings.
 	Warnings func(ctx context.Context) []Warning
+	// MaxStreams caps the event streams this handler serves at once, every
+	// kind and node together; one more answers 503 with Retry-After. Zero
+	// is [DefaultMaxStreams]; a negative value is an error.
+	MaxStreams int
+	// Done, when closed, ends every open stream and removes its
+	// observers; a host closes it from its server's shutdown hook.
+	Done <-chan struct{}
 	// Counters reports the host's own counters a scraper reads beside the
 	// health — commands a host answered with success and acted on
 	// nothing, say (contract 0.8.0). It is called on every GET
@@ -330,18 +348,40 @@ func Mount(mux *http.ServeMux, o Options) error {
 	return h.mount(mux)
 }
 
-// Handler returns the API routes and the embedded web interface: the API
-// under o.Prefix, the bundle at "/" with a fallback to its index for any
-// other path. An invalid prefix is a programming error and panics.
-func Handler(o Options) http.Handler {
+// DefaultMaxStreams is the event streams a handler serves at once when
+// [Options].MaxStreams is zero.
+const DefaultMaxStreams = 64
+
+// NewHandler returns the API routes and the embedded web interface: the
+// API under [DefaultPrefix], an API path no route serves answered with a
+// 404 or 405 problem, and the bundle at "/" with its index for every other
+// path. It fails on invalid options, a Prefix other than "" or
+// [DefaultPrefix] included: the bundle reaches its API there, and a host
+// that mounts the API elsewhere uses [Mount].
+func NewHandler(o Options) (http.Handler, error) {
+	if o.Prefix != "" && o.Prefix != DefaultPrefix {
+		return nil, fmt.Errorf("fabricui: Options.Prefix %q: the web interface reaches its API under %s only; use Mount for another prefix", o.Prefix, DefaultPrefix)
+	}
 	h, err := newHandler(o)
+	if err != nil {
+		return nil, err
+	}
+	mux := http.NewServeMux()
+	if err := h.mount(mux); err != nil {
+		return nil, err
+	}
+	mux.Handle("/", spaHandler(o.FrameAncestors))
+	return mux, nil
+}
+
+// Handler is [NewHandler] for options known to be valid: any invalid
+// option, a Prefix other than "" or [DefaultPrefix] included, panics.
+func Handler(o Options) http.Handler {
+	h, err := NewHandler(o)
 	if err != nil {
 		panic(err)
 	}
-	mux := http.NewServeMux()
-	h.register(mux)
-	mux.Handle("/", spaHandler(o.FrameAncestors))
-	return mux
+	return h
 }
 
 // validPrefix accepts a clean absolute path without a trailing slash,

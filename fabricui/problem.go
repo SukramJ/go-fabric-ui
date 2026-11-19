@@ -25,6 +25,8 @@ const (
 	codeTermsRequired  = "terms_required"
 	// codeMethodNotAllowed is 405 (contract 0.10.0, MethodNotAllowed).
 	codeMethodNotAllowed = "method_not_allowed"
+	// codeTooManyStreams is 503 at Options.MaxStreams (contract 0.10.0).
+	codeTooManyStreams = "too_many_streams"
 )
 
 // problemTypeBase is the base of every problem's type URI: the contract
