@@ -94,11 +94,8 @@ func TestStatus_AnAbandonedRequestIsNotAFabricFailure(t *testing.T) {
 	failed := strings.Count(log.String(), "fabricui.status.fabrics_failed")
 	recovered := strings.Count(log.String(), "fabricui.status.fabrics_recovered")
 	if failed > 1 || recovered > 1 {
-		i := strings.Index(log.String(), "fabricui.status.fabrics_failed")
-		line := log.String()[i:]
-		if j := strings.IndexByte(line, '\n'); j >= 0 {
-			line = line[:j]
-		}
+		_, line, _ := strings.Cut(log.String(), "fabricui.status.fabrics_")
+		line, _, _ = strings.Cut(line, "\n")
 		t.Errorf("%d pairs of status requests without admin rights (one half-closed, one plain) wrote %d fabrics_failed and %d fabrics_recovered lines; %d answers lacked fabric_count; first: %s",
 			pairs, failed, recovered, missing, line)
 	}
