@@ -833,9 +833,10 @@ Details the fixtures pin:
   updates found and, in `errors` (`UpdateCheckError`: `node_id_hex`,
   `error`), every node whose check failed; such a node is not in
   `updates`. A check that fails as a whole is 500. go-fabric reports one
-  joined error that names no node, so the adapter asks every node without
-  an update found again on its own; each such check ends with its own
-  `check_finished` event.
+  joined error that names no node, so the adapter asks again one node per
+  product (vendor, product, software version) among the nodes without an
+  update found, and gives a failure to every node of that product; each
+  such check ends with its own `check_finished` event.
 - **Commissioning**: `{code}` or `{discovered, passcode}`, not both; a
   passcode the specification excludes is 400 (0.10.0). The optional
   `commissioning_id` (0.10.0) is echoed on every

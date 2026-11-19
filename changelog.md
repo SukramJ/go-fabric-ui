@@ -36,7 +36,9 @@ the contract's changes for the hosts.
   `fabricui.UpdateCheckFailures` naming the nodes whose check failed; the
   route answers 200 with them in `errors`. Any other error of `Check` is
   500. A host's own source keeps compiling; the go-fabric adapter checks
-  node by node after a failed check, so each node's failure is named
+  one node per product again after a failed check and names every node
+  of a product whose check fails (go-fabric#555 asks for an error per
+  product)
   (decision 70).
 - **Commissioning a discovered device** without `timeout_seconds` is
   bounded at 600 s; a code's commissioning is not, so go-fabric's

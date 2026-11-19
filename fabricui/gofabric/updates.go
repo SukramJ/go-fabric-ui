@@ -22,9 +22,16 @@ type updates struct {
 	s *source
 	m *softwareupdate.Manager
 	// query is the manager's QueryUpdates over every node (all) or one;
-	// nodes the ids of the commissioned nodes. Test seams.
+	// nodes the commissioned nodes with their product. Test seams.
 	query func(ctx context.Context, only uint64, all bool) ([]softwareupdate.PeerUpdate, error)
-	nodes func() []uint64
+	nodes func() []productNode
+}
+
+// productNode is a node and its product as the update manager groups
+// nodes for a check: vendor, product and software version.
+type productNode struct {
+	id      uint64
+	product string
 }
 
 func newUpdates(s *source, m *softwareupdate.Manager) *updates {
@@ -39,13 +46,14 @@ func newUpdates(s *source, m *softwareupdate.Manager) *updates {
 		}
 		return m.QueryUpdates(ctx, n.n, true)
 	}
-	u.nodes = func() []uint64 {
+	u.nodes = func() []productNode {
 		nodes := s.Nodes()
-		ids := make([]uint64, 0, len(nodes))
+		out := make([]productNode, 0, len(nodes))
 		for _, n := range nodes {
-			ids = append(ids, n.ID())
+			b := n.Basic()
+			out = append(out, productNode{id: n.ID(), product: fmt.Sprintf("%04X/%04X/%s", b.VendorID, b.ProductID, b.SoftwareVersion)})
 		}
-		return ids
+		return out
 	}
 	return u
 }
@@ -72,11 +80,14 @@ func (u *updates) Queue() []fabricui.PendingUpdate {
 // Check is QueryUpdates over every node. go-fabric passes over a
 // product whose check failed and returns the updates of the others with
 // the joined error, which names no node (softwareupdate.Manager.
-// QueryUpdates). So on an error every node without an update found is
-// checked again on its own: a node whose own check fails is one of the
-// fabricui.UpdateCheckFailures, and the updates found are returned with
-// them (contract 0.11.0, decision 70). Each check of one node ends with
-// its own check_finished event.
+// QueryUpdates; go-fabric#555 asks for an error per product). So on an
+// error one node per product among the nodes without an update found is
+// checked again on its own, as the manager groups a check by vendor,
+// product and software version: when that check fails, every node of the
+// product is one of the fabricui.UpdateCheckFailures; when it finds an
+// update, the product's other nodes are checked too. The updates found
+// are returned with the failures (contract 0.11.0, decision 70). Each
+// check of one node ends with its own check_finished event.
 func (u *updates) Check(ctx context.Context) ([]fabricui.AvailableUpdate, error) {
 	found, err := u.query(ctx, 0, true)
 	if err == nil {
@@ -89,20 +100,48 @@ func (u *updates) Check(ctx context.Context) ([]fabricui.AvailableUpdate, error)
 	for _, f := range found {
 		have[f.Peer.NodeID] = true
 	}
-	var failed fabricui.UpdateCheckFailures
-	for _, id := range u.nodes() {
-		if have[id] {
+	// The nodes without an update found, by product, in the registry's
+	// order.
+	var order []string
+	groups := map[string][]uint64{}
+	for _, n := range u.nodes() {
+		if have[n.id] {
 			continue
 		}
-		one, err := u.query(ctx, id, false)
+		if _, ok := groups[n.product]; !ok {
+			order = append(order, n.product)
+		}
+		groups[n.product] = append(groups[n.product], n.id)
+	}
+	var failed fabricui.UpdateCheckFailures
+	for _, product := range order {
+		ids := groups[product]
+		one, err := u.query(ctx, ids[0], false)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 		if err != nil {
-			failed = append(failed, fabricui.UpdateCheckFailure{NodeID: id, Err: err})
+			for _, id := range ids {
+				failed = append(failed, fabricui.UpdateCheckFailure{NodeID: id, Err: err})
+			}
 			continue
 		}
 		found = append(found, one...)
+		if len(one) == 0 {
+			// No update for the product: its other nodes have none either.
+			continue
+		}
+		for _, id := range ids[1:] {
+			more, err := u.query(ctx, id, false)
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			if err != nil {
+				failed = append(failed, fabricui.UpdateCheckFailure{NodeID: id, Err: err})
+				continue
+			}
+			found = append(found, more...)
+		}
 	}
 	if len(failed) == 0 {
 		// Every failure was passing: each node's own check succeeded.
