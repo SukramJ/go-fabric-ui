@@ -141,6 +141,35 @@ describe("Controller Node", () => {
     expect(card).toHaveTextContent("controller.icd.mode.lit");
   });
 
+  // UR-P4-ui-291, decision 76: only the multi-admin refusal (409
+  // icd_multi_admin, 0.12.0) asks; any other 409 is an error toast.
+  const ICD_IDLE = { available: true, awake: false, lit_supported: true, operating_mode: "lit", registered: false, supported: true };
+  const registerAnswer = (code: string) => ({
+    [`GET /controller/nodes/${S}/icd`]: { status: 200, body: ICD_IDLE },
+    [`POST /controller/nodes/${S}/icd/register`]: {
+      status: 409,
+      body: { code, status: 409, title: "Refused by the node", type: "x", detail: `fabricui: ${code}` },
+    },
+  });
+
+  it("asks the multi-admin question on icd_multi_admin and registers again with allow_multi_admin", async () => {
+    const ui = renderNode(S, "icd", [], { answers: registerAnswer("icd_multi_admin"), confirm: true });
+    await screen.findByTestId("node-icd");
+    await fireEvent.click(screen.getByText("controller.icd.register"));
+    await waitFor(() => expect(ui.sent.filter((s) => s.path.endsWith("/icd/register"))).toHaveLength(2));
+    expect(ui.confirmSpy).toHaveBeenCalledWith(expect.objectContaining({ title: "controller.icd.multi_admin" }));
+    expect(ui.sent.filter((s) => s.path.endsWith("/icd/register"))[1].body).toEqual({ allow_multi_admin: true });
+  });
+
+  it("does not ask the multi-admin question for a conflict of the client's own state", async () => {
+    const ui = renderNode(S, "icd", [], { answers: registerAnswer("conflict"), confirm: true });
+    await screen.findByTestId("node-icd");
+    await fireEvent.click(screen.getByText("controller.icd.register"));
+    await waitFor(() => expect(ui.toastSpy.error).toHaveBeenCalled());
+    expect(ui.confirmSpy).not.toHaveBeenCalledWith(expect.objectContaining({ title: "controller.icd.multi_admin" }));
+    expect(ui.sent.filter((s) => s.path.endsWith("/icd/register"))).toHaveLength(1);
+  });
+
   it("lists the node's fabrics, ours without a remove button", async () => {
     renderNode(L, "fabrics", ["controller-node-fabrics.200"]);
     expect(await screen.findByText("controller.fabrics.own")).toBeInTheDocument();
