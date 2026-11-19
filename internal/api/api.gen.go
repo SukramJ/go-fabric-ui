@@ -360,6 +360,7 @@ const (
 	ProblemCodeConflict             ProblemCode = "conflict"
 	ProblemCodeForbidden            ProblemCode = "forbidden"
 	ProblemCodeHostNotAllowed       ProblemCode = "host_not_allowed"
+	ProblemCodeIcdMultiAdmin        ProblemCode = "icd_multi_admin"
 	ProblemCodeInternal             ProblemCode = "internal"
 	ProblemCodeMethodNotAllowed     ProblemCode = "method_not_allowed"
 	ProblemCodeNodeError            ProblemCode = "node_error"
@@ -385,6 +386,8 @@ func (e ProblemCode) Valid() bool {
 	case ProblemCodeForbidden:
 		return true
 	case ProblemCodeHostNotAllowed:
+		return true
+	case ProblemCodeIcdMultiAdmin:
 		return true
 	case ProblemCodeInternal:
 		return true
@@ -1820,8 +1823,8 @@ type DiscoverDevicesParams struct {
 	// Filter What `value` selects by; absent is `any`.
 	Filter *DiscoverDevicesParamsFilter `form:"filter,omitempty" json:"filter,omitempty"`
 
-	// Value The discriminator, vendor id or device type; required with every filter but `any`.
-	Value *int `form:"value,omitempty" json:"value,omitempty"`
+	// Value The discriminator, vendor id or device type; required with every filter but `any`. A device type ranges over 32 bits unsigned; a generated server holds the value in 64 bits (0.12.0).
+	Value *int64 `form:"value,omitempty" json:"value,omitempty"`
 
 	// Timeout How long to listen, in seconds; absent is 3.
 	Timeout *int `form:"timeout,omitempty" json:"timeout,omitempty"`

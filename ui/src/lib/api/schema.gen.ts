@@ -2026,7 +2026,7 @@ export interface components {
             detail?: string;
             instance?: string;
             /** @enum {string} */
-            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default" | "terms_required" | "method_not_allowed" | "too_many_streams" | "unsupported_media_type" | "host_not_allowed" | "origin_not_allowed";
+            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default" | "terms_required" | "method_not_allowed" | "too_many_streams" | "unsupported_media_type" | "host_not_allowed" | "origin_not_allowed" | "icd_multi_admin";
             /** @description terms_required (0.8.0): the device's TCMinRequiredVersion, the lowest version an acknowledgement has to name (go-fabric commissioner.TermsRequiredError.Version). */
             version?: number;
             /** @description terms_required (0.8.0): the acknowledgement bits the device requires; null, since no device attribute names them — the terms the user accepts set them. */
@@ -2053,10 +2053,10 @@ export interface components {
             commissioning_window_open: boolean;
             commissioning_window_duration_seconds?: number;
             /**
-             * @description Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one, or (0.11.0) an administrator's basic one (OpenBasicCommissioningWindow, on the node's own passcode); absent without a node.
+             * @description Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one, (0.11.0) an administrator's basic one (OpenBasicCommissioningWindow, on the node's own passcode), or (0.12.0) `other`, an open window of a kind this contract does not name (one a later go-fabric adds); absent without a node.
              * @enum {string}
              */
-            window_kind?: "none" | "own" | "basic" | "enhanced" | "administrator_basic";
+            window_kind?: "none" | "own" | "basic" | "enhanced" | "administrator_basic" | "other";
             /**
              * Format: date-time
              * @description When the open window's timer closes it
@@ -5736,7 +5736,15 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
-            409: components["responses"]["Problem"];
+            /** @description icd_multi_admin (0.12.0): other administrators' vendors may not support LIT and the request did not set `allow_multi_admin`; a second request with it registers. `conflict`: the controller's client refuses the call itself (an ICD operation its state does not allow, the node disabled, a fabric operation in progress). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
@@ -5876,7 +5884,7 @@ export interface operations {
             query?: {
                 /** @description What `value` selects by; absent is `any`. */
                 filter?: "any" | "long_discriminator" | "short_discriminator" | "vendor" | "device_type";
-                /** @description The discriminator, vendor id or device type; required with every filter but `any`. */
+                /** @description The discriminator, vendor id or device type; required with every filter but `any`. A device type ranges over 32 bits unsigned; a generated server holds the value in 64 bits (0.12.0). */
                 value?: number;
                 /** @description How long to listen, in seconds; absent is 3. */
                 timeout?: number;

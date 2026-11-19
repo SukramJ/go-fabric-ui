@@ -1539,7 +1539,7 @@ func (s *controllerServer) DiscoverDevices(ctx context.Context, req api.Discover
 		}
 	}
 	if f.Kind != "any" {
-		if req.Params.Value == nil || *req.Params.Value < 0 || int64(*req.Params.Value) > 0xFFFFFFFF { // int64: int is 32 bits on arm/386
+		if req.Params.Value == nil || *req.Params.Value < 0 || *req.Params.Value > 0xFFFFFFFF {
 			return nil, badRequest("value: filter %s needs a value", f.Kind)
 		}
 		f.Value = uint32(*req.Params.Value)

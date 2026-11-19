@@ -555,6 +555,13 @@ a route under `/controller/nodes/{id}` (0.10.0), the controller's client
 refuses the call itself — an ICD operation it does not allow, the node
 disabled, or a fabric operation in progress.
 
+### problem-icd_multi_admin
+`POST /controller/nodes/{id}/icd/register`: other administrators of the
+node may not support LIT and the request did not set `allow_multi_admin`
+(409, 0.12.0); a second request with it registers. Before 0.12.0 this
+refusal was `conflict`, like the client's own refusals above. The port's
+error is `fabricui.ErrICDMultiAdmin`, which wraps `fabricui.ErrConflict`.
+
 ### problem-not_found
 No such route under the API prefix, or no such resource on the route (a
 node key, an endpoint, a fabric index, a commissioned node).
@@ -724,6 +731,19 @@ that range over 32 bits unsigned or wider are `format: int64` and
 `UpdateConsentRequest.target_software_version` is `x-go-type: int64`, so a
 generated server holds them in 64 bits on a 32-bit platform; the wire is
 unchanged. No problem code is new.
+
+Contract 0.12.0 (review phase 4, run 2) is additive over 0.11.0, which
+`contract/previous/` holds as release 0.11.0 shipped it; no break is
+accepted. The problem code `icd_multi_admin` (409 on
+`POST /controller/nodes/{id}/icd/register`) tells the multi-admin refusal
+from the client's own refusals, which stay `conflict`; a client that asks
+the user before resending with `allow_multi_admin` asks on that code only.
+`Status.window_kind` gains `other`: an open window of a kind the contract
+does not name, which a later go-fabric may add (before, such a kind
+reached the wire as go-fabric's own text). The `value` query parameter of
+`GET /controller/discovery` is `x-go-type: int64`, so a generated server
+on a 32-bit platform takes a device type of 2^31 or more; the wire is
+unchanged.
 
 ## Controller routes (v0.2.0)
 

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.11.0
+  version: 0.12.0
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
@@ -17,12 +17,14 @@ info:
     Contract 0.10.0 made three breaks on purpose: `Status.fabric_count` is
     optional (absent when the fabric read failed), the `NodeID` path
     parameter takes 1 to 16 hex digits only, and the `EndpointNumber` path
-    parameter ends at 65534. Contract 0.11.0 is additive over 0.10.0.
+    parameter ends at 65534. Contracts 0.11.0 and 0.12.0 are additive
+    over their predecessors.
 
     Response integers that range over 32 bits unsigned or wider are
-    `format: int64` (0.11.0), and the one such request field carries
-    `x-go-type: int64`: a generated server or client holds them in 64
-    bits, also on a 32-bit platform. The wire is unchanged.
+    `format: int64` (0.11.0), and the request field and query parameter
+    of that range carry `x-go-type: int64` (0.12.0 for the parameter): a
+    generated server or client holds them in 64 bits, also on a 32-bit
+    platform. The wire is unchanged.
 
     Request bodies are JSON (`Content-Type: application/json`, parameters
     allowed; else 415 `unsupported_media_type`) of at most 1 MiB (else 413
@@ -1747,7 +1749,11 @@ paths:
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }
-        "409": { $ref: "#/components/responses/Problem" }
+        "409":
+          description: "icd_multi_admin (0.12.0): other administrators' vendors may not support LIT and the request did not set `allow_multi_admin`; a second request with it registers. `conflict`: the controller's client refuses the call itself (an ICD operation its state does not allow, the node disabled, a fabric operation in progress)."
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
         "413": { $ref: "#/components/responses/Problem" }
         "415": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
@@ -1861,8 +1867,8 @@ paths:
           description: What `value` selects by; absent is `any`.
         - name: value
           in: query
-          schema: { type: integer, minimum: 0 }
-          description: The discriminator, vendor id or device type; required with every filter but `any`.
+          schema: { type: integer, minimum: 0, x-go-type: int64 }
+          description: "The discriminator, vendor id or device type; required with every filter but `any`. A device type ranges over 32 bits unsigned; a generated server holds the value in 64 bits (0.12.0)."
         - name: timeout
           in: query
           schema: { type: integer, minimum: 1, maximum: 60 }
@@ -2214,7 +2220,7 @@ components:
         instance: { type: string }
         code:
           type: string
-          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large, node_error, not_implemented, node_limit, node_is_default, terms_required, method_not_allowed, too_many_streams, unsupported_media_type, host_not_allowed, origin_not_allowed]
+          enum: [bad_request, forbidden, conflict, not_found, service_unready, internal, payload_too_large, node_error, not_implemented, node_limit, node_is_default, terms_required, method_not_allowed, too_many_streams, unsupported_media_type, host_not_allowed, origin_not_allowed, icd_multi_admin]
         version:
           type: integer
           minimum: 0
@@ -2245,8 +2251,8 @@ components:
         commissioning_window_duration_seconds: { type: integer }
         window_kind:
           type: string
-          enum: [none, own, basic, enhanced, administrator_basic]
-          description: "Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one, or (0.11.0) an administrator's basic one (OpenBasicCommissioningWindow, on the node's own passcode); absent without a node."
+          enum: [none, own, basic, enhanced, administrator_basic, other]
+          description: "Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one, (0.11.0) an administrator's basic one (OpenBasicCommissioningWindow, on the node's own passcode), or (0.12.0) `other`, an open window of a kind this contract does not name (one a later go-fabric adds); absent without a node."
         window_deadline: { type: string, format: date-time, description: When the open window's timer closes it, on the node's clock; absent while no window is open. }
         window_remaining_seconds: { type: integer, minimum: 0, description: "Seconds until the open window's timer closes it, on the node's clock when the answer was written (0.10.0); absent while no window is open." }
         exposure: { type: boolean, description: Whether the host serves a selection. }
