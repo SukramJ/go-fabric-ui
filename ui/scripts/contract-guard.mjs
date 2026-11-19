@@ -1,8 +1,9 @@
 // The contract guard: compares contract/openapi.yaml with the copy of the
 // last release (contract/previous/openapi.yaml) and fails on a removed
-// path, method, response status, schema or response field, on a request
-// field, parameter or body that became required (or is new and required),
-// on a response field that stopped being required, on a changed type, and
+// path, method, response status, schema or response field (inline objects
+// included), on a request field, parameter or body that became required
+// (or is new and required), on a response field that stopped being
+// required, on a changed type, and
 // on a request parameter or field that got narrower (pattern, maximum,
 // minimum, length, enum). A minor version only adds; a break the release
 // makes on purpose is listed, sentence for sentence, in the contract's
@@ -76,13 +77,17 @@ export function diffContracts(prev, cur) {
         if (!isRequired.has(req) && (now.properties ?? {})[req]) out.push(`schema ${name}: field ${req} no longer required`);
       }
     }
-    compareNode(schema, now, `schema ${name}`, requestNamed.has(name), out);
+    compareNode(schema, now, `schema ${name}`, requestNamed.has(name), out, responseNamed.has(name));
     for (const req of now.required ?? []) {
       // A response field that becomes required is a promise kept; a
       // request field that becomes required breaks an old client. The
-      // guard cannot tell the two apart, so it flags every new requirement
-      // on a schema that existed — a reviewer accepts the response case.
-      if (!wasRequired.has(req) && (schema.properties ?? {})[req]) out.push(`schema ${name}: field ${req} became required`);
+      // guard cannot tell the two apart on a schema both sides reach, so
+      // it flags every new requirement on a field that existed — a
+      // reviewer accepts the response case. On a schema a request reaches,
+      // a field new and required at once breaks an old client too, which
+      // never sends it (UR-P4-test-295).
+      if (wasRequired.has(req)) continue;
+      if ((schema.properties ?? {})[req] || requestNamed.has(name)) out.push(`schema ${name}: field ${req} became required`);
     }
   }
   return out;
@@ -112,9 +117,12 @@ export function narrowed(was, now) {
 /**
  * A changed type on a node and its inline properties and items, and — where
  * a request reaches it (`request`) — a narrower value range. A `$ref` is
- * judged by its own schema's entry, not followed here.
+ * judged by its own schema's entry, not followed here. Below the top
+ * (`nested`), an inline object is judged as a component schema is: a
+ * removed field, and a requirement a response (`response`) no longer
+ * promises or a request newly asks (UR-P4-test-296).
  */
-function compareNode(was, now, at, request, out) {
+function compareNode(was, now, at, request, out, response = false, nested = false) {
   if (!was || !now || typeof was !== "object" || typeof now !== "object") return;
   const t0 = typeOf(was);
   const t1 = typeOf(now);
@@ -127,11 +135,24 @@ function compareNode(was, now, at, request, out) {
     const n = narrowed(was, now);
     if (n.length) out.push(`${at}: narrower (${n.join(", ")})`);
   }
+  if (nested) {
+    const wasRequired = new Set(was.required ?? []);
+    const isRequired = new Set(now.required ?? []);
+    for (const prop of Object.keys(was.properties ?? {})) {
+      if (!(now.properties ?? {})[prop]) out.push(`${at}: field ${prop} removed`);
+    }
+    if (response) {
+      for (const req of wasRequired) if (!isRequired.has(req) && (now.properties ?? {})[req]) out.push(`${at}: field ${req} no longer required`);
+    }
+    if (request) {
+      for (const req of isRequired) if (!wasRequired.has(req)) out.push(`${at}: field ${req} became required`);
+    }
+  }
   for (const [prop, p] of Object.entries(was.properties ?? {})) {
     const q = (now.properties ?? {})[prop];
-    if (q) compareNode(p, q, `${at}: field ${prop}`, request, out);
+    if (q) compareNode(p, q, `${at}: field ${prop}`, request, out, response, true);
   }
-  if (was.items && now.items) compareNode(was.items, now.items, `${at}[]`, request, out);
+  if (was.items && now.items) compareNode(was.items, now.items, `${at}[]`, request, out, response, true);
 }
 
 /**

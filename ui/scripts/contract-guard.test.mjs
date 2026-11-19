@@ -221,3 +221,56 @@ describe("contract guard", () => {
     expect(unknownFields({}, { type: "object", additionalProperties: { type: "string" } }, { any: "1" })).toEqual([]);
   });
 });
+
+describe("contract guard: request requirements and inline objects (UR-P4-test-295, -296)", () => {
+  const op = (reqRef, resRef) => ({
+    post: {
+      requestBody: { content: { "application/json": { schema: { $ref: `#/components/schemas/${reqRef}` } } } },
+      responses: { 200: { content: { "application/json": { schema: { $ref: `#/components/schemas/${resRef}` } } } } },
+    },
+  });
+  const doc = (req, res) => ({ paths: { "/x": op("Req", "Res") }, components: { schemas: { Req: req, Res: res } } });
+
+  it("fails on a field new to a request schema and required with it (an old client does not send it)", () => {
+    const prev = doc({ type: "object", properties: { a: { type: "string" } } }, { type: "object", properties: {} });
+    const cur = structuredClone(prev);
+    cur.components.schemas.Req.properties.b = { type: "string" };
+    cur.components.schemas.Req.required = ["b"];
+    expect(diffContracts(prev, cur)).toContain("schema Req: field b became required");
+  });
+
+  it("keeps a new required field of a response-only schema additive", () => {
+    const prev = doc({ type: "object", properties: {} }, { type: "object", properties: { a: { type: "string" } } });
+    const cur = structuredClone(prev);
+    cur.components.schemas.Res.properties.b = { type: "string" };
+    cur.components.schemas.Res.required = ["b"];
+    expect(diffContracts(prev, cur)).toEqual([]);
+  });
+
+  it("fails on a field removed from, or no longer required in, an inline object of a response", () => {
+    const inline = () => ({ type: "object", required: ["level", "other"], properties: { level: { type: "string" }, other: { type: "integer" } } });
+    const prev = doc({ type: "object", properties: {} }, { type: "object", properties: { surface: inline() } });
+    const cur = structuredClone(prev);
+    delete cur.components.schemas.Res.properties.surface.properties.level;
+    cur.components.schemas.Res.properties.surface.required = [];
+    expect(diffContracts(prev, cur)).toEqual(["schema Res: field surface: field level removed", "schema Res: field surface: field other no longer required"]);
+  });
+
+  it("fails on a member that joins the required list of an inline object of a request", () => {
+    const prev = doc({ type: "object", properties: { opts: { type: "object", properties: { a: { type: "string" } } } } }, { type: "object", properties: {} });
+    const cur = structuredClone(prev);
+    cur.components.schemas.Req.properties.opts.properties.b = { type: "integer" };
+    cur.components.schemas.Req.properties.opts.required = ["a", "b"];
+    expect(diffContracts(prev, cur)).toEqual(["schema Req: field opts: field a became required", "schema Req: field opts: field b became required"]);
+  });
+
+  it("on the real contract: Status.surface.level removed is a break", () => {
+    const prev = load(contract("openapi.yaml"));
+    const cur = structuredClone(prev);
+    const surface = cur.components.schemas.Status.properties.surface;
+    expect(surface.required).toContain("level");
+    delete surface.properties.level;
+    surface.required = surface.required.filter((r) => r !== "level");
+    expect(diffContracts(prev, cur)).toEqual(["schema Status: field surface: field level removed"]);
+  });
+});
