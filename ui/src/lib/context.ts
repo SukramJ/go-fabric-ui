@@ -159,7 +159,10 @@ const LOG_RESYNC_LIMIT = 500;
  * again, would read nothing (UR-P1-conc-191). The page merges by seq.
  */
 function logSubscription(client: FabricClient, onRecord: (rec: LogRecord) => void): () => void {
-  return subscribeLogStream(client.logStreamUrl(), onRecord, undefined, {
+  // Read through fetch with the client's request headers (0.10.0); a
+  // refused stream (403) ends without a retry, and the page reads the
+  // refusal from the ring's answer.
+  return subscribeLogStream(client.logStreamUrl(), onRecord, client.openStream, {
     onResync: () => {
       client
         .logRecords({ limit: LOG_RESYNC_LIMIT })

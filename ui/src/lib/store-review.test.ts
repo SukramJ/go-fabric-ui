@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // The stores' life cycle and ordering (review phase 1b).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { body, fixtureFetch, testUI } from "../test/support";
+import { body, createStreamClient, fixtureFetch, testUI } from "../test/support";
 import { createClient, type LogRecord, type Status } from "./api/client";
 import { createNodeStore } from "./store.svelte";
 import { createControllerStore } from "./controller-store.svelte";
@@ -95,7 +95,7 @@ describe("UR-P1-conc-102: a store reloads after a gap in its stream", () => {
     );
     const rec = (seq: number): LogRecord => ({ seq, time: "2026-11-18T12:00:00Z", level: "info", msg: `m${seq}`, attrs: {} });
     const seen: string[] = [];
-    const client = createClient("/api/v1", async (url) => {
+    const client = createStreamClient("/api/v1", async (url) => {
       seen.push(url);
       return new Response(JSON.stringify({ records: [rec(6), rec(7)] }), { status: 200 });
     });
@@ -224,7 +224,7 @@ describe("UR-P1-conc-192: connecting again reloads on the new stream's open, not
   it("node store", async () => {
     const sources = stubSources();
     const ff = fixtureFetch(["node-status.200", "node-fabrics.200"]);
-    const store = createNodeStore(createClient("/api/v1", ff.fetch), { t, toast });
+    const store = createNodeStore(createStreamClient("/api/v1", ff.fetch), { t, toast });
     store.connect();
     sources[0].emit("open");
     store.disconnect();
@@ -241,7 +241,7 @@ describe("UR-P1-conc-192: connecting again reloads on the new stream's open, not
   it("controller store", async () => {
     const sources = stubSources();
     const ff = fixtureFetch(["controller-status.200", "controller-nodes.200"]);
-    const store = createControllerStore(createClient("/api/v1", ff.fetch), { t, toast });
+    const store = createControllerStore(createStreamClient("/api/v1", ff.fetch), { t, toast });
     store.connect();
     store.disconnect();
     store.connect();
@@ -274,7 +274,7 @@ describe("UR-P1-conc-191: the log's resync without a streamed record, and after 
       }),
     );
     const rec = (seq: number): LogRecord => ({ seq, time: "2026-11-18T12:00:00Z", level: "info", msg: `m${seq}`, attrs: {} });
-    const client = createClient("/api/v1", async (url) => {
+    const client = createStreamClient("/api/v1", async (url) => {
       const since = Number(new URL(url, "http://x").searchParams.get("since") ?? 0);
       return new Response(JSON.stringify({ records: ring.filter((n) => n >= since).map(rec) }), { status: 200 });
     });
@@ -318,7 +318,9 @@ describe("UR-P1-err-198: a window replaced under an open flow is judged afresh",
     const client = createClient("/api/v1", async (url, init) => {
       if (url.endsWith("/node/status")) return new Response(JSON.stringify(st), { status: 200 });
       if (url.endsWith("/node/pairing")) {
-        return new Response(JSON.stringify({ ...body<Record<string, unknown>>("node-pairing.200"), source: "configured", window_open: true }), { status: 200 });
+        return new Response(JSON.stringify({ ...body<Record<string, unknown>>("node-pairing.200"), source: "configured", window_open: true, window_match: st.window_kind === "own" }), {
+          status: 200,
+        });
       }
       return ff.fetch(url, init);
     });

@@ -61,6 +61,14 @@ export type TestUI = FabricUI & {
   sent: Sent[];
 };
 
+/**
+ * A client whose streams open on the global EventSource, which a test
+ * stubs; the shipped client reads them through fetch (FabricClient.openStream).
+ */
+export function createStreamClient(baseUrl: string, fetchImpl: Parameters<typeof createClient>[1]): FabricClient {
+  return { ...createClient(baseUrl, fetchImpl), openStream: (u) => new EventSource(u) };
+}
+
 /** A fabric-ui context on a client answering from the fixtures. */
 export function testUI(
   opts: {

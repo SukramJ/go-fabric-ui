@@ -7,6 +7,7 @@
 // host-readiness gate dropped.
 import {
   ApiError,
+  deniedCode,
   type EventRecord,
   type FabricClient,
   type FabricList,
@@ -34,10 +35,9 @@ export interface Commissioning {
   remaining: number | null;
   addedFabricLabel: string | null;
   /**
-   * The open window is not the one this handler opened (Status.window_kind
-   * basic or enhanced) while the pairing answers the configured codes:
-   * they may not open that window (UR-P1-err-04, decision 28). The exact
-   * answer needs a contract field (phase 3).
+   * The open window does not admit the codes the pairing answered
+   * (Pairing.window_match false, 0.10.0): it was opened elsewhere, on
+   * other credentials (UR-P1-err-04, decision 28).
    */
   foreignWindow: boolean;
 }
@@ -81,8 +81,20 @@ export function isAdminStatus(s: Pick<Status, "csrf_token" | "admin"> | null | u
 
 export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   let status = $state<Status | null>(null);
+  // When the status was read (ms since the epoch): its window_remaining_seconds counts from then.
+  let statusAt = $state(0);
+  function setStatus(s: Status) {
+    status = s;
+    statusAt = Date.now();
+  }
   let statusLoading = $state(false);
   let statusError = $state<string | null>(null);
+  // The 403 problem code of the last status read, or null (0.10.0).
+  let statusDenied = $state<string | null>(null);
+  // The 403 problem code the stream was refused with, or null (0.10.0).
+  let streamDenied = $state<string | null>(null);
+  // The last apply stored the selection, but its rebuild failed: not in effect (0.10.0).
+  let exposureNotInEffect = $state(false);
   let fabrics = $state<FabricList["fabrics"]>([]);
   let fabricsLoading = $state(false);
   let fabricsError = $state<string | null>(null);
@@ -136,11 +148,15 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     statusError = null;
     try {
       const s = await client.status();
-      if (mine === statusGen) status = s;
+      if (mine === statusGen) {
+        setStatus(s);
+        statusDenied = null;
+      }
     } catch (err) {
       if (mine === statusGen) {
         status = null;
         statusError = message(err);
+        statusDenied = deniedCode(err) ?? null;
       }
     } finally {
       if (mine === statusGen) statusLoading = false;
@@ -247,10 +263,11 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   async function saveBulk(): Promise<number> {
     const updates = Array.from(pending.values());
     if (updates.length === 0) return 0;
-    const applied = await client.applyExposure(updates);
+    const res = await client.applyExposureResult(updates);
     pending = new Map();
+    exposureNotInEffect = res.reassembled === false;
     await loadExposure();
-    return applied;
+    return res.applied;
   }
 
   function stopCountdown() {
@@ -294,7 +311,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     } catch {
       return;
     }
-    if (g === statusGen) status = st;
+    if (g === statusGen) setStatus(st);
     if (mine === flowGen && commissioning.phase === "open") otherWindow(st);
   }
 
@@ -335,7 +352,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     // the window it names now (UR-P1-err-04, correction 2).
     const sMine = ++statusGen;
     const st = await client.status();
-    if (sMine === statusGen) status = st;
+    if (sMine === statusGen) setStatus(st);
     if (mine !== flowGen || commissioning.phase !== "idle") return;
     if (!st.enabled || !st.commissioning_window_open || !isAdminStatus(st)) return;
     const p = await client.pairing();
@@ -345,9 +362,12 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     // The window closed between the two reads.
     if (!p.window_open) return;
     const duration = p.duration_seconds ?? st.commissioning_window_duration_seconds ?? 0;
-    // The deadline says what is left; without one (a server before 0.1.2)
-    // the full duration is the upper bound.
-    const left = secondsUntil(st.window_deadline) ?? (duration > 0 ? duration : null);
+    // What is left, as the node counts it (window_remaining_seconds,
+    // 0.10.0; UR-P2-ui-06); from the deadline on a server before it;
+    // without either (a server before 0.1.2) the full duration is the
+    // upper bound.
+    const left =
+      p.window_remaining_seconds ?? st.window_remaining_seconds ?? secondsUntil(st.window_deadline) ?? (duration > 0 ? duration : null);
     shown = windowOf(st);
     commissioning = {
       phase: "open",
@@ -360,8 +380,9 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       },
       remaining: left,
       addedFabricLabel: null,
-      // window_kind none or absent (a server before it) keeps the codes as they are.
-      foreignWindow: p.source === "configured" && (st.window_kind === "basic" || st.window_kind === "enhanced"),
+      // The server says whether the open window admits these codes
+      // (Pairing.window_match, 0.10.0; decision 28).
+      foreignWindow: p.window_match === false,
     };
     if (left !== null && left > 0) startCountdown(left);
   }
@@ -468,7 +489,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   // events would have moved (UR-P1-conc-102).
   function resync() {
     void loadStatus().then(syncCommissioning);
-    void loadFabrics();
+    // The fabrics are an admin's (0.10.0): a request without admin rights is refused.
+    if (status === null || isAdminStatus(status)) void loadFabrics();
     if (schema !== null) scheduleExposureReload();
     topologyEpoch++;
     graphEpoch++;
@@ -505,7 +527,12 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       // Connecting again, the reload waits for the new stream's open, so
       // no event falls between the reload and the subscription
       // (UR-P1-conc-192).
-      unsub = subscribeStream(client.streamUrl(), applyEvent, undefined, { onResync: resync, resyncOnFirstOpen: connectedBefore });
+      streamDenied = null;
+      unsub = subscribeStream(client.streamUrl(), applyEvent, client.openStream, {
+        onResync: resync,
+        resyncOnFirstOpen: connectedBefore,
+        onDenied: (code) => (streamDenied = code ?? "forbidden"),
+      });
     }
     connectedBefore = true;
   }
@@ -529,6 +556,14 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     get status() { return status; },
     get statusLoading() { return statusLoading; },
     get statusError() { return statusError; },
+    /** When the status was read (ms since the epoch); Status.window_remaining_seconds counts from then. */
+    get statusAt() { return statusAt; },
+    /** The 403 problem code of the last status read (forbidden, host_not_allowed, origin_not_allowed), or null (0.10.0). */
+    get statusDenied() { return statusDenied; },
+    /** The 403 problem code the stream was refused with, or null; the stream is not reopened then (0.10.0). */
+    get streamDenied() { return streamDenied; },
+    /** True after an apply whose selection was stored but not rebuilt (Applied.reassembled false, 0.10.0). */
+    get exposureNotInEffect() { return exposureNotInEffect; },
     get fabrics() { return fabrics; },
     get fabricsLoading() { return fabricsLoading; },
     get fabricsError() { return fabricsError; },

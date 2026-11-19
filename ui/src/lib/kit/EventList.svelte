@@ -10,6 +10,7 @@
   import { useT } from "../context";
   import Badge from "./Badge.svelte";
   import { formatDate } from "./dates";
+  import { eventNumberText } from "./events";
 
   // empty is the text without events.
   type Props = { events: EventRecord[]; empty: string; class?: string };
@@ -27,9 +28,9 @@
 {:else}
   <ul class={cn("divide-y divide-[var(--ha-divider-color)]", className)} data-testid="event-list">
     {#each newestFirst as e, i (i)}
-      <li class="py-2 text-sm" data-testid={`event-${e.number}`}>
+      <li class="py-2 text-sm" data-testid={`event-${eventNumberText(e)}`}>
         <div class="flex flex-wrap items-center gap-2">
-          <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">#{e.number}</span>
+          <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">#{eventNumberText(e)}</span>
           <Badge variant={variant(e.priority)}>{t(`events.priority.${e.priority}`)}</Badge>
           <span class="font-medium text-[var(--ha-primary-text-color)]" title={`${e.cluster_hex} · ${e.event_hex}`}>{e.name ?? e.event_hex}</span>
           <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">{e.cluster_hex} · {e.event_hex}</span>

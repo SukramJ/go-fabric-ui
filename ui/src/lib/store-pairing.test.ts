@@ -3,7 +3,7 @@
 // the page's own fresh window (UR-P2-ui-05), an erase under an open flow
 // (UR-P2-conc-04), the codes after the flow (UR-P2-leak-08).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { body, fixtureFetch } from "../test/support";
+import { body, createStreamClient, fixtureFetch } from "../test/support";
 import { createClient, type Status } from "./api/client";
 import { createNodeStore } from "./store.svelte";
 
@@ -141,7 +141,7 @@ describe("UR-P2-conc-04: an erase under an open Pair flow", () => {
     vi.stubGlobal("EventSource", Source);
     try {
       const ff = fixtureFetch(["node-status.200", "node-fabrics.200"]);
-      const store = createNodeStore(createClient("/api/v1", ff.fetch), { t, toast });
+      const store = createNodeStore(createStreamClient("/api/v1", ff.fetch), { t, toast });
       store.connect();
       sources[0].emit("open");
       expect(ff.sent).toHaveLength(0);

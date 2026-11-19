@@ -12,3 +12,19 @@ export function secondsUntil(deadline: string | undefined, now: number = Date.no
   if (Number.isNaN(t)) return null;
   return Math.max(0, Math.ceil((t - now) / 1000));
 }
+
+/**
+ * Whole seconds left in the window a status names at now: its
+ * window_remaining_seconds (0.10.0, on the node's clock) less the time
+ * since the status was read at readAt; from the deadline on a server
+ * before it. Null when neither is there.
+ */
+export function windowSecondsLeft(
+  st: { window_remaining_seconds?: number; window_deadline?: string } | null | undefined,
+  readAt: number,
+  now: number = Date.now(),
+): number | null {
+  if (!st) return null;
+  if (st.window_remaining_seconds !== undefined) return Math.max(0, st.window_remaining_seconds - Math.floor(Math.max(0, now - readAt) / 1000));
+  return secondsUntil(st.window_deadline, now);
+}
