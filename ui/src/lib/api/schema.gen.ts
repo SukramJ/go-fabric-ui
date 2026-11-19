@@ -5272,7 +5272,9 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
         };
     };
     disableNode: {
@@ -5297,7 +5299,9 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
         };
     };
     setNodeAutoSubscribe: {
@@ -5326,9 +5330,11 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
         };
     };
     openNodeWindow: {
@@ -5834,6 +5840,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
         };
     };
     listCredentials: {
