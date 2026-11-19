@@ -152,6 +152,10 @@ jobs:
           cache-dependency-path: ui/package-lock.json
       - name: npm ci
         run: make web-install
+      # An advisory on a package that ships fails (decision 54); the
+      # development stack's advisories are reported nightly (nightly.yml).
+      - name: npm audit (runtime packages)
+        run: make npm-audit
       - name: svelte-check + vitest
         run: make web-check
       - name: dist-check (the committed bundle is the build of this tree)

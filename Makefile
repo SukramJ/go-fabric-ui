@@ -95,6 +95,12 @@ secrets: ## scan the tracked git history for committed secrets (gitleaks)
 web-install: ## npm ci in ui/
 	cd $(UI_DIR) && $(NPM) ci --no-audit --no-fund
 
+npm-audit: ## fail on any npm advisory of a runtime (bundled) package (decision 54)
+	cd $(UI_DIR) && $(NPM) audit --omit=dev --audit-level=low
+
+npm-audit-all: ## report the npm advisories of the whole tree, development packages included; never fails
+	-cd $(UI_DIR) && $(NPM) audit
+
 web: ## build the standalone bundle into fabricui/dist
 	cd $(UI_DIR) && $(NPM) run build
 
@@ -157,4 +163,4 @@ ci: build vet test lint generate-check web-check dist-check ## everything the pi
 clean: ## remove local build artefacts (never the committed bundle)
 	rm -rf coverage.out $(CHECK_DIR)
 
-.PHONY: help setup build vet test race e2e e2e-web fmt fmt-check lint tidy-check pins-check cover cover-check vuln licenses secrets web-install web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean
+.PHONY: help setup build vet test race e2e e2e-web fmt fmt-check lint tidy-check pins-check cover cover-check vuln licenses secrets web-install npm-audit npm-audit-all web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean

@@ -10,6 +10,10 @@
 # acquires is cancelled after 15 minutes, and as a required check it
 # blocked every pull request (issue #40). A red night is a signal, not a
 # gate; it is read by hand.
+#
+# Beside it: the full npm audit (development packages included), which
+# reports in the job summary and never fails (decision 54; a runtime
+# advisory fails the web job of ci.yml).
 name: nightly
 
 on:
@@ -22,6 +26,7 @@ permissions:
 
 env:
   GO_VERSION: "1.27.4"
+  NODE_VERSION: "22.22.1"
 
 jobs:
   test-macos:
@@ -38,3 +43,24 @@ jobs:
         env:
           CGO_ENABLED: "1"
         run: go test -race -count=1 -timeout=600s ./...
+
+  npm-audit:
+    name: npm audit (whole tree, report only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: npm audit
+        run: |
+          cd ui
+          {
+            echo "### npm audit (whole tree)"
+            echo '```'
+            npm audit || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
