@@ -252,7 +252,7 @@ func structuralEndpoints(infos []node.EndpointInfo, bridged []endpointResponse) 
 		}
 		dts := deviceTypesOf(info.DeviceTypes)
 		for _, dt := range dts {
-			e.DeviceTypes = append(e.DeviceTypes, api.EndpointDeviceType{ID: int(dt.ID), IDHex: hexID(dt.ID), Name: optString(dt.Name), Revision: int(dt.Revision)})
+			e.DeviceTypes = append(e.DeviceTypes, api.EndpointDeviceType{ID: int64(dt.ID), IDHex: hexID(dt.ID), Name: optString(dt.Name), Revision: int(dt.Revision)})
 		}
 		if e.Name == "" && len(dts) > 0 {
 			e.Name = dts[0].Name

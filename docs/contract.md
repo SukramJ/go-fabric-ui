@@ -680,6 +680,24 @@ the fields `Status.window_remaining_seconds`,
 `AclEntry.privilege` and `auth_mode`. The numeric twins of the 64-bit
 ids and `EventRecord.number` are deprecated.
 
+Contract 0.11.0 (review phase 4) is additive over 0.10.0, which
+`contract/previous/` holds as release 0.10.0 shipped it; no break is
+accepted. `POST /controller/updates/check` answers the updates found when
+a node's check fails, with that node in the optional
+`AvailableUpdateList.errors` (`UpdateCheckError`), instead of failing the
+whole check. `DELETE /controller/nodes/{id}/fabrics/{index}` answers 404
+for an index the node does not hold. On the controller routes a request
+go-fabric refuses before sending it (too large for one message, malformed)
+is 400, and 502 stays the node's failure. `CommissionRequest.timeout_seconds`
+states what its absence means on both paths: a discovered device's
+commissioning is bounded at 600 s, a code keeps go-fabric's one-minute
+search bound. `POST /node/pairing/window/close` says that a node without
+a fabric has its own window open again afterwards. The response integers
+that range over 32 bits unsigned or wider are `format: int64` and
+`UpdateConsentRequest.target_software_version` is `x-go-type: int64`, so a
+generated server holds them in 64 bits on a 32-bit platform; the wire is
+unchanged. No problem code is new.
+
 ## Controller routes (v0.2.0)
 
 Served only when the host passes `Options.Controller`; without it every

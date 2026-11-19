@@ -497,11 +497,11 @@ func eventRecords(in []EventRecord) api.EventRecordList {
 	for i := range in {
 		e := &in[i]
 		r := api.EventRecord{
-			Number: int(e.Number), NumberStr: ptr(strconv.FormatUint(e.Number, 10)), Priority: api.EventRecordPriority(e.Priority), Endpoint: int(e.Endpoint), //nolint:gosec // an event number fits int64
+			Number: int64(e.Number), NumberStr: ptr(strconv.FormatUint(e.Number, 10)), Priority: api.EventRecordPriority(e.Priority), Endpoint: int(e.Endpoint), //nolint:gosec // an event number fits int64
 			ClusterHex: hexID(e.Cluster), EventHex: hexID(e.Event), Name: optString(e.Name),
 		}
 		if e.EpochMS != nil {
-			r.EpochMs = ptr(int(*e.EpochMS))
+			r.EpochMs = ptr(*e.EpochMS)
 		}
 		if e.Data != nil {
 			r.Data = ptr(e.Data)

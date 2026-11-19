@@ -803,14 +803,16 @@ type AutoSubscribeRequest struct {
 type AvailableUpdate struct {
 	NodeIDHex             string `json:"node_id_hex"`
 	ProductID             int    `json:"product_id"`
-	SoftwareVersion       int    `json:"software_version"`
+	SoftwareVersion       int64  `json:"software_version"`
 	SoftwareVersionString string `json:"software_version_string"`
 	VendorID              int    `json:"vendor_id"`
 }
 
 // AvailableUpdateList defines model for AvailableUpdateList.
 type AvailableUpdateList struct {
-	Updates []AvailableUpdate `json:"updates"`
+	// Errors The nodes whose update check failed (0.11.0); absent when every check succeeded. Such a node is not in `updates`.
+	Errors  *[]UpdateCheckError `json:"errors,omitempty"`
+	Updates []AvailableUpdate   `json:"updates"`
 }
 
 // BindingList defines model for BindingList.
@@ -836,7 +838,7 @@ type BindingTarget struct {
 
 // ClusterAttribute defines model for ClusterAttribute.
 type ClusterAttribute struct {
-	ID    int     `json:"id"`
+	ID    int64   `json:"id"`
 	IDHex string  `json:"id_hex"`
 	Name  *string `json:"name,omitempty"`
 
@@ -856,7 +858,7 @@ type ClusterDetail struct {
 	Attributes []ClusterAttribute `json:"attributes"`
 
 	// DataVersion The cluster's DataVersion; absent while unknown.
-	DataVersion *int `json:"data_version,omitempty"`
+	DataVersion *int64 `json:"data_version,omitempty"`
 
 	// Events The EventList where the peer reports one.
 	Events        []ClusterElement `json:"events"`
@@ -867,7 +869,7 @@ type ClusterDetail struct {
 
 	// Generated The GeneratedCommandList.
 	Generated []ClusterElement `json:"generated"`
-	ID        int              `json:"id"`
+	ID        int64            `json:"id"`
 	IDHex     string           `json:"id_hex"`
 
 	// Name The cluster's name; absent for one no definition names.
@@ -877,7 +879,7 @@ type ClusterDetail struct {
 
 // ClusterElement defines model for ClusterElement.
 type ClusterElement struct {
-	ID    int     `json:"id"`
+	ID    int64   `json:"id"`
 	IDHex string  `json:"id_hex"`
 	Name  *string `json:"name,omitempty"`
 }
@@ -914,7 +916,7 @@ type CommissionRequest struct {
 	// ThreadID The stored Thread dataset to put the device on.
 	ThreadID *string `json:"thread_id,omitempty"`
 
-	// TimeoutSeconds The whole commissioning's bound; absent is the controller's default.
+	// TimeoutSeconds The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device then has no bound of this route's.
 	TimeoutSeconds *int `json:"timeout_seconds,omitempty"`
 
 	// WifiID The stored Wi-Fi credential to put the device on.
@@ -939,7 +941,7 @@ type ConformanceViolation struct {
 	DeviceType string `json:"device_type"`
 
 	// DeviceTypeID Absent for Base and where the violation names no device type.
-	DeviceTypeID *int   `json:"device_type_id,omitempty"`
+	DeviceTypeID *int64 `json:"device_type_id,omitempty"`
 	Kind         string `json:"kind"`
 	Requirement  string `json:"requirement"`
 }
@@ -1053,7 +1055,7 @@ type ControllerPeer struct {
 	TCPUnsupported bool `json:"tcp_unsupported"`
 
 	// TimeOfflineMs How long the peer's connection process has been trying; 0 when none runs.
-	TimeOfflineMs int `json:"time_offline_ms"`
+	TimeOfflineMs int64 `json:"time_offline_ms"`
 }
 
 // ControllerStatus defines model for ControllerStatus.
@@ -1142,11 +1144,11 @@ type Discovered struct {
 	Addresses          []string `json:"addresses"`
 	CommissioningMode  int      `json:"commissioning_mode"`
 	DeviceName         *string  `json:"device_name,omitempty"`
-	DeviceType         *int     `json:"device_type,omitempty"`
+	DeviceType         *int64   `json:"device_type,omitempty"`
 	Hostname           *string  `json:"hostname,omitempty"`
 	InstanceName       string   `json:"instance_name"`
 	LongDiscriminator  int      `json:"long_discriminator"`
-	PairingHint        *int     `json:"pairing_hint,omitempty"`
+	PairingHint        *int64   `json:"pairing_hint,omitempty"`
 	PairingInstruction *string  `json:"pairing_instruction,omitempty"`
 	Port               *int     `json:"port,omitempty"`
 	ProductID          *int     `json:"product_id,omitempty"`
@@ -1226,7 +1228,7 @@ type EndpointDetail struct {
 
 // EndpointDeviceType defines model for EndpointDeviceType.
 type EndpointDeviceType struct {
-	ID    int    `json:"id"`
+	ID    int64  `json:"id"`
 	IDHex string `json:"id_hex"`
 
 	// Name The device type's name; absent for one the schema does not know.
@@ -1252,7 +1254,7 @@ type EventRecord struct {
 	Endpoint int              `json:"endpoint"`
 
 	// EpochMs The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only.
-	EpochMs  *int   `json:"epoch_ms,omitempty"`
+	EpochMs  *int64 `json:"epoch_ms,omitempty"`
 	EventHex string `json:"event_hex"`
 
 	// Name The event's name in go-fabric's schema; absent for one it does not name.
@@ -1260,7 +1262,7 @@ type EventRecord struct {
 
 	// Number The node-wide event number (Matter Core §7.14.2.1); use `number_str`.
 	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	Number int `json:"number"`
+	Number int64 `json:"number"`
 
 	// NumberStr The event number in decimal, exact (0.10.0).
 	NumberStr *string             `json:"number_str,omitempty"`
@@ -1348,7 +1350,7 @@ type MdnsFindingSeverity string
 // NodeCluster defines model for NodeCluster.
 type NodeCluster struct {
 	Features []string `json:"features"`
-	ID       int      `json:"id"`
+	ID       int64    `json:"id"`
 	IDHex    string   `json:"id_hex"`
 
 	// Name The cluster's name; empty for one the schema does not know.
@@ -1358,7 +1360,7 @@ type NodeCluster struct {
 
 // NodeDeviceType defines model for NodeDeviceType.
 type NodeDeviceType struct {
-	ID    int    `json:"id"`
+	ID    int64  `json:"id"`
 	IDHex string `json:"id_hex"`
 
 	// Name The device type's name; empty for one the schema does not know.
@@ -1401,14 +1403,14 @@ type NodeFabricList struct {
 // NodeProperties defines model for NodeProperties.
 type NodeProperties struct {
 	BatteryPowered          bool    `json:"battery_powered"`
-	DeviceTypes             []int   `json:"device_types"`
+	DeviceTypes             []int64 `json:"device_types"`
 	IdleModeDurationSeconds *int    `json:"idle_mode_duration_seconds,omitempty"`
 	IntermittentlyConnected bool    `json:"intermittently_connected"`
 	LongIdleTimeOperating   *bool   `json:"long_idle_time_operating,omitempty"`
 	MainsPowered            bool    `json:"mains_powered"`
 	SerialNumber            *string `json:"serial_number,omitempty"`
 	SoftwareVersion         *string `json:"software_version,omitempty"`
-	SpecificationVersion    *int    `json:"specification_version,omitempty"`
+	SpecificationVersion    *int64  `json:"specification_version,omitempty"`
 	SupportsEthernet        bool    `json:"supports_ethernet"`
 	SupportsThread          bool    `json:"supports_thread"`
 	SupportsWifi            bool    `json:"supports_wifi"`
@@ -1418,7 +1420,7 @@ type NodeProperties struct {
 // NodeRecord defines model for NodeRecord.
 type NodeRecord struct {
 	Addresses           []string   `json:"addresses"`
-	AnnouncedDeviceType *int       `json:"announced_device_type,omitempty"`
+	AnnouncedDeviceType *int64     `json:"announced_device_type,omitempty"`
 	AnnouncedProductID  *int       `json:"announced_product_id,omitempty"`
 	AnnouncedVendorID   *int       `json:"announced_vendor_id,omitempty"`
 	CommissionedAt      *time.Time `json:"commissioned_at,omitempty"`
@@ -1466,7 +1468,7 @@ type Occupancy struct {
 
 // PendingUpdate defines model for PendingUpdate.
 type PendingUpdate struct {
-	Length     *int       `json:"length,omitempty"`
+	Length     *int64     `json:"length,omitempty"`
 	NodeIDHex  string     `json:"node_id_hex"`
 	ProductID  int        `json:"product_id"`
 	ProgressAt *time.Time `json:"progress_at,omitempty"`
@@ -1474,8 +1476,8 @@ type PendingUpdate struct {
 	// ProgressStatus The last status the node reported; absent before one.
 	ProgressStatus        *string             `json:"progress_status,omitempty"`
 	Status                PendingUpdateStatus `json:"status"`
-	TargetSoftwareVersion int                 `json:"target_software_version"`
-	Transferred           *int                `json:"transferred,omitempty"`
+	TargetSoftwareVersion int64               `json:"target_software_version"`
+	Transferred           *int64              `json:"transferred,omitempty"`
 	VendorID              int                 `json:"vendor_id"`
 }
 
@@ -1526,7 +1528,7 @@ type Problem struct {
 	Code             ProblemCode `json:"code"`
 
 	// Deadline terms_required (0.8.0): the device's TCUpdateDeadline in Matter epoch seconds (from 2000-01-01T00:00:00Z), by which a commissioned device expects an updated acceptance; null when the attribute is null.
-	Deadline *int    `json:"deadline,omitempty"`
+	Deadline *int64  `json:"deadline,omitempty"`
 	Detail   *string `json:"detail,omitempty"`
 	Instance *string `json:"instance,omitempty"`
 	Status   int     `json:"status"`
@@ -1739,12 +1741,21 @@ type TopologyRef struct {
 	Page string `json:"page"`
 }
 
+// UpdateCheckError One node whose update check failed (0.11.0).
+type UpdateCheckError struct {
+	// Error Why the check failed, as go-fabric names it (no secret).
+	Error     string `json:"error"`
+	NodeIDHex string `json:"node_id_hex"`
+}
+
 // UpdateConsentRequest defines model for UpdateConsentRequest.
 type UpdateConsentRequest struct {
-	NodeIDHex             string `json:"node_id_hex"`
-	ProductID             int    `json:"product_id"`
-	TargetSoftwareVersion int    `json:"target_software_version"`
-	VendorID              int    `json:"vendor_id"`
+	NodeIDHex string `json:"node_id_hex"`
+	ProductID int    `json:"product_id"`
+
+	// TargetSoftwareVersion 0 to 4294967295; a generated server holds it in 64 bits (0.11.0).
+	TargetSoftwareVersion int64 `json:"target_software_version"`
+	VendorID              int   `json:"vendor_id"`
 }
 
 // UpdateQueue defines model for UpdateQueue.
