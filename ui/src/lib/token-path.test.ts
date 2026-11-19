@@ -236,6 +236,31 @@ describe("UR-P3-web-194: the token only to the page's origin, as the URL resolve
     expect(seen.map((h) => h[TOKEN_HEADER])).toEqual([undefined, undefined, undefined, undefined, "secret"]);
   });
 
+  // fetch resolves a relative URL against the document's base, which a
+  // host page's <base href> may move to another origin (UR-P4-web-04).
+  it("sends no token to a relative base a <base href> of another origin moves away", async () => {
+    vi.stubGlobal("location", new URL("http://ui.test/app/"));
+    const el = document.createElement("base");
+    el.href = "http://other.example/";
+    document.head.append(el);
+    try {
+      expect(document.baseURI).toBe("http://other.example/");
+      const seen: (string | undefined)[] = [];
+      const c = createClient("./api/v1", async (_u, init) => {
+        seen.push(tokenOf(init));
+        return new Response(null, { status: 204 });
+      });
+      c.setToken("secret");
+      await c.closeWindow();
+      const src = c.openStream(c.streamUrl());
+      await flush();
+      src.close();
+      expect(seen).toEqual([undefined, undefined]);
+    } finally {
+      el.remove();
+    }
+  });
+
   it("openStream sends the token only to a URL of the page's origin", async () => {
     vi.stubGlobal("location", new URL("http://ui.test/app/"));
     const seen: (string | undefined)[] = [];
