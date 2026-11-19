@@ -125,6 +125,43 @@ describe("contract guard", () => {
     expect(diffContracts(prev, ok)).toEqual([]);
   });
 
+  it("reports a parameter or request body an old client may leave out that became required (UR-P4-test-62)", () => {
+    const body = (required) => ({ required, content: { "application/json": { schema: { type: "object" } } } });
+    const prev = {
+      paths: {
+        "/x": {
+          get: { parameters: [{ name: "q", in: "query", schema: { type: "string" } }, { $ref: "#/components/parameters/P" }], responses: { 200: {} } },
+          post: { requestBody: body(false), responses: { 204: {} } },
+          put: { responses: { 204: {} } },
+        },
+      },
+      components: { parameters: { P: { name: "p", in: "query", schema: { type: "string" } } } },
+    };
+    const cur = structuredClone(prev);
+    cur.paths["/x"].get.parameters[0].required = true;
+    cur.paths["/x"].get.parameters.push({ name: "r", in: "query", required: true, schema: { type: "string" } });
+    cur.paths["/x"].parameters = [{ name: "h", in: "header", required: true, schema: { type: "string" } }];
+    cur.components.parameters.P.required = true;
+    cur.paths["/x"].post.requestBody.required = true;
+    cur.paths["/x"].put.requestBody = body(true);
+    expect(diffContracts(prev, cur)).toEqual([
+      "GET /x: parameter h became required",
+      "GET /x: parameter q became required",
+      "GET /x: parameter p became required",
+      "GET /x: parameter r became required",
+      "PUT /x: parameter h became required",
+      "PUT /x: request body became required",
+      "POST /x: parameter h became required",
+      "POST /x: request body became required",
+    ]);
+    // An optional addition, and a requirement that was there, pass.
+    const ok = structuredClone(prev);
+    ok.paths["/x"].get.parameters.push({ name: "s", in: "query", schema: { type: "string" } });
+    ok.paths["/x"].put.requestBody = body(false);
+    expect(diffContracts(prev, ok)).toEqual([]);
+    expect(diffContracts(cur, structuredClone(cur))).toEqual([]);
+  });
+
   it("names the keywords that narrow a value", () => {
     expect(narrowed({ maximum: 10 }, { maximum: 9, minLength: 1 })).toEqual(["maximum", "minLength"]);
     expect(narrowed({ maximum: 10, pattern: "x" }, { maximum: 11, pattern: "x" })).toEqual([]);
