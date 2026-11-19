@@ -67,4 +67,14 @@ describe("UR-P4-ui-302: an event's epoch outside the Date range", () => {
     expect(screen.getAllByTestId(/^event-\d/).length).toBe(ev.events.length);
     expect(screen.getByText("9000000000000000")).toBeInTheDocument();
   });
+
+  it("shows an event without epoch_ms (the adapter drops a value beyond int64) without a time", async () => {
+    const ev = body<{ events: Record<string, unknown>[] }>("controller-node-events.200");
+    for (const e of ev.events) delete e.epoch_ms;
+    const ui = testUI({ fixtures: ["controller-node.200"], answers: { [`GET /controller/nodes/${L}/events`]: { status: 200, body: ev } } });
+    render(NodeHarness, { ui, nodeId: L, tab: "events" });
+    await screen.findByTestId("node-title");
+    expect((await screen.findAllByTestId(/^event-\d/)).length).toBe(ev.events.length);
+    expect(document.querySelector("time")).toBeNull();
+  });
 });
