@@ -1,7 +1,9 @@
 // The shell's toasts: a host embedding the pages passes its own.
 // Mirrors openccu-loom assets/ui/src/lib/stores/toast.svelte.ts:16-59 at
-// b40b289a: info and success leave after 4 s, warnings and errors stay;
-// at most MAX_TOASTS at once, a repeated message once, a long one cut.
+// b40b289a for the lifetimes (info and success leave after 4 s, errors
+// stay), without loom's `warn` severity and `detail` line. This module's
+// own: at most MAX_TOASTS at once, a repeated message once, a long one cut
+// (UR-P1-bound-111).
 import type { Toast } from "../lib/context";
 
 export type ToastSeverity = "info" | "success" | "error";
