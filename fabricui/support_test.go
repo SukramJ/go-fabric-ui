@@ -535,7 +535,7 @@ func sampleDetails() map[uint16]EndpointDetail {
 	agg := uint16(1)
 	return map[uint16]EndpointDetail{2: {
 		Number: 2, Parent: &agg, Name: "Kitchen lamp", Reachable: true, Scope: "default",
-		DeviceTypes: []NodeDeviceType{{ID: 0x0100, Name: "OnOffLight", Revision: 3}, {ID: 0x0013, Name: "BridgedNode", Revision: 3}},
+		DeviceTypes: []NodeDeviceType{{ID: 0x0100, Name: "On/Off Light", Revision: 3}, {ID: 0x0013, Name: "BridgedNode", Revision: 3}},
 		Tags:        []SemanticTag{{Namespace: 7, Tag: 1, Label: "One"}},
 		Labels:      []EndpointLabel{{Label: "room", Value: "Kitchen"}},
 		Parts:       []uint16{},

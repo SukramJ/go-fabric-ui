@@ -209,3 +209,17 @@ func TestEvents_SinceStr(t *testing.T) {
 		t.Fatalf("controller since_str=x: %d %s", r.Code, r.Body)
 	}
 }
+
+// The endpoint list and the endpoint's detail name a device type alike:
+// the operator's label where there is one, else the schema's name
+// (UR-P1-ui-38).
+func TestDeviceTypeNames_OneNameAcrossTheNodeFamily(t *testing.T) {
+	for _, id := range []uint16{0x0100, 0x0302, 0x0013, 0x000E} {
+		if got, want := schemaDeviceTypeName(uint32(id)), deviceTypeName(id); got != want {
+			t.Errorf("0x%04X: detail %q, list %q", id, got, want)
+		}
+	}
+	if got := schemaDeviceTypeName(0xFFF1_0001); got != "" {
+		t.Errorf("a manufacturer-specific type named %q", got)
+	}
+}

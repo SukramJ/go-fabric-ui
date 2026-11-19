@@ -191,7 +191,7 @@
         {
           "id": 256,
           "id_hex": "0x0100",
-          "name": "OnOffLight",
+          "name": "On/Off Light",
           "revision": 3
         },
         {
