@@ -25,7 +25,9 @@ the contract's changes for the hosts.
   authentication, its server names (`docs/embedding.md`, "Behind an
   Ingress"; godoc of `Options.AllowedHosts` and `Options.AllowHost`).
 - **A node without a fabric reopens its own window** after a window the
-  page opened closes or expires, on the configured passcode — go-fabric's
+  page opened on fresh credentials (the default; not with
+  `ConfiguredWindow`, whose closed window stays closed) closes or
+  expires, on the configured passcode — go-fabric's
   design, now said in the contract (`closeWindow`), the godoc of
   `Options.ConfiguredWindow` and the page; a host that wants no window it
   did not open sets go-fabric's `Commissioning.WindowOnDemand` (decision

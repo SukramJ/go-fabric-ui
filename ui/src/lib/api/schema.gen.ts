@@ -98,13 +98,15 @@ export interface paths {
         put?: never;
         /**
          * Close the open commissioning window.
-         * @description Closes the open window. On a node without a fabric go-fabric then
-         *     reopens the node's own window on its configured codes, as when a
-         *     fresh window expires (stated from 0.11.0, not new): `GET
-         *     /node/status` reports `window_kind` `own` and `GET /node/pairing`
-         *     the configured codes. A second close closes that window too. A
-         *     host that wants no window it did not open sets go-fabric's
-         *     `Commissioning.WindowOnDemand`.
+         * @description Closes the open window. When it is a window on fresh credentials
+         *     (`window_kind` `basic`) on a node without a fabric, go-fabric then
+         *     reopens the node's own window on its configured codes, as when such
+         *     a window expires (stated from 0.11.0, not new): `GET /node/status`
+         *     reports `window_kind` `own` and `GET /node/pairing` the configured
+         *     codes. A second close closes that window too; the close of the
+         *     node's own window (`ConfiguredWindow`, or that second close) leaves
+         *     no window open. A host that wants no window it did not open sets
+         *     go-fabric's `Commissioning.WindowOnDemand`.
          */
         post: operations["closeWindow"];
         delete?: never;
@@ -3668,7 +3670,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The window is closed; on a node without a fabric its own window may be open again (see the description). */
+            /** @description The window is closed; after a window on fresh credentials a node without a fabric has its own window open again (see the description). */
             204: {
                 headers: {
                     [name: string]: unknown;

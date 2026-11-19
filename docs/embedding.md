@@ -51,7 +51,7 @@ valid prefix and serves no page.
 | `Events` | Events the host publishes beside the handler's own and the node's (an exposure change made outside the page); they reach admin streams only, whatever their type. The handler keeps a hub of its own (0.10.0): a host that reads the `*fabricui.Events` it passes here no longer sees the handler's events in it. |
 | `Prefix` | The API prefix for `Mount`; default `/api/v1`. `NewHandler` and `Handler` take `""` or `/api/v1` only. |
 | `Logger` | The handlers' logger; nothing it receives carries a passcode. |
-| `ConfiguredWindow` | Open the window on the node's configured passcode instead of fresh credentials. Either way, a node without a fabric has its own window on the configured passcode open again once the opened window closes or expires (go-fabric's design; `Commissioning.WindowOnDemand` turns it off). |
+| `ConfiguredWindow` | Open the window on the node's configured passcode instead of fresh credentials. Without it, a node without a fabric has its own window on the configured passcode open again once the window on fresh credentials closes or expires (go-fabric's design; `Commissioning.WindowOnDemand` turns it off); with it, the closed window stays closed. |
 | `AllowEmptyTopology` | Allow a window while no endpoint is exposed. |
 | `FrameAncestors` | Further origins that may frame the page, each a CSP host-source. See [Response headers and framing](#response-headers-and-framing). |
 | `Warnings` | The host's findings about its own configuration, shown on the status and selection pages. |

@@ -24,7 +24,7 @@ open route is `host_not_allowed`; see [Admin rights](#admin-rights) and
 | `/node/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 500, 503 | `FabricInfos`, `RemoveFabric`; its `node.ErrFabricNotFound` (a fabric gone meanwhile) is 404 (0.11.0) |
 | `/node/pairing` | GET | yes | 200, 403, 503 | `SetupPayload`, or the credentials of the window this handler opened while `Window` still reports it |
 | `/node/pairing/window` | POST | yes | 200, 400, 403, 409, 413, 415, 500, 503 | `NewWindowCredentials`, `PairingCodesFor` and `OpenBasicWindow`, or `CommissioningWindow().OpenOwnWindow` and `SetupPayload` with `Options.ConfiguredWindow`; `Window` for the duration |
-| `/node/pairing/window/close` | POST | yes | 204, 403, 500, 503 | `Node.CloseWindow`; a node without a fabric then has its own window open again on its configured codes, closed by a second close (0.11.0) |
+| `/node/pairing/window/close` | POST | yes | 204, 403, 500, 503 | `Node.CloseWindow`; after a window on fresh credentials a node without a fabric has its own window open again on its configured codes, closed by a second close (0.11.0) |
 | `/node/endpoints` | GET | yes | 200, 403, 503 | `Topology` (`Clusters`, `DeviceTypeRevision` of every endpoint, parts included) |
 | `/node/endpoints/{ep}` | GET | yes | 200, 400, 403, 404, 500, 503 | `ReadCluster` (the Descriptor, then every cluster of its ServerList), `ReadAttribute` (the parts' PartsList), `Topology`, `Surface`, `schema` names — served from 0.4.1 |
 | `/node/endpoints/{ep}/events` | GET | yes | 200, 400, 403, 503 | `Events` with the endpoint's filter, `since` and `limit` — served from 0.4.1 |
@@ -79,9 +79,11 @@ basic window (OpenBasicCommissioningWindow, on the node's own passcode),
 which go-fabric 0.22 reported as `enhanced`; `basic` stays the window this
 handler opened on fresh credentials. `DELETE /node/fabrics/{index}`
 answers 404 also for a fabric removed between the list and the removal.
-After `POST /node/pairing/window/close` a node without a fabric has its
-own window open again on its configured codes, as when an opened window
-expires; a second close closes it, and a host that wants no window it did
+After `POST /node/pairing/window/close` of a window on fresh credentials
+(`basic`) a node without a fabric has its own window open again on its
+configured codes, as when such a window expires; a second close closes
+it, the close of the node's own window (`ConfiguredWindow`) leaves none
+open, and a host that wants no window it did
 not open sets go-fabric's `Commissioning.WindowOnDemand`.
 
 ## The node selector (0.5.0)
@@ -709,7 +711,8 @@ is 400, and 502 stays the node's failure. `CommissionRequest.timeout_seconds`
 states what its absence means on both paths: a discovered device's
 commissioning is bounded at 600 s, a code keeps go-fabric's one-minute
 search bound. `POST /node/pairing/window/close` says that a node without
-a fabric has its own window open again afterwards. `Status.window_kind`
+a fabric has its own window open again after the close of a window on
+fresh credentials. `Status.window_kind`
 gains `administrator_basic`: an administrator's basic window
 (OpenBasicCommissioningWindow, on the node's own passcode), which
 go-fabric 0.22 reported as `enhanced`. The response integers

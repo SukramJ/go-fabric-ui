@@ -162,15 +162,17 @@ paths:
       summary: Close the open commissioning window.
       x-admin: true
       description: |
-        Closes the open window. On a node without a fabric go-fabric then
-        reopens the node's own window on its configured codes, as when a
-        fresh window expires (stated from 0.11.0, not new): `GET
-        /node/status` reports `window_kind` `own` and `GET /node/pairing`
-        the configured codes. A second close closes that window too. A
-        host that wants no window it did not open sets go-fabric's
-        `Commissioning.WindowOnDemand`.
+        Closes the open window. When it is a window on fresh credentials
+        (`window_kind` `basic`) on a node without a fabric, go-fabric then
+        reopens the node's own window on its configured codes, as when such
+        a window expires (stated from 0.11.0, not new): `GET /node/status`
+        reports `window_kind` `own` and `GET /node/pairing` the configured
+        codes. A second close closes that window too; the close of the
+        node's own window (`ConfiguredWindow`, or that second close) leaves
+        no window open. A host that wants no window it did not open sets
+        go-fabric's `Commissioning.WindowOnDemand`.
       responses:
-        "204": { description: "The window is closed; on a node without a fabric its own window may be open again (see the description)." }
+        "204": { description: "The window is closed; after a window on fresh credentials a node without a fabric has its own window open again (see the description)." }
         "403": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
