@@ -2051,10 +2051,10 @@ export interface components {
             commissioning_window_open: boolean;
             commissioning_window_duration_seconds?: number;
             /**
-             * @description Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one; absent without a node.
+             * @description Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one, or (0.11.0) an administrator's basic one (OpenBasicCommissioningWindow, on the node's own passcode); absent without a node.
              * @enum {string}
              */
-            window_kind?: "none" | "own" | "basic" | "enhanced";
+            window_kind?: "none" | "own" | "basic" | "enhanced" | "administrator_basic";
             /**
              * Format: date-time
              * @description When the open window's timer closes it
