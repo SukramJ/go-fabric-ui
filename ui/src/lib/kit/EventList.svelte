@@ -20,6 +20,10 @@
   const newestFirst = $derived([...events].reverse());
   const variant = (p: EventRecord["priority"]) => (p === "critical" ? "danger" : p === "info" ? "default" : "muted");
   const time = (ms: number) => formatDate(t, ms);
+  // A node's timestamp outside the Date range (a wrong unit, a corrupt
+  // value) is shown as the number it came as: toISOString would throw
+  // and take the list down (UR-P4-ui-302).
+  const inRange = (ms: number) => Number.isFinite(new Date(ms).getTime());
   const format = (v: unknown) => formatJson(v);
 </script>
 
@@ -35,8 +39,10 @@
           <span class="font-medium text-[var(--ha-primary-text-color)]" title={`${e.cluster_hex} · ${e.event_hex}`}>{e.name ?? e.event_hex}</span>
           <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">{e.cluster_hex} · {e.event_hex}</span>
           <span class="text-xs text-[var(--ha-secondary-text-color)]">{t("events.endpoint", { endpoint: e.endpoint })}</span>
-          {#if e.epoch_ms !== undefined}
+          {#if e.epoch_ms !== undefined && inRange(e.epoch_ms)}
             <time class="text-xs text-[var(--ha-secondary-text-color)]" datetime={new Date(e.epoch_ms).toISOString()}>{time(e.epoch_ms)}</time>
+          {:else if e.epoch_ms !== undefined}
+            <span class="font-mono text-xs text-[var(--ha-secondary-text-color)]">{e.epoch_ms}</span>
           {/if}
         </div>
         {#if e.data !== undefined}
