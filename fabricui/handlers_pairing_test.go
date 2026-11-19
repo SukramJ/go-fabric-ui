@@ -10,6 +10,7 @@ package fabricui
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -225,6 +226,56 @@ func TestPairing_ForgetsAFreshWindowTheNodeNoLongerServes(t *testing.T) {
 				t.Fatalf("pairing %+v, want the configured payload and no held credentials", p)
 			}
 		})
+	}
+}
+
+// A fresh window replaced by another basic window on the same
+// discriminator, or on an unannounced one, is told apart by its OpenedAt:
+// the pairing answer no longer carries the fresh window's passcode, and
+// the window it reports does not admit the codes (UR-P3-test-32).
+func TestPairing_ReplacedFreshWindowIsToldByItsOpening(t *testing.T) {
+	for name, unannounced := range map[string]bool{"same discriminator": false, "unannounced": true} {
+		t.Run(name, func(t *testing.T) {
+			n := sampleNode()
+			_, mux := newTestHandler(t, testOptions{node: n})
+			if r := do(t, mux, http.MethodPost, "/node/pairing/window", `{"duration_seconds":300}`); r.Code != http.StatusOK {
+				t.Fatalf("%d %s", r.Code, r.Body)
+			}
+			n.mu.Lock()
+			creds := n.basic[0]
+			n.mu.Unlock()
+			if err := n.openBasicWindow(context.Background(), creds); err != nil {
+				t.Fatal(err)
+			}
+			n.mu.Lock()
+			n.unannounced = unannounced
+			n.mu.Unlock()
+			var p pairingResponse
+			if err := json.Unmarshal(do(t, mux, http.MethodGet, "/node/pairing", "").Body.Bytes(), &p); err != nil {
+				t.Fatal(err)
+			}
+			// The test credentials repeat the configured passcode, so the source
+			// tells which codes are served.
+			if p.Source != sourceConfigured || p.WindowMatch == nil || *p.WindowMatch {
+				t.Fatalf("pairing %+v", p)
+			}
+		})
+	}
+}
+
+// The status and the pairing answer report the seconds until the open
+// window closes, and nothing while none is open (decisions 28, 44).
+func TestWindow_RemainingSeconds(t *testing.T) {
+	n := sampleNode()
+	_, mux := newTestHandler(t, testOptions{node: n})
+	if s := do(t, mux, http.MethodGet, "/node/status", "").Body.String(); strings.Contains(s, "window_remaining_seconds") {
+		t.Fatalf("closed: %s", s)
+	}
+	do(t, mux, http.MethodPost, "/node/pairing/window", `{"duration_seconds":300}`)
+	for _, p := range []string{"/node/status", "/node/pairing"} {
+		if s := do(t, mux, http.MethodGet, p, "").Body.String(); !strings.Contains(s, `"window_remaining_seconds":300`) {
+			t.Fatalf("%s: %s", p, s)
+		}
 	}
 }
 

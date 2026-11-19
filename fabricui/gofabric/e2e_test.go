@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -866,6 +867,9 @@ func (s *ctrlSite) rawEvents(path string) []eventRecord {
 	return l.Events
 }
 
+// commissioningIDMember is the id every commissioning_progress carries.
+var commissioningIDMember = regexp.MustCompile(`,"commissioning_id":"[^"]*"`)
+
 // termsRow is the register row of GeneralCommissioning's TC feature, the
 // extension a node serves its terms behind (go-fabric node/config.go:
 // 402-411 at v0.18.0, cluster/core/ahead.go:47).
@@ -1078,7 +1082,9 @@ func (s *ctrlSite) commissionEvents(body string) []string {
 	for {
 		select {
 		case d := <-progress:
-			got = append(got, d)
+			// The commissioning's id is drawn per request; the decisions
+			// are compared without it.
+			got = append(got, commissioningIDMember.ReplaceAllString(d, ""))
 			if !strings.Contains(d, `"step":`) && strings.Contains(d, `"phase":"succeeded"`) {
 				return got
 			}

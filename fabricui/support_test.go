@@ -169,6 +169,11 @@ type fakeNode struct {
 	// node opened it but could not publish its record (go-fabric records
 	// the discriminator once published).
 	unannounced bool
+	// opens counts the windows opened; each opens one second after the
+	// last, so a replacing window has an OpenedAt of its own, as in
+	// go-fabric's snapshot (UR-P3-test-32).
+	opens    int
+	openedAt time.Time
 	// beforeBasic, when set, runs at the start of openBasicWindow, outside
 	// the lock: a second request that lands while the first opens.
 	beforeBasic func()
@@ -388,7 +393,7 @@ func (f *fakeNode) window() node.WindowSnapshot {
 		return node.WindowSnapshot{}
 	}
 	w := node.WindowSnapshot{
-		Open: true, Own: true, Kind: f.kind, Discriminator: f.disc,
+		Open: true, Kind: f.kind, Discriminator: f.disc,
 		Timeout: time.Duration(f.duration) * time.Second,
 	}
 	if w.Kind == node.WindowNone {
@@ -397,8 +402,14 @@ func (f *fakeNode) window() node.WindowSnapshot {
 	if w.Kind == node.WindowBasic && f.unannounced {
 		w.Discriminator = 0
 	}
+	// Own is false exactly for an enhanced window (go-fabric
+	// node/observers.go:181-196 at v0.22.2).
+	w.Own = w.Kind != node.WindowEnhanced
 	w.OpenedAt = testNow
-	w.Deadline = testNow.Add(w.Timeout)
+	if !f.openedAt.IsZero() {
+		w.OpenedAt = f.openedAt
+	}
+	w.Deadline = w.OpenedAt.Add(w.Timeout)
 	return w
 }
 
@@ -415,6 +426,7 @@ func (f *fakeNode) openBasicWindow(_ context.Context, creds node.WindowCredentia
 		return f.openErr
 	}
 	f.basic = append(f.basic, creds)
+	f.stampOpen()
 	f.open, f.duration = true, uint16(creds.Timeout/time.Second)
 	f.kind, f.disc = node.WindowBasic, creds.Discriminator
 	f.mu.Unlock()
@@ -429,11 +441,18 @@ func (f *fakeNode) openOwnWindow(_ context.Context, timeout time.Duration) error
 		return f.openErr
 	}
 	f.own = append(f.own, timeout)
+	f.stampOpen()
 	f.open, f.duration = true, uint16(timeout/time.Second)
 	f.kind, f.disc = node.WindowOwn, fakeDiscriminator
 	f.mu.Unlock()
 	f.transition()
 	return nil
+}
+
+// stampOpen gives the window being opened its own OpenedAt (f.mu held).
+func (f *fakeNode) stampOpen() {
+	f.openedAt = testNow.Add(time.Duration(f.opens) * time.Second)
+	f.opens++
 }
 
 func (f *fakeNode) closeWindow(context.Context) error {

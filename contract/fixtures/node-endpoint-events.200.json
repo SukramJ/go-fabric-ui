@@ -21,6 +21,7 @@
           "event_hex": "0x0003",
           "name": "ReachableChanged",
           "number": 7,
+          "number_str": "7",
           "priority": "info"
         },
         {
@@ -33,6 +34,7 @@
           "event_hex": "0x0003",
           "name": "ReachableChanged",
           "number": 9,
+          "number_str": "9",
           "priority": "info"
         }
       ]

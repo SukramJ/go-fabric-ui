@@ -47,6 +47,11 @@ type pairingResponse struct {
 	Source          string  `json:"source"`
 	WindowOpen      bool    `json:"window_open"`
 	DurationSeconds uint16  `json:"duration_seconds,omitempty"`
+	// WindowRemaining and WindowMatch are absent while no window is open
+	// (0.10.0): the seconds until it closes, and whether it admits these
+	// codes (false: a window on other credentials, opened elsewhere).
+	WindowRemaining *int  `json:"window_remaining_seconds,omitempty"`
+	WindowMatch     *bool `json:"window_match,omitempty"`
 }
 
 // Pairing sources.
@@ -75,6 +80,7 @@ func (h *handler) pairing(w http.ResponseWriter, r *http.Request) {
 			Discriminator: &disc, Passcode: &pc,
 			QRCode: eph.qr, ManualCode: eph.manual, Source: sourceWindow,
 			WindowOpen: true, DurationSeconds: duration,
+			WindowRemaining: remainingSeconds(win, h.node.now()), WindowMatch: ptr(true),
 		})
 		return
 	}
@@ -85,11 +91,18 @@ func (h *handler) pairing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pc, disc := sp.Passcode, sp.Discriminator
-	writeJSON(w, pairingResponse{
+	res := pairingResponse{
 		Discriminator: &disc, Passcode: &pc,
 		QRCode: sp.QR, ManualCode: sp.Manual,
 		Source: sourceConfigured, WindowOpen: win.Open, DurationSeconds: duration,
-	})
+	}
+	if win.Open {
+		// The configured codes commission through the node's own window
+		// only (decision 28).
+		res.WindowRemaining = remainingSeconds(win, h.node.now())
+		res.WindowMatch = ptr(win.Kind == node.WindowOwn)
+	}
+	writeJSON(w, res)
 }
 
 // activeEphemeral returns the window this handler opened while the node

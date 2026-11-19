@@ -27,6 +27,9 @@ func TestNodeError_MapsTheKinds(t *testing.T) {
 	}{
 		{"json value", fmt.Errorf("write: %w", client.ErrJSONValue), fabricui.ErrInvalidArgument},
 		{"icd multi-admin", fmt.Errorf("register: %w", multiAdmin), fabricui.ErrConflict},
+		{"icd refused by the client", fmt.Errorf("register: %w", client.ErrICDOperation), fabricui.ErrConflict},
+		{"node disabled", fmt.Errorf("read: %w", client.ErrDisabled), fabricui.ErrConflict},
+		{"fabric operation in progress", fmt.Errorf("remove: %w", client.ErrFabricOperationInProgress), fabricui.ErrConflict},
 		{"other", errors.New("timeout"), fabricui.ErrNodeFailed},
 		{"cancelled", context.Canceled, context.Canceled},
 	} {

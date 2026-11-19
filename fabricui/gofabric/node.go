@@ -808,6 +808,10 @@ func (w *node) SetAutoSubscribe(ctx context.Context, on bool) error {
 	return nodeError(w.n.SetAutoSubscribe(ctx, on))
 }
 
+// AutoSubscribe is the node's auto-subscribe setting (client.Node.
+// AutoSubscribe), not the live subscription.
+func (w *node) AutoSubscribe() bool { return w.n.AutoSubscribe() }
+
 // ICD is the node's ICD state — go-fabric-server's get_icd_state
 // (controllerapi/cmd_icd.go:47-74 at v0.3.2): a node without ICD
 // Management is not supported; the operating mode is the image's.

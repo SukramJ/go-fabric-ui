@@ -23,6 +23,8 @@ const (
 	codeNodeError      = "node_error"
 	codeNotImplemented = "not_implemented"
 	codeTermsRequired  = "terms_required"
+	// codeMethodNotAllowed is 405 (contract 0.10.0, MethodNotAllowed).
+	codeMethodNotAllowed = "method_not_allowed"
 )
 
 // problemTypeBase is the base of every problem's type URI: the contract
@@ -138,13 +140,14 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// decodeJSON reads the body into v, refusing unknown fields and a body
-// over maxBodyBytes. Mirrors loom write.go:109-114 (DecodeJSON).
+// decodeJSON reads the body into v strictly (decodeStrict), refusing a
+// body over maxBodyBytes. Mirrors loom write.go:109-114 (DecodeJSON).
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	return dec.Decode(v)
+	data, err := readBody(w, r)
+	if err != nil {
+		return err
+	}
+	return decodeStrict(data, v)
 }
 
 // badBody answers a body decodeJSON refused: 413 for one too large, 400

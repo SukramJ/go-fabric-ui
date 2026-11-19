@@ -225,8 +225,9 @@ func TestExposureApply_Reassembles(t *testing.T) {
 func TestExposureApply_ReassembleFailureKeepsTheChange(t *testing.T) {
 	h, mux := newTestHandler(t, testOptions{exposure: newMemoryProvider(), reassemble: func(context.Context) error { return errors.New("assembler") }})
 	rec := record(h)
-	if r := do(t, mux, http.MethodPut, "/node/exposure", `{"items":[{"key":"lamp-1","enabled":true}]}`); r.Code != http.StatusOK {
-		t.Fatalf("status %d", r.Code)
+	r := do(t, mux, http.MethodPut, "/node/exposure", `{"items":[{"key":"lamp-1","enabled":true}]}`)
+	if r.Code != http.StatusOK || !strings.Contains(r.Body.String(), `"reassembled":false`) {
+		t.Fatalf("status %d %s, want reassembled false (UR-P2-ui-35)", r.Code, r.Body)
 	}
 	if !slices.Equal(rec.types(), []string{EventExposureChanged}) {
 		t.Fatalf("events %v, want exposure_changed only", rec.types())

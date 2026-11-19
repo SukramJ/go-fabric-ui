@@ -96,8 +96,8 @@ func TestUnknownAPIRoute_Returns404Problem(t *testing.T) {
 	if rec.Code != http.StatusNotFound || problemOf(t, rec).Code != codeNotFound {
 		t.Fatalf("got %d %s", rec.Code, rec.Body)
 	}
-	if rec := do(t, mux, http.MethodPost, "/node/status", ""); rec.Code != http.StatusNotFound {
-		t.Fatalf("POST /node/status: %d, want the API 404", rec.Code)
+	if rec := do(t, mux, http.MethodPost, "/node/status", ""); rec.Code != http.StatusMethodNotAllowed || rec.Header().Get("Allow") != "GET, HEAD" {
+		t.Fatalf("POST /node/status: %d Allow %q, want 405 GET, HEAD", rec.Code, rec.Header().Get("Allow"))
 	}
 	if strings.Contains(do(t, mux, http.MethodGet, "/node/nope", "").Body.String(), "<html") {
 		t.Fatal("an API 404 served the index")

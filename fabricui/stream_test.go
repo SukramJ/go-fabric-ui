@@ -204,17 +204,33 @@ func TestStream_DataStaysOnOneLine(t *testing.T) {
 	src.publish(Event{Type: EventEndpointsChanged, Data: json.RawMessage("{\n\"a\":\n1\n}")})
 	src.publish(Event{Type: EventEndpointsChanged, Data: json.RawMessage("{}\n\nevent: fabric_removed\ndata: {}")})
 	src.publish(Event{Type: EventExposureChanged, Data: struct{}{}})
+	// Every line is an event line, one data line of valid JSON, a comment
+	// or the empty line that ends a frame; a frame has exactly one data
+	// line (UR-P3-test-34).
 	var types []string
 	sc := bufio.NewScanner(res.Body)
+	dataLines, last := 0, ""
 	for sc.Scan() {
 		line := sc.Text()
-		if typ, ok := strings.CutPrefix(line, "event: "); ok {
-			types = append(types, typ)
+		switch {
+		case line == "":
+			if last != "" && !strings.HasPrefix(last, ":") && dataLines != 1 {
+				t.Errorf("a frame with %d data lines", dataLines)
+			}
+			dataLines = 0
+		case strings.HasPrefix(line, ":"):
+		case strings.HasPrefix(line, "event: "):
+			types = append(types, strings.TrimPrefix(line, "event: "))
+		case strings.HasPrefix(line, "data: "):
+			dataLines++
+			if data := strings.TrimPrefix(line, "data: "); strings.ContainsRune(data, '\r') || !json.Valid([]byte(data)) {
+				t.Errorf("a data line that is not one JSON value: %q", line)
+			}
+		default:
+			t.Errorf("a line of no kind: %q", line)
 		}
-		if data, ok := strings.CutPrefix(line, "data: "); ok && strings.ContainsRune(data, '\r') {
-			t.Errorf("a data line holds a carriage return: %q", line)
-		}
-		if line == "event: "+EventExposureChanged {
+		last = line
+		if line == "" && len(types) > 0 && types[len(types)-1] == EventExposureChanged {
 			break
 		}
 	}

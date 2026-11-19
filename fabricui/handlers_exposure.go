@@ -179,6 +179,10 @@ func (h *handler) exposurePreview(w http.ResponseWriter, r *http.Request) {
 // appliedResponse is the answer of PUT /node/exposure.
 type appliedResponse struct {
 	Applied int `json:"applied"`
+	// Reassembled is false when the rebuild failed: the selection is
+	// stored and not in effect (0.10.0, UR-P2-ui-35); absent without a
+	// rebuild.
+	Reassembled *bool `json:"reassembled,omitempty"`
 }
 
 // exposureApply serves PUT /node/exposure (admin): the host applies the
@@ -209,18 +213,21 @@ func (h *handler) exposureApply(w http.ResponseWriter, r *http.Request) {
 		keys = append(keys, updates[i].Key)
 	}
 	h.publish(Event{Type: EventExposureChanged, Data: ExposureEvent{Keys: keys}})
+	out := appliedResponse{Applied: applied}
 	if reassemble := h.reassembleFn(); reassemble != nil {
 		// The provider has persisted the change: a client that leaves now
 		// must not cancel the rebuild that makes it visible
 		// (UR-P1-conc-39).
 		ctx, cancel := detached(r.Context())
 		defer cancel()
-		if err := reassemble(ctx); err != nil {
+		err := reassemble(ctx)
+		out.Reassembled = ptr(err == nil)
+		if err != nil {
 			h.log.WarnContext(r.Context(), "fabricui.exposure.reassemble_failed", slog.String("error", err.Error()))
 		} else {
 			h.publish(Event{Type: EventEndpointsChanged, Data: struct{}{}})
 		}
 	}
 	h.log.InfoContext(r.Context(), "fabricui.exposure.applied", slog.Int("applied", applied))
-	writeJSON(w, appliedResponse{Applied: applied})
+	writeJSON(w, out)
 }

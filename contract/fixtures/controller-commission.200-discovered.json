@@ -55,6 +55,7 @@
         "addresses": [
           "[fd00::12]:5540"
         ],
+        "auto_subscribe": true,
         "commissioned_at": "2026-10-20T08:00:00Z",
         "connection": "connected",
         "disabled": false,

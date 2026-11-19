@@ -759,18 +759,22 @@ type DiscoverFilter struct {
 
 // Discovered is a commissionable device a discovery answered.
 type Discovered struct {
-	InstanceName       string
-	Hostname           string
-	Addresses          []string
-	Port               uint16
-	LongDiscriminator  uint16
-	VendorID           uint16
-	ProductID          uint16
-	DeviceType         uint32
-	DeviceName         string
-	CommissioningMode  uint8
-	PairingHint        uint32
-	PairingInstruction string
+	InstanceName      string
+	Hostname          string
+	Addresses         []string
+	Port              uint16
+	LongDiscriminator uint16
+	// HasLongDiscriminator says LongDiscriminator was given: 0 is a valid
+	// discriminator (UR-P1-adpt-65). A discovery sets it with every
+	// device it lists; a commissioning request when it names one.
+	HasLongDiscriminator bool
+	VendorID             uint16
+	ProductID            uint16
+	DeviceType           uint32
+	DeviceName           string
+	CommissioningMode    uint8
+	PairingHint          uint32
+	PairingInstruction   string
 }
 
 // CredentialStore is the host's store of network credentials for a

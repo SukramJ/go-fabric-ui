@@ -468,10 +468,11 @@ func (h *handler) routes() (api http.Handler, patterns []string) {
 	if h.ctrl != nil {
 		handle(h.prefix+"/controller/", h.controllerRoutes())
 	}
-	// Anything else under the prefix is an API 404, not the web
+	// Anything else under the prefix is an API 405 or 404, not the web
 	// interface's index.
-	handle(h.prefix+"/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such route", r.Method+" "+r.URL.Path)
+	catchAll := h.prefix + "/"
+	handle(catchAll, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		noRoute(w, r, mux, catchAll)
 	}))
 	return mux, patterns
 }

@@ -419,7 +419,7 @@ func TestStream_FabricUpdatedCommissioningCompleteClusterEvent(t *testing.T) {
 		{Type: EventFabricUpdated, Data: FabricEvent{FabricIndex: 3, VendorID: 0xFFF1, VendorName: eligibility.VendorName(0xFFF1), Label: "Kitchen"}},
 		{Type: EventCommissioningComplete, Data: FabricEvent{FabricIndex: 3}},
 		{Type: EventClusterEvent, Data: api.EventRecord{
-			Number: 12, Priority: "info", Endpoint: 2, ClusterHex: "0x0039", EventHex: "0x0003",
+			Number: 12, NumberStr: ptr("12"), Priority: "info", Endpoint: 2, ClusterHex: "0x0039", EventHex: "0x0003",
 			Name: ptr("ReachableChanged"), EpochMs: ptr(int(ms)),
 		}},
 	}

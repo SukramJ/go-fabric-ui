@@ -475,7 +475,7 @@ func (s *source) Discover(ctx context.Context, f fabricui.DiscoverFilter, timeou
 
 func discoveredOf(d *client.Device) fabricui.Discovered {
 	out := fabricui.Discovered{
-		InstanceName: d.InstanceID, Hostname: d.Hostname, LongDiscriminator: d.D, CommissioningMode: d.CM,
+		InstanceName: d.InstanceID, Hostname: d.Hostname, LongDiscriminator: d.D, HasLongDiscriminator: true, CommissioningMode: d.CM,
 		Addresses: []string{},
 	}
 	for _, a := range d.Addresses {
@@ -567,7 +567,7 @@ func (s *source) forget(instance string) {
 func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered, passcode uint32, o fabricui.PairOptions) (fabricui.ControllerNode, error) {
 	dev, ok := s.cached(d.InstanceName)
 	if !ok {
-		if d.LongDiscriminator == 0 {
+		if !d.HasLongDiscriminator {
 			return nil, fabricui.ErrNoDevice
 		}
 		found, err := s.ctrl.Discover(ctx, discovery.ByLongDiscriminator(d.LongDiscriminator), rediscoverWindow)
@@ -758,6 +758,10 @@ func nodeError(err error) error {
 		return fmt.Errorf("%w: %w", fabricui.ErrInvalidArgument, err)
 	case errors.Is(err, context.Canceled):
 		return err
+	case errors.Is(err, client.ErrICDOperation), errors.Is(err, client.ErrDisabled), errors.Is(err, client.ErrFabricOperationInProgress):
+		// The client's own state refuses the call before the node is
+		// asked: a conflict, not the node's failure (UR-P3-adpt-91).
+		return fmt.Errorf("%w: %w", fabricui.ErrConflict, err)
 	}
 	if _, ok := errors.AsType[*client.ICDMultiAdminError](err); ok {
 		return fmt.Errorf("%w: %w", fabricui.ErrConflict, err)

@@ -94,6 +94,7 @@
           "[fd00::11]:5540",
           "192.168.1.11:5540"
         ],
+        "auto_subscribe": true,
         "commissioned_at": "2026-10-20T07:00:00Z",
         "connection": "connected",
         "disabled": false,

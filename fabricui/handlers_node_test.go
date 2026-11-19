@@ -519,20 +519,21 @@ func TestFactoryReset_OutlivesTheRequest(t *testing.T) {
 	}
 }
 
-// UR-P1-err-07, UR-P1-err-36 (the no-contract parts): a fabric read that
-// fails is logged at warn, not swallowed, on the status and the
-// compatibility report.
+// UR-P1-err-07, UR-P1-err-36: a fabric read that fails is logged, not
+// swallowed; the status leaves fabric_count out and the compatibility
+// report is 500 (contract 0.10.0).
 func TestFailedFabricReadIsLogged(t *testing.T) {
-	for _, path := range []string{"/node/status", "/node/compatibility"} {
+	for path, want := range map[string]int{"/node/status": http.StatusOK, "/node/compatibility": http.StatusInternalServerError} {
 		n := sampleNode()
 		n.fabricsErr = errors.New("store: closed")
 		var log bytes.Buffer
 		_, mux := newTestHandler(t, testOptions{node: n, log: &log})
-		if rec := do(t, mux, http.MethodGet, path, ""); rec.Code != http.StatusOK {
+		rec := do(t, mux, http.MethodGet, path, "")
+		if rec.Code != want || strings.Contains(rec.Body.String(), "fabric_count") {
 			t.Fatalf("%s: %d %s", path, rec.Code, rec.Body)
 		}
-		if !strings.Contains(log.String(), "level=WARN") || !strings.Contains(log.String(), "store: closed") {
-			t.Fatalf("%s: the failed fabric read is not logged at warn:\n%s", path, log.String())
+		if !strings.Contains(log.String(), "store: closed") {
+			t.Fatalf("%s: the failed fabric read is not logged:\n%s", path, log.String())
 		}
 	}
 }

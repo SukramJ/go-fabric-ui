@@ -5,7 +5,6 @@ package fabricui
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
 	"slices"
 	"time"
@@ -351,9 +350,10 @@ func (h *handler) compatibility(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	} else {
-		// The report then reads as if no controller were commissioned;
-		// the log says why (UR-P1-err-36).
-		h.log.WarnContext(r.Context(), "fabricui.compatibility.fabrics_failed", slog.String("error", err.Error()))
+		// A report read as if no controller were commissioned would
+		// mislead; the store's failure is 500 (0.10.0, UR-P1-err-36).
+		h.serverError(w, r, "Failed to list fabrics", err)
+		return
 	}
 	deviceTypes := map[uint16]int{}
 	for _, ep := range flattenTopology(h.node.topology()) {

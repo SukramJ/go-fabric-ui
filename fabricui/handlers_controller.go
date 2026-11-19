@@ -6,13 +6,17 @@ package fabricui
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"net/http"
+	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -94,6 +98,25 @@ var controllerAdmin = map[string]bool{
 	"GET /controller/stream":                                           true,
 }
 
+// controllerBodies are the request bodies of the controller routes by
+// method and path, as the generated decoder reads them
+// (TestControllerBodiesMatchTheContract).
+var controllerBodies = map[string]any{
+	"POST /controller/commission":                api.CommissionNodeJSONRequestBody{},
+	"PUT /controller/credentials":                api.SetCredentialJSONRequestBody{},
+	"PUT /controller/fabric/label":               api.SetFabricLabelJSONRequestBody{},
+	"PUT /controller/nodes/{id}/acl":             api.SetNodeACLJSONRequestBody{},
+	"POST /controller/nodes/{id}/attributes":     api.ReadNodeAttributesJSONRequestBody{},
+	"PUT /controller/nodes/{id}/attributes":      api.WriteNodeAttributeJSONRequestBody{},
+	"POST /controller/nodes/{id}/auto-subscribe": api.SetNodeAutoSubscribeJSONRequestBody{},
+	"PUT /controller/nodes/{id}/bindings":        api.SetNodeBindingsJSONRequestBody{},
+	"POST /controller/nodes/{id}/commands":       api.InvokeNodeCommandJSONRequestBody{},
+	"POST /controller/nodes/{id}/icd/register":   api.RegisterNodeIcdJSONRequestBody{},
+	"POST /controller/nodes/{id}/icd/unregister": api.UnregisterNodeIcdJSONRequestBody{},
+	"POST /controller/nodes/{id}/window":         api.OpenNodeWindowJSONRequestBody{},
+	"POST /controller/updates/consent":           api.ConsentUpdateJSONRequestBody{},
+}
+
 // controllerServer implements the generated strict server interface: the
 // handler bodies of the controller family, each a call of the port and a
 // mapping of its answer. Router, path and query binding, body decoding
@@ -123,8 +146,9 @@ func (h *handler) controllerRoutes() http.Handler {
 			writeProblem(w, r, http.StatusBadRequest, codeBadRequest, "Invalid request parameter", err.Error())
 		},
 	})
-	sub.HandleFunc(h.prefix+"/controller/", func(w http.ResponseWriter, r *http.Request) {
-		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such route", r.Method+" "+r.URL.Path)
+	catchAll := h.prefix + "/controller/"
+	sub.HandleFunc(catchAll, func(w http.ResponseWriter, r *http.Request) {
+		noRoute(w, r, sub, catchAll)
 	})
 	return h.controllerGate(sub)
 }
@@ -141,7 +165,21 @@ func (h *handler) controllerGate(sub *http.ServeMux) http.Handler {
 				"this route needs admin rights")
 			return
 		}
-		if r.Body != nil {
+		if body, ok := controllerBodies[route]; ok {
+			// The generated decoder admits unknown and differently cased
+			// members; the body is checked strictly first and handed on.
+			data, err := readBody(w, r)
+			if err == nil && len(bytes.TrimSpace(data)) > 0 {
+				// An empty body is the generated decoder's to judge: an
+				// optional body may be absent.
+				err = decodeStrict(data, reflect.New(reflect.TypeOf(body)).Interface())
+			}
+			if err != nil {
+				badBody(w, r, err)
+				return
+			}
+			r.Body = io.NopCloser(bytes.NewReader(data))
+		} else if r.Body != nil {
 			r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 		}
 		r = r.WithContext(context.WithValue(r.Context(), requestAdminKey{}, h.requestAdmin(r)))
@@ -242,7 +280,7 @@ func parseNodeID(field, s string) (uint64, error) {
 }
 
 func endpointOf(field string, v int) (uint16, error) {
-	if v < 0 || v > 0xFFFF {
+	if v < 0 || v > 0xFFFF || (field == "ep" && v == endpointWildcard) {
 		return 0, badRequest("%s: %d is not an endpoint number", field, v)
 	}
 	return uint16(v), nil
@@ -368,7 +406,12 @@ func (s *controllerServer) ListControllerNodes(context.Context, api.ListControll
 func nodeSummary(n ControllerNode) api.ControllerNodeSummary {
 	b, rec := n.Basic(), n.Record()
 	_, icd := n.ICD()
+	var auto *bool
+	if a, ok := n.(autoSubscriber); ok {
+		auto = ptr(a.AutoSubscribe())
+	}
 	return api.ControllerNodeSummary{
+		AutoSubscribe:      auto,
 		NodeIDHex:          hex16(n.ID()),
 		VendorID:           nonZero(b.VendorID),
 		VendorName:         optString(b.VendorName),
@@ -576,6 +619,9 @@ func (s *controllerServer) ListNodeEvents(_ context.Context, req api.ListNodeEve
 		return nil, err
 	}
 	since, limit, err := eventWindow(req.Params.Since, req.Params.Limit)
+	if err == nil {
+		since, err = eventSince(since, req.Params.SinceStr)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1081,9 +1127,11 @@ func (s *controllerServer) GetNodeBindings(ctx context.Context, req api.GetNodeB
 	}
 	for _, v := range values {
 		if v.Status != 0 {
-			// The answer holds every Binding endpoint; one the node
-			// refuses cannot be left out silently.
-			return nil, fmt.Errorf("%w: status %#x for endpoint %d's bindings", ErrNodeFailed, v.Status, v.Path.Endpoint)
+			// The answer holds every Binding endpoint: one the node
+			// refuses carries its status and no bindings (0.10.0,
+			// UR-P1-bound-37).
+			out.Endpoints = append(out.Endpoints, api.EndpointBindings{Endpoint: int(v.Path.Endpoint), Bindings: []api.BindingTarget{}, Status: ptr(int(v.Status))})
+			continue
 		}
 		if isNull(v.Value) {
 			return nil, fmt.Errorf("%w: endpoint %d's bindings read as null", ErrNodeFailed, v.Path.Endpoint)
@@ -1357,6 +1405,10 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 		return nil, badRequest("discovered needs passcode")
 	case b.Passcode != nil && (*b.Passcode < 1 || *b.Passcode > 99999998):
 		return nil, badRequest("passcode: not 1 to 99999998")
+	case b.Passcode != nil && slices.Contains(invalidPasscodes, *b.Passcode):
+		return nil, badRequest("passcode: %d is not a valid setup passcode", *b.Passcode)
+	case b.CommissioningID != nil && !commissioningIDPattern.MatchString(*b.CommissioningID):
+		return nil, badRequest("commissioning_id: not 1 to 64 of A-Z, a-z, 0-9, _ and -")
 	case b.TermsAndConditions != nil && (b.TermsAndConditions.Version < 0 || b.TermsAndConditions.Version > 0xFFFF ||
 		b.TermsAndConditions.Acknowledgements < 0 || b.TermsAndConditions.Acknowledgements > 0xFFFF):
 		return nil, badRequest("terms_and_conditions: version and acknowledgements are 0 to 65535")
@@ -1373,18 +1425,28 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 		defer cancel()
 	}
 	opts := pairOptionsOf(b)
+	// Every progress event carries the commissioning's id: the client's,
+	// or one drawn here (contract 0.10.0, UR-P1-api-18).
+	cid := newCommissioningID()
+	if b.CommissioningID != nil {
+		cid = *b.CommissioningID
+	}
+	progress := func(d controllerEventData) {
+		d.CommissioningID = &cid
+		s.h.ctrlHub.Publish(Event{Type: EventCommissioningProgress, Data: d})
+	}
 	// Each step the source reports is a started commissioning_progress
 	// with the step: a client that reads the phase alone sees "started".
 	opts.Progress = func(st PairingStep) {
-		s.h.ctrlHub.Publish(Event{Type: EventCommissioningProgress, Data: controllerEventData{Phase: ptr("started"), Step: pairingStepOf(st)}})
+		progress(controllerEventData{Phase: ptr("started"), Step: pairingStepOf(st)})
 	}
 	// The source's BLE decision is a started commissioning_progress with
 	// ble, once, before the first step (contract 0.7.1): a reason word,
 	// nothing from the request.
 	opts.Transport = func(d BLEDecision) {
-		s.h.ctrlHub.Publish(Event{Type: EventCommissioningProgress, Data: controllerEventData{Phase: ptr("started"), BLE: &bleDecision{Used: d.Used, Reason: string(d.Reason)}}})
+		progress(controllerEventData{Phase: ptr("started"), BLE: &bleDecision{Used: d.Used, Reason: string(d.Reason)}})
 	}
-	s.h.ctrlHub.Publish(Event{Type: EventCommissioningProgress, Data: controllerEventData{Phase: ptr("started")}})
+	progress(controllerEventData{Phase: ptr("started")})
 	var n ControllerNode
 	var err error
 	if hasCode {
@@ -1392,17 +1454,18 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 	} else {
 		d := Discovered{InstanceName: b.Discovered.InstanceName}
 		if b.Discovered.LongDiscriminator != nil {
-			// 0 is a valid discriminator; the port cannot yet tell it from
-			// "not sent" (UR-P1-adpt-65, the adapter's half).
+			// 0 is a valid discriminator, told from "not sent" by the flag
+			// (UR-P1-adpt-65).
 			d.LongDiscriminator = uint16(*b.Discovered.LongDiscriminator) //nolint:gosec // range-checked above
+			d.HasLongDiscriminator = true
 		}
 		n, err = s.src.CommissionDiscovered(ctx, d, uint32(*b.Passcode), opts) //nolint:gosec // bounded above
 	}
 	if err != nil {
-		s.h.ctrlHub.Publish(Event{Type: EventCommissioningProgress, Data: controllerEventData{Phase: ptr("failed"), Detail: ptr(progressDetail(err))}})
+		progress(controllerEventData{Phase: ptr("failed"), Detail: ptr(progressDetail(err))})
 		return nil, err
 	}
-	s.h.ctrlHub.Publish(Event{Type: EventCommissioningProgress, Data: controllerEventData{Phase: ptr("succeeded"), NodeIDHex: ptr(hex16(n.ID()))}})
+	progress(controllerEventData{Phase: ptr("succeeded"), NodeIDHex: ptr(hex16(n.ID()))})
 	return api.CommissionNode200JSONResponse(nodeDetail(n)), nil
 }
 
@@ -1565,8 +1628,10 @@ func (s *controllerServer) SetFabricLabel(ctx context.Context, req api.SetFabric
 	if req.Body == nil {
 		return nil, badRequest("the body {label} is required")
 	}
-	if utf8.RuneCountInString(req.Body.Label) > maxFabricLabel {
-		return nil, badRequest("label: longer than %d characters", maxFabricLabel)
+	if len(req.Body.Label) > maxFabricLabel {
+		// The node's label is 32 bytes of UTF-8 (contract 0.10.0,
+		// UR-P1-adpt-40).
+		return nil, badRequest("label: longer than %d bytes", maxFabricLabel)
 	}
 	if err := s.src.SetFabricLabel(ctx, req.Body.Label); err != nil {
 		return nil, err
@@ -1788,7 +1853,30 @@ type controllerEventData struct {
 	UpdateError   *string      `json:"update_error,omitempty"`
 	// BLE is contract 0.7.1's.
 	BLE *bleDecision `json:"ble,omitempty"`
+	// CommissioningID is contract 0.10.0's, on every commissioning_progress.
+	CommissioningID *string `json:"commissioning_id,omitempty"`
 }
+
+// invalidPasscodes are the setup passcodes a device may not use (Matter
+// Core §5.1.7.1): 11111111 … 88888888, 12345678 and 87654321; the page
+// refuses the same list (UR-P1-ui-178).
+var invalidPasscodes = []int{11111111, 22222222, 33333333, 44444444, 55555555, 66666666, 77777777, 88888888, 12345678, 87654321}
+
+// commissioningIDPattern is the contract's CommissionRequest.commissioning_id.
+var commissioningIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
+// newCommissioningID draws a commissioning's id when the request names
+// none.
+func newCommissioningID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// autoSubscriber is a ControllerNode that reports its auto-subscribe
+// setting (contract 0.10.0, ControllerNodeSummary.auto_subscribe); a
+// node without it leaves the field out.
+type autoSubscriber interface{ AutoSubscribe() bool }
 
 // bleDecision is the contract's BLEDecision.
 type bleDecision struct {
