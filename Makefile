@@ -68,6 +68,10 @@ cover: ## coverage profile of every package
 cover-check: cover ## fail when a package is below its floor (script/coverfloor)
 	$(GO) run ./script/coverfloor coverage.out
 
+pins-check: ## fail on a workflow `uses:` not pinned by a 40-hex commit SHA with a `# vX.Y.Z` comment
+	@bad=$$(grep -nE '^[[:space:]-]*uses:' .github/workflows/*.yml | grep -vE 'uses: [^@[:space:]]+@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+$$'); \
+	if [ -n "$$bad" ]; then echo "pins-check: not pinned by SHA:"; echo "$$bad"; exit 1; fi; echo "pins-check: every action is pinned by SHA"
+
 vuln: ## govulncheck ./...
 	govulncheck ./...
 
@@ -153,4 +157,4 @@ ci: build vet test lint generate-check web-check dist-check ## everything the pi
 clean: ## remove local build artefacts (never the committed bundle)
 	rm -rf coverage.out $(CHECK_DIR)
 
-.PHONY: help setup build vet test race e2e e2e-web fmt fmt-check lint tidy-check cover cover-check vuln licenses secrets web-install web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean
+.PHONY: help setup build vet test race e2e e2e-web fmt fmt-check lint tidy-check pins-check cover cover-check vuln licenses secrets web-install web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean
