@@ -80,3 +80,28 @@ describe("Controller Diagnostics", () => {
     expect(screen.getByText("Interface wlan9 not found.")).toBeInTheDocument();
   });
 });
+
+describe("UR-P4-ui-301: the peers are named when the page is the first one opened", () => {
+  it("loads the node list itself and shows a commissioned peer by its name", async () => {
+    const ui = testUI({ fixtures: [...FIXTURES, "controller-nodes.200"] });
+    render(Harness, { ui, page: Diagnostics });
+    const links = await screen.findAllByTestId("peer-link");
+    await vi.waitFor(() => expect(links[0]).toHaveTextContent("Kitchen"));
+  });
+});
+
+describe("UR-P4-ui-303: a session's peer links only to a node the controller holds", () => {
+  it("links a registered peer, and shows a PASE session's and an unknown peer's id as text", async () => {
+    const d = body<{ sessions: Record<string, unknown>[] }>("controller-diagnostics.200");
+    const s0 = d.sessions[0];
+    d.sessions = [s0, { ...s0, session_id: 300, peer_node_id_hex: "0000000000000000", is_pase: true }, { ...s0, session_id: 301, peer_node_id_hex: "00000000000000AB" }];
+    const ui = testUI({ fixtures: FIXTURES, answers: { "GET /controller/diagnostics": { status: 200, body: d } } });
+    render(Harness, { ui, page: Diagnostics });
+    const own = await screen.findByTestId("session-peer-256");
+    expect(own.tagName).toBe("A");
+    expect(own).toHaveAttribute("href", "#/controller/node/0000000000000011");
+    expect(screen.getByTestId("session-peer-300").tagName).not.toBe("A");
+    expect(screen.getByTestId("session-peer-301").tagName).not.toBe("A");
+    expect(screen.getByTestId("session-peer-301")).toHaveTextContent("0x00000000000000AB");
+  });
+});

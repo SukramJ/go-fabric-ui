@@ -70,7 +70,21 @@
     }
   }
 
-  onMount(() => void load());
+  onMount(() => {
+    void load();
+    // The peers are named from the node list, which only a stream reload
+    // or another page loaded: a page opened first loads it itself
+    // (UR-P4-ui-301). An admin's route, as this page's are.
+    if (controller.nodes.length === 0 && (controller.status === null || controller.isAdmin)) void controller.loadNodes();
+  });
+
+  // A session's peer links to its page only when the controller holds the
+  // node: a registered peer of this answer or a listed node. A PASE
+  // session (peer 0) and a peer the controller did not commission would
+  // lead to "No such node" (UR-P4-ui-303).
+  const linkable = $derived(
+    new Set([...peers.filter((p) => p.registered).map((p) => p.node_id_hex), ...controller.nodes.map((n) => n.node_id_hex)]),
+  );
 
   // The trace moved: reload in place. The first run only records the epoch.
   let seenEpoch = controller.diagnosticEpoch;
@@ -135,7 +149,11 @@
     {s.session_id}
     {#if s.is_pase}<Badge variant="muted">{t("node.diag.pase")}</Badge>{/if}
   {:else if col.key === "peer"}
-    <a class="font-mono text-[var(--fui-primary-text)] hover:underline" href={routes.controllerNode + s.peer_node_id_hex}>0x{s.peer_node_id_hex}</a>
+    {#if !s.is_pase && linkable.has(s.peer_node_id_hex)}
+      <a class="font-mono text-[var(--fui-primary-text)] hover:underline" href={routes.controllerNode + s.peer_node_id_hex} data-testid={`session-peer-${s.session_id}`}>0x{s.peer_node_id_hex}</a>
+    {:else}
+      <span class="font-mono" data-testid={`session-peer-${s.session_id}`}>0x{s.peer_node_id_hex}</span>
+    {/if}
   {:else if col.key === "transport"}
     {s.transport ? s.transport.toUpperCase() : "—"}
   {:else if col.key === "created"}
