@@ -95,7 +95,11 @@
   // erased is set from the erase's 204 until the status answers again.
   let erased = $state(false);
   let poll: ReturnType<typeof setTimeout> | null = null;
+  // A page destroyed while the poll's read is in flight schedules nothing
+  // more and resyncs nothing (UR-P4-ui-298).
+  let destroyed = false;
   onDestroy(() => {
+    destroyed = true;
     if (poll) clearTimeout(poll);
   });
 
@@ -109,9 +113,10 @@
       try {
         await client.status();
       } catch {
-        waitForNode();
+        if (!destroyed) waitForNode();
         return;
       }
+      if (destroyed) return;
       erased = false;
       // A new node: everything the page holds of the old one is read
       // again, as after a gap in the stream. The host ends the old node's

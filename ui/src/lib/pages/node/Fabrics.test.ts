@@ -247,3 +247,24 @@ describe("UR-P4-ui-61: the not-in-effect notice after a reassemble", () => {
     expect(ui.node.exposureNotInEffect).toBe(true);
   });
 });
+
+describe("UR-P4-ui-298: the erase poll ends with the page", () => {
+  it("a page destroyed while the poll's status read is in flight polls no more", async () => {
+    const ui = testUI({ fixtures: ["node-fabrics.200", "node-status.200-attestation", "node-maintenance-erase.204"] });
+    await ui.node.loadStatus();
+    const view = render(Harness, { ui, page: Fabrics });
+    await fireEvent.click(await screen.findByTestId("node-erase"));
+    expect(await screen.findByTestId("node-erased")).toBeInTheDocument();
+    let fail!: () => void;
+    let reads = 0;
+    ui.client.status = () => {
+      reads++;
+      return new Promise((_res, rej) => (fail = () => rej(new TypeError("Failed to fetch"))));
+    };
+    await waitFor(() => expect(reads).toBe(1), { timeout: 3000 });
+    view.unmount();
+    fail();
+    await new Promise((r) => setTimeout(r, 2300));
+    expect(reads).toBe(1);
+  }, 10_000);
+});
