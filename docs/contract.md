@@ -605,8 +605,11 @@ sentence, never an error's text.
 ## Versioning
 
 The Go module and the npm package share one version. A minor version adds
-paths, methods, responses, fields and optional request fields; it never
-removes or renames one and never makes an optional request field required.
+paths, methods, responses, fields and optional request fields, and may add
+a value to a response field's enum — a client tolerates a value it does
+not know, as the shipped page does (0.11.0 adds `window_kind`
+`administrator_basic`); it never removes or renames one and never makes an
+optional request field required.
 A patch may add the optional field or event field a fix needs to state
 its behaviour; it adds no route and no problem code.
 `contract/previous/openapi.yaml` is the contract of the newest release
@@ -715,7 +718,8 @@ a fabric has its own window open again after the close of a window on
 fresh credentials. `Status.window_kind`
 gains `administrator_basic`: an administrator's basic window
 (OpenBasicCommissioningWindow, on the node's own passcode), which
-go-fabric 0.22 reported as `enhanced`. The response integers
+go-fabric 0.22 reported as `enhanced` and 0.10.0 on go-fabric 0.23.0 sent
+as `administrator-basic`, outside its own enum. The response integers
 that range over 32 bits unsigned or wider are `format: int64` and
 `UpdateConsentRequest.target_software_version` is `x-go-type: int64`, so a
 generated server holds them in 64 bits on a 32-bit platform; the wire is

@@ -8,8 +8,10 @@ info:
     (default `/api/v1`). Errors are RFC 9457 problem+json (`Problem`).
 
     Versioning: a minor version adds paths, methods, response fields and
-    optional request fields; it never removes or renames one, and never
-    makes an optional request field required. `contract/previous/` holds
+    optional request fields, and may add a value to a response field's
+    enum, so a client tolerates a value it does not know (0.11.0); it
+    never removes or renames one, and never makes an optional request
+    field required. `contract/previous/` holds
     the last released copy, and a test fails on a removal.
 
     Contract 0.10.0 made three breaks on purpose: `Status.fabric_count` is

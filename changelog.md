@@ -44,7 +44,9 @@ the contract's changes for the hosts.
 - **32-bit hosts**: the contract's integers of 32-bit unsigned range or
   wider are `int64` in the generated handlers, so a uint32 at or above
   2^31 is no longer a negative number and a consent to such a version
-  decodes; the suite runs under `GOARCH=386` (`make test-386`, CI).
+  decodes; the suite runs under `GOARCH=386` (`make test-386`, CI). The
+  wire is unchanged; a Go client generated from the contract gets
+  `int64` for those fields where it had `int`.
 
 ### Added
 
@@ -52,7 +54,9 @@ the contract's changes for the hosts.
   answer; `fabricui.UpdateCheckFailures`, `fabricui.UpdateCheckFailure`.
 - `window_kind` `administrator_basic`: an administrator's basic window
   (OpenBasicCommissioningWindow), which go-fabric 0.23.0 tells from an
-  enhanced one (decision 30).
+  enhanced one (decision 30); 0.10.0 on go-fabric 0.23.0 sent it as
+  `administrator-basic`, outside its enum. A new value of a response
+  enum is additive: a client tolerates a value it does not know.
 - Web: the controller Diagnostics page exported from `./pages` as
   `ControllerDiagnosticsPage`; `NodeStore.reassemble()`; i18n keys
   `controller.updates.check_failed`, `node.pair.own_window_back`,
