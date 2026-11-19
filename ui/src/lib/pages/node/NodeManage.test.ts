@@ -27,7 +27,9 @@ describe("the configuration block", () => {
     render(Harness, { ui: testUI({ fixtures: ["node-status.200-config"] }), page: Status });
     const block = await screen.findByTestId("node-config");
     expect(screen.getByTestId("node-config-source")).toHaveTextContent('node.config.from_configuration_note:{"note":"the --bridge-* flags"}');
-    for (const text of ["Main bridge", "[::]:5540", "3840", "go-fabric (0xFFF1)", "Bridge (0x8000)", "bridge.db"]) expect(block).toHaveTextContent(text);
+    for (const text of ["Main bridge", "[::]:5540", "3840", "go-fabric (0xFFF1)", "Bridge (0x8000)"]) expect(block).toHaveTextContent(text);
+    // The fixture is a request without admin rights: no config.store (0.10.0), and no store row.
+    expect(block).not.toHaveTextContent("node.config.store");
     expect(block.textContent).not.toMatch(/passcode/i);
     // The default node is configuration: no manage card.
     expect(screen.queryByTestId("node-manage")).toBeNull();

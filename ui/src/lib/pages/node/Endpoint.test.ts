@@ -27,7 +27,8 @@ describe("Node Endpoint", () => {
     renderEndpoint(2);
     expect(await screen.findByTestId("endpoint-title")).toHaveTextContent("Kitchen lamp");
     const head = screen.getByTestId("endpoint-head");
-    expect(head).toHaveTextContent("OnOffLight r3");
+    // The device type's name as the endpoint list names it (UR-P1-ui-38).
+    expect(head).toHaveTextContent("On/Off Light r3");
     expect(head).toHaveTextContent("BridgedNode r3");
     expect(head).toHaveTextContent("node.endpoints.reachable");
     expect(head).toHaveTextContent('node.endpoint.scope:{"scope":"default"}');

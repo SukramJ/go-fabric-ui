@@ -124,14 +124,15 @@ describe("node store", () => {
     expect(ui.node.commissioning.phase).toBe("idle");
   });
 
-  it("hydrates an open window with what is left until its deadline", async () => {
+  it("hydrates an open window with what is left of it, as the node counts it (window_remaining_seconds, 0.10.0)", async () => {
     vi.setSystemTime(new Date("2026-10-25T12:02:00Z"));
     // The pairing names the window open (node-pairing.200 answers a closed one, which hydrates nothing).
     const ui = testUI({ fixtures: ["node-status.200", "node-pairing.200-window"] });
     await ui.node.hydrateCommissioning();
-    expect(ui.node.commissioning).toMatchObject({ phase: "open", remaining: 180 });
+    // The node's 300 s, not the 180 s the deadline gives on this clock (UR-P2-ui-06).
+    expect(ui.node.commissioning).toMatchObject({ phase: "open", remaining: 300 });
     await vi.advanceTimersByTimeAsync(3000);
-    expect(ui.node.commissioning.remaining).toBe(177);
+    expect(ui.node.commissioning.remaining).toBe(297);
   });
 
   it("drops a pending change that returns to the item's state", () => {
