@@ -508,3 +508,23 @@ describe("UR-P4-ui-293: the controller node page follows its tab prop", () => {
     expect(await screen.findByTestId("acl-entries", {}, { timeout: 500 })).toBeInTheDocument();
   });
 });
+
+describe("UR-P4-ui-294: the controller's fabric removal has a busy state (as UR-P1-ui-145)", () => {
+  it("does not send two removals on a double click", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const ui = renderNode(L, "fabrics", ["controller-node-fabrics.200", "controller-node-fabric-remove.204"]);
+    const calls: number[] = [];
+    ui.client.removeNodeFabric = async (_id: string, idx: number) => {
+      calls.push(idx);
+      await gate;
+    };
+    const btn = (await screen.findAllByText("common.remove"))[0];
+    await fireEvent.click(btn);
+    await fireEvent.click(btn);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(btn.closest("button")).toBeDisabled();
+    release();
+    expect(calls).toHaveLength(1);
+  });
+});
