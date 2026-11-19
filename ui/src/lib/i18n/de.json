@@ -311,6 +311,7 @@
   "controller.tab.settings": "Einstellungen",
   "controller.title": "Controller",
   "controller.updates.check": "Nach Updates suchen",
+  "controller.updates.check_failed": "Die Suche ist für diesen Knoten fehlgeschlagen: {error}",
   "controller.updates.consent": "Auf {version} aktualisieren",
   "controller.updates.consented": "Das Update ist eingereiht.",
   "controller.updates.event_done": "Ein Node läuft jetzt mit dem Update {version}.",

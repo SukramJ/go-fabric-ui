@@ -311,6 +311,7 @@
   "controller.tab.settings": "Settings",
   "controller.title": "Controller",
   "controller.updates.check": "Check for updates",
+  "controller.updates.check_failed": "The check failed for this node: {error}",
   "controller.updates.consent": "Update to {version}",
   "controller.updates.consented": "The update is queued.",
   "controller.updates.event_done": "A node runs the update {version} now.",

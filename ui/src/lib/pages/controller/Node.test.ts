@@ -379,6 +379,37 @@ describe("Controller Node — the updates tab (UR-P1-ui-167)", () => {
     expect(await screen.findByText("controller.updates.queue_unknown")).toBeInTheDocument();
     expect(screen.queryByText("controller.updates.queue_empty")).toBeNull();
   });
+
+  // Decision 70: one node's failed check no longer fails the answer; the
+  // check lists what was found and, per node, why a check failed.
+  const checked = (found: string, failed: string) => ({
+    "POST /controller/updates/check": {
+      status: 200,
+      body: {
+        updates: [{ node_id_hex: found, vendor_id: 65521, product_id: 32769, software_version: 2, software_version_string: "1.1.0" }],
+        errors: [{ node_id_hex: failed, error: "download failed" }],
+      },
+    },
+  });
+
+  it("offers the update found for this node while another node's check failed (decision 70)", async () => {
+    const ui = renderNode(L, "updates", ["controller-updates.200"], { answers: checked(L, S) });
+    await screen.findByTestId("node-updates");
+    await fireEvent.click(screen.getByText("controller.updates.check"));
+    expect(await screen.findByText('controller.updates.consent:{"version":"1.1.0"}')).toBeInTheDocument();
+    expect(screen.queryByTestId("updates-check-error")).toBeNull();
+    expect(ui.toastSpy.error).not.toHaveBeenCalled();
+  });
+
+  it("shows this node's failed check where its updates would be (decision 70)", async () => {
+    const ui = renderNode(L, "updates", ["controller-updates.200"], { answers: checked(S, L) });
+    await screen.findByTestId("node-updates");
+    await fireEvent.click(screen.getByText("controller.updates.check"));
+    expect(await screen.findByTestId("updates-check-error")).toHaveTextContent('controller.updates.check_failed:{"error":"download failed"}');
+    expect(screen.queryByText('controller.updates.consent:{"version":"1.1.0"}')).toBeNull();
+    // Not "no update available": the check did not answer for this node.
+    expect(ui.toastSpy.info).not.toHaveBeenCalled();
+  });
 });
 
 describe("Controller Node — forgetting an ICD registration (UR-P1-ui-176)", () => {
