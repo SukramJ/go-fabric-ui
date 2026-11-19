@@ -117,6 +117,13 @@ type handler struct {
 	// the Host check (hostCheck).
 	allowedHosts map[string]bool
 	allowHost    func(*http.Request) bool
+
+	// logMu guards fabricsErr and skipped, the states the status and the
+	// registry log on a change only: the last fabric read's error text,
+	// the registry entries' errors left out (UR-P4-leak-91).
+	logMu      sync.Mutex
+	fabricsErr string
+	skipped    map[string]bool
 }
 
 // streamCount is the open streams and their bound.

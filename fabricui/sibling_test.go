@@ -87,6 +87,7 @@ func TestSibling_CopiesEverySharedField(t *testing.T) {
 		// the node's own
 		"node": true, "exposure": true, "hooks": true, "hub": true, "extra": true, "config": true,
 		"done": true, "stop": true, "mu": true, "ephemeral": true, "openMu": true,
+		"logMu": true, "fabricsErr": true, "skipped": true,
 		// the default handler's alone: the controller family, the node
 		// list and the registry's cache
 		"ctrl": true, "nodes": true, "served": true, "keyed": true, "regMu": true, "regCache": true, "regGen": true,

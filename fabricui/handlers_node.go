@@ -226,12 +226,13 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	res.WindowRemaining = remainingSeconds(win, h.node.now())
-	if fabrics, err := h.node.fabrics(r.Context()); err == nil {
+	fabrics, err := h.node.fabrics(r.Context())
+	if err == nil {
 		res.FabricCount = ptr(len(fabrics))
-	} else {
-		// fabric_count is then absent; the log says why (UR-P1-err-07).
-		h.log.WarnContext(r.Context(), "fabricui.status.fabrics_failed", slog.String("error", err.Error()))
 	}
+	// fabric_count is then absent; the log says why (UR-P1-err-07), once
+	// per failure, not per request: the route is open (UR-P4-leak-91).
+	h.logFabricsState(r.Context(), err)
 	if h.exposure != nil {
 		if items, err := h.exposure.List(r.Context()); err == nil {
 			n := 0
@@ -704,4 +705,24 @@ const detachedTimeout = 2 * time.Minute
 // attributes) stay.
 func detached(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), detachedTimeout)
+}
+
+// logFabricsState logs the status's fabric read when its outcome changes:
+// a failure, a failure with another text, its end.
+func (h *handler) logFabricsState(ctx context.Context, err error) {
+	text := ""
+	if err != nil {
+		text = err.Error()
+	}
+	h.logMu.Lock()
+	last := h.fabricsErr
+	h.fabricsErr = text
+	h.logMu.Unlock()
+	switch {
+	case text == last:
+	case text != "":
+		h.log.WarnContext(ctx, "fabricui.status.fabrics_failed", slog.String("error", text))
+	default:
+		h.log.InfoContext(ctx, "fabricui.status.fabrics_recovered")
+	}
 }
