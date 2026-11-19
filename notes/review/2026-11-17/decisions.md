@@ -130,3 +130,9 @@ took every recommendation. Source: `notes/briefs/2026-11-18-review-p3-contract.m
 | 58 | OPEN-2/3: `GET /operation/log/level` and the `window_closed` event, named by no decision | **Both open**: the log level route keeps no `x-admin`; `window_closed` joins `window_opened` and `nodes_changed` on the node stream's non-admin allow-list |
 | 59 | OPEN-4: the commissioning id of UR-P1-api-18 | **Chosen by the client**: an optional `CommissionRequest.commissioning_id`, echoed on the progress events; additive |
 | 60 | OPEN-5/6: 405, the unknown-path 404, and decision 48's `Mount` variant | **At path level**: a `MethodNotAllowed` component, a line in `info.description` and a Go guard on `Allow`, not per operation; `Mount` already returns an error, so only `NewHandler(o) (http.Handler, error)` is new |
+
+## 2026-11-19, the fix wave's first measurement
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 61 | Held row UR-P0-auth-20 (decision 37): a measurement of the pinned hosts' proxy contradicts one premise of the decided shape (detail in `held/`) | **A per-request predicate beside the name list**: a new `Options` field lets a host admit a request by its own trusted signal; the check stays in every mode and on every route. Fable fixes name and signature in the held note. Held until the fix merges |
