@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 )
 
 // A request under a name of Options.AllowedHosts with an Origin of that
@@ -75,14 +76,12 @@ func TestSibling_StreamUnfilteredUnderAListedOrigin(t *testing.T) {
 }
 
 // sibling copies every field of the default node's handler but those
-// that are the node's own or the default node's alone: a field added to
-// handler fails here until sibling carries it or the list names it.
+// that are the node's own or the default node's alone. Every shared field
+// is made non-zero on the parent first — whatever the set-up left zero,
+// the token included — so a field added to handler fails here until
+// sibling carries it or the list names it (UR-P4-test-194).
 func TestSibling_CopiesEverySharedField(t *testing.T) {
-	h, _ := newTestHandler(t, testOptions{
-		admin: func(*http.Request) bool { return true }, second: secondNode(),
-		controller: NewMemoryController(), operations: sampleOperations(),
-		allowHost: func(*http.Request) bool { return false },
-	})
+	h, _ := newTestHandler(t, testOptions{second: secondNode()})
 	own := map[string]bool{
 		// the node's own
 		"node": true, "exposure": true, "hooks": true, "hub": true, "extra": true, "config": true,
@@ -92,14 +91,55 @@ func TestSibling_CopiesEverySharedField(t *testing.T) {
 		// list and the registry's cache
 		"ctrl": true, "nodes": true, "served": true, "keyed": true, "regMu": true, "regCache": true, "regGen": true,
 	}
+	candidates := []any{newMemoryRegistry(0), sampleOperations()}
 	parent := reflect.ValueOf(h).Elem()
-	child := reflect.ValueOf(h.keyed["second"]).Elem()
 	for i := range parent.NumField() {
 		name := parent.Type().Field(i).Name
-		if own[name] || parent.Field(i).IsZero() {
+		f := parent.Field(i)
+		if own[name] || !f.IsZero() {
 			continue
 		}
-		if child.Field(i).IsZero() {
+		f = reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Elem()
+		switch f.Kind() {
+		case reflect.String:
+			f.SetString("x")
+		case reflect.Bool:
+			f.SetBool(true)
+		case reflect.Int, reflect.Int64, reflect.Uint64:
+			f.Set(reflect.ValueOf(1).Convert(f.Type()))
+		case reflect.Func:
+			f.Set(reflect.MakeFunc(f.Type(), func(in []reflect.Value) []reflect.Value {
+				out := make([]reflect.Value, f.Type().NumOut())
+				for j := range out {
+					out[j] = reflect.Zero(f.Type().Out(j))
+				}
+				return out
+			}))
+		case reflect.Pointer:
+			f.Set(reflect.New(f.Type().Elem()))
+		case reflect.Map:
+			f.Set(reflect.MakeMap(f.Type()))
+		case reflect.Chan:
+			f.Set(reflect.MakeChan(reflect.ChanOf(reflect.BothDir, f.Type().Elem()), 0).Convert(f.Type()))
+		case reflect.Slice:
+			f.Set(reflect.MakeSlice(f.Type(), 1, 1))
+		case reflect.Interface:
+			for _, c := range candidates {
+				if v := reflect.ValueOf(c); v.Type().AssignableTo(f.Type()) {
+					f.Set(v)
+				}
+			}
+		default:
+			// Checked below: a kind the guard cannot fill fails.
+		}
+		if parent.Field(i).IsZero() {
+			t.Fatalf("the guard cannot fill %s (%s): give it a value here or name it in own", name, f.Type())
+		}
+	}
+	child := reflect.ValueOf(h.sibling(h.served[1])).Elem()
+	for i := range parent.NumField() {
+		name := parent.Type().Field(i).Name
+		if !own[name] && child.Field(i).IsZero() {
 			t.Errorf("sibling drops %s", name)
 		}
 	}
