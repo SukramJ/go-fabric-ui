@@ -93,8 +93,9 @@ describe("i18n catalogues", () => {
   });
   it("name every reason a commissioning gives for not using Bluetooth LE (0.7.1)", () => {
     // The contract's BLEDecision.reason enum.
-    const reasons: NonNullable<BLEDecision["reason"]>[] = ["no_central", "network_only", "code_without_ble", "no_network"];
-    const keys = reasons.map((r) => `controller.commission.ble_skipped.${r}`);
+    // A Record, not an array: a reason the contract adds fails the type check (UR-P3-test-33).
+    const reasons: Record<NonNullable<BLEDecision["reason"]>, true> = { no_central: true, network_only: true, code_without_ble: true, no_network: true };
+    const keys = Object.keys(reasons).map((r) => `controller.commission.ble_skipped.${r}`);
     expect(keys.filter((k) => !en.has(k))).toEqual([]);
   });
 });
