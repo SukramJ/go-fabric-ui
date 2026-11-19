@@ -10,3 +10,7 @@ fabricui/gofabric   84
 internal/api        0
 # The check itself, run by make cover-check rather than by a test.
 script/coverfloor   0
+# The status guard (decision 47), run by the TestMains of fabricui and
+# fabricui/gofabric; its own package has no test (measured 2026-11-19:
+# 40.9 %, its failure paths run only when a status is undeclared).
+internal/statusguard 39
