@@ -145,26 +145,49 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   let fabricsGen = 0;
   let exposureGen = 0;
 
-  async function loadStatus() {
+  // The status has three readers (loadStatus, hydrateCommissioning,
+  // openWindow). They share one count: the answer of the newest read
+  // stands, an older one arriving after it is dropped; statusLoading is
+  // true while any read is in flight, so a dropped answer cannot leave it
+  // set; and every answer that stands reopens the stream on a new token
+  // (UR-P4-conc-230).
+  let statusApplied = 0;
+  let statusReads = 0;
+
+  // Reads the status. ownsError: a failure is the store's to show (null
+  // status, the message, the 403 code); the other readers throw it to
+  // their caller and leave the status as it was.
+  async function readStatus(ownsError: boolean): Promise<Status> {
     const mine = ++statusGen;
+    statusReads++;
     statusLoading = true;
-    statusError = null;
     try {
       const s = await client.status();
-      if (mine === statusGen) {
+      if (mine > statusApplied) {
+        statusApplied = mine;
         setStatus(s);
+        statusError = null;
         statusDenied = null;
         reopenOnNewToken(s);
       }
+      return s;
     } catch (err) {
-      if (mine === statusGen) {
+      if (ownsError && mine > statusApplied) {
+        statusApplied = mine;
         status = null;
         statusError = message(err);
         statusDenied = deniedCode(err) ?? null;
       }
+      throw err;
     } finally {
-      if (mine === statusGen) statusLoading = false;
+      statusReads--;
+      statusLoading = statusReads > 0;
     }
+  }
+
+  async function loadStatus() {
+    statusError = null;
+    await readStatus(true).catch(() => undefined);
   }
 
   async function loadFabrics() {
@@ -315,14 +338,12 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     startCountdown(win.duration_seconds);
     // Read it now, so a later status is judged against it. A failed read
     // leaves the adoption to the next status.
-    const g = statusGen;
     let st: Status;
     try {
-      st = await client.status();
+      st = await readStatus(false);
     } catch {
       return;
     }
-    if (g === statusGen) setStatus(st);
     if (mine === flowGen && commissioning.phase === "open") otherWindow(st);
   }
 
@@ -361,9 +382,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     const mine = ++flowGen;
     // The status is read fresh: the pairing's answer is judged against
     // the window it names now (UR-P1-err-04, correction 2).
-    const sMine = ++statusGen;
-    const st = await client.status();
-    if (sMine === statusGen) setStatus(st);
+    const st = await readStatus(false);
     if (mine !== flowGen || commissioning.phase !== "idle") return;
     if (!st.enabled || !st.commissioning_window_open || !isAdminStatus(st)) return;
     const p = await client.pairing();
