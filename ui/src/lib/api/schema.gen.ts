@@ -2566,7 +2566,7 @@ export interface components {
             label: string;
             /** @description Offer a value filter built from the listed values. */
             filter: boolean;
-            /** @description Default false. The field is list-valued: its values are the item's lists entry for the key (or, deprecated until v0.2.0, the comma split of its fields entry when lists has no such key); shown as chips, filtered by membership, the filter's options built from the individual values. */
+            /** @description Default false. The field is list-valued: its values are the item's lists entry for the key (or, deprecated and still accepted, the comma split of its fields entry when lists has no such key); shown as chips, filtered by membership, the filter's options built from the individual values. */
             multi?: boolean;
         };
         FilterOption: {
@@ -2577,7 +2577,7 @@ export interface components {
             field: string;
             label: string;
             options: components["schemas"]["FilterOption"][];
-            /** @description Default false. Match by membership in the item's list for the field (its lists entry, or, deprecated until v0.2.0, the comma split of its fields entry, values trimmed; an empty value never matches) instead of equality. */
+            /** @description Default false. Match by membership in the item's list for the field (its lists entry, or, deprecated and still accepted, the comma split of its fields entry, values trimmed; an empty value never matches) instead of equality. */
             multi?: boolean;
         };
         ExposureSchema: {
@@ -3116,7 +3116,7 @@ export interface components {
             name?: string;
             /**
              * Format: int64
-             * @description The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only.
+             * @description The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only, or (0.12.0) a value above the int64 range.
              */
             epoch_ms?: number;
             /** @description The event's data as JSON by field name; absent without data or when it cannot be rendered. */
