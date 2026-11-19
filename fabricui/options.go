@@ -270,7 +270,12 @@ type Options struct {
 	// window with its configured passcode and discriminator
 	// (Node.OpenOwnWindow). The default opens it with
 	// fresh random credentials (node.OpenBasicWindow), which no earlier
-	// reader of the configured codes can use.
+	// reader of the configured codes can use while it is open. On a node
+	// without a fabric go-fabric reopens the node's own window on the
+	// configured codes when that window closes or expires, so after
+	// POST /node/pairing/window/close such a node has its own window open
+	// again (a second close closes it); a host that wants no window it
+	// did not open sets go-fabric's Commissioning.WindowOnDemand.
 	ConfiguredWindow bool
 	// AllowEmptyTopology lets POST /node/pairing/window open a window
 	// while the node exposes no endpoint yet. By default that is refused
