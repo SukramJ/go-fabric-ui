@@ -12,14 +12,27 @@
   const { t } = useFabricUI();
 
   // Depth first, parts under their parent, each level in number order.
+  // Every entry once (seen, by its place in the list): an entry that names
+  // itself or closes a cycle does not recurse, and one whose parent is not
+  // listed (or that only a cycle reaches) follows at the top level
+  // (UR-P4-ui-306). The parts come from the node.
   const ordered = $derived.by(() => {
     const out: { ep: NodeEndpoint; depth: number }[] = [];
-    const children = (parent: number | undefined) => detail.endpoints.filter((e) => e.parent === parent);
-    const walk = (ep: NodeEndpoint, depth: number) => {
-      out.push({ ep, depth });
-      for (const c of children(ep.endpoint)) walk(c, depth + 1);
+    const list = detail.endpoints;
+    const seen = new Set<number>();
+    const walk = (i: number, depth: number) => {
+      seen.add(i);
+      out.push({ ep: list[i], depth });
+      list.forEach((e, j) => {
+        if (!seen.has(j) && e.parent === list[i].endpoint) walk(j, depth + 1);
+      });
     };
-    for (const top of children(undefined)) walk(top, 0);
+    list.forEach((e, i) => {
+      if (!seen.has(i) && e.parent === undefined) walk(i, 0);
+    });
+    list.forEach((_e, i) => {
+      if (!seen.has(i)) walk(i, 0);
+    });
     return out;
   });
 </script>
