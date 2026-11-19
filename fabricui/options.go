@@ -297,6 +297,22 @@ type Options struct {
 	// than only the host's log. It is called on every GET /node/status;
 	// nil omits the status response's warnings.
 	Warnings func(ctx context.Context) []Warning
+	// AllowedHosts are the DNS names besides loopback names and IP
+	// addresses under which requests reach the handler; a host behind a
+	// proxy lists the name the proxy sends as Host. Every other Host is
+	// answered 403 host_not_allowed, on every route and in every mode, the
+	// web interface included. Entries are host names only — no scheme,
+	// port, path, wildcard or white space — compared case-insensitively;
+	// [NewHandler] and [Mount] refuse anything else.
+	AllowedHosts []string
+	// AllowHost admits a request whose Host is neither a loopback name, an
+	// IP address nor in AllowedHosts. A host behind a proxy that forwards
+	// the browser's Host unchanged cannot list the names; it answers here
+	// from what only its proxy can produce, such as the proxy's source
+	// address. It is asked once per request, on every route and in every
+	// mode, and must not answer from the Host header or anything else the
+	// browser chooses. Nil admits by name only.
+	AllowHost func(r *http.Request) bool
 	// MaxStreams caps the event streams this handler serves at once, every
 	// kind and node together; one more answers 503 with Retry-After. Zero
 	// is [DefaultMaxStreams]; a negative value is an error.
@@ -371,7 +387,10 @@ func NewHandler(o Options) (http.Handler, error) {
 		return nil, err
 	}
 	mux.Handle("/", spaHandler(o.FrameAncestors))
-	return mux, nil
+	// The Host check covers the bundle too, and every redirect the mux
+	// answers; the API's own check sees the admission and does not repeat
+	// it.
+	return h.hostCheck(mux), nil
 }
 
 // Handler is [NewHandler] for options known to be valid: any invalid

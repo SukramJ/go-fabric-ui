@@ -137,7 +137,7 @@ func TestNodeEntries(t *testing.T) {
 	}
 	// Node first under the default key, then Nodes in their order; a
 	// node without a source is listed as not enabled.
-	h, err := newHandler(Options{Node: stubSource{}, Nodes: []NodeEntry{{Key: "b", Label: "B", Kind: "device"}, {Key: "a"}}})
+	h, err := newHandler(Options{AllowedHosts: []string{"example.com"}, Node: stubSource{}, Nodes: []NodeEntry{{Key: "b", Label: "B", Kind: "device"}, {Key: "a"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestNodeEntries(t *testing.T) {
 		t.Fatalf("got %s", rec.Body)
 	}
 	// Without Node the first of Nodes is the default.
-	h, err = newHandler(Options{Nodes: []NodeEntry{{Key: "x", Source: stubSource{}}}})
+	h, err = newHandler(Options{AllowedHosts: []string{"example.com"}, Nodes: []NodeEntry{{Key: "x", Source: stubSource{}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

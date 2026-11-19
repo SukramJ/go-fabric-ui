@@ -272,7 +272,7 @@ func TestNodeObservers_AReplacedWindowIsWindowOpened(t *testing.T) {
 
 func TestMount_RegistersTheRoutesAndRefusesABadPrefix(t *testing.T) {
 	mux := http.NewServeMux()
-	if err := Mount(mux, Options{Prefix: "/ui-api"}); err != nil {
+	if err := Mount(mux, Options{AllowedHosts: []string{"example.com"}, Prefix: "/ui-api"}); err != nil {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()

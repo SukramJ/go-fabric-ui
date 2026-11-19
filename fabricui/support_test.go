@@ -788,6 +788,9 @@ type testOptions struct {
 	// (contract 0.6.0).
 	registry   NodeRegistry
 	nodeConfig *NodeConfigView
+	// allowHost is Options.AllowHost; every test handler lists
+	// httptest's default Host, example.com, in Options.AllowedHosts.
+	allowHost func(*http.Request) bool
 }
 
 // newTestHandler builds a handler on the fake node and returns it with its
@@ -808,6 +811,7 @@ func newTestHandler(t *testing.T, o testOptions) (*handler, *http.ServeMux) {
 		Exposure: o.exposure, Admin: o.admin, Reassemble: o.reassemble, Erase: o.erase, Events: o.events,
 		Logger: logger, ConfiguredWindow: o.configured, AllowEmptyTopology: o.allowEmpty,
 		Warnings: o.warnings, Counters: o.counters, Controller: o.controller, Operations: o.operations, ExposureReason: o.exposureReason,
+		AllowedHosts: []string{"example.com"}, AllowHost: o.allowHost,
 	})
 	if err != nil {
 		t.Fatal(err)

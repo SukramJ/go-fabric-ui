@@ -27,6 +27,9 @@ const (
 	codeMethodNotAllowed = "method_not_allowed"
 	// codeTooManyStreams is 503 at Options.MaxStreams (contract 0.10.0).
 	codeTooManyStreams = "too_many_streams"
+	// codeHostNotAllowed is 403 for a Host the handler does not serve
+	// (contract 0.10.0).
+	codeHostNotAllowed = "host_not_allowed"
 )
 
 // problemTypeBase is the base of every problem's type URI: the contract

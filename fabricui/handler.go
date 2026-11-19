@@ -103,6 +103,11 @@ type handler struct {
 	// Options.Done.
 	streams  *streamCount
 	hostDone <-chan struct{}
+
+	// allowedHosts and allowHost are Options.AllowedHosts and AllowHost:
+	// the Host check (hostCheck).
+	allowedHosts map[string]bool
+	allowHost    func(*http.Request) bool
 }
 
 // streamCount is the open streams and their bound.
@@ -241,6 +246,10 @@ func newHandler(o Options) (*handler, error) {
 	if err := validFrameAncestors(o.FrameAncestors); err != nil {
 		return nil, err
 	}
+	allowed, err := allowedHostSet(o.AllowedHosts)
+	if err != nil {
+		return nil, err
+	}
 	maxStreams := o.MaxStreams
 	switch {
 	case maxStreams < 0:
@@ -296,6 +305,8 @@ func newHandler(o Options) (*handler, error) {
 		fresh:          node.NewWindowCredentials,
 		streams:        &streamCount{max: int64(maxStreams)},
 		hostDone:       o.Done,
+		allowedHosts:   allowed,
+		allowHost:      o.AllowHost,
 	}
 	h.hooks.Store(&nodeHooks{reassemble: o.Reassemble, erase: o.Erase})
 	if h.log == nil {
@@ -402,7 +413,7 @@ func (h *handler) mount(mux *http.ServeMux) (err error) {
 			return fmt.Errorf("fabricui: mount: the mux already serves %q for the API route %q; nothing was registered", q, p)
 		}
 	}
-	mux.Handle(h.prefix+"/", apiHeaders(api))
+	mux.Handle(h.prefix+"/", apiHeaders(h.hostCheck(api)))
 	return nil
 }
 

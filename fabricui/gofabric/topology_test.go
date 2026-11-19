@@ -96,7 +96,7 @@ func TestNetworkTopologyOf_IsTheFixture(t *testing.T) {
 	m := fabricui.NewMemoryController()
 	m.Topology = &got
 	rec := httptest.NewRecorder()
-	fabricui.Handler(fabricui.Options{Controller: m, Admin: func(*http.Request) bool { return true }}).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, fabricui.DefaultPrefix+"/controller/topology", http.NoBody))
+	fabricui.Handler(fabricui.Options{AllowedHosts: []string{"example.com"}, Controller: m, Admin: func(*http.Request) bool { return true }}).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, fabricui.DefaultPrefix+"/controller/topology", http.NoBody))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d %s", rec.Code, rec.Body)
 	}

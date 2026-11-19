@@ -400,7 +400,8 @@ func TestNodes_EntryServesItsOwnSelection(t *testing.T) {
 	rebuilt := 0
 	ev := NewEvents()
 	h, err := newHandler(Options{
-		Node: portSource{fakeNode: sampleNode()},
+		AllowedHosts: []string{"example.com"},
+		Node:         portSource{fakeNode: sampleNode()},
 		Nodes: []NodeEntry{{
 			Key: "second", Source: portSource{fakeNode: secondNode()}, Exposure: newMemoryProvider(),
 			Reassemble: func(context.Context) error { rebuilt++; return nil }, Events: ev,
@@ -432,7 +433,7 @@ func TestNodes_EntryServesItsOwnSelection(t *testing.T) {
 	}
 	// The default out of Options.Nodes serves its entry's selection when
 	// the Options-level one is nil.
-	h, err = newHandler(Options{Nodes: []NodeEntry{{Key: "x", Source: stubSource{}, Exposure: newMemoryProvider()}}})
+	h, err = newHandler(Options{AllowedHosts: []string{"example.com"}, Nodes: []NodeEntry{{Key: "x", Source: stubSource{}, Exposure: newMemoryProvider()}}})
 	if err != nil {
 		t.Fatal(err)
 	}

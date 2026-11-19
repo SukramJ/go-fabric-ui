@@ -460,7 +460,7 @@ func TestErase_PerNode(t *testing.T) {
 		return func(context.Context) error { got = append(got, key); return nil }
 	}
 	first, second := sampleNode(), secondNode()
-	h, err := newHandler(Options{Nodes: []NodeEntry{
+	h, err := newHandler(Options{AllowedHosts: []string{"example.com"}, Nodes: []NodeEntry{
 		{Key: "first", Source: portSource{fakeNode: first}, Erase: eraser("first")},
 		{Key: "second", Source: portSource{fakeNode: second}, Erase: eraser("second")},
 		{Key: "third", Source: portSource{fakeNode: sampleNode()}},

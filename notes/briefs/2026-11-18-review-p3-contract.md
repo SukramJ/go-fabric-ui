@@ -7,7 +7,7 @@ Tree: `review/p3` at `5272f7c`. Baseline `contract/previous/openapi.yaml`
 rows 13, 15, 19–56. Held rows (UR-P0-auth-20, UR-P0-web-21, UR-P1-adpt-60)
 appear here by ID only; their shapes are in
 `notes/review/2026-11-17/held/phase-3-contract-held.md` under the labels
-**H-a … H-d** used below. Rows marked **OPEN-n** rest on a recommendation
+**H-a … H-e** used below. Rows marked **OPEN-n** rest on a recommendation
 (last section) until the owner confirms.
 
 ## 1. Per operation — `x-admin`
@@ -195,7 +195,7 @@ discriminator (UR-P1-adpt-65); one device type naming function
 | --- | --- | --- | --- |
 | `MaxStreams` | `int` | 0 = `DefaultMaxStreams` (64); negative is an error | "MaxStreams caps the event streams this handler serves at once, every kind and node together; one more answers 503 with Retry-After." |
 | `Done` | `<-chan struct{}` | nil | "Done, when closed, ends every open stream and removes its observers; a host closes it from its server's shutdown hook." |
-| **H-c** | see held/ | see held/ | held row UR-P0-auth-20 |
+| **H-c**, **H-e** | see held/ | see held/ | held row UR-P0-auth-20 (decisions 37, 61): two fields |
 
 - `func NewHandler(o Options) (http.Handler, error)` — new; `Handler`
   calls it and panics on the error (stays, documented).
