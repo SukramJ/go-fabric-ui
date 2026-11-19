@@ -769,8 +769,14 @@ func (s *source) Observe(fn func(fabricui.ControllerEvent)) (unsubscribe func())
 
 // nodeError maps an interaction's error to the port's kinds: a value
 // that does not fit its type is an invalid argument, an ICD refusal over
-// other administrators a conflict, anything else the node's failure.
+// other administrators its own conflict (fabricui.ErrICDMultiAdmin), the
+// client's other refusals a conflict, anything else the node's failure.
 func nodeError(err error) error {
+	if _, ok := errors.AsType[*client.ICDMultiAdminError](err); ok {
+		// Before ErrICDOperation, which go-fabric's error also matches
+		// (decision 76).
+		return fmt.Errorf("%w: %w", fabricui.ErrICDMultiAdmin, err)
+	}
 	switch {
 	case err == nil:
 		return nil
@@ -784,9 +790,6 @@ func nodeError(err error) error {
 	case errors.Is(err, client.ErrICDOperation), errors.Is(err, client.ErrDisabled), errors.Is(err, client.ErrFabricOperationInProgress):
 		// The client's own state refuses the call before the node is
 		// asked: a conflict, not the node's failure (UR-P3-adpt-91).
-		return fmt.Errorf("%w: %w", fabricui.ErrConflict, err)
-	}
-	if _, ok := errors.AsType[*client.ICDMultiAdminError](err); ok {
 		return fmt.Errorf("%w: %w", fabricui.ErrConflict, err)
 	}
 	return fmt.Errorf("%w: %w", fabricui.ErrNodeFailed, err)

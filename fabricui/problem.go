@@ -23,6 +23,8 @@ const (
 	codeNodeError      = "node_error"
 	codeNotImplemented = "not_implemented"
 	codeTermsRequired  = "terms_required"
+	// codeICDMultiAdmin is 409 on the ICD registration (contract 0.12.0).
+	codeICDMultiAdmin = "icd_multi_admin"
 	// codeMethodNotAllowed is 405 (contract 0.10.0, MethodNotAllowed).
 	codeMethodNotAllowed = "method_not_allowed"
 	// codeTooManyStreams is 503 at Options.MaxStreams (contract 0.10.0).

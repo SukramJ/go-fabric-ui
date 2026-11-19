@@ -30,7 +30,7 @@ func TestNodeError_MapsTheKinds(t *testing.T) {
 		// Refused before sending: the request's error (UR-P2-err-37).
 		{"request too large", fmt.Errorf("write: %w", client.ErrRequestTooLarge), fabricui.ErrInvalidArgument},
 		{"malformed request", fmt.Errorf("write: %w", client.ErrMalformedRequest), fabricui.ErrInvalidArgument},
-		{"icd multi-admin", fmt.Errorf("register: %w", multiAdmin), fabricui.ErrConflict},
+		{"icd multi-admin", fmt.Errorf("register: %w", multiAdmin), fabricui.ErrICDMultiAdmin},
 		{"icd refused by the client", fmt.Errorf("register: %w", client.ErrICDOperation), fabricui.ErrConflict},
 		{"node disabled", fmt.Errorf("read: %w", client.ErrDisabled), fabricui.ErrConflict},
 		{"fabric operation in progress", fmt.Errorf("remove: %w", client.ErrFabricOperationInProgress), fabricui.ErrConflict},
@@ -41,8 +41,8 @@ func TestNodeError_MapsTheKinds(t *testing.T) {
 		if !errors.Is(got, c.want) || !errors.Is(got, c.in) {
 			t.Errorf("%s: %v, want %v wrapping %v", c.name, got, c.want, c.in)
 		}
-		for _, other := range []error{fabricui.ErrInvalidArgument, fabricui.ErrConflict, fabricui.ErrNodeFailed} {
-			if !errors.Is(other, c.want) && errors.Is(got, other) {
+		for _, other := range []error{fabricui.ErrInvalidArgument, fabricui.ErrConflict, fabricui.ErrICDMultiAdmin, fabricui.ErrNodeFailed} {
+			if !errors.Is(c.want, other) && errors.Is(got, other) {
 				t.Errorf("%s: %v is also %v", c.name, got, other)
 			}
 		}

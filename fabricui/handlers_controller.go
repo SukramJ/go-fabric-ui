@@ -231,6 +231,9 @@ func (h *handler) controllerError(w http.ResponseWriter, r *http.Request, err er
 		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such credential", err.Error())
 	case errors.Is(err, ErrInvalidArgument), errors.Is(err, ErrInvalidCredential):
 		writeProblem(w, r, http.StatusBadRequest, codeBadRequest, "Invalid request", err.Error())
+	case errors.Is(err, ErrICDMultiAdmin):
+		// Before ErrConflict, which it wraps (decision 76).
+		writeProblem(w, r, http.StatusConflict, codeICDMultiAdmin, "Other administrators may not support LIT", err.Error())
 	case errors.Is(err, ErrConflict):
 		writeProblem(w, r, http.StatusConflict, codeConflict, "Refused by the node", err.Error())
 	case errors.Is(err, ErrNotImplemented):

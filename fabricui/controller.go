@@ -279,6 +279,9 @@ type ControllerNode interface {
 	// ICD is the node's ICD state; false for a node without ICD
 	// Management.
 	ICD() (ICDState, bool)
+	// RegisterICD registers this controller as the node's check-in
+	// client; without allowMultiAdmin a node whose other administrators'
+	// vendors may not support LIT is [ErrICDMultiAdmin].
 	RegisterICD(ctx context.Context, allowMultiAdmin bool) error
 	UnregisterICD(ctx context.Context, force bool) error
 }
@@ -928,9 +931,14 @@ var (
 	ErrInvalidArgument = errors.New("fabricui: invalid argument")
 	// ErrNoDevice: no device answered a commissioning's discovery (404).
 	ErrNoDevice = errors.New("fabricui: no device answered")
-	// ErrConflict: the node refuses the action in its state (409), an
-	// ICD registration other administrators' vendors may not support.
+	// ErrConflict: the node or the controller's client refuses the action
+	// in its state (409, problem conflict).
 	ErrConflict = errors.New("fabricui: conflict")
+	// ErrICDMultiAdmin: an ICD registration without allowMultiAdmin on a
+	// node whose other administrators' vendors may not support LIT (409,
+	// problem icd_multi_admin, contract 0.12.0). It wraps [ErrConflict],
+	// so errors.Is(err, ErrConflict) holds for it too.
+	ErrICDMultiAdmin = fmt.Errorf("%w: other administrators' vendors may not support LIT", ErrConflict)
 	// ErrNodeFailed: the interaction with the node failed (502); its
 	// text is the problem's detail.
 	ErrNodeFailed = errors.New("fabricui: the node failed")
