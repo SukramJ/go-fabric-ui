@@ -85,6 +85,25 @@ describe("UR-P1-err-108: a rotated token", () => {
   });
 });
 
+describe("UR-P4-err-231: the token reload when the status routes are refused as well", () => {
+  it("a call refused 403 forbidden settles when the status is refused 403 forbidden too", async () => {
+    // Something in front of the handler (a host's own gate, a proxy)
+    // answers every route with the contract's 403 problem.
+    const client = createClient("/api/v1", async () =>
+      new Response(JSON.stringify({ code: "forbidden", title: "Admin rights required", status: 403, type: "x" }), { status: 403 }),
+    );
+    client.setToken("t1");
+    const settled = await Promise.race([
+      client.fabrics().then(
+        () => "resolved",
+        (e: unknown) => (e instanceof ApiError ? `ApiError ${e.status}` : String(e)),
+      ),
+      new Promise<string>((r) => setTimeout(() => r("never settled"), 500)),
+    ]);
+    expect(settled).toBe("ApiError 403");
+  });
+});
+
 describe("UR-P1-web-115: keys and ids are checked where the library takes them", () => {
   it("refuses a node key outside the contract's pattern", () => {
     const client = createClient("/api/v1", async () => new Response(null, { status: 204 }));

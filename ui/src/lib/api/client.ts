@@ -507,10 +507,12 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
   function refreshToken(stale: string): Promise<boolean> {
     refreshing ??= (async () => {
       // The token is the process's: the default node's status carries it,
-      // or the controller's on a host without the node family.
+      // or the controller's on a host without the node family. Its reads
+      // are not repeated themselves: refused 403 forbidden as well, they
+      // would wait on this very reload (UR-P4-err-231).
       for (const p of ["/node/status", "/controller/status"]) {
         try {
-          const s = await call<{ csrf_token?: string }>("GET", p);
+          const s = await call<{ csrf_token?: string }>("GET", p, { retried: true });
           if (s.csrf_token) auth.token = s.csrf_token;
           break;
         } catch {
