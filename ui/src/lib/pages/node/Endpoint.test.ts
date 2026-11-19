@@ -27,7 +27,8 @@ describe("Node Endpoint", () => {
     renderEndpoint(2);
     expect(await screen.findByTestId("endpoint-title")).toHaveTextContent("Kitchen lamp");
     const head = screen.getByTestId("endpoint-head");
-    expect(head).toHaveTextContent("OnOffLight r3");
+    // The device type's name as the endpoint list names it (UR-P1-ui-38).
+    expect(head).toHaveTextContent("On/Off Light r3");
     expect(head).toHaveTextContent("BridgedNode r3");
     expect(head).toHaveTextContent("node.endpoints.reachable");
     expect(head).toHaveTextContent('node.endpoint.scope:{"scope":"default"}');
@@ -82,7 +83,7 @@ describe("Node Endpoint", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const ui = renderEndpoint(2, {
       answers: {
-        "GET /node/endpoints/2/events?since=10": {
+        "GET /node/endpoints/2/events?since_str=10": {
           status: 200,
           body: { events: [{ number: 12, priority: "critical", endpoint: 2, cluster_hex: "0x0039", event_hex: "0x0003", name: "ReachableChanged" }] },
         },
@@ -99,7 +100,7 @@ describe("Node Endpoint", () => {
     await waitFor(() => expect(detailReads()).toBe(2));
     expect(await screen.findByTestId("event-12")).toBeInTheDocument();
     expect(screen.getByTestId("event-7")).toBeInTheDocument();
-    expect(ui.sent.map((s) => s.path)).toContain("/api/v1/node/endpoints/2/events?since=10");
+    expect(ui.sent.map((s) => s.path)).toContain("/api/v1/node/endpoints/2/events?since_str=10");
   });
 
   it("shows the reason an endpoint has no tags", async () => {

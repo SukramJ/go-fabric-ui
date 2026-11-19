@@ -10,7 +10,8 @@
 // Usage: go run ./script/coverfloor FILE
 //
 // The floors are a ratchet: raise one in the commit that raises the
-// coverage, never lower one without a reason in that commit.
+// coverage, never lower one without a reason in that commit. A package of
+// the profile without a line fails the check.
 package main
 
 import (
@@ -62,8 +63,15 @@ func main() {
 	for _, p := range pkgs {
 		pct := 100 * float64(covered[p]) / float64(max(total[p], 1))
 		floor, ok := floors[p]
+		if !ok {
+			// A package without a line never fails silently: every package
+			// of the profile is listed, with an explicit 0 where it has none.
+			fmt.Printf("✗ %-28s %6.1f%%  has no line in floors.txt\n", p, pct)
+			failed = true
+			continue
+		}
 		mark := "  "
-		if ok && pct+1e-9 < floor {
+		if pct+1e-9 < floor {
 			mark, failed = "✗ ", true
 		}
 		fmt.Printf("%s%-28s %6.1f%%  floor %5.1f%%\n", mark, p, pct, floor)

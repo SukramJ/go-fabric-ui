@@ -12,11 +12,13 @@
   import Card from "../../kit/Card.svelte";
   import { ECOSYSTEM_HINTS } from "./ecosystems";
 
-  const { t, client } = useFabricUI();
+  const { t, client, node } = useFabricUI();
 
   let compat = $state<Compatibility | null>(null);
 
   onMount(async () => {
+    // The compatibility is an admin's (0.10.0): without admin rights the hints show alone.
+    if (node.status !== null && !node.isAdmin) return;
     try {
       compat = await client.compatibility();
     } catch {

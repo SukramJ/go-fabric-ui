@@ -9,6 +9,7 @@
      ends the node and the host brings a new one or restarts; the page
      then reads everything again, as after a gap in its stream. -->
 <script lang="ts">
+  import DeniedState from "../../kit/DeniedState.svelte";
   import { onDestroy, onMount } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
@@ -121,7 +122,7 @@
 
   async function erase() {
     const name = nodeLabel();
-    const count = node.status?.fabric_count ?? 0;
+    const count = node.status?.fabric_count ?? node.fabrics.length;
     const first = await confirm({
       title: t("node.maint.erase_confirm", { label: name }),
       body: t("node.maint.erase_confirm_body", { label: name, count }),
@@ -189,6 +190,10 @@
   ]);
 </script>
 
+<!-- Without admin rights the routes of this page are refused (0.10.0): a notice, not an error. -->
+{#if node.status !== null && !node.isAdmin}
+  <DeniedState />
+{:else}
 <div class="space-y-6">
   {#if node.fabricsLoading && node.fabrics.length === 0}
     <LoadingState message={t("common.loading")} />
@@ -262,3 +267,4 @@
     </a>
   </div>
 </div>
+{/if}

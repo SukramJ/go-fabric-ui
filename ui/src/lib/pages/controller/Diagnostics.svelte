@@ -9,6 +9,7 @@
      diagnostic epoch). A source that serves no diagnostics
      (capabilities.diagnostics false, the routes 501) shows an empty state. -->
 <script lang="ts">
+  import DeniedState from "../../kit/DeniedState.svelte";
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
@@ -125,6 +126,10 @@
         : "bg-[var(--ha-secondary-background-color)] text-[var(--ha-secondary-text-color)]";
 </script>
 
+<!-- Without admin rights the routes of this page are refused (0.10.0): a notice, not an error. -->
+{#if controller.status !== null && !controller.isAdmin}
+  <DeniedState />
+{:else}
 {#snippet sessionCell(s: Session, col: DataColumn<Session>)}
   {#if col.key === "session_id"}
     {s.session_id}
@@ -264,3 +269,4 @@
     </Card>
   {/if}
 </div>
+{/if}

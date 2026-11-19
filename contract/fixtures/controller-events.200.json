@@ -2,7 +2,10 @@
   "route": "GET /controller/events",
   "request": {
     "method": "GET",
-    "path": "/controller/events"
+    "path": "/controller/events",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,

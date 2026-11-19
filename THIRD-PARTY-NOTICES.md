@@ -8,7 +8,10 @@ listed here with its licence.
 The committed bundle `fabricui/dist/` (and so every binary that embeds the
 Go module) carries these packages, compiled into its `vendor` chunk — except
 `jsqr`, the QR decoder, which is compiled into the `scan` chunk the
-commissioning page loads on its first camera scan. The list is checked in
+commissioning page loads on its first camera scan — and `tailwindcss`,
+whose generated layers (theme, the preflight base styles derived from
+modern-normalize, MIT, and the utilities) are in the bundle's stylesheet.
+The JavaScript packages are checked in
 CI against the chunks themselves (`make notices-check`:
 the build writes the chunk's package list and `ui/scripts/check-notices.mjs`
 fails on a package missing here or without its licence text). The full
@@ -23,12 +26,13 @@ licence texts are under `licenses/npm/`.
 | `qrcode` | 1.5.4 | MIT | [`licenses/npm/qrcode.txt`](./licenses/npm/qrcode.txt) |
 | `svelte` | 5.57.3 | MIT | [`licenses/npm/svelte.txt`](./licenses/npm/svelte.txt) |
 | `tailwind-merge` | 3.7.0 | MIT | [`licenses/npm/tailwind-merge.txt`](./licenses/npm/tailwind-merge.txt) |
+| `tailwindcss` | 4.3.5 | MIT | [`licenses/npm/tailwindcss.txt`](./licenses/npm/tailwindcss.txt) |
 
 The npm package `@sukramj/fabric-ui` itself ships sources, not this bundle;
 its runtime dependencies (`@lucide/svelte`, `clsx`, `jsqr`, `qrcode`,
 `tailwind-merge`; `svelte` is a peer dependency) are installed by the
-consumer's package manager with their own licence files. Build-time
-tools (Vite, Tailwind CSS, TypeScript, the test stack) are not shipped.
+consumer's package manager with their own licence files. The other
+build-time tools (Vite, TypeScript, the test stack) are not shipped.
 
 ## Go modules
 
@@ -37,7 +41,7 @@ and on oapi-codegen's runtime, which the generated controller handlers
 (`internal/api`) bind parameters with (brief U2, decision 0.1).
 They are fetched by the Go toolchain from their own repositories with
 their own licence files; none is vendored here. `make licenses` (go-licenses)
-fails on a forbidden, restricted or reciprocal licence.
+fails on a forbidden, restricted, reciprocal or unclassified licence.
 
 | Module | Licence |
 | --- | --- |
@@ -45,10 +49,8 @@ fails on a forbidden, restricted or reciprocal licence.
 | `github.com/oapi-codegen/runtime` | Apache-2.0 |
 | `github.com/apapsch/go-jsonmerge/v2` (through the runtime) | MIT |
 | `filippo.io/nistec` | BSD-3-Clause |
-| `github.com/cenkalti/backoff` | MIT |
 | `github.com/dustin/go-humanize` | MIT |
 | `github.com/google/uuid` | BSD-3-Clause |
-| `github.com/grandcat/zeroconf` | MIT |
 | `github.com/mattn/go-isatty` | MIT |
 | `github.com/miekg/dns` | BSD-3-Clause |
 | `github.com/ncruces/go-strftime` | MIT |
@@ -61,8 +63,10 @@ fails on a forbidden, restricted or reciprocal licence.
 | `modernc.org/sqlite` | BSD-3-Clause |
 
 The generator `github.com/oapi-codegen/oapi-codegen/v2` (Apache-2.0) is a
-pinned `tool` of `go.mod` (`make generate`); it writes `internal/api` and
-is not linked into the module's packages.
+pinned `tool` of `tools/go.mod`, a module of its own (`make generate`); it
+writes `internal/api`, is not linked into the module's packages, and its
+requirements are not in the root `go.mod`, so they do not reach a
+consumer's module graph.
 
 ## Ported source
 

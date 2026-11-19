@@ -657,7 +657,7 @@ func (w *node) Invoke(ctx context.Context, p fabricui.CommandPath, payload json.
 }
 
 // OpenCommissioningWindow opens an enhanced window — client.Node.OpenCommissioningWindow,
-// as go-fabric-server's open_commissioning_window (controllerapi/cmd_node.go:303-334).
+// as go-fabric-server's open_commissioning_window (controllerapi/cmd_node.go:303-334 at v0.3.2).
 func (w *node) OpenCommissioningWindow(ctx context.Context, timeout time.Duration) (fabricui.WindowInfo, error) {
 	cw, err := w.n.OpenCommissioningWindow(ctx, timeout, client.WindowOptions{})
 	if err != nil {
@@ -675,7 +675,7 @@ func (w *node) RevokeCommissioningWindow(ctx context.Context) error {
 }
 
 // Interview reads the whole node again without data version filters —
-// go-fabric-server's interview_node (controllerapi/cmd_node.go:99-124).
+// go-fabric-server's interview_node (controllerapi/cmd_node.go:99-124 at v0.3.2).
 func (w *node) Interview(ctx context.Context) error {
 	req := client.ReadRequest{IncludeKnownVersions: true}
 	req.Attributes = []client.AttributePath{{}}
@@ -687,7 +687,7 @@ func (w *node) Interview(ctx context.Context) error {
 }
 
 // pingTimeout bounds a ping, as go-fabric-server's ping_node bounds each
-// attempt (controllerapi/cmd_node.go:187): the session read of the
+// attempt (controllerapi/cmd_node.go:192 at e8bcd86): the session read of the
 // fallback, or the whole round of per-address probes.
 const pingTimeout = 10 * time.Second
 
@@ -784,7 +784,7 @@ func (w *node) pingSession(ctx context.Context) (fabricui.PingResult, error) {
 	_, err := w.n.Read(ctx, req)
 	rtt := time.Since(start)
 	// An answer is reachable, a status in place of the value included, as
-	// ping_node counts it (cmd_node.go:190-193: err == nil).
+	// ping_node counts it (cmd_node.go:193-195 at e8bcd86: err == nil).
 	res := fabricui.PingResult{Addresses: []fabricui.PingAddress{}}
 	if err != nil {
 		res.Error = err.Error()
@@ -807,6 +807,10 @@ func (w *node) Disable(ctx context.Context) error { return nodeError(w.n.Disable
 func (w *node) SetAutoSubscribe(ctx context.Context, on bool) error {
 	return nodeError(w.n.SetAutoSubscribe(ctx, on))
 }
+
+// AutoSubscribe is the node's auto-subscribe setting (client.Node.
+// AutoSubscribe), not the live subscription.
+func (w *node) AutoSubscribe() bool { return w.n.AutoSubscribe() }
 
 // ICD is the node's ICD state — go-fabric-server's get_icd_state
 // (controllerapi/cmd_icd.go:47-74 at v0.3.2): a node without ICD
@@ -839,7 +843,7 @@ func (w *node) ICD() (fabricui.ICDState, bool) {
 
 // RegisterICD registers us as the node's check-in client
 // (client.ICDClient.Register; go-fabric-server's register_icd,
-// controllerapi/cmd_icd.go:121-150).
+// controllerapi/cmd_icd.go:121-150 at v0.3.2).
 func (w *node) RegisterICD(ctx context.Context, allowMultiAdmin bool) error {
 	c := w.n.ICD()
 	if c == nil {
@@ -850,7 +854,7 @@ func (w *node) RegisterICD(ctx context.Context, allowMultiAdmin bool) error {
 
 // UnregisterICD unregisters us, or with force forgets the registration
 // without the node (client.ICDClient.Unregister / Forget; unregister_icd,
-// controllerapi/cmd_icd.go:153-180).
+// controllerapi/cmd_icd.go:153-180 at v0.3.2).
 func (w *node) UnregisterICD(ctx context.Context, force bool) error {
 	c := w.n.ICD()
 	if c == nil {

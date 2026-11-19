@@ -1,6 +1,8 @@
 <!-- The binding targets of every endpoint with a Binding cluster: add a
      unicast (node and endpoint) or group target, remove one, write the
-     endpoint's list back. -->
+     endpoint's list back. An endpoint whose read the node refused carries
+     the node's status (0.10.0): the page says so and offers no write, as
+     a write replaces a list it could not read. -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../../context";
@@ -101,7 +103,9 @@
     {#each lists as eb, n (n)}
       <Card class="p-4" data-testid={`bindings-${eb.endpoint}`}>
         <h3 class="mb-2 font-medium text-[var(--ha-primary-text-color)]">{t("controller.endpoints.endpoint", { number: eb.endpoint })}</h3>
-        {#if eb.bindings.length === 0}
+        {#if eb.status !== undefined}
+          <p class="text-sm text-[var(--fui-error-text)]" data-testid={`bindings-status-${eb.endpoint}`}>{t("controller.bindings.read_status", { status: hexId(eb.status) })}</p>
+        {:else if eb.bindings.length === 0}
           <p class="text-sm text-[var(--ha-secondary-text-color)]">{t("controller.bindings.empty")}</p>
         {:else}
           <ul class="space-y-1">
@@ -113,12 +117,14 @@
             {/each}
           </ul>
         {/if}
+        {#if eb.status === undefined}
         <div class="mt-3 flex flex-wrap items-center gap-2">
           <Input class="w-56 font-mono" placeholder={t("controller.bindings.target")} aria-label={t("controller.bindings.target")} value={drafts[eb.endpoint]?.target ?? ""} oninput={(e) => draft(eb.endpoint, "target", (e.currentTarget as HTMLInputElement).value)} />
           <Input class="w-24" placeholder={t("controller.bindings.endpoint")} aria-label={t("controller.bindings.endpoint")} inputmode="numeric" value={drafts[eb.endpoint]?.endpoint ?? ""} oninput={(e) => draft(eb.endpoint, "endpoint", (e.currentTarget as HTMLInputElement).value)} />
           <Input class="w-28 font-mono" placeholder={t("controller.bindings.cluster")} aria-label={t("controller.bindings.cluster")} value={drafts[eb.endpoint]?.cluster ?? ""} oninput={(e) => draft(eb.endpoint, "cluster", (e.currentTarget as HTMLInputElement).value)} />
           <Button variant="outline" disabled={busy} onclick={() => void add(eb)}>{t("controller.bindings.add")}</Button>
         </div>
+        {/if}
       </Card>
     {/each}
   </div>

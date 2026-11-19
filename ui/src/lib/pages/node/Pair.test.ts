@@ -153,23 +153,24 @@ describe("UR-P1-err-04: a window opened elsewhere", () => {
     return ui;
   }
 
-  it("shows the configured codes with a notice that they may not open a window of another kind, and offers Close", async () => {
-    await renderWith({ commissioning_window_open: true, window_kind: "enhanced" }, configured());
+  it("shows the codes with a notice when the pairing says the open window does not admit them (window_match false, 0.10.0), and offers Close", async () => {
+    await renderWith({ commissioning_window_open: true, window_kind: "enhanced" }, configured({ window_match: false }));
     expect(await screen.findByTestId("pair-foreign")).toHaveTextContent("node.pair.foreign_window");
     expect(screen.getByText("00020202021")).toBeInTheDocument();
     expect(screen.getByText("node.pair.close_window")).toBeInTheDocument();
   });
 
-  it("shows the codes without a notice for the page's own window, a window answered by its own codes, or a server without window_kind", async () => {
+  it("shows the codes without a notice when the window admits them, or the pairing does not say (decision 28)", async () => {
     await renderWith({ commissioning_window_open: true, window_kind: "own" }, configured());
     expect(await screen.findByText("00020202021")).toBeInTheDocument();
     expect(screen.queryByTestId("pair-foreign")).toBeNull();
     cleanup();
-    await renderWith({ commissioning_window_open: true, window_kind: "basic" }, configured({ source: "window" }));
+    await renderWith({ commissioning_window_open: true, window_kind: "basic" }, configured({ source: "window", window_match: true }));
     expect(await screen.findByText("00020202021")).toBeInTheDocument();
     expect(screen.queryByTestId("pair-foreign")).toBeNull();
     cleanup();
-    await renderWith({ commissioning_window_open: true, window_kind: undefined }, configured());
+    // The kind no longer decides: an enhanced window the codes admit has no notice.
+    await renderWith({ commissioning_window_open: true, window_kind: "enhanced" }, configured({ window_match: true }));
     expect(await screen.findByText("00020202021")).toBeInTheDocument();
     expect(screen.queryByTestId("pair-foreign")).toBeNull();
   });
@@ -180,9 +181,9 @@ describe("UR-P1-err-04: a window opened elsewhere", () => {
     expect(screen.queryByText("00020202021")).toBeNull();
   });
 
-  it("judges the codes against a fresh status, not the cached one", async () => {
+  it("reads a fresh status before the codes, not the cached one", async () => {
     const ui = testUI({
-      answers: { "GET /node/status": status({ commissioning_window_open: true, window_kind: "enhanced" }), "GET /node/pairing": configured() },
+      answers: { "GET /node/status": status({ commissioning_window_open: true, window_kind: "enhanced" }), "GET /node/pairing": configured({ window_match: false }) },
     });
     // The cached status still says no window is open.
     ui.node.applyEvent({ type: "window_closed", data: {} });

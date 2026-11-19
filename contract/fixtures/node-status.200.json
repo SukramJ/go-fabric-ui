@@ -2,7 +2,10 @@
   "route": "GET /node/status",
   "request": {
     "method": "GET",
-    "path": "/node/status"
+    "path": "/node/status",
+    "headers": {
+      "X-Fabric-UI": "1"
+    }
   },
   "response": {
     "status": 200,
@@ -56,7 +59,8 @@
         }
       ],
       "window_deadline": "2026-10-25T12:05:00Z",
-      "window_kind": "own"
+      "window_kind": "own",
+      "window_remaining_seconds": 300
     }
   }
 }

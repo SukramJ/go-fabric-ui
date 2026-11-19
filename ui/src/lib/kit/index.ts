@@ -6,6 +6,7 @@ export { default as Card } from "./Card.svelte";
 export { default as DataTable } from "./DataTable.svelte";
 export { default as EmptyState } from "./EmptyState.svelte";
 export { default as ErrorState } from "./ErrorState.svelte";
+export { default as DeniedState } from "./DeniedState.svelte";
 export { default as Icon } from "./Icon.svelte";
 export { default as Input } from "./Input.svelte";
 export { default as LoadingState } from "./LoadingState.svelte";

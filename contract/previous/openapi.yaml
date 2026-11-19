@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.8.1
+  version: 0.9.0
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
@@ -1796,6 +1796,66 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "501": { $ref: "#/components/responses/Problem" }
         "502": { $ref: "#/components/responses/Problem" }
+  /controller/diagnostics:
+    get:
+      tags: [controller]
+      operationId: getControllerDiagnostics
+      summary: The controller's open sessions and one entry per peer (0.9.0).
+      description: |
+        A snapshot of every peer's secure sessions and its connection state
+        (go-fabric `Controller.SessionDiagnostics`, v0.21.0). `sessions` are
+        ordered by peer, then session; each peer in `peers` names its
+        sessions by `session_ids`. The controller keeps its subscriptions by
+        peer, not by session, so a session's `subscriptions` is 0; its
+        exchange sessions export no any-direction timestamp, so
+        `last_activity` is the zero time and `idle_seconds` 0. `occupancy.capacity` 0 means the controller does
+        not track the session-id space. 501 `not_implemented` when the
+        source serves no diagnostics (`capabilities.diagnostics` false).
+      responses:
+        "200":
+          description: The snapshot.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ControllerDiagnostics" }
+        "501": { $ref: "#/components/responses/Problem" }
+  /controller/mdns:
+    get:
+      tags: [controller]
+      operationId: getControllerMdns
+      summary: What keeps the controller's DNS-SD from working (0.9.0).
+      description: |
+        The findings of go-fabric `Controller.DiagnoseMDNS` (v0.21.0), errors
+        first: the diagnosis of the records the controller advertises, and
+        `no_operational_names` when a commissioned node waits for device
+        discovery while the DNS-SD cache holds none of the commissioned
+        nodes' operational records. The controller has no interface
+        allow-list, so the node's interface findings do not occur. 501
+        `not_implemented` when the source serves no diagnostics.
+      responses:
+        "200":
+          description: The findings.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ControllerMdns" }
+        "501": { $ref: "#/components/responses/Problem" }
+  /controller/events:
+    get:
+      tags: [controller]
+      operationId: listControllerDiagnosticEvents
+      summary: The controller's diagnostic trace, newest first (0.9.0).
+      description: |
+        The bounded trace of go-fabric `Controller.DiagnosticEvents`
+        (v0.21.0): pairing, session, discovery, reachability, icd, ota and
+        camera events, newest first, in the shape of `GET /node/events`.
+        The stream's `controller_diagnostic_event` carries every new entry.
+        501 `not_implemented` when the source serves no diagnostics.
+      responses:
+        "200":
+          description: The trace.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DiagnosticEventList" }
+        "501": { $ref: "#/components/responses/Problem" }
   /controller/stream:
     get:
       tags: [controller]
@@ -1804,10 +1864,14 @@ paths:
       description: |
         `event:` is one of node_added, node_updated, node_removed,
         connection, subscription, commissioning_progress, update,
-        topology_changed; `data:` is a `ControllerEvent` (`{}` for
-        topology_changed, which tells a page to reload
-        `/controller/topology`). A comment line arrives every 15 s. No
-        payload carries a passcode or a credential.
+        topology_changed, controller_diagnostic_event; `data:` is a
+        `ControllerEvent` (`{}` for topology_changed, which tells a page to
+        reload `/controller/topology`), and for controller_diagnostic_event
+        (0.9.0) a `DiagnosticEvent`: every entry the controller adds to the
+        trace `GET /controller/events` serves (go-fabric
+        `Controller.OnDiagnosticEvent`), absent when the source serves no
+        diagnostics. A comment line arrives every 15 s. No payload carries a
+        passcode or a credential.
       responses:
         "200":
           description: The event stream.
@@ -2068,6 +2132,10 @@ components:
         last_peer_activity: { type: string, format: date-time }
         idle_seconds: { type: integer }
         peer_idle_seconds: { type: integer }
+        created_at: { type: string, format: date-time, description: "When the session was established (0.9.0); the controller's sessions only, absent on the node." }
+        resumed: { type: boolean, description: "The session came from a CASE resumption (0.9.0); the controller's sessions only." }
+        transport: { type: string, enum: [udp, tcp, ble], description: "The session's carrier (0.9.0); the controller's sessions only, absent when unknown." }
+        peer_lost: { type: boolean, description: "The session was given up because the peer is gone or closed it, still listed while it closes (0.9.0); the controller's sessions only." }
     Occupancy:
       type: object
       required: [live, reserved, capacity, free]
@@ -2229,7 +2297,7 @@ components:
       required: [at, kind, severity, message]
       properties:
         at: { type: string, format: date-time }
-        kind: { type: string, enum: [pairing, session, discovery] }
+        kind: { type: string, enum: [pairing, session, discovery, reachability, icd, ota, camera], description: "pairing, session and discovery on both families; reachability, icd, ota and camera on the controller's trace (0.9.0)." }
         severity: { type: string, enum: [info, warning, error] }
         message: { type: string }
         detail: { type: object, additionalProperties: { type: string } }
@@ -2638,14 +2706,58 @@ components:
         csrf_token: { type: string, description: The admin token of token mode, as on GET /node/status; absent when the host decides admin rights. }
     ControllerCapabilities:
       type: object
-      required: [ota, credentials, ble]
+      required: [ota, credentials, ble, diagnostics]
       properties:
+        diagnostics: { type: boolean, description: "The source serves the controller's diagnostics (0.9.0): `GET /controller/diagnostics`, `/controller/mdns` and `/controller/events` answer, the stream carries controller_diagnostic_event. False: the three routes answer 501." }
         ota: { type: boolean, description: The controller runs an OTA provider; the update routes answer. }
         credentials: { type: boolean, description: The host stores Wi-Fi and Thread credentials; the credential routes answer. }
         ble: { type: boolean, description: "The host has a Bluetooth LE central. A commissioning searches over it when the code allows BLE, `network_only` is off and the request names a credential; the `commissioning_progress` event's `ble` says what was decided (0.7.1)." }
     ConnectionState:
       type: string
       enum: [connected, disconnected, reconnecting, waiting_for_discovery]
+    ControllerDiagnostics:
+      type: object
+      description: "The controller's sessions and peers (0.9.0, go-fabric `diag.SessionDiagnostics`)."
+      required: [as_of, occupancy, sessions, peers]
+      properties:
+        as_of: { type: string, format: date-time, description: "When the snapshot was taken, on the controller's clock; every age is measured against it." }
+        occupancy: { $ref: "#/components/schemas/Occupancy" }
+        sessions:
+          type: array
+          description: The open sessions, by peer, then session.
+          items: { $ref: "#/components/schemas/Session" }
+        peers:
+          type: array
+          description: One entry per peer, in the order the peers joined.
+          items: { $ref: "#/components/schemas/ControllerPeer" }
+    ControllerPeer:
+      type: object
+      description: "One of the controller's peers (0.9.0, go-fabric `diag.PeerInfo`): a node on our fabric the controller keeps a connection to."
+      required: [node_id_hex, fabric_index, registered, time_offline_ms, tcp_unsupported, reachable, discovered_names, subscription_active, session_ids]
+      properties:
+        node_id_hex: { type: string }
+        fabric_index: { type: integer }
+        registered: { type: boolean, description: "A commissioned node of the controller's registry has this address; a peer the host added itself has none." }
+        state: { $ref: "#/components/schemas/ConnectionState" }
+        load_error: { type: string, description: "Why the node's stored state did not load; absent when it did or without a registered node." }
+        time_offline_ms: { type: integer, description: "How long the peer's connection process has been trying; 0 when none runs." }
+        operational_address: { type: string, description: "The address the peer's sessions use; absent when none is known." }
+        operational_host: { type: string, description: "The discovered SRV target that owns the operational address; absent when none does." }
+        tcp_unsupported: { type: boolean, description: The peer refused TCP. }
+        reachable: { type: boolean, description: "The peer's operational service is believed reachable." }
+        discovered_names: { type: array, items: { type: string }, description: "The peer's operational instance names the DNS-SD cache holds records for." }
+        last_check_in_at: { type: string, format: date-time, description: "The last ICD Check-In the peer sent; absent when none arrived." }
+        next_expected_check_in: { type: string, format: date-time, description: "When the next Check-In is due; absent when the peer is no registered LIT ICD." }
+        subscription_active: { type: boolean, description: "The node's default subscription is established." }
+        session_ids: { type: array, items: { type: integer }, description: "The ids of the peer's sessions, each listed in `sessions`." }
+    ControllerMdns:
+      type: object
+      description: "The controller's DNS-SD findings (0.9.0, go-fabric `Controller.DiagnoseMDNS`), errors first. Beside the codes of `GET /node/mdns`, `no_operational_names` (a warning): a commissioned node waits for device discovery and the DNS-SD cache holds none of the commissioned nodes' operational records."
+      required: [findings]
+      properties:
+        findings:
+          type: array
+          items: { $ref: "#/components/schemas/MdnsFinding" }
     ControllerNodeSummary:
       type: object
       required: [node_id_hex, connection, subscription_active, disabled, icd, addresses]

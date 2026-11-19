@@ -2,7 +2,7 @@
 // what the e2e server's doubles serve (the fixtures' data), and the
 // browser logs no error on the way. Full flows stay with the vitest page
 // tests and the Go end-to-end tests (concept U5 E, "Playwright nur Smoke").
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Request } from "@playwright/test";
 
 type Smoke = { name: string; hash: string; shows: (page: Page) => ReturnType<Page["getByTestId"]> };
 
@@ -55,20 +55,53 @@ async function collectViolations(page: Page): Promise<() => Promise<string[]>> {
   return () => page.evaluate(() => (window as unknown as { __cspViolations: string[] }).__cspViolations);
 }
 
+// QUIET_MS is how long no request but the streams may be pending before
+// settled() takes the page as loaded.
+const QUIET_MS = 500;
+
+// watch collects what every test asserts at its end: console errors, page
+// errors and policy violations (UR-P3-test-36). clean() asserts none came.
+// settled() waits until no request but the event streams is pending and
+// none started for QUIET_MS: the streams are long-lived fetch requests
+// (decision 45), so the network itself never goes idle.
+async function watch(page: Page): Promise<{ errors: string[]; settled: () => Promise<void>; clean: () => Promise<void> }> {
+  const errors: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") errors.push(msg.text());
+  });
+  page.on("pageerror", (err) => errors.push(err.message));
+  const pending = new Set<Request>();
+  let last = Date.now();
+  const isStream = (r: Request) => new URL(r.url()).pathname.endsWith("/stream");
+  page.on("request", (r) => {
+    if (isStream(r)) return;
+    pending.add(r);
+    last = Date.now();
+  });
+  const done = (r: Request) => {
+    if (pending.delete(r)) last = Date.now();
+  };
+  page.on("requestfinished", done);
+  page.on("requestfailed", done);
+  const violations = await collectViolations(page);
+  return {
+    errors,
+    settled: () => expect.poll(() => pending.size === 0 && Date.now() - last >= QUIET_MS, { timeout: 15_000 }).toBe(true),
+    clean: async () => {
+      expect(await violations()).toEqual([]);
+      expect(errors).toEqual([]);
+    },
+  };
+}
+
 for (const s of SMOKES) {
   test(s.name, async ({ page }) => {
-    const errors: string[] = [];
-    page.on("console", (msg) => {
-      if (msg.type() === "error") errors.push(msg.text());
-    });
-    page.on("pageerror", (err) => errors.push(err.message));
-    const violations = await collectViolations(page);
+    const w = await watch(page);
     const resp = await page.goto("/" + s.hash);
     expect(resp?.headers()["content-security-policy"]).toContain("frame-ancestors 'self'");
     await expect(s.shows(page)).toBeVisible();
-    await page.waitForLoadState("networkidle");
-    expect(await violations()).toEqual([]);
-    expect(errors).toEqual([]);
+    await w.settled();
+    await w.clean();
   });
 }
 
@@ -76,19 +109,13 @@ for (const s of SMOKES) {
 // ring, whose transition is set through the CSSOM (style:transition), not
 // a style attribute the policy would refuse.
 test("the pairing window opens with its ring without a policy violation", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("console", (msg) => {
-    if (msg.type() === "error") errors.push(msg.text());
-  });
-  page.on("pageerror", (err) => errors.push(err.message));
-  const violations = await collectViolations(page);
+  const w = await watch(page);
   await page.goto("/#/node/pair");
   await page.getByRole("button", { name: /^(Add another controller|Pairing window open)$/ }).click();
   await expect(page.getByTestId("pair-qr")).toBeVisible();
   await expect(page.locator("circle[stroke-dasharray]")).toHaveCSS("transition", /stroke-dashoffset 1s linear/);
   await page.getByRole("button", { name: "Close pairing window" }).click();
-  expect(await violations()).toEqual([]);
-  expect(errors).toEqual([]);
+  await w.clean();
 });
 
 // The QR scan under the policy: Chromium's fake camera (the launch flags in
@@ -97,37 +124,32 @@ test("the pairing window opens with its ring without a policy violation", async 
 test.describe("camera", () => {
   test.use({ permissions: ["camera"] });
   test("the QR scan opens the camera without a policy violation", async ({ page }) => {
-    const errors: string[] = [];
-    page.on("console", (msg) => {
-      if (msg.type() === "error") errors.push(msg.text());
-    });
-    page.on("pageerror", (err) => errors.push(err.message));
-    const violations = await collectViolations(page);
+    const w = await watch(page);
     await page.goto("/#/controller/commission");
     await page.getByRole("button", { name: "Scan QR code" }).click();
     await expect(page.getByTestId("scan-view")).toBeVisible();
     await expect.poll(() => page.locator("video").evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(2);
     await page.waitForTimeout(1500);
-    expect(await violations()).toEqual([]);
-    expect(errors).toEqual([]);
+    await w.clean();
   });
 });
 
 test("the node selector lists both nodes and switches to the second", async ({ page }) => {
+  const w = await watch(page);
   await page.goto("/#/node/status");
   const selector = page.getByLabel("Node", { exact: true });
   await expect(selector).toBeVisible();
   await selector.selectOption("second");
   await expect(page).toHaveURL(/#\/node\/second\/status$/);
   await expect(page.getByTestId("node-status")).toContainText("[::]:5541");
+  await w.clean();
 });
 
 // The node registry (contract 0.6.0): create a node from the selector, find
 // it listed and on its selection page, delete it with both confirmations
 // from its status page and land on the default node.
 test("a node is created from the selector and deleted from its status page", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(err.message));
+  const w = await watch(page);
   await page.goto("/#/node/status");
   const selector = page.getByLabel("Node", { exact: true });
   await expect(selector).toBeVisible();
@@ -147,26 +169,24 @@ test("a node is created from the selector and deleted from its status page", asy
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete for good" }).click();
   await expect(page).toHaveURL(/#\/node\/status$/);
   await expect(page.getByLabel("Node", { exact: true }).locator("option")).toHaveCount(before);
-  expect(errors).toEqual([]);
+  await w.clean();
 });
 
 // Re-announce from the diagnostics page (contract 0.7.0): the admin route
 // answers and the page says so.
 test("the node re-announces from the diagnostics page", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(err.message));
+  const w = await watch(page);
   await page.goto("/#/node/diagnostics");
   await page.getByTestId("node-reannounce").click();
   await expect(page.getByText("The node announced its records again.")).toBeVisible();
-  expect(errors).toEqual([]);
+  await w.clean();
 });
 
 // A commissioning with a Terms and Conditions acknowledgement on the memory
 // controller (contract 0.7.0): the steps it reports appear under the
 // progress.
 test("a commissioning with terms lists its steps", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(err.message));
+  const w = await watch(page);
   await page.goto("/#/controller/commission");
   await page.getByLabel("Pairing code").fill("34970112332");
   await page.getByTestId("commission-terms").locator("summary").click();
@@ -175,7 +195,7 @@ test("a commissioning with terms lists its steps", async ({ page }) => {
   await page.getByRole("button", { name: "Commission", exact: true }).click();
   await expect(page.getByTestId("commission-steps")).toContainText("Subscribe");
   await expect(page.getByText("Commissioned", { exact: true })).toBeVisible();
-  expect(errors).toEqual([]);
+  await w.clean();
 });
 
 // The BLE decision (contract 0.7.1): on a host with a central the default
@@ -185,23 +205,27 @@ test("a commissioning with terms lists its steps", async ({ page }) => {
 // above did), so the result is not asserted here: the decision comes
 // before it.
 test("a commissioning without a choice uses the preselected network", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(err.message));
+  const w = await watch(page);
   await page.goto("/#/controller/commission");
   await expect(page.getByLabel("Network for the device")).toHaveValue("thread:mesh");
   await expect(page.getByTestId("commission-ble-hint")).toHaveCount(0);
   await page.getByLabel("Pairing code").fill("34970112332");
+  const answer = page.waitForResponse((r) => r.url().endsWith("/controller/commission") && r.request().method() === "POST");
   await page.getByRole("button", { name: "Commission", exact: true }).click();
   await expect(page.getByTestId("commission-ble")).toHaveText("Bluetooth LE: used");
-  expect(errors).toEqual([]);
+  // The device is commissioned already: the answer is 404, and the
+  // browser logs that one resource error.
+  expect((await answer).status()).toBe(404);
+  const i = w.errors.findIndex((e) => e.includes("status of 404"));
+  if (i >= 0) w.errors.splice(i, 1);
+  await w.clean();
 });
 
 // The erase (contract 0.7.0), last: it empties the default node's fabrics.
 // Two confirmations, then the toast and the notice while the status is
 // polled.
 test("the node is erased after two confirmations", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (err) => errors.push(err.message));
+  const w = await watch(page);
   await page.goto("/#/node/fabrics");
   await page.getByTestId("node-erase").click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Erase node…" }).click();
@@ -209,5 +233,5 @@ test("the node is erased after two confirmations", async ({ page }) => {
   await expect(page.getByText(/erased\.$/)).toBeVisible();
   await expect(page.getByTestId("node-erased")).toBeVisible();
   await expect(page.getByText("Home", { exact: true })).toHaveCount(0, { timeout: 10_000 });
-  expect(errors).toEqual([]);
+  await w.clean();
 });

@@ -119,7 +119,7 @@ type Source interface {
 func ControllerOf(ctrl *controller.Controller, opts ControllerOptions) Source {
 	s := &source{ctrl: ctrl, opts: opts, events: fabricui.NewEvents(), log: opts.Logger, now: time.Now}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
-	s.push = s.pushCurrentLabel
+	s.push = s.pushLabelTo
 	if s.log == nil {
 		s.log = slog.Default()
 	}
@@ -158,16 +158,17 @@ type source struct {
 	// derives from it.
 	ctx    context.Context //nolint:containedctx // the source's own lifetime, not a request's
 	cancel context.CancelFunc
-	// labelMu guards the label push's state: closed after Close, pushing
-	// while the push worker runs, again when a label was set during a
-	// push. pushes counts the running worker; Close waits for it.
+	// labelMu guards the label push's state: label, the last label set
+	// through SetFabricLabel; closed after Close, pushing while the push
+	// worker runs, again when a label was set during a push. pushes
+	// counts the running worker; Close waits for it.
 	labelMu        sync.Mutex
+	label          string
 	closed         bool
 	pushing, again bool
 	pushes         sync.WaitGroup
-	// push sends the fabric's current label to the nodes; a test
-	// replaces it.
-	push func(ctx context.Context) error
+	// push sends label to the nodes; a test replaces it.
+	push func(ctx context.Context, label string) error
 }
 
 func (s *source) publish(e fabricui.ControllerEvent) {
@@ -455,7 +456,7 @@ func identifierOf(f fabricui.DiscoverFilter) (discovery.Identifier, error) {
 }
 
 // Discover lists the commissionable devices — controller.Controller.Discover,
-// as go-fabric-server's discover (controllerapi/cmd_commission.go:335-347).
+// as go-fabric-server's discover (controllerapi/cmd_commission.go:335-347 at v0.3.2).
 func (s *source) Discover(ctx context.Context, f fabricui.DiscoverFilter, timeout time.Duration) ([]fabricui.Discovered, error) {
 	id, err := identifierOf(f)
 	if err != nil {
@@ -475,7 +476,7 @@ func (s *source) Discover(ctx context.Context, f fabricui.DiscoverFilter, timeou
 
 func discoveredOf(d *client.Device) fabricui.Discovered {
 	out := fabricui.Discovered{
-		InstanceName: d.InstanceID, Hostname: d.Hostname, LongDiscriminator: d.D, CommissioningMode: d.CM,
+		InstanceName: d.InstanceID, Hostname: d.Hostname, LongDiscriminator: d.D, HasLongDiscriminator: true, CommissioningMode: d.CM,
 		Addresses: []string{},
 	}
 	for _, a := range d.Addresses {
@@ -561,13 +562,13 @@ func (s *source) forget(instance string) {
 // CommissionDiscovered commissions a discovered device with its passcode
 // through the registry (client.Registry.ForDevice and Commission), as
 // go-fabric-server's commission_on_network does
-// (controllerapi/cmd_commission.go:159-232). The BLE decision does not
+// (controllerapi/cmd_commission.go:159-232 at v0.3.2). The BLE decision does not
 // apply — the device came from a DNS-SD discovery — so it reports no
 // PairOptions.Transport.
 func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered, passcode uint32, o fabricui.PairOptions) (fabricui.ControllerNode, error) {
 	dev, ok := s.cached(d.InstanceName)
 	if !ok {
-		if d.LongDiscriminator == 0 {
+		if !d.HasLongDiscriminator {
 			return nil, fabricui.ErrNoDevice
 		}
 		found, err := s.ctrl.Discover(ctx, discovery.ByLongDiscriminator(d.LongDiscriminator), rediscoverWindow)
@@ -602,6 +603,13 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 		},
 		AutoSubscribe: po.AutoSubscribe,
 	}
+	// The template's unset policy rejects, as the controller facade
+	// applies it before Edit (go-fabric controller/controller.go:845-847
+	// at v0.22.2).
+	if p := copts.OnAttestationFailure; p.Decide == nil && p.OnFailure == nil {
+		reject := false
+		copts.OnAttestationFailure.OnFailure = &reject
+	}
 	if po.Edit != nil {
 		po.Edit(&copts.Options)
 	}
@@ -619,7 +627,7 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 }
 
 // Decommission removes our fabric from the node — client.Registry.Decommission
-// (go-fabric-server's remove_node, controllerapi/cmd_node.go:81-94).
+// (go-fabric-server's remove_node, controllerapi/cmd_node.go:81-94 at v0.3.2).
 func (s *source) Decommission(ctx context.Context, id uint64) error {
 	n, ok := s.lookup(id)
 	if !ok {
@@ -642,18 +650,26 @@ const labelPushTimeout = 2 * time.Minute
 // SetFabricLabel sets the fabric's label at once and pushes it to the
 // connected nodes in the background (client.Registry.SetFabricLabel), as
 // go-fabric-server's set_default_fabric_label answers before the push
-// (controllerapi/cmd_server.go:217-286).
+// (controllerapi/cmd_server.go:217-286 at v0.3.2).
 func (s *source) SetFabricLabel(_ context.Context, label string) error {
 	f := s.ctrl.Fabric()
 	if f == nil {
 		return fmt.Errorf("%w: the controller has no fabric", fabricui.ErrNodeFailed)
 	}
+	// The fabric's label and the label the worker pushes change together:
+	// a push of an older label sets the fabric's label back to it
+	// (client.Registry.SetFabricLabel sets it on the fabrics), so the
+	// worker pushes this label, never the fabric's label as it read it.
+	s.labelMu.Lock()
 	if err := f.SetLabel(label); err != nil {
+		s.labelMu.Unlock()
 		if errors.Is(err, commissioner.ErrLabel) {
 			return fmt.Errorf("%w: %w", fabricui.ErrInvalidArgument, err)
 		}
 		return err
 	}
+	s.label = label
+	s.labelMu.Unlock()
 	s.pushLabel() //nolint:contextcheck // the push outlives the request by design
 	return nil
 }
@@ -685,9 +701,10 @@ func (s *source) pushRounds() {
 	for {
 		s.labelMu.Lock()
 		s.again = false
+		label := s.label
 		s.labelMu.Unlock()
 		ctx, cancel := context.WithTimeout(s.ctx, labelPushTimeout)
-		if err := s.push(ctx); err != nil {
+		if err := s.push(ctx, label); err != nil {
 			s.log.Warn("fabricui.gofabric.label_push_failed", slog.String("error", err.Error()))
 		}
 		cancel()
@@ -701,15 +718,17 @@ func (s *source) pushRounds() {
 	}
 }
 
-// pushCurrentLabel sends the fabric's current label to the connected
-// nodes (client.Registry.SetFabricLabel, which sets that label on the
-// fabrics again: the current one, so nothing older returns).
-func (s *source) pushCurrentLabel(ctx context.Context) error {
-	f, reg := s.ctrl.Fabric(), s.ctrl.Registry()
-	if f == nil || reg == nil {
+// pushLabelTo sends label to the connected nodes
+// (client.Registry.SetFabricLabel, which sets it on the fabrics again).
+// A round pushes the last label set when it starts, and a label set
+// during it asks for another round, so the last round leaves the last
+// label on the fabric and nothing older returns.
+func (s *source) pushLabelTo(ctx context.Context, label string) error {
+	reg := s.ctrl.Registry()
+	if reg == nil {
 		return nil
 	}
-	return reg.SetFabricLabel(ctx, f.CurrentLabel())
+	return reg.SetFabricLabel(ctx, label)
 }
 
 // Close implements [Source].
@@ -758,6 +777,10 @@ func nodeError(err error) error {
 		return fmt.Errorf("%w: %w", fabricui.ErrInvalidArgument, err)
 	case errors.Is(err, context.Canceled):
 		return err
+	case errors.Is(err, client.ErrICDOperation), errors.Is(err, client.ErrDisabled), errors.Is(err, client.ErrFabricOperationInProgress):
+		// The client's own state refuses the call before the node is
+		// asked: a conflict, not the node's failure (UR-P3-adpt-91).
+		return fmt.Errorf("%w: %w", fabricui.ErrConflict, err)
 	}
 	if _, ok := errors.AsType[*client.ICDMultiAdminError](err); ok {
 		return fmt.Errorf("%w: %w", fabricui.ErrConflict, err)

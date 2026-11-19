@@ -11,6 +11,8 @@ Playwright-e2e je Seite. Inventur: `~/.cache/go-fabric-scratch/read-u5.md`
 Vergleichsziel: matterjs-servers Dashboard bei 0bd06f22; Hilfsreferenz
 home-assistant-matter-hub (Log-API-Form).
 
+Citations are of the day above (this repository at `b68f9e9`), not maintained.
+
 ## A. Ist
 
 - **Live-Status:** Der Node-Stream (`fabricui/stream.go`, `events.go:14-31`)

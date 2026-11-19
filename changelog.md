@@ -5,15 +5,108 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). The Go module and the npm package
 `@sukramj/fabric-ui` share one version.
 
-## [Unreleased]
+## [0.10.0] - 2026-11-19
+
+The review, phases 0 to 3 (`notes/review/2026-11-17/`); contract 0.10.0
+over 0.9.0. Three breaks are listed in the contract's
+`info.x-accepted-breaks`, and the admin gates are a deliberate break for
+a client without admin rights; `docs/contract.md` ("Admin rights",
+"Requests", "Versioning") and `docs/embedding.md` say what a host does.
+
+### Breaking for hosts
+
+- **Admin rights on the reading routes** (decisions 19, 20, 33–35, 40,
+  41): 43 reading operations and the controller and log streams are
+  `x-admin`; a request
+  without admin rights answers 403 `forbidden` there. Open stay
+  `GET /node/status`, `/nodes/{node}/status`, `/nodes`,
+  `/operation/info`, `/operation/log/level`, `/controller/status` and the
+  node stream. Without admin rights the node status has no
+  `config.store`, every warning its code only (`message` empty, no
+  `since`) and `attestation_error` a fixed sentence instead of the
+  loader's text (decision 63); the controller status keeps `enabled`, `capabilities`,
+  `admin` and `csrf_token`, every other member empty or 0; the node
+  stream carries `nodes_changed`, `window_opened` and `window_closed`
+  only.
+- **The request header in host mode**: with `Options.Admin` set, a
+  request has admin rights only when it carries `X-Fabric-UI: 1`
+  (`fabricui.RequestHeader`) and `Admin` admits it. The shipped client
+  sends it on every request and reads the streams through `fetch`; a
+  host's own client sends it as well. A stream the browser's
+  `EventSource` opens carries no header and is a non-admin's.
+- **A Host check on every route**, in every mode, the bundle included,
+  before routing: admitted are `localhost` and names under `.localhost`,
+  an IP address without a zone, a name of the new `Options.AllowedHosts`,
+  or a request the new `Options.AllowHost` admits; anything else, an
+  empty `Host` included, answers 403 `host_not_allowed`. A daemon reached
+  under a DNS name lists that name; behind a proxy that forwards the
+  browser's `Host` unchanged it sets `AllowHost`, answered from what only
+  the proxy produces. `NewHandler` and `Mount` refuse an entry with a
+  scheme, port, path, wildcard or white space, and an empty one.
+- **The Origin on admin routes**: an `Origin` whose host the name rules
+  do not admit — or, for a request `AllowHost` admitted, other than the
+  request's own host and port —, `null` or one that does not parse
+  answers 403 `origin_not_allowed`; on an open route it makes the request
+  a non-admin's.
+- **Strict JSON bodies** on both families (decision 43): a body needs
+  `Content-Type: application/json`, else 415 `unsupported_media_type`;
+  one JSON value with nothing after it, no unknown member, member names
+  exactly as spelled, nested objects included, else 400. Factory reset
+  and erase answer their decode errors.
+- **`Handler` takes the default prefix only** (UR-P3-doc-72, decision
+  49): `Handler` and `NewHandler` refuse a `Prefix` other than `""` or
+  `/api/v1`, where the page reaches its API; `Mount` keeps any valid
+  prefix.
+- **`Options.Events` is not the handler's hub** (UR-P3-api-08): the
+  handler keeps a hub of its own, so a host that reads the
+  `*fabricui.Events` it passes no longer sees the handler's events there;
+  the host's events reach admin streams only, whatever their type.
+- **Contract shapes** (`info.x-accepted-breaks`): `Status.fabric_count`
+  is optional, absent when the fabric read failed and without a node
+  (UR-P1-err-07); the `NodeID` path parameter is 1 to 16 hex digits; the
+  `EndpointNumber` path parameter ends at 65534.
 
 ### Added
 
+- `fabricui.NewHandler(o) (http.Handler, error)` (UR-P3-api-05):
+  `Handler` is the same and panics on the error.
+- `Options.MaxStreams` caps the event streams a handler serves at once
+  (0 is `DefaultMaxStreams`, 64; negative is an error); one more answers
+  503 `too_many_streams` with `Retry-After: 5`. Closing `Options.Done`
+  ends every open stream and removes its observers (UR-P2-conc-34); the
+  base-context pattern of `docs/embedding.md` still works.
+- `Options.AllowedHosts`, `Options.AllowHost`, the constants
+  `fabricui.RequestHeader` and `fabricui.DefaultMaxStreams`, and
+  `Discovered.HasLongDiscriminator`: 0 is a valid long discriminator
+  (UR-P1-adpt-65).
+- 405 `method_not_allowed` with `Allow` (the path's methods, plus `HEAD`
+  where `GET` is) for a served path asked with another method; an unknown
+  path under the prefix stays 404. Problem codes `method_not_allowed`,
+  `too_many_streams`, `unsupported_media_type`, `host_not_allowed`,
+  `origin_not_allowed`.
+- Contract fields: `Status.window_remaining_seconds` and
+  `Pairing.window_remaining_seconds` (UR-P2-ui-06), `Pairing.window_match`
+  (decision 28), `EventRecord.number_str` and the query `since_str`, exact
+  beyond 2^53 (`number` deprecated; UR-P1-ctr-113), `Applied.reassembled`
+  (UR-P2-ui-35), `ControllerStatus.admin`,
+  `ControllerNodeSummary.auto_subscribe` (UR-P1-ctr-168), the optional
+  `CommissionRequest.commissioning_id`, echoed on every
+  `commissioning_progress`, else drawn by the server (UR-P1-api-18),
+  `EndpointBindings.status` for an endpoint whose read the node refused
+  (UR-P1-bound-37), the write bodies `AclWriteRequest`, `AclEntryWrite`
+  and `EndpointBindingsWrite`, and `unknown` in `AclEntry.privilege` and
+  `auth_mode` (UR-P1-ctr-32). The numeric twins of the 64-bit ids are
+  deprecated.
+- A standing fuzz run: `make fuzz` with `FUZZTIME`, a nightly job at three
+  minutes per target, seeds in every `go test`.
 - `Options.FrameAncestors` (UR-P0-web-23): further origins that may frame
   the page, each a CSP host-source naming the parent's origin; `Handler`
-  panics and `Mount` fails on anything else, and on an entry that admits
-  any parent (`*`, `https:`, `https://*`). The default admits the page's own origin
-  only, which is the Ingress parent. See `docs/embedding.md`, "Response
+  panics and `NewHandler` and `Mount` fail on anything else, and on an
+  entry that admits any parent (`*`, `https:`, `https://*`, a wildcard
+  over one label such as `https://*.com`). A wildcard over a public
+  suffix of more than one label (`https://*.co.uk`) is not recognised and
+  admits every site under it: name the parent's own domain. The default
+  admits the page's own origin only, which is the Ingress parent. See `docs/embedding.md`, "Response
   headers and framing".
 - The client keeps 64-bit integers in generic values exactly
   (UR-P1-ctr-101): `value`, `data` and `response` of the controller's
@@ -33,6 +126,36 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- A fabric label set twice in quick succession ended at the first one:
+  the background push of the first label set the controller's fabric
+  label back to it after the second was set. The push now sends the
+  last label set through `SetFabricLabel`, and a label set during a push
+  asks for another round with it.
+- The standalone shell no longer shows the Operation page before its
+  status probes answered: on a node page whose status answered after
+  `GET /operation/info`, the shell briefly chose the Operation page,
+  which read the log without the token the status brings and was
+  refused (403).
+- Every status a route answers is declared on its operation, guarded by
+  a test (UR-P3-ctr-01): 404 for an unknown fabric index on
+  `DELETE /node/fabrics/{index}`; 500 on `GET /node/compatibility` when
+  the fabric read fails (UR-P1-err-36); 409 when the controller's client
+  refuses a call itself — an ICD operation, a disabled node, a fabric
+  operation in progress — instead of 502 (UR-P3-adpt-91); 409 and 502 on
+  enable, disable and auto-subscribe, 502 on discovery; 413 and 415 on
+  every operation with a body.
+- 400 for endpoint 65535, a fabric label over 32 bytes of UTF-8
+  (UR-P1-adpt-40), a setup passcode the specification excludes
+  (UR-P1-ui-178) and a malformed `commissioning_id`.
+- A discovered device's commissioning applies the `Pair` template's
+  attestation policy; an unset one rejects a failed attestation, as the
+  controller facade applies it.
+- The node family's endpoint detail names a device type with the
+  operator's label, as the list does (UR-P1-ui-38).
+- `docs/`: the Options table is complete (UR-P3-doc-77), go-fabric's
+  `logring` is named as shipped (UR-P3-doc-90), README and CONCEPT state
+  every release (UR-P3-doc-73), and the comments' citations carry their
+  tags (UR-P3-cite-93, -94, -96).
 - `theme/tokens.css` applies inside a shadow root (#72): each selector
   anchored on the document element names its `:host` form beside it
   (`:root, :host`, `html.dark, :host(.dark)`, `html[data-skin="ha"],
@@ -83,6 +206,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- go-fabric `v0.23.0` (go-fabric's review II; breaking upstream, with
+  its migration guide): the pages build on it unchanged but for two
+  error branches. `POST /node/pairing/window` no longer tests
+  `node.ErrCommissioningWindowAlreadyOpen` and
+  `node.ErrCommissioningWindowNotConfigured`, which v0.23.0 deprecates
+  because no node method returns them; an open window still answers 409
+  (the handler's own check and `node.ErrAdministratorWindowOpen`). The
+  controller's fabric label is checked in bytes there as here
+  (UR-P1-adpt-40).
 - The bundle's handler serves the index for the root (`/`,
   `/index.html`) only; any other path that is no file of the bundle
   answers 404 (UR-P2-web-91). The page routes by hash and loads its assets
@@ -103,6 +235,14 @@ All notable changes to this project are documented here. The format follows
   codes may not apply (UR-P1-err-04, decision 28); admin controls are
   hidden from non-admins on Pair, Fabrics, Selection and Operation
   (UR-P1-ui-133).
+- Supply chain: every action pinned by commit SHA (`make pins-check`);
+  oapi-codegen in a tools module of its own; CodeQL for
+  JavaScript/TypeScript beside Go; the release in three jobs (verify,
+  release, publish) with their own rights; go-fabric bumps no longer
+  merged by Dependabot on their own; `npm audit` of the runtime packages
+  in the web job and of the whole tree nightly; coverage floors 93
+  (`fabricui`) and 84 (`gofabric`), a package without a line failing;
+  `tailwindcss` in the notices, the stale Go rows dropped.
 - `make licenses` fails on a Go dependency whose licence go-licenses
   cannot classify (`unknown` is disallowed); the ones read by hand are
   listed in `LICENSES_CHECKED` with their licence and where it was read —
@@ -131,6 +271,13 @@ All notable changes to this project are documented here. The format follows
   (UR-P0-leak-25): pairing codes, the token and the daemon's state are
   kept by no cache. It also carries `X-Content-Type-Options: nosniff` and
   `Referrer-Policy: no-referrer`, as the bundle does (UR-P0-web-24).
+- The client's token path (UR-P3-web-190, -191, -194): `status()` and
+  `controllerStatus()` repeat their request once when the answer's token
+  is not the one sent, so the first load is an administrator's; the ACL
+  page asks before a write when it does not know its own node id; a
+  stream of `FabricClient.openStream` refused with 403 `forbidden` while
+  it carried the token reloads the token and reopens once; the token goes
+  only to a base or stream URL that resolves to the page's origin.
 
 ## [0.9.2] - 2026-11-12
 

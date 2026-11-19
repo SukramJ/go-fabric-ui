@@ -5,6 +5,7 @@
      GET /node/endpoints where its ids match; otherwise the id is shown.
      The page idioms are those of Endpoints.svelte and Diagnostics.svelte. -->
 <script lang="ts">
+  import DeniedState from "../../kit/DeniedState.svelte";
   import { onMount, untrack } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
@@ -124,6 +125,10 @@
   const changeKind = (before: string, after: string) => (before === "" ? "added" : after === "" ? "removed" : "changed");
 </script>
 
+<!-- Without admin rights the routes of this page are refused (0.10.0): a notice, not an error. -->
+{#if node.status !== null && !node.isAdmin}
+  <DeniedState />
+{:else}
 {#snippet clusterCell(c: SurfaceCluster, col: DataColumn<SurfaceCluster>)}
   {#if col.key === "id"}
     <span class="font-mono">{clusterLabel(c.id)}</span>
@@ -294,3 +299,4 @@
     </Card>
   {/if}
 </div>
+{/if}

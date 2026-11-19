@@ -6,6 +6,7 @@
      graph epoch, one move per burst). New in brief U3a; no loom page
      precedes it. -->
 <script lang="ts">
+  import DeniedState from "../../kit/DeniedState.svelte";
   import { onMount, untrack } from "svelte";
   import { refHref, useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
@@ -56,6 +57,10 @@
   const hrefOf = (n: TopologyNode) => refHref(n.ref, routes);
 </script>
 
+<!-- Without admin rights the routes of this page are refused (0.10.0): a notice, not an error. -->
+{#if node.status !== null && !node.isAdmin}
+  <DeniedState />
+{:else}
 <Card class="p-4">
   <div class="flex items-center justify-between gap-2">
     <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("node.topology.title")}</h3>
@@ -74,3 +79,4 @@
     {/if}
   </div>
 </Card>
+{/if}

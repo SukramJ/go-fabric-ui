@@ -13,7 +13,7 @@
   import Button from "../../../kit/Button.svelte";
   import ErrorState from "../../../kit/ErrorState.svelte";
   import EventList from "../../../kit/EventList.svelte";
-  import { lastNumber, mergeEvents } from "../../../kit/events";
+  import { mergeEvents, sinceAfter } from "../../../kit/events";
   import LoadingState from "../../../kit/LoadingState.svelte";
 
   let { nodeId, detail }: { nodeId: string; detail: ControllerNodeDetail } = $props();
@@ -34,11 +34,12 @@
   // number, so an event read again is listed once (UR-P2-ui-90).
   async function load(fresh: boolean) {
     const mine = ++seq;
-    const last = fresh ? undefined : lastNumber(events);
+    // The cursor travels as since_str, exact beyond 2^53 (0.10.0).
+    const w = fresh ? {} : sinceAfter(events);
     try {
-      const l = await client.controllerNodeEvents(nodeId, last === undefined ? {} : { since: last + 1 });
+      const l = await client.controllerNodeEvents(nodeId, w);
       if (mine !== seq) return;
-      events = mergeEvents(last === undefined ? [] : events, l.events).slice(-MAX_EVENTS);
+      events = mergeEvents(w.since === undefined ? [] : events, l.events).slice(-MAX_EVENTS);
       error = null;
       loaded = true;
     } catch (err) {

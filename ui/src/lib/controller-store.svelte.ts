@@ -4,6 +4,7 @@
 // fabric-ui context, as the node store.
 import {
   ApiError,
+  deniedCode,
   type BLEDecision,
   type ControllerNodeSummary,
   type ControllerStatus,
@@ -13,7 +14,7 @@ import {
   type UpdateQueue,
 } from "./api/client";
 import { subscribeControllerStream, type ControllerStreamEvent } from "./api/stream";
-import type { Toast } from "./store.svelte";
+import { isAdminStatus, type Toast } from "./store.svelte";
 import type { Translate } from "./i18n";
 
 export type CommissionPhase = "idle" | "started" | "succeeded" | "failed";
@@ -47,6 +48,13 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   // null until probed; false when the host serves no controller (404).
   let present = $state<boolean | null>(null);
   let statusError = $state<string | null>(null);
+  // The 403 problem code of the last status read, or null (0.10.0).
+  let statusDenied = $state<string | null>(null);
+  // The 403 problem code the stream was refused with, or null (0.10.0).
+  let streamDenied = $state<string | null>(null);
+  // The id of the commissioning this page runs (decision 59): progress
+  // events of another commissioning are not shown.
+  let runId: string | null = null;
   let nodes = $state<ControllerNodeSummary[]>([]);
   let nodesLoading = $state(false);
   let nodesError = $state<string | null>(null);
@@ -72,6 +80,7 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   let diagnosticTimer: ReturnType<typeof setTimeout> | null = null;
 
   const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
+  const isAdmin = () => isAdminStatus(status);
 
   // Each loader counts its calls: an answer a newer call overtook is
   // dropped (UR-P1-conc-109).
@@ -89,6 +98,7 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
       if (mine !== statusGen) return;
       status = s;
       present = true;
+      statusDenied = null;
     } catch (err) {
       if (mine !== statusGen) return;
       if (err instanceof ApiError && err.status === 404) {
@@ -97,6 +107,7 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
         return;
       }
       statusError = message(err);
+      statusDenied = deniedCode(err) ?? null;
     }
   }
 
@@ -167,6 +178,8 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   function applyEvent(ev: ControllerStreamEvent) {
     switch (ev.type) {
       case "commissioning_progress": {
+        // Another commissioning's progress (one started elsewhere) is not this run's.
+        if (runId !== null && ev.data.commissioning_id !== undefined && ev.data.commissioning_id !== runId) break;
         const step = ev.data.step;
         const ble = ev.data.ble;
         if (ble) {
@@ -222,10 +235,23 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     progress = { ...IDLE };
   }
 
+  /**
+   * Starts a commissioning run here: draws its id, which the request
+   * carries as commissioning_id and its progress events echo, and clears
+   * the progress shown (decision 59).
+   */
+  function beginCommissioning(): string {
+    runId = newCommissioningId();
+    progress = { ...IDLE };
+    return runId;
+  }
+
   // After a gap in the stream the state may be stale: reload what the
   // events would have moved (UR-P1-conc-102).
   function resync() {
     void loadStatus();
+    // The node list and the queue are an admin's (0.10.0).
+    if (status !== null && !isAdmin()) return;
     void loadNodes();
     if (updates !== null) void loadUpdates();
     revision++;
@@ -243,7 +269,14 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
       // Connecting again, the reload waits for the new stream's open, so
       // no event falls between the reload and the subscription
       // (UR-P1-conc-192).
-      unsub = subscribeControllerStream(client.controllerStreamUrl(), applyEvent, undefined, { onResync: resync, resyncOnFirstOpen: connectedBefore });
+      // The stream is an admin's (0.10.0): without admin rights none is opened.
+      if (status !== null && !isAdmin()) return;
+      streamDenied = null;
+      unsub = subscribeControllerStream(client.controllerStreamUrl(), applyEvent, client.openStream, {
+        onResync: resync,
+        resyncOnFirstOpen: connectedBefore,
+        onDenied: (code) => (streamDenied = code ?? "forbidden"),
+      });
     }
     connectedBefore = true;
   }
@@ -265,6 +298,16 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     get status() { return status; },
     get present() { return present; },
     get statusError() { return statusError; },
+    /** The 403 problem code of the last status read, or null (0.10.0). */
+    get statusDenied() { return statusDenied; },
+    /** The 403 problem code the stream was refused with, or null; the stream is not reopened then (0.10.0). */
+    get streamDenied() { return streamDenied; },
+    /**
+     * Whether the status grants admin rights (the token of token mode, or
+     * ControllerStatus.admin, 0.10.0). Without them the status's other
+     * members are empty or 0 and every other controller route is refused.
+     */
+    get isAdmin() { return isAdmin(); },
     get nodes() { return nodes; },
     get nodesLoading() { return nodesLoading; },
     get nodesError() { return nodesError; },
@@ -286,6 +329,7 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     loadUpdates,
     applyEvent,
     resetProgress,
+    beginCommissioning,
     connect,
     disconnect,
     resync,
@@ -294,3 +338,10 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
 }
 
 export type ControllerStore = ReturnType<typeof createControllerStore>;
+
+/** A commissioning id of the contract's pattern (^[A-Za-z0-9_-]{1,64}$). */
+function newCommissioningId(): string {
+  const c = globalThis.crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
+}

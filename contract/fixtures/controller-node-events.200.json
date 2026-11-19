@@ -2,7 +2,10 @@
   "route": "GET /controller/nodes/{id}/events",
   "request": {
     "method": "GET",
-    "path": "/controller/nodes/0000000000000011/events"
+    "path": "/controller/nodes/0000000000000011/events",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,
@@ -15,6 +18,7 @@
           "event_hex": "0x0001",
           "name": "ShutDown",
           "number": 41,
+          "number_str": "41",
           "priority": "critical"
         },
         {
@@ -27,6 +31,7 @@
           "event_hex": "0x0000",
           "name": "StartUp",
           "number": 42,
+          "number_str": "42",
           "priority": "critical"
         }
       ]

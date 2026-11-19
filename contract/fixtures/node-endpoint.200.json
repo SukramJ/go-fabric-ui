@@ -2,7 +2,10 @@
   "route": "GET /node/endpoints/{ep}",
   "request": {
     "method": "GET",
-    "path": "/node/endpoints/2"
+    "path": "/node/endpoints/2",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,
@@ -188,7 +191,7 @@
         {
           "id": 256,
           "id_hex": "0x0100",
-          "name": "OnOffLight",
+          "name": "On/Off Light",
           "revision": 3
         },
         {

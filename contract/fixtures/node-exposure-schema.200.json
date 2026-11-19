@@ -2,7 +2,10 @@
   "route": "GET /node/exposure/schema",
   "request": {
     "method": "GET",
-    "path": "/node/exposure/schema"
+    "path": "/node/exposure/schema",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,

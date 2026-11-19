@@ -1,7 +1,17 @@
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { closedResponseSchemas, diffContracts, fixtureUnknownFields, load, unknownFields } from "./contract-guard.mjs";
+import { execFileSync } from "node:child_process";
+import {
+  baselineProblem,
+  closedResponseSchemas,
+  diffContracts,
+  fixtureUnknownFields,
+  judgeBreaks,
+  load,
+  narrowed,
+  unknownFields,
+} from "./contract-guard.mjs";
 
 const contract = (p) => fileURLToPath(new URL(`../../contract/${p}`, import.meta.url));
 
@@ -11,8 +21,35 @@ const base = {
 };
 
 describe("contract guard", () => {
-  it("passes the current contract against the previous release", () => {
-    expect(diffContracts(load(contract("previous/openapi.yaml")), load(contract("openapi.yaml")))).toEqual([]);
+  it("passes the current contract against the previous release, with its accepted breaks", () => {
+    const cur = load(contract("openapi.yaml"));
+    const breaks = diffContracts(load(contract("previous/openapi.yaml")), cur);
+    expect(judgeBreaks(breaks, cur.info["x-accepted-breaks"])).toEqual({ unaccepted: [], stale: [] });
+  });
+
+  it("holds the contract of the newest release tag in previous/ (UR-P3-test-02)", () => {
+    const git = (...a) => execFileSync("git", a, { cwd: contract("."), encoding: "utf8" });
+    const tag = git("describe", "--tags", "--abbrev=0").trim();
+    const tagged = git("show", `${tag}:contract/openapi.yaml`);
+    const read = (p) => fs.readFileSync(contract(p), "utf8");
+    expect(baselineProblem({ previous: read("previous/openapi.yaml"), current: read("openapi.yaml"), tagged, tag })).toBeUndefined();
+  });
+
+  it("judges the baseline: the tag's copy, or an unmoved contract", () => {
+    expect(baselineProblem({ previous: "a", current: "b", tagged: "a", tag: "v1" })).toBeUndefined();
+    expect(baselineProblem({ previous: "z", current: "a", tagged: "a", tag: "v1" })).toBeUndefined();
+    expect(baselineProblem({ previous: "z", current: "b", tagged: "a", tag: "v1" })).toMatch(/not the contract of v1/);
+  });
+
+  it("reports a removed released route against the 0.9.0 baseline (UR-P3-test-02)", () => {
+    const cur = load(contract("previous/openapi.yaml"));
+    delete cur.paths["/controller/diagnostics"];
+    expect(diffContracts(load(contract("previous/openapi.yaml")), cur)).toContain("path /controller/diagnostics removed");
+  });
+
+  it("splits breaks into unaccepted and stale entries", () => {
+    expect(judgeBreaks(["a", "b"], ["b", "c"])).toEqual({ unaccepted: ["a"], stale: ["c"] });
+    expect(judgeBreaks([], undefined)).toEqual({ unaccepted: [], stale: [] });
   });
 
   it("passes an addition", () => {
@@ -45,6 +82,52 @@ describe("contract guard", () => {
       "schema A: field y became required",
     ]);
     expect(diffContracts(base, { paths: {}, components: { schemas: {} } })).toEqual(["path /a removed", "schema A removed"]);
+  });
+
+  it("reports a response field no longer required, a changed type and a narrower request (UR-P3-test-03)", () => {
+    const req = (s) => ({ content: { "application/json": { schema: { $ref: `#/components/schemas/${s}` } } } });
+    const prev = {
+      paths: {
+        "/a/{id}": {
+          parameters: [{ $ref: "#/components/parameters/ID" }],
+          get: { parameters: [{ name: "n", in: "query", schema: { type: "integer" } }], responses: { 200: req("Out") } },
+          post: { requestBody: req("In"), responses: { 204: {} } },
+        },
+      },
+      components: {
+        parameters: { ID: { name: "id", in: "path", schema: { type: "string" } } },
+        schemas: {
+          Out: { required: ["c", "m"], properties: { c: { type: "integer" }, m: { type: "string" }, id: { type: "integer" } } },
+          In: { properties: { ep: { type: "integer", minimum: 0 }, kind: { type: "string", enum: ["a", "b"] } } },
+        },
+      },
+    };
+    const cur = structuredClone(prev);
+    cur.components.schemas.Out.required = ["m"];
+    cur.components.schemas.Out.properties.id = { type: "string" };
+    cur.components.parameters.ID.schema.pattern = "^[0-9A-F]{1,16}$";
+    cur.paths["/a/{id}"].get.parameters[0].schema.maximum = 9;
+    cur.components.schemas.In.properties.ep.maximum = 65534;
+    cur.components.schemas.In.properties.kind.enum = ["a"];
+    expect(diffContracts(prev, cur)).toEqual([
+      "parameter ID: narrower (pattern)",
+      "GET /a/{id}: parameter n: narrower (maximum)",
+      "schema Out: field c no longer required",
+      "schema Out: field id: type changed from integer to string",
+      "schema In: field ep: narrower (maximum)",
+      "schema In: field kind: narrower (enum)",
+    ]);
+    // A response's range may narrow, a request's may widen, a response field may add an enum value.
+    const ok = structuredClone(prev);
+    ok.components.schemas.Out.properties.m.pattern = "^x$";
+    ok.components.schemas.In.properties.ep.minimum = undefined;
+    ok.components.schemas.In.properties.kind.enum = ["a", "b", "c"];
+    expect(diffContracts(prev, ok)).toEqual([]);
+  });
+
+  it("names the keywords that narrow a value", () => {
+    expect(narrowed({ maximum: 10 }, { maximum: 9, minLength: 1 })).toEqual(["maximum", "minLength"]);
+    expect(narrowed({ maximum: 10, pattern: "x" }, { maximum: 11, pattern: "x" })).toEqual([]);
   });
 
   it("keeps every response schema open to unknown fields (issue #27)", () => {

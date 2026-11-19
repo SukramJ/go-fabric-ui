@@ -8,6 +8,8 @@ technisch von M8/M10 nicht abhängt). Faktenbasis: die Lesekarten
 `v0.4.9`); jede tragende Zeile unten ist am Stand nachgelesen. Sprache:
 Deutsch (Phasenkonzept); Brief, Vertrag, Doku und Bericht auf Englisch.
 
+Citations are of the day above (this repository at `ba04b8b`), not maintained.
+
 ## A. Ausgangslage
 
 - **Die Daten sind da, die Seiten zeigen sie nicht.** Die Node-Familie

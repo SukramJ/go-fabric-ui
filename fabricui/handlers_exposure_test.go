@@ -225,8 +225,9 @@ func TestExposureApply_Reassembles(t *testing.T) {
 func TestExposureApply_ReassembleFailureKeepsTheChange(t *testing.T) {
 	h, mux := newTestHandler(t, testOptions{exposure: newMemoryProvider(), reassemble: func(context.Context) error { return errors.New("assembler") }})
 	rec := record(h)
-	if r := do(t, mux, http.MethodPut, "/node/exposure", `{"items":[{"key":"lamp-1","enabled":true}]}`); r.Code != http.StatusOK {
-		t.Fatalf("status %d", r.Code)
+	r := do(t, mux, http.MethodPut, "/node/exposure", `{"items":[{"key":"lamp-1","enabled":true}]}`)
+	if r.Code != http.StatusOK || !strings.Contains(r.Body.String(), `"reassembled":false`) {
+		t.Fatalf("status %d %s, want reassembled false (UR-P2-ui-35)", r.Code, r.Body)
 	}
 	if !slices.Equal(rec.types(), []string{EventExposureChanged}) {
 		t.Fatalf("events %v, want exposure_changed only", rec.types())
@@ -374,6 +375,7 @@ func TestExposureApply_ReassembleOutlivesTheRequest(t *testing.T) {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPut, DefaultPrefix+"/node/exposure",
 		strings.NewReader(`{"items":[{"key":"lamp-1","enabled":true}]}`))
 	req.Header.Set(TokenHeader, testToken)
+	req.Header.Set("Content-Type", "application/json")
 	mux.ServeHTTP(httptest.NewRecorder(), req)
 	if !ran || ctxErr != nil {
 		t.Fatalf("reassemble ran %v with context error %v, want a live context", ran, ctxErr)

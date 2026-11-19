@@ -406,6 +406,16 @@ func TestStatus_AttestationBootReasonAndErase(t *testing.T) {
 		erase: func(context.Context) error { return nil },
 	})
 	runFixture(t, mux, "node-status.200-attestation")
+	// Without admin rights the field is the fixed sentence, not the
+	// loader's text (decision 63).
+	_, mux = newTestHandler(t, testOptions{node: n, admin: func(*http.Request) bool { return false }})
+	var st statusResponse
+	if err := json.Unmarshal(do(t, mux, http.MethodGet, "/node/status", "").Body.Bytes(), &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.AttestationError != attestationErrorNonAdmin {
+		t.Errorf("attestation_error without admin rights: %q", st.AttestationError)
+	}
 	// Without a node there is neither a boot reason nor an attestation.
 	_, mux = newTestHandler(t, testOptions{noNode: true, erase: func(context.Context) error { return nil }})
 	var m map[string]json.RawMessage
@@ -460,7 +470,7 @@ func TestErase_PerNode(t *testing.T) {
 		return func(context.Context) error { got = append(got, key); return nil }
 	}
 	first, second := sampleNode(), secondNode()
-	h, err := newHandler(Options{Nodes: []NodeEntry{
+	h, err := newHandler(Options{AllowedHosts: []string{"example.com"}, Nodes: []NodeEntry{
 		{Key: "first", Source: portSource{fakeNode: first}, Erase: eraser("first")},
 		{Key: "second", Source: portSource{fakeNode: second}, Erase: eraser("second")},
 		{Key: "third", Source: portSource{fakeNode: sampleNode()}},
@@ -513,26 +523,28 @@ func TestFactoryReset_OutlivesTheRequest(t *testing.T) {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, DefaultPrefix+"/node/maintenance/factory-reset",
 		strings.NewReader(`{"confirm":"`+factoryResetConfirmation+`"}`))
 	req.Header.Set(TokenHeader, testToken)
+	req.Header.Set("Content-Type", "application/json")
 	mux.ServeHTTP(httptest.NewRecorder(), req)
 	if !slices.Equal(n.removed, []uint8{1, 2, 3}) {
 		t.Fatalf("removed %v, want every fabric", n.removed)
 	}
 }
 
-// UR-P1-err-07, UR-P1-err-36 (the no-contract parts): a fabric read that
-// fails is logged at warn, not swallowed, on the status and the
-// compatibility report.
+// UR-P1-err-07, UR-P1-err-36: a fabric read that fails is logged, not
+// swallowed; the status leaves fabric_count out and the compatibility
+// report is 500 (contract 0.10.0).
 func TestFailedFabricReadIsLogged(t *testing.T) {
-	for _, path := range []string{"/node/status", "/node/compatibility"} {
+	for path, want := range map[string]int{"/node/status": http.StatusOK, "/node/compatibility": http.StatusInternalServerError} {
 		n := sampleNode()
 		n.fabricsErr = errors.New("store: closed")
 		var log bytes.Buffer
 		_, mux := newTestHandler(t, testOptions{node: n, log: &log})
-		if rec := do(t, mux, http.MethodGet, path, ""); rec.Code != http.StatusOK {
+		rec := do(t, mux, http.MethodGet, path, "")
+		if rec.Code != want || strings.Contains(rec.Body.String(), "fabric_count") {
 			t.Fatalf("%s: %d %s", path, rec.Code, rec.Body)
 		}
-		if !strings.Contains(log.String(), "level=WARN") || !strings.Contains(log.String(), "store: closed") {
-			t.Fatalf("%s: the failed fabric read is not logged at warn:\n%s", path, log.String())
+		if !strings.Contains(log.String(), "store: closed") {
+			t.Fatalf("%s: the failed fabric read is not logged:\n%s", path, log.String())
 		}
 	}
 }
@@ -545,6 +557,7 @@ func leaving(t *testing.T, mux http.Handler, method, path, body string, started 
 	defer cancel()
 	req := httptest.NewRequestWithContext(ctx, method, DefaultPrefix+path, strings.NewReader(body))
 	req.Header.Set(TokenHeader, testToken)
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	done := make(chan struct{})
 	go func() {

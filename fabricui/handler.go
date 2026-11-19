@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -25,6 +26,12 @@ import (
 // TokenHeader carries the admin token in token mode (a nil
 // [Options].Admin).
 const TokenHeader = "X-Fabric-UI-Token" //nolint:gosec // a header name, not a credential
+
+// RequestHeader is the header that, with the value "1", marks a request of
+// the web interface's client: in host mode (a non-nil [Options].Admin) a request
+// has admin rights only with it and Admin's yes. The shipped client sends
+// it on every request.
+const RequestHeader = "X-Fabric-UI"
 
 // handler holds what every route reads.
 type handler struct {
@@ -97,7 +104,35 @@ type handler struct {
 	// openMu serialises POST /node/pairing/window from its check of the
 	// node's window to the stored credentials.
 	openMu sync.Mutex
+
+	// streams counts the open event streams of every kind and node,
+	// shared by the siblings (Options.MaxStreams); hostDone is
+	// Options.Done.
+	streams  *streamCount
+	hostDone <-chan struct{}
+
+	// allowedHosts and allowHost are Options.AllowedHosts and AllowHost:
+	// the Host check (hostCheck).
+	allowedHosts map[string]bool
+	allowHost    func(*http.Request) bool
 }
+
+// streamCount is the open streams and their bound.
+type streamCount struct {
+	open atomic.Int64
+	max  int64
+}
+
+// acquire takes one stream if fewer than max are open.
+func (c *streamCount) acquire() bool {
+	if c.open.Add(1) > c.max {
+		c.open.Add(-1)
+		return false
+	}
+	return true
+}
+
+func (c *streamCount) release() { c.open.Add(-1) }
 
 // nodeEntry is one node of the family in the handler's terms.
 type nodeEntry struct {
@@ -195,17 +230,14 @@ func nodeEntries(o *Options) ([]nodeEntry, error) {
 	return out, nil
 }
 
-// hubOf is the hub a node's handler publishes into and the host's source
-// beside it: the host's *Events itself, else a hub of the handler's own
-// and src.
+// hubOf is the hub a node's handler publishes into, always its own, and
+// the host's source beside it, which reaches admin requests only
+// (UR-P3-api-08): a host's *Events no longer carries the handler's events.
 func hubOf(src EventSource) (hub *Events, extra EventSource) {
-	if ev, ok := src.(*Events); ok {
-		if ev == nil {
-			// A typed-nil *Events is no source: as extra it would pass an
-			// interface nil check and panic on Subscribe (UR-P1-err-03).
-			return NewEvents(), nil
-		}
-		return ev, nil
+	if ev, ok := src.(*Events); ok && ev == nil {
+		// A typed-nil *Events is no source: as extra it would pass an
+		// interface nil check and panic on Subscribe (UR-P1-err-03).
+		return NewEvents(), nil
 	}
 	return NewEvents(), src
 }
@@ -220,6 +252,17 @@ func newHandler(o Options) (*handler, error) {
 	}
 	if err := validFrameAncestors(o.FrameAncestors); err != nil {
 		return nil, err
+	}
+	allowed, err := allowedHostSet(o.AllowedHosts)
+	if err != nil {
+		return nil, err
+	}
+	maxStreams := o.MaxStreams
+	switch {
+	case maxStreams < 0:
+		return nil, errors.New("fabricui: Options.MaxStreams is negative")
+	case maxStreams == 0:
+		maxStreams = DefaultMaxStreams
 	}
 	nodes, err := nodeEntries(&o)
 	if err != nil {
@@ -267,6 +310,10 @@ func newHandler(o Options) (*handler, error) {
 		allowEmpty:     o.AllowEmptyTopology,
 		heartbeat:      15 * time.Second,
 		fresh:          node.NewWindowCredentials,
+		streams:        &streamCount{max: int64(maxStreams)},
+		hostDone:       o.Done,
+		allowedHosts:   allowed,
+		allowHost:      o.AllowHost,
 	}
 	h.hooks.Store(&nodeHooks{reassemble: o.Reassemble, erase: o.Erase})
 	if h.log == nil {
@@ -293,7 +340,8 @@ func newHandler(o Options) (*handler, error) {
 // default node and under /nodes/{node} for every node by its key.
 type nodeRoute struct {
 	method, path string
-	// admin routes write or read a pairing secret (contract x-admin).
+	// admin is the contract's x-admin: the route answers 403 to a request
+	// without admin rights.
 	admin bool
 	serve func(*handler, http.ResponseWriter, *http.Request)
 }
@@ -303,23 +351,23 @@ type nodeRoute struct {
 // internal/north/rest/router.go:1328-1359 at b40b289a.
 var nodeRoutes = []nodeRoute{
 	{"GET", "/status", false, (*handler).status},
-	{"GET", "/fabrics", false, (*handler).fabrics},
+	{"GET", "/fabrics", true, (*handler).fabrics},
 	{"DELETE", "/fabrics/{index}", true, (*handler).removeFabric},
 	{"GET", "/pairing", true, (*handler).pairing},
 	{"POST", "/pairing/window", true, (*handler).openWindow},
 	{"POST", "/pairing/window/close", true, (*handler).closeWindow},
-	{"GET", "/endpoints", false, (*handler).endpoints},
-	{"GET", "/endpoints/{ep}", false, (*handler).nodeEndpoint},
-	{"GET", "/endpoints/{ep}/events", false, (*handler).nodeEndpointEvents},
-	{"GET", "/surface", false, (*handler).surfaceReport},
-	{"GET", "/sessions", false, (*handler).sessions},
-	{"GET", "/topology", false, (*handler).topology},
-	{"GET", "/mdns", false, (*handler).mdns},
+	{"GET", "/endpoints", true, (*handler).endpoints},
+	{"GET", "/endpoints/{ep}", true, (*handler).nodeEndpoint},
+	{"GET", "/endpoints/{ep}/events", true, (*handler).nodeEndpointEvents},
+	{"GET", "/surface", true, (*handler).surfaceReport},
+	{"GET", "/sessions", true, (*handler).sessions},
+	{"GET", "/topology", true, (*handler).topology},
+	{"GET", "/mdns", true, (*handler).mdns},
 	{"POST", "/mdns/reannounce", true, (*handler).reannounce},
-	{"GET", "/compatibility", false, (*handler).compatibility},
-	{"GET", "/events", false, (*handler).diagnosticEvents},
-	{"GET", "/exposure/schema", false, (*handler).exposureSchema},
-	{"GET", "/exposure", false, (*handler).exposureList},
+	{"GET", "/compatibility", true, (*handler).compatibility},
+	{"GET", "/events", true, (*handler).diagnosticEvents},
+	{"GET", "/exposure/schema", true, (*handler).exposureSchema},
+	{"GET", "/exposure", true, (*handler).exposureList},
 	{"PUT", "/exposure", true, (*handler).exposureApply},
 	{"POST", "/exposure/preview", true, (*handler).exposurePreview},
 	{"POST", "/maintenance/reassemble", true, (*handler).maintenanceReassemble},
@@ -337,7 +385,11 @@ var registryRoutes = []nodeRoute{
 }
 
 // operationAdmin are the /operation routes the contract marks x-admin.
-var operationAdmin = map[string]bool{"PUT /operation/log/level": true}
+var operationAdmin = map[string]bool{
+	"PUT /operation/log/level":  true,
+	"GET /operation/log":        true,
+	"GET /operation/log/stream": true,
+}
 
 // register puts the API on mux (see mount) and panics where mount fails.
 func (h *handler) register(mux *http.ServeMux) {
@@ -368,7 +420,7 @@ func (h *handler) mount(mux *http.ServeMux) (err error) {
 			return fmt.Errorf("fabricui: mount: the mux already serves %q for the API route %q; nothing was registered", q, p)
 		}
 	}
-	mux.Handle(h.prefix+"/", apiHeaders(api))
+	mux.Handle(h.prefix+"/", apiHeaders(h.hostCheck(api)))
 	return nil
 }
 
@@ -381,9 +433,48 @@ func apiHeaders(next http.Handler) http.Handler {
 		hdr := w.Header()
 		hdr.Set("Cache-Control", "no-store")
 		setCommonHeaders(hdr)
-		next.ServeHTTP(w, r)
+		if observeStatus == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(sw, r)
+		if !sw.pathLevel {
+			observeStatus(r.Method, r.URL.Path, sw.status)
+		}
 	})
 }
+
+// observeStatus, set by the package's tests only, sees every status the
+// API answers: the guard that each is declared for its operation in the
+// contract (decision 47, TestMain).
+var observeStatus func(method, path string, status int)
+
+// statusWriter records the status written through it.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+	wrote  bool
+	// pathLevel marks an answer no operation gives: noRoute's 404 and
+	// 405, and the 404 of an absent family.
+	pathLevel bool
+}
+
+func (s *statusWriter) WriteHeader(code int) {
+	if !s.wrote {
+		s.status, s.wrote = code, true
+	}
+	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusWriter) Write(b []byte) (int, error) {
+	s.wrote = true
+	return s.ResponseWriter.Write(b)
+}
+
+// Unwrap lets http.ResponseController reach the writer's flush and
+// deadlines.
+func (s *statusWriter) Unwrap() http.ResponseWriter { return s.ResponseWriter }
 
 // setCommonHeaders sets what every response of the handler carries, the
 // API's and the bundle's: nosniff and no-referrer (UR-P0-web-24).
@@ -435,7 +526,7 @@ func (h *handler) routes() (api http.Handler, patterns []string) {
 		mux.Handle(pattern, fn)
 		patterns = append(patterns, pattern)
 	}
-	read := func(pattern string, fn http.HandlerFunc) { handle(pattern, fn) }
+	read := func(pattern string, fn http.HandlerFunc) { handle(pattern, h.openRoute(fn)) }
 	write := func(pattern string, fn http.HandlerFunc) { handle(pattern, h.adminOnly(fn)) }
 
 	for _, rt := range nodeRoutes {
@@ -461,15 +552,16 @@ func (h *handler) routes() (api http.Handler, patterns []string) {
 	read("GET "+h.prefix+"/operation/info", h.operationInfo)
 	read("GET "+h.prefix+"/operation/log/level", h.logLevel)
 	handle("PUT "+h.prefix+"/operation/log/level", h.adminOnlyBecause(h.setLogLevel, "this route changes the daemon's log level"))
-	read("GET "+h.prefix+"/operation/log", h.logRecords)
-	read("GET "+h.prefix+"/operation/log/stream", h.logStream)
+	write("GET "+h.prefix+"/operation/log", h.logRecords)
+	write("GET "+h.prefix+"/operation/log/stream", h.logStream)
 	if h.ctrl != nil {
 		handle(h.prefix+"/controller/", h.controllerRoutes())
 	}
-	// Anything else under the prefix is an API 404, not the web
+	// Anything else under the prefix is an API 405 or 404, not the web
 	// interface's index.
-	handle(h.prefix+"/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such route", r.Method+" "+r.URL.Path)
+	catchAll := h.prefix + "/"
+	handle(catchAll, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		noRoute(w, r, mux, catchAll)
 	}))
 	return mux, patterns
 }
@@ -520,6 +612,8 @@ func (h *handler) sibling(e nodeEntry) *handler {
 		fresh:          h.fresh,
 		ops:            h.ops,
 		exposureReason: h.exposureReason,
+		streams:        h.streams,
+		hostDone:       h.hostDone,
 	}
 	s.hub, s.extra = hubOf(e.events)
 	s.config.Store(e.config)
@@ -607,23 +701,75 @@ func (h *handler) listNodes(w http.ResponseWriter, _ *http.Request) {
 // token mode, one without the token. Mirrors loom's admin-gated route
 // group (router.go:1336-1353, `pr.With(admin)`).
 func (h *handler) adminOnly(next http.HandlerFunc) http.HandlerFunc {
-	return h.adminOnlyBecause(next, "this route writes or reads a pairing secret")
+	return h.adminOnlyBecause(next, "this route needs admin rights")
 }
 
-// adminOnlyBecause is adminOnly with the refusal's detail.
+// adminOnlyBecause is adminOnly with the refusal's detail: the Origin,
+// then the admin test, then the body's media type, as every admin route
+// checks them (admitAdmin).
 func (h *handler) adminOnlyBecause(next http.HandlerFunc, detail string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.isAdmin(r) {
-			writeProblem(w, r, http.StatusForbidden, codeForbidden, "Admin rights required", detail)
+		if !h.admitAdmin(w, r, detail) || !jsonBody(w, r) {
 			return
 		}
 		next(w, r)
 	}
 }
 
+// openRoute checks an open route's body media type (jsonBody).
+func (h *handler) openRoute(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if jsonBody(w, r) {
+			next(w, r)
+		}
+	}
+}
+
+// admitAdmin answers 403 origin_not_allowed for an Origin the handler
+// does not admit and 403 forbidden for a request without admin rights,
+// and reports whether the request may go on.
+func (h *handler) admitAdmin(w http.ResponseWriter, r *http.Request, detail string) bool {
+	if !h.originAllowed(r) {
+		writeProblem(w, r, http.StatusForbidden, codeOriginNotAllowed, "Origin not allowed", "the handler does not admit this origin")
+		return false
+	}
+	if !h.isAdmin(r) {
+		writeProblem(w, r, http.StatusForbidden, codeForbidden, "Admin rights required", detail)
+		return false
+	}
+	return true
+}
+
+// requestAdmin is the one admin test of a request on an open route: the
+// status's admin field, its reduced answer and the node stream's filter.
+// An Origin the handler does not admit makes the request a non-admin's.
+func (h *handler) requestAdmin(r *http.Request) bool { return h.originAllowed(r) && h.isAdmin(r) }
+
+// originAllowed reports whether r's Origin, when it carries one, names a
+// host the name rules admit, or, for a request Options.AllowHost
+// admitted, the request's own Host and port; "null" and an unparsable
+// Origin are not.
+func (h *handler) originAllowed(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Path != "" || u.User != nil {
+		return false
+	}
+	if h.nameAllowed(hostName(u.Host)) {
+		return true
+	}
+	a, _ := admissionOf(r)
+	return a.byPredicate && strings.EqualFold(u.Host, r.Host)
+}
+
+// isAdmin is the admin test: in host mode RequestHeader set to "1" and
+// the host's Admin; in token mode the token.
 func (h *handler) isAdmin(r *http.Request) bool {
 	if h.admin != nil {
-		return h.admin(r)
+		return r.Header.Get(RequestHeader) == "1" && h.admin(r)
 	}
 	got := r.Header.Get(TokenHeader)
 	return got != "" && subtle.ConstantTimeCompare([]byte(got), []byte(h.token)) == 1
@@ -632,18 +778,34 @@ func (h *handler) isAdmin(r *http.Request) bool {
 // publish hands ev to the stream's subscribers.
 func (h *handler) publish(ev Event) { h.hub.Publish(ev) }
 
-// subscribe registers fn for every event from now on — the handler's own,
+// subscribe registers fn for every event from now on as an admin request
+// receives them (subscribeAs).
+func (h *handler) subscribe(fn func(Event)) (unsubscribe func()) {
+	return h.subscribeAs(true, fn)
+}
+
+// subscribeAs registers fn for every event from now on — the handler's own,
 // the host's source and the node's transitions (node.Observe, the health
 // probe and the diagnostic trace: observeNode) — and
 // returns the function that unregisters it from all three. A route that
 // removes a fabric or opens a window does not publish the transition
-// itself: the node reports it through the observer, once.
-func (h *handler) subscribe(fn func(Event)) (unsubscribe func()) {
+// itself: the node reports it through the observer, once. Without admin
+// rights fn receives the types nodeStreamEvents allows and nothing of the
+// host's source.
+func (h *handler) subscribeAs(admin bool, fn func(Event)) (unsubscribe func()) {
+	if !admin {
+		all := fn
+		fn = func(ev Event) {
+			if nodeStreamEvents[ev.Type] {
+				all(ev)
+			}
+		}
+	}
 	unsubs := []func(){h.hub.Subscribe(fn)}
 	if h.nodesHub != nil {
 		unsubs = append(unsubs, h.nodesHub.Subscribe(fn))
 	}
-	if h.extra != nil {
+	if h.extra != nil && admin {
 		unsubs = append(unsubs, h.extra.Subscribe(fn))
 	}
 	if h.node != nil {

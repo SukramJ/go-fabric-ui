@@ -65,8 +65,9 @@ describe("UR-P1-err-108: a rotated token", () => {
     await expect(client.closeWindow()).resolves.toBeUndefined();
     expect(s.seen).toEqual([
       "GET /node/status -",
+      "GET /node/status a",
       "POST /node/pairing/window/close a",
-      "GET /node/status -",
+      "GET /node/status a",
       "POST /node/pairing/window/close b",
     ]);
   });
@@ -92,7 +93,7 @@ describe("UR-P1-web-115: keys and ids are checked where the library takes them",
     expect(client.forNode("kitchen-2").nodeKey).toBe("kitchen-2");
   });
 
-  it("refuses a controller node id that is a dot segment, before sending", async () => {
+  it("refuses a controller node id outside the contract's NodeID pattern, before sending", async () => {
     const seen: string[] = [];
     const client = createClient("/api/v1", async (url) => {
       seen.push(url);
@@ -101,9 +102,22 @@ describe("UR-P1-web-115: keys and ids are checked where the library takes them",
     await expect(client.controllerNode("..")).rejects.toThrow(RangeError);
     await expect(client.pingNode(".")).rejects.toThrow(RangeError);
     await expect(client.controllerNode("")).rejects.toThrow(RangeError);
-    // "../x" is encoded to one segment the server refuses itself.
-    await expect(client.controllerNode("../x")).resolves.toEqual({});
-    await expect(client.controllerNode("0x11")).resolves.toEqual({});
-    expect(seen).toEqual(["/api/v1/controller/nodes/..%2Fx", "/api/v1/controller/nodes/0x11"]);
+    await expect(client.controllerNode("../x")).rejects.toThrow(RangeError);
+    await expect(client.controllerNode("0x11")).rejects.toThrow(RangeError);
+    await expect(client.controllerNode("12345678901234567")).rejects.toThrow(RangeError);
+    await expect(client.controllerNode("00ff")).resolves.toEqual({});
+    expect(seen).toEqual(["/api/v1/controller/nodes/00ff"]);
+  });
+
+  it("refuses an endpoint number above 65534 in a path, before sending (0.10.0)", async () => {
+    const seen: string[] = [];
+    const client = createClient("/api/v1", async (url) => {
+      seen.push(url);
+      return new Response("{}", { status: 200 });
+    });
+    await expect(client.nodeEndpointDetail(65535)).rejects.toThrow(RangeError);
+    await expect(client.controllerEndpointDetail("01", 70000)).rejects.toThrow(RangeError);
+    await expect(client.nodeEndpointDetail(65534)).resolves.toEqual({});
+    expect(seen).toEqual(["/api/v1/node/endpoints/65534"]);
   });
 });

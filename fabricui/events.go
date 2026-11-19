@@ -53,6 +53,30 @@ const (
 	EventDiagnosticEvent = "diagnostic_event"
 )
 
+// nodeStreamEvents is every event type of the node stream and whether a
+// request without admin rights receives it (contract x-non-admin-events,
+// TestNodeStreamAllowListMatchesTheContract). A type absent here, a
+// host's from Options.Events included, reaches admin requests only.
+var nodeStreamEvents = map[string]bool{
+	EventNodesChanged:          true,
+	EventWindowOpened:          true,
+	EventWindowClosed:          true,
+	EventFabricAdded:           false,
+	EventFabricRemoved:         false,
+	EventFabricUpdated:         false,
+	EventCommissioningComplete: false,
+	EventSessionOpened:         false,
+	EventSessionClosed:         false,
+	EventSubscriptionsChanged:  false,
+	EventClusterEvent:          false,
+	EventAttributeChanged:      false,
+	EventSurfaceChanged:        false,
+	EventEndpointsChanged:      false,
+	EventHealthSample:          false,
+	EventDiagnosticEvent:       false,
+	EventExposureChanged:       false,
+}
+
 // Event is one server-sent event: its type and a JSON-encodable payload.
 // A payload never carries a passcode.
 type Event struct {

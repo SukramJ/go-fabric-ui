@@ -12,7 +12,7 @@
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
-  import { secondsUntil } from "../../countdown";
+  import { windowSecondsLeft } from "../../countdown";
   import { renderQrSvg } from "../../qr";
   import Button from "../../kit/Button.svelte";
   import Card from "../../kit/Card.svelte";
@@ -54,7 +54,7 @@
   const isAdmin = $derived(node.isAdmin);
   // Without admin rights: the window the status names, and what is left of it.
   const viewerWindowOpen = $derived(node.status?.enabled === true && node.status.commissioning_window_open);
-  const viewerLeft = $derived(secondsUntil(node.status?.window_deadline));
+  const viewerLeft = $derived(windowSecondsLeft(node.status, node.statusAt));
 
   // Opening a window on a node controllers already hold adds a controller;
   // the card says which of the two the operator is doing.

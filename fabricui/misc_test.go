@@ -69,6 +69,12 @@ func TestAdmin_HostCheckDecides(t *testing.T) {
 	req.Header.Set("X-Host-Admin", "yes")
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("host admin without the request header: %d, want 403", rec.Code)
+	}
+	req.Header.Set(RequestHeader, "1")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("host admin: %d, want 204", rec.Code)
 	}
@@ -89,6 +95,7 @@ func TestStream_DeliversEventsAndHeartbeats(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/node/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -271,7 +278,7 @@ func TestNodeObservers_AReplacedWindowIsWindowOpened(t *testing.T) {
 
 func TestMount_RegistersTheRoutesAndRefusesABadPrefix(t *testing.T) {
 	mux := http.NewServeMux()
-	if err := Mount(mux, Options{Prefix: "/ui-api"}); err != nil {
+	if err := Mount(mux, Options{AllowedHosts: []string{"example.com"}, Prefix: "/ui-api"}); err != nil {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
@@ -418,7 +425,7 @@ func TestStream_FabricUpdatedCommissioningCompleteClusterEvent(t *testing.T) {
 		{Type: EventFabricUpdated, Data: FabricEvent{FabricIndex: 3, VendorID: 0xFFF1, VendorName: eligibility.VendorName(0xFFF1), Label: "Kitchen"}},
 		{Type: EventCommissioningComplete, Data: FabricEvent{FabricIndex: 3}},
 		{Type: EventClusterEvent, Data: api.EventRecord{
-			Number: 12, Priority: "info", Endpoint: 2, ClusterHex: "0x0039", EventHex: "0x0003",
+			Number: 12, NumberStr: ptr("12"), Priority: "info", Endpoint: 2, ClusterHex: "0x0039", EventHex: "0x0003",
 			Name: ptr("ReachableChanged"), EpochMs: ptr(int(ms)),
 		}},
 	}
@@ -446,6 +453,7 @@ func TestStream_DropsAnEventWithAnInvalidType(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/node/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatal(err)

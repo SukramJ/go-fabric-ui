@@ -1168,6 +1168,14 @@ func (n *memoryNode) SetAutoSubscribe(_ context.Context, on bool) error {
 	return nil
 }
 
+// AutoSubscribe is the setting SetAutoSubscribe stores; in memory it is
+// the subscription too.
+func (n *memoryNode) AutoSubscribe() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.subscribed
+}
+
 func (n *memoryNode) ICD() (ICDState, bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()

@@ -16,7 +16,9 @@
       "passcode": 20202021,
       "qr_code": "MT:FRESH1234",
       "source": "window",
-      "window_open": true
+      "window_match": true,
+      "window_open": true,
+      "window_remaining_seconds": 300
     }
   }
 }

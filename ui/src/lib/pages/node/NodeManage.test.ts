@@ -5,7 +5,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
-import { testUI, type TestUI } from "../../../test/support";
+import { body, testUI, type TestUI } from "../../../test/support";
+import type { Status as NodeStatus } from "../../api/client";
 import { createNodeStore } from "../../store.svelte";
 import Status from "./Status.svelte";
 
@@ -27,10 +28,21 @@ describe("the configuration block", () => {
     render(Harness, { ui: testUI({ fixtures: ["node-status.200-config"] }), page: Status });
     const block = await screen.findByTestId("node-config");
     expect(screen.getByTestId("node-config-source")).toHaveTextContent('node.config.from_configuration_note:{"note":"the --bridge-* flags"}');
-    for (const text of ["Main bridge", "[::]:5540", "3840", "go-fabric (0xFFF1)", "Bridge (0x8000)", "bridge.db"]) expect(block).toHaveTextContent(text);
+    for (const text of ["Main bridge", "[::]:5540", "3840", "go-fabric (0xFFF1)", "Bridge (0x8000)"]) expect(block).toHaveTextContent(text);
+    // The fixture is a request without admin rights: no config.store (0.10.0), and no store row.
+    expect(block).not.toHaveTextContent("node.config.store");
     expect(block.textContent).not.toMatch(/passcode/i);
     // The default node is configuration: no manage card.
     expect(screen.queryByTestId("node-manage")).toBeNull();
+  });
+
+  it("shows the store to an administrator (UR-P3-test-193)", async () => {
+    const admin = body<NodeStatus>("node-status.200-config");
+    admin.config = { ...admin.config!, store: "bridge.db" };
+    render(Harness, { ui: testUI({ answers: { "GET /node/status": { status: 200, body: admin } } }), page: Status });
+    const block = await screen.findByTestId("node-config");
+    expect(block).toHaveTextContent("node.config.store");
+    expect(block).toHaveTextContent("bridge.db");
   });
 
   it("is absent when the host describes no configuration", async () => {

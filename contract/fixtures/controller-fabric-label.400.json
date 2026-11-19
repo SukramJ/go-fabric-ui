@@ -14,7 +14,7 @@
     "status": 400,
     "body": {
       "code": "bad_request",
-      "detail": "label: longer than 32 characters",
+      "detail": "label: longer than 32 bytes",
       "instance": "/api/v1/controller/fabric/label",
       "status": 400,
       "title": "Invalid request",

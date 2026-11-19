@@ -15,46 +15,46 @@ The terms the pages use — the node family and the controller family,
 Topology versus Network, the window kinds — and the Matter terms behind
 them are defined in go-fabric's [glossary](https://sukramj.github.io/go-fabric/reference/glossary/).
 
-> **Status: `v0.4.1`** (waves U1, U2, U3a and U3b of
-> [concept v9](https://github.com/SukramJ/go-fabric/blob/main/docs/concept-v9-fabric-ui.md)):
-> both page families — the node family (status, pairing, fabrics,
+> **Status: `v0.10.0`** (contract 0.10.0) of
+> [concept v9](https://github.com/SukramJ/go-fabric/blob/main/docs/concept-v9-fabric-ui.md).
+> Both page families: the node family (status, pairing, fabrics,
 > selection, endpoints, surface, diagnostics, topology) and the controller
 > family (nodes, commissioning, a node's endpoints, attributes, ACL,
-> bindings, window, ICD, fabrics and updates, settings). `0.5.0` (waves
-> U4b and U4a, unreleased) adds a node's inventory from the controller's image:
-> per endpoint its device types, tags, labels, reachability and device
-> type conformance, per cluster its revision, decoded feature map, data
-> version, attribute values and command and event lists; the node
-> family's endpoint page with what the node serves — the same inventory
-> with the values, the host's surface decisions and the endpoint's events
-> — refetched on the stream's `attribute_changed`; and the events tab of
-> the controller's node page. Wave U5a (unreleased) adds operation: a
-> node selector for daemons with several device nodes, an Operation page
-> (log level, log ring and stream, version, uptime), a ping of a
-> commissioned node by Matter read, the camera QR scan when
-> commissioning, pairing hints per ecosystem, status and diagnostics that
-> follow the stream, and a Playwright smoke per page. Wave U7
-> (unreleased, contract 0.7.0) completes the pages against go-fabric
-> v0.18.0: a refused attestation and the boot reason on the status, the
-> session parameters and a re-announce on diagnostics, the host's erase of
-> a node, step-by-step commissioning progress with a Terms and Conditions
-> acknowledgement, and the node's fabric update, commissioning end and
-> cluster events on the stream. Wave U9 (`v0.8.0`, contract 0.8.0)
-> carries go-fabric v0.19.1: a device that requires terms and conditions
-> answers `terms_required` and the Commission page retries with the
-> acknowledgement, the host's counters show on the status page, and the
-> Network page draws the Thread border routers. Wave U10 (`v0.8.1`,
-> contract 0.8.1) carries go-fabric v0.20.0 and shows a node's operational
-> host. Wave U11 (`v0.9.0`, contract 0.9.0) carries go-fabric v0.21.0 and
-> gives the controller family a Diagnostics tab: DNS-SD findings, peers,
-> sessions and the diagnostic trace.
+> bindings, window, ICD, fabrics and updates, settings, network,
+> diagnostics). The releases, one line per wave:
+>
+> - `v0.1.0`–`v0.1.3` — U1: the node family.
+> - `v0.2.0`–`v0.3.0` — U2: the controller family; the patches carry the
+>   surface page and go-fabric v0.14.0 to v0.16.0.
+> - `v0.4.0`, `v0.4.1` — U3a, U3b: the node family's topology view and
+>   the controller family's network graph.
+> - `v0.5.0` — U4b, U4a, U5a: a node's inventory from the controller's
+>   image, the node family's endpoint page, the event log of both
+>   families; operation — node selector, Operation page, ping, QR scan,
+>   pairing hints, live status, a Playwright smoke per page.
+> - `v0.6.0`, `v0.6.1` — U6a: nodes created, renamed and deleted in the
+>   page; go-fabric v0.18.0.
+> - `v0.7.0` — U7: completeness against go-fabric v0.18.0 (attestation
+>   error and boot reason, session parameters, re-announce, erase,
+>   commissioning steps, terms and conditions, three node events).
+> - `v0.7.1` — U8: the Commission page's BLE decision, `NodeSwitch`.
+> - `v0.8.0` — U9: go-fabric v0.19.1, `terms_required` with a retry, the
+>   host's counters, Thread border routers.
+> - `v0.8.1` — U10: go-fabric v0.20.0, a node's operational host.
+> - `v0.9.0`–`v0.9.2` — U11: the controller family's Diagnostics tab;
+>   go-fabric v0.21.0 to v0.22.2.
+> - `v0.10.0` — review phases 0 to 3: admin rights on the reading routes
+>   and streams, a Host check on every route, strict request bodies,
+>   `NewHandler`, stream limits; go-fabric v0.23.0; see the
+>   [changelog](changelog.md).
 
 ## Two artefacts, one version
 
 - **Go module** `github.com/SukramJ/go-fabric-ui`, package `fabricui`:
   `Mount(mux, Options)` puts the HTTP API on a `*node.Node` and, through
   `fabricui/gofabric.ControllerOf`, on a `*controller.Controller`;
-  `Handler(Options)` serves the API and the built bundle, so a daemon
+  `NewHandler(Options)` (or `Handler`, which panics on invalid options)
+  serves the API and the built bundle, so a daemon
   without its own web app gets the whole interface from one import and
   needs no Node.js toolchain. What a host exposes is its own business: it
   implements `ExposureProvider` (schema, list, preview, apply) and the
@@ -88,11 +88,21 @@ table, the admin modes, the problem codes and the versioning rule.
 ## Building
 
 ```sh
-make ci          # build vet test lint web-check dist-check
+make ci          # the main checks: build vet test lint generate-check web-check dist-check
 make race        # the Go tests with the race detector
+make fuzz        # each fuzz target for FUZZTIME (default 30s); go test runs their seeds
+make help        # every target
 make web-install # npm ci in ui/
 make web         # rebuild fabricui/dist (committed; dist-check fails on any byte of difference)
 ```
+
+`make ci` is not the whole pipeline: CI also runs `make race`,
+`make cover-check`, `make vuln licenses secrets pins-check`,
+`GOARCH=386 make build`, and after `make web-install` `make npm-audit`,
+`make notices-check`, `make version-check`, `make contract-check` and
+`make e2e-web`; CodeQL runs for Go and TypeScript. The nightly workflow
+adds the macOS test leg, `make fuzz` at three minutes per target and a
+full `npm audit` that reports without failing.
 
 ## Consumers
 

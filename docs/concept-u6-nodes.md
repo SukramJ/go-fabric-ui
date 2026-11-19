@@ -4,6 +4,8 @@ Stand 2026-11-05. Entscheidungen des Owners vom selben Tag (Abschnitt F).
 Englisch sind Issues, PRs und die Doku; dieses Konzept ist deutsch, solange es
 gilt, und wandert nach `docs/history/`, wenn U6 abgeschlossen ist.
 
+Citations are of the day above (this repository at `a831267`), not maintained.
+
 ## A. Ist
 
 - go-fabric-ui 0.5.0 (Contract 0.5.0): `GET /nodes` listet `Options.Node`

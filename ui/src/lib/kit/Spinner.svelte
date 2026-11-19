@@ -1,4 +1,4 @@
-<!-- Ported from openccu-loom assets/ui/src/lib/components/ui//Spinner.svelte:1-100 at b40b289a: three threads with a
+<!-- Ported from openccu-loom assets/ui/src/lib/components/ui//Spinner.svelte:1-99 at b40b289a: three threads with a
      sweeping segment; decorative, collapses to a static mark under reduced
      motion. -->
 <script lang="ts">

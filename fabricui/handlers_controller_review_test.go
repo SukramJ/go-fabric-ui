@@ -203,7 +203,7 @@ func (s *bindingSource) Node(id uint64) (ControllerNode, bool) {
 // UR-P1-bound-37: the Binding read is chunked at maxReadPaths, and an
 // endpoint the node refuses is a node error, not left out of an answer
 // the contract says holds every Binding endpoint.
-func TestGetNodeBindings_ChunkedAndRefusedIs502(t *testing.T) {
+func TestGetNodeBindings_ChunkedAndRefusedCarriesItsStatus(t *testing.T) {
 	var reads []int
 	src := &bindingSource{MemoryController: NewMemoryController(), node: bindingNode{count: 2*maxReadPaths + 1, reads: &reads}}
 	_, mux := newTestHandler(t, testOptions{noNode: true, controller: src})
@@ -219,8 +219,11 @@ func TestGetNodeBindings_ChunkedAndRefusedIs502(t *testing.T) {
 
 	src = &bindingSource{MemoryController: NewMemoryController(), node: bindingNode{count: 2, refused: map[uint16]uint8{2: 0x7E}, reads: &reads}}
 	_, mux = newTestHandler(t, testOptions{noNode: true, controller: src})
-	if r := do(t, mux, http.MethodGet, "/controller/nodes/0000000000000011/bindings", ""); r.Code != http.StatusBadGateway {
-		t.Fatalf("a refused endpoint: %d %s, want 502", r.Code, r.Body)
+	// A refused endpoint is listed with its status and no bindings
+	// (contract 0.10.0, UR-P1-bound-37).
+	r = do(t, mux, http.MethodGet, "/controller/nodes/0000000000000011/bindings", "")
+	if r.Code != http.StatusOK || !strings.Contains(r.Body.String(), `{"bindings":[],"endpoint":2,"status":126}`) {
+		t.Fatalf("a refused endpoint: %d %s", r.Code, r.Body)
 	}
 }
 

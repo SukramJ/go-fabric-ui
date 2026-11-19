@@ -16,7 +16,7 @@ import (
 )
 
 // Window duration bounds, Matter §11.19.8.1: 180..900 s, 0 is the 15-minute
-// default. Mirrors loom internal/north/rest/handlers/matter.go:169-180
+// default. Mirrors loom internal/north/rest/handlers/matter.go:174-183
 // (matterOpenCommissioningWindow) at b40b289a.
 const (
 	windowMinSeconds     = 180
@@ -47,6 +47,11 @@ type pairingResponse struct {
 	Source          string  `json:"source"`
 	WindowOpen      bool    `json:"window_open"`
 	DurationSeconds uint16  `json:"duration_seconds,omitempty"`
+	// WindowRemaining and WindowMatch are absent while no window is open
+	// (0.10.0): the seconds until it closes, and whether it admits these
+	// codes (false: a window on other credentials, opened elsewhere).
+	WindowRemaining *int  `json:"window_remaining_seconds,omitempty"`
+	WindowMatch     *bool `json:"window_match,omitempty"`
 }
 
 // Pairing sources.
@@ -75,6 +80,7 @@ func (h *handler) pairing(w http.ResponseWriter, r *http.Request) {
 			Discriminator: &disc, Passcode: &pc,
 			QRCode: eph.qr, ManualCode: eph.manual, Source: sourceWindow,
 			WindowOpen: true, DurationSeconds: duration,
+			WindowRemaining: remainingSeconds(win, h.node.now()), WindowMatch: ptr(true),
 		})
 		return
 	}
@@ -85,11 +91,18 @@ func (h *handler) pairing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pc, disc := sp.Passcode, sp.Discriminator
-	writeJSON(w, pairingResponse{
+	res := pairingResponse{
 		Discriminator: &disc, Passcode: &pc,
 		QRCode: sp.QR, ManualCode: sp.Manual,
 		Source: sourceConfigured, WindowOpen: win.Open, DurationSeconds: duration,
-	})
+	}
+	if win.Open {
+		// The configured codes commission through the node's own window
+		// only (decision 28).
+		res.WindowRemaining = remainingSeconds(win, h.node.now())
+		res.WindowMatch = ptr(win.Kind == node.WindowOwn)
+	}
+	writeJSON(w, res)
 }
 
 // activeEphemeral returns the window this handler opened while the node
@@ -174,7 +187,7 @@ func (h *handler) openWindow(w http.ResponseWriter, r *http.Request) {
 	const title = "Failed to open commissioning window"
 	if !h.allowEmpty && len(h.node.topology().Devices) == 0 {
 		// A controller that subscribes before the first endpoint is in the
-		// topology caches an empty parts list (loom matter.go:131-139,
+		// topology caches an empty parts list (loom matter.go:134-140,
 		// ErrBridgeTopologyNotReady).
 		w.Header().Set("Retry-After", "30")
 		unready(w, r, title, "the node exposes no endpoint yet; retry once the host has assembled its endpoints")
@@ -199,15 +212,13 @@ func (h *handler) openWindow(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		switch {
-		case errors.Is(err, node.ErrCommissioningWindowAlreadyOpen), errors.Is(err, node.ErrAdministratorWindowOpen):
+		case errors.Is(err, node.ErrAdministratorWindowOpen):
 			writeProblem(w, r, http.StatusConflict, codeConflict, title, "a commissioning window is already open")
 		case errors.Is(err, node.ErrCommissioningBlocked):
 			// The cause can name file paths; it stays in the log.
 			h.log.WarnContext(r.Context(), "fabricui.window.blocked", slog.String("error", err.Error()))
 			writeProblem(w, r, http.StatusConflict, codeConflict, title,
 				"commissioning is blocked on this node; the node's log names the cause")
-		case errors.Is(err, node.ErrCommissioningWindowNotConfigured):
-			unready(w, r, title, "the node has no commissioning credentials configured")
 		default:
 			h.serverError(w, r, title, err)
 		}

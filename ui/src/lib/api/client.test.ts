@@ -1,7 +1,7 @@
 // The TypeScript half of the contract: every route of the client against
 // the golden fixtures the Go handler tests check the server with.
-import { describe, expect, it } from "vitest";
-import { ApiError, createClient, TOKEN_HEADER, type FabricClient, type Update } from "./client";
+import { describe, expect, it, vi } from "vitest";
+import { ApiError, createClient, REQUEST_HEADER, TOKEN_HEADER, type FabricClient, type Update } from "./client";
 import { fixture, fixtureFetch } from "../../test/support";
 
 type Call = (c: FabricClient, body: unknown) => Promise<unknown>;
@@ -116,7 +116,11 @@ describe("client against the contract fixtures", () => {
     } else {
       expect(await result).toEqual(f.response.body);
     }
-    expect(ff.sent).toHaveLength(1);
+    // A status whose token is not the one sent is repeated once with it (UR-P3-web-190).
+    const answered = (f.response.body as { csrf_token?: string } | undefined)?.csrf_token;
+    const again = f.response.status === 200 && answered !== undefined && answered !== token;
+    expect(ff.sent).toHaveLength(again ? 2 : 1);
+    if (again) expect(ff.sent[1].headers[TOKEN_HEADER]).toBe(answered);
     const sent = ff.sent[0];
     expect(`${sent.method} ${sent.path}`).toBe(`${f.request.method} /api/v1${f.request.path}`);
     expect(sent.headers[TOKEN_HEADER]).toBe(token);
@@ -163,6 +167,7 @@ describe("client against the contract fixtures", () => {
     await client.closeWindow().catch(() => undefined);
     expect(ff.sent.map((s) => `${s.method} ${s.path} ${s.headers[TOKEN_HEADER] ?? "-"}`)).toEqual([
       "GET /api/v1/nodes/second/status -",
+      "GET /api/v1/nodes/second/status test-token",
       "POST /api/v1/nodes/second/pairing/window/close test-token",
       "POST /api/v1/node/pairing/window/close test-token",
     ]);
@@ -170,13 +175,59 @@ describe("client against the contract fixtures", () => {
     expect(client.logStreamUrl()).toBe("/api/v1/operation/log/stream");
   });
 
-  it("never sends the token on a read route", async () => {
-    const ff = fixtureFetch(["node-fabrics.200", "node-sessions.200"]);
+  // UR-P3-ctr-07: no hand-kept list of admin routes; the headers go on every request.
+  it("sends the request header and the token on every request to a same-origin base", async () => {
+    const ff = fixtureFetch(["node-status.200", "node-fabrics.200", "node-sessions.200"]);
     const client = createClient("/api/v1", ff.fetch);
+    await client.status();
     client.setToken("secret");
     await client.fabrics();
     await client.sessions();
-    expect(ff.sent.every((s) => s.headers[TOKEN_HEADER] === undefined)).toBe(true);
+    expect(ff.sent.map((s) => [s.headers[REQUEST_HEADER], s.headers[TOKEN_HEADER]])).toEqual([
+      ["1", undefined],
+      ["1", "secret"],
+      ["1", "secret"],
+    ]);
+  });
+
+  // UR-P1-web-197: the token follows no base of another origin.
+  it("sends the request header but no token to a base of another origin", async () => {
+    const seen: Record<string, string>[] = [];
+    const client = createClient("https://elsewhere.example/api/v1", async (_u, init) => {
+      seen.push((init?.headers ?? {}) as Record<string, string>);
+      return new Response(null, { status: 204 });
+    });
+    client.setToken("secret");
+    await client.closeWindow();
+    expect(seen[0][REQUEST_HEADER]).toBe("1");
+    expect(seen[0][TOKEN_HEADER]).toBeUndefined();
+    // Under a page: an absolute base of the page's own origin gets the token, another does not.
+    vi.stubGlobal("location", new URL("http://ui.test/app/"));
+    try {
+      const fetchImpl = async (_u: string, init?: RequestInit) => {
+        seen.push((init?.headers ?? {}) as Record<string, string>);
+        return new Response(null, { status: 204 });
+      };
+      for (const base of ["http://ui.test/api/v1", "./api/v1", "http://ui.test:8080/api/v1"]) {
+        const c = createClient(base, fetchImpl);
+        c.setToken("secret");
+        await c.closeWindow();
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(seen.slice(1).map((h) => h[TOKEN_HEADER])).toEqual(["secret", "secret", undefined]);
+  });
+
+  it("sends an event cursor beyond 2^53 as since_str (0.10.0)", async () => {
+    const seen: string[] = [];
+    const client = createClient("/api/v1", async (url) => {
+      seen.push(url);
+      return new Response(JSON.stringify({ events: [] }), { status: 200 });
+    });
+    await client.nodeEndpointEvents(1, { since: "18446744073709551615", limit: 5 });
+    await client.nodeEndpointEvents(1, { since: 7 });
+    expect(seen).toEqual(["/api/v1/node/endpoints/1/events?since_str=18446744073709551615&limit=5", "/api/v1/node/endpoints/1/events?since=7"]);
   });
 
   it("keeps a 64-bit id exact in its hex twin", async () => {

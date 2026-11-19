@@ -400,7 +400,8 @@ func TestNodes_EntryServesItsOwnSelection(t *testing.T) {
 	rebuilt := 0
 	ev := NewEvents()
 	h, err := newHandler(Options{
-		Node: portSource{fakeNode: sampleNode()},
+		AllowedHosts: []string{"example.com"},
+		Node:         portSource{fakeNode: sampleNode()},
 		Nodes: []NodeEntry{{
 			Key: "second", Source: portSource{fakeNode: secondNode()}, Exposure: newMemoryProvider(),
 			Reassemble: func(context.Context) error { rebuilt++; return nil }, Events: ev,
@@ -432,7 +433,7 @@ func TestNodes_EntryServesItsOwnSelection(t *testing.T) {
 	}
 	// The default out of Options.Nodes serves its entry's selection when
 	// the Options-level one is nil.
-	h, err = newHandler(Options{Nodes: []NodeEntry{{Key: "x", Source: stubSource{}, Exposure: newMemoryProvider()}}})
+	h, err = newHandler(Options{AllowedHosts: []string{"example.com"}, Nodes: []NodeEntry{{Key: "x", Source: stubSource{}, Exposure: newMemoryProvider()}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,6 +460,7 @@ func TestStatus_RegistryAndAdmin(t *testing.T) {
 	}{{"1", true}, {"", false}} {
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, DefaultPrefix+"/node/status", http.NoBody)
 		req.Header.Set("X-Admin", c.header)
+		req.Header.Set(RequestHeader, "1")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		st = nil
@@ -611,6 +613,7 @@ func TestRegistry_DeleteEndsTheNodesStreams(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/nodes/"+key+"/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	resp, err := srv.Client().Do(req) //nolint:bodyclose // closed below; the reader goroutine drains it
 	if err != nil {
 		t.Fatal(err)
@@ -644,6 +647,7 @@ func TestRegistry_SwappedSourceEndsTheOldStreams(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/nodes/"+key+"/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	resp, err := srv.Client().Do(req) //nolint:bodyclose // closed below; the reader goroutine drains it
 	if err != nil {
 		t.Fatal(err)

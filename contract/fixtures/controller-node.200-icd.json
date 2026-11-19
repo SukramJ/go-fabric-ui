@@ -2,7 +2,10 @@
   "route": "GET /controller/nodes/{id}",
   "request": {
     "method": "GET",
-    "path": "/controller/nodes/0000000000000012"
+    "path": "/controller/nodes/0000000000000012",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,
@@ -63,6 +66,7 @@
         "addresses": [
           "[fd00::12:1]:5540"
         ],
+        "auto_subscribe": false,
         "commissioned_at": "2026-10-20T06:00:00Z",
         "connection": "waiting_for_discovery",
         "disabled": false,

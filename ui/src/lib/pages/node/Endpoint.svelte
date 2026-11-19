@@ -8,6 +8,7 @@
      one it shows come with each refetch, and the stream's cluster_event of
      this endpoint joins the list at once (contract 0.7.0). -->
 <script lang="ts">
+  import DeniedState from "../../kit/DeniedState.svelte";
   import { untrack } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
@@ -19,7 +20,7 @@
   import ErrorState from "../../kit/ErrorState.svelte";
   import EventList from "../../kit/EventList.svelte";
   import { keyedRows } from "../../kit/data-table";
-  import { lastNumber, mergeEvents } from "../../kit/events";
+  import { eventNumberText, mergeEvents, sinceAfter } from "../../kit/events";
   import LoadingState from "../../kit/LoadingState.svelte";
   import TagChips from "../../kit/TagChips.svelte";
   import { hexId } from "./surface";
@@ -64,13 +65,14 @@
   // the last one shown (since = its number + 1).
   async function loadEvents(fresh: boolean) {
     const mine = ++eventSeq;
-    const last = fresh ? undefined : lastNumber(events);
+    // The cursor travels as since_str, exact beyond 2^53 (0.10.0).
+    const w = fresh ? {} : sinceAfter(events);
     try {
-      const l = await client.nodeEndpointEvents(endpoint, last === undefined ? {} : { since: last + 1 });
+      const l = await client.nodeEndpointEvents(endpoint, w);
       if (mine !== eventSeq) return;
       // A cluster_event the stream added while the read was in flight
       // comes again in the answer: merge by number, in order.
-      events = mergeEvents(last === undefined ? [] : events, l.events).slice(-MAX_EVENTS);
+      events = mergeEvents(w.since === undefined ? [] : events, l.events).slice(-MAX_EVENTS);
       eventsError = null;
     } catch (err) {
       if (mine === eventSeq) eventsError = errorText(err);
@@ -123,7 +125,7 @@
     const e = node.clusterEvent;
     if (!e || e === startEvent || e.endpoint !== endpoint) return;
     untrack(() => {
-      if (events.some((x) => x.number === e.number)) return;
+      if (events.some((x) => eventNumberText(x) === eventNumberText(e))) return;
       events = [...events, e].slice(-MAX_EVENTS);
     });
   });
@@ -147,6 +149,10 @@
   };
 </script>
 
+<!-- Without admin rights the routes of this page are refused (0.10.0): a notice, not an error. -->
+{#if node.status !== null && !node.isAdmin}
+  <DeniedState />
+{:else}
 <div class="space-y-4">
   <div class="flex items-center justify-between gap-2">
     <a href={routes.endpoints} class="text-sm text-[var(--fui-primary-text)] hover:underline">← {t("node.endpoint.back")}</a>
@@ -252,3 +258,4 @@
     {/if}
   </Card>
 </div>
+{/if}

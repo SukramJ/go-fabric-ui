@@ -295,9 +295,16 @@ func jsonOf(av node.AttributeValue, v any) bool {
 	return err == nil && json.Unmarshal(raw, v) == nil
 }
 
-// schemaDeviceTypeName is the schema's name of a device type; empty for a
-// manufacturer-specific or unknown one, as the controller family names it.
+// schemaDeviceTypeName is a device type's name in the node family: the
+// operator's label deviceTypeName gives, as the endpoint list and the
+// selection name it (UR-P1-ui-38), else the schema's name; empty for a
+// manufacturer-specific or unknown one.
 func schemaDeviceTypeName(id uint32) string {
+	if id <= 0xFFFF {
+		if label, ok := deviceTypeLabels[uint16(id)]; ok {
+			return label
+		}
+	}
 	if dt, ok := schema.DeviceTypeIDOf(id); ok {
 		if name, ok := schema.DeviceTypeName(dt); ok {
 			return name

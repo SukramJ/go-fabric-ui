@@ -302,6 +302,7 @@ func TestControllerStream_DeliversEvents(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/controller/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	resp, err := srv.Client().Do(req) //nolint:bodyclose // closed below; the reader goroutine drains it
 	if err != nil {
 		t.Fatal(err)
@@ -489,7 +490,7 @@ func TestCommission_TermsAndSteps(t *testing.T) {
 	if !slices.Equal(progress, want) {
 		t.Fatalf("progress %v, want %v", progress, want)
 	}
-	if b := string(mustJSON(rec.events[2].Data)); b != `{"phase":"started","step":{"number":2,"sub":1,"name":"Discovery","phase":"started"}}` {
+	if b := wireOf(rec.events[2].Data); b != `{"phase":"started","step":{"number":2,"sub":1,"name":"Discovery","phase":"started"}}` {
 		t.Fatalf("a step on the wire %s", b)
 	}
 	for _, body := range []string{
@@ -549,7 +550,7 @@ func TestCommission_BLEDecision(t *testing.T) {
 			if !slices.Equal(progress, want) {
 				t.Fatalf("progress %v, want %v", progress, want)
 			}
-			if b := string(mustJSON(rec.events[1].Data)); b != c.wire {
+			if b := wireOf(rec.events[1].Data); b != c.wire {
 				t.Fatalf("the decision on the wire %s, want %s", b, c.wire)
 			}
 			m.mu.Lock()

@@ -18,7 +18,6 @@
         "product_name": "Bridge",
         "source": "configuration",
         "source_note": "the --bridge-* flags",
-        "store": "bridge.db",
         "vendor_id": 65521,
         "vendor_name": "go-fabric"
       },

@@ -1,4 +1,12 @@
 # Statement coverage floors per package (script/coverfloor). A ratchet:
-# raise a floor with the change that raises the coverage.
-fabricui            88
-fabricui/gofabric   50
+# raise a floor with the change that raises the coverage. Every package
+# of the profile has a line; one without fails the check. A floor is the
+# measurement rounded down, less about one point for platform noise
+# (measured 2026-11-19: fabricui 94.8 %, fabricui/gofabric 85.0 %).
+fabricui            93
+fabricui/gofabric   84
+# The generated handlers (make generate): the handler tests cover them
+# through fabricui; the generator's unused helpers keep the share low.
+internal/api        0
+# The check itself, run by make cover-check rather than by a test.
+script/coverfloor   0

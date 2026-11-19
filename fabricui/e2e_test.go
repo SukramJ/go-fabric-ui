@@ -112,6 +112,7 @@ func (s *site) openStream() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.t.Cleanup(cancel)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, s.srv.URL+"/api/v1/node/stream", http.NoBody)
+	req.Header.Set(fabricui.TokenHeader, s.token)
 	resp, err := s.srv.Client().Do(req)
 	if err != nil {
 		s.t.Fatal(err)
@@ -148,6 +149,9 @@ func (s *site) do(method, path, body string) (status int, respBody []byte) {
 	}
 	req, _ := http.NewRequestWithContext(context.Background(), method, s.srv.URL+"/api/v1"+path, rd)
 	req.Header.Set(fabricui.TokenHeader, s.token)
+	if rd != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := s.srv.Client().Do(req)
 	if err != nil {
 		s.t.Fatal(err)

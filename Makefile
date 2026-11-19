@@ -7,7 +7,15 @@ DIST_DIR := fabricui/dist
 # dist-check and notices-check build here, never into the committed bundle.
 CHECK_DIR := $(or $(TMPDIR),/tmp)/go-fabric-ui-check
 
-FUZZTIME ?= 10000x
+# FUZZTIME is how long make fuzz runs each target (a duration or Nx);
+# the nightly job sets 3m.
+FUZZTIME ?= 30s
+# FUZZ_TARGETS are the standing fuzz targets (decision 53), package:name.
+FUZZ_TARGETS := \
+	./fabricui:FuzzParseHex ./fabricui:FuzzQueryWindows ./fabricui:FuzzStrings \
+	./fabricui:FuzzDecodeBodies ./fabricui:FuzzControllerBodies ./fabricui:FuzzMux \
+	./fabricui:FuzzHostCheck ./fabricui:FuzzOrigin ./fabricui:FuzzMediaType ./fabricui:FuzzDecodeStrict ./fabricui:FuzzEventSince \
+	./fabricui/gofabric:FuzzThreadDatasetName ./fabricui/gofabric:FuzzDiscoveredAndCode
 
 GOFUMPT_VERSION       ?= v0.12.0
 GOLANGCI_LINT_VERSION ?= v2.14.0
@@ -47,27 +55,36 @@ race: ## go test -race (CGO_ENABLED=1 for this run only)
 e2e: ## the end-to-end tests alone: a fabrictest site commissioned through the handlers, node and controller family
 	CGO_ENABLED=0 $(GO) test -count=1 -run 'TestEndToEnd' -v ./fabricui/...
 
+fuzz: ## run each fuzz target for FUZZTIME (default 30s), one after another; `go test` runs their seeds
+	@set -e; for t in $(FUZZ_TARGETS); do \
+		pkg=$${t%%:*}; name=$${t#*:}; echo "fuzz: $$name ($$pkg, $(FUZZTIME))"; \
+		CGO_ENABLED=0 $(GO) test -run='^$$' -fuzz="^$$name\$$" -fuzztime=$(FUZZTIME) $$pkg; \
+	done
+
 fmt: ## gofumpt -w .
 	gofumpt -w .
 
 fmt-check: ## fail when a file is not gofumpt-clean
 	@diff=$$(gofumpt -l .); if [ -n "$$diff" ]; then echo "gofumpt would rewrite:"; echo "$$diff"; exit 1; fi
 
-lint: fmt-check ## gofumpt check + golangci-lint + go mod tidy -diff + go mod verify
+lint: fmt-check tidy-check ## gofumpt check + golangci-lint + tidy-check
 	golangci-lint config verify
 	golangci-lint run --timeout=5m ./...
-	$(GO) mod tidy -diff
-	$(GO) mod verify
 
-tidy-check: ## verify go.mod/go.sum are tidy and the module checksums verify
+tidy-check: ## verify go.mod/go.sum (root and tools/) are tidy and the module checksums verify
 	$(GO) mod tidy -diff
 	$(GO) mod verify
+	cd tools && $(GO) mod tidy -diff && $(GO) mod verify
 
 cover: ## coverage profile of every package
 	CGO_ENABLED=0 $(GO) test -count=1 -timeout 300s -coverpkg=./... -coverprofile=coverage.out ./...
 
 cover-check: cover ## fail when a package is below its floor (script/coverfloor)
 	$(GO) run ./script/coverfloor coverage.out
+
+pins-check: ## fail on a workflow `uses:` not pinned by a 40-hex commit SHA with a `# vX.Y.Z` comment
+	@bad=$$(grep -nE '^[[:space:]-]*uses:' .github/workflows/*.yml | grep -vE 'uses: [^@[:space:]]+@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+$$'); \
+	if [ -n "$$bad" ]; then echo "pins-check: not pinned by SHA:"; echo "$$bad"; exit 1; fi; echo "pins-check: every action is pinned by SHA"
 
 vuln: ## govulncheck ./...
 	govulncheck ./...
@@ -92,6 +109,12 @@ secrets: ## scan the tracked git history for committed secrets (gitleaks)
 web-install: ## npm ci in ui/
 	cd $(UI_DIR) && $(NPM) ci --no-audit --no-fund
 
+npm-audit: ## fail on any npm advisory of a runtime (bundled) package (decision 54)
+	cd $(UI_DIR) && $(NPM) audit --omit=dev --audit-level=low
+
+npm-audit-all: ## report the npm advisories of the whole tree, development packages included; never fails
+	-cd $(UI_DIR) && $(NPM) audit
+
 web: ## build the standalone bundle into fabricui/dist
 	cd $(UI_DIR) && $(NPM) run build
 
@@ -103,17 +126,27 @@ dist-check: ## rebuild the bundle into a temporary directory and fail on any byt
 	cd $(UI_DIR) && FABRIC_UI_OUT_DIR=$(CHECK_DIR)/dist $(NPM) run build >/dev/null
 	diff -r $(DIST_DIR) $(CHECK_DIR)/dist && echo "dist-check: fabricui/dist is the build of this tree"
 
-notices-check: ## fail when a bundled npm package is missing from THIRD-PARTY-NOTICES.md
+# CSS_PACKAGES reach the bundle as generated CSS, which the vendor list of
+# the JavaScript chunks does not see; notices-check requires each of them
+# in THIRD-PARTY-NOTICES.md at its installed version, MIT, with its text.
+CSS_PACKAGES := tailwindcss
+
+notices-check: ## fail when a bundled npm package (JS chunks and CSS_PACKAGES) is missing from THIRD-PARTY-NOTICES.md
 	rm -rf $(CHECK_DIR)/notices && mkdir -p $(CHECK_DIR)
 	cd $(UI_DIR) && FABRIC_UI_OUT_DIR=$(CHECK_DIR)/notices FABRIC_UI_VENDOR_LIST=$(CHECK_DIR)/vendor.json $(NPM) run build >/dev/null
 	node $(UI_DIR)/scripts/check-notices.mjs $(CHECK_DIR)/vendor.json THIRD-PARTY-NOTICES.md licenses/npm
+	@for p in $(CSS_PACKAGES); do \
+		v=$$(node -p "require('./$(UI_DIR)/node_modules/$$p/package.json').version"); \
+		grep -qF "| \`$$p\` | $$v | MIT |" THIRD-PARTY-NOTICES.md || { echo "notices-check: $$p@$$v (CSS) is not in THIRD-PARTY-NOTICES.md"; exit 1; }; \
+		test -f licenses/npm/$$p.txt || { echo "notices-check: no licence text at licenses/npm/$$p.txt"; exit 1; }; \
+	done; echo "notices-check: CSS packages $(CSS_PACKAGES) listed with their licence texts"
 
 contract-check: ## the contract guard (no removal against contract/previous) and fixture use on both sides
 	cd $(UI_DIR) && $(NPM) run contract:check
 	CGO_ENABLED=0 $(GO) test -count=1 -run 'TestEveryFixtureIsUsedByTheGoTests' ./fabricui/
 	cd $(UI_DIR) && npx vitest run src/lib/api/fixtures.test.ts scripts/contract-guard.test.mjs
 
-generate: ## regenerate the controller family's handlers (internal/api) from contract/openapi.yaml with the pinned oapi-codegen
+generate: ## regenerate the controller family's handlers (internal/api) from contract/openapi.yaml with the pinned oapi-codegen (tools/go.mod)
 	script/gen-api.sh internal/api/api.gen.go
 
 generate-check: ## fail when internal/api/api.gen.go is not the generation of contract/openapi.yaml
@@ -139,9 +172,9 @@ version-check: ## internal/version, ui/package.json and the changelog's newest s
 		echo "version-check: internal/version=$(VERSION_GO) ui/package.json=$(VERSION_NPM) changelog=$(VERSION_LOG)"; exit 1; fi
 	@echo "version-check: $(VERSION_GO)"
 
-ci: build vet test lint generate-check web-check dist-check ## everything the pipeline's main jobs run
+ci: build vet test lint generate-check web-check dist-check ## the main Go and web checks; the pipeline also runs race, cover-check, vuln, licenses, secrets, pins-check, npm-audit, notices-check, version-check, contract-check, e2e-web and the 386 build
 
 clean: ## remove local build artefacts (never the committed bundle)
 	rm -rf coverage.out $(CHECK_DIR)
 
-.PHONY: help setup build vet test race e2e e2e-web fmt fmt-check lint tidy-check cover cover-check vuln licenses secrets web-install web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean
+.PHONY: help setup build vet test race e2e e2e-web fuzz fmt fmt-check lint tidy-check pins-check cover cover-check vuln licenses secrets web-install npm-audit npm-audit-all web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean

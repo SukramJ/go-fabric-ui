@@ -2,10 +2,11 @@
      Thread credentials (names only; a secret is entered once and never
      shown again) and the controller's identity. -->
 <script lang="ts">
+  import DeniedState from "../../kit/DeniedState.svelte";
   import { onMount } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
-  import type { Credential, CredentialRequest } from "../../api/client";
+  import { FABRIC_LABEL_MAX_BYTES, utf8Length, type Credential, type CredentialRequest } from "../../api/client";
   import type { DataColumn } from "../../kit/data-table";
   import Badge from "../../kit/Badge.svelte";
   import Button from "../../kit/Button.svelte";
@@ -27,11 +28,20 @@
 
   onMount(async () => {
     await controller.loadStatus();
+    // Without admin rights the status's members are empty (0.10.0): nothing to read further.
+    if (!controller.isAdmin) return;
     label = controller.status?.label ?? "";
     if (controller.status?.capabilities.credentials) void controller.loadCredentials();
   });
 
+  // The label is at most 32 bytes of UTF-8 (UR-P1-adpt-40): a longer one is refused here.
+  const labelTooLong = $derived(utf8Length(label.trim()) > FABRIC_LABEL_MAX_BYTES);
+
   async function saveLabel() {
+    if (labelTooLong) {
+      toast.error(t("controller.settings.label_too_long", { max: FABRIC_LABEL_MAX_BYTES }));
+      return;
+    }
     busy = true;
     try {
       await client.setFabricLabel(label.trim());
@@ -97,6 +107,10 @@
   const s = $derived(controller.status);
 </script>
 
+<!-- Without admin rights the routes of this page are refused (0.10.0): a notice, not an error. -->
+{#if controller.status !== null && !controller.isAdmin}
+  <DeniedState />
+{:else}
 <div class="space-y-6">
   {#if controller.statusError}
     <ErrorState message={controller.statusError} onRetry={() => void controller.loadStatus()} />
@@ -105,8 +119,11 @@
     <h3 class="mb-2 font-medium text-[var(--ha-primary-text-color)]">{t("controller.settings.label")}</h3>
     <form class="flex flex-wrap items-center gap-2" onsubmit={(e) => { e.preventDefault(); void saveLabel(); }}>
       <Input class="max-w-xs" bind:value={label} maxlength={32} aria-label={t("controller.settings.label")} />
-      <Button type="submit" disabled={busy}>{t("common.save")}</Button>
+      <Button type="submit" disabled={busy || labelTooLong}>{t("common.save")}</Button>
     </form>
+    {#if labelTooLong}
+      <p class="mt-1 text-xs text-[var(--fui-error-text)]" data-testid="label-too-long">{t("controller.settings.label_too_long", { max: FABRIC_LABEL_MAX_BYTES })}</p>
+    {/if}
     <p class="mt-1 text-xs text-[var(--ha-secondary-text-color)]">{t("controller.settings.label_hint")}</p>
   </Card>
 
@@ -174,3 +191,4 @@
     </Card>
   {/if}
 </div>
+{/if}

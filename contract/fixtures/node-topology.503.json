@@ -2,7 +2,10 @@
   "route": "GET /node/topology",
   "request": {
     "method": "GET",
-    "path": "/node/topology"
+    "path": "/node/topology",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 503,

@@ -33,15 +33,16 @@ describe("Status", () => {
     expect(ui.sent.filter((r) => r.path === "/api/v1/node/status")).toHaveLength(2);
   });
 
-  it("counts the open window down from its deadline", async () => {
+  it("counts the open window down from the node's remaining seconds, not its deadline (0.10.0)", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-10-25T12:01:00Z"));
     render(Harness, { ui: testUI({ fixtures: ["node-status.200"] }), page: Status });
     const left = await screen.findByTestId("window-left");
     // The unit comes from the catalogue (UR-P1-ui-141).
-    expect(left).toHaveTextContent('(common.seconds_short:{"n":240})');
+    // window_remaining_seconds 300 (UR-P2-ui-06); the deadline on this clock would give 240.
+    expect(left).toHaveTextContent('(common.seconds_short:{"n":300})');
     await vi.advanceTimersByTimeAsync(5000);
-    expect(left).toHaveTextContent(/\(common\.seconds_short:\{"n":23[45]\}\)/);
+    expect(left).toHaveTextContent(/\(common\.seconds_short:\{"n":29[45]\}\)/);
   });
 
   it("shows the duration when the server reports no deadline", async () => {

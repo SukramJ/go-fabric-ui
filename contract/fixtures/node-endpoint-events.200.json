@@ -2,7 +2,10 @@
   "route": "GET /node/endpoints/{ep}/events",
   "request": {
     "method": "GET",
-    "path": "/node/endpoints/2/events"
+    "path": "/node/endpoints/2/events",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,
@@ -18,6 +21,7 @@
           "event_hex": "0x0003",
           "name": "ReachableChanged",
           "number": 7,
+          "number_str": "7",
           "priority": "info"
         },
         {
@@ -30,6 +34,7 @@
           "event_hex": "0x0003",
           "name": "ReachableChanged",
           "number": 9,
+          "number_str": "9",
           "priority": "info"
         }
       ]

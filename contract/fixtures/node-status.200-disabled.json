@@ -2,7 +2,10 @@
   "route": "GET /node/status",
   "request": {
     "method": "GET",
-    "path": "/node/status"
+    "path": "/node/status",
+    "headers": {
+      "X-Fabric-UI": "1"
+    }
   },
   "response": {
     "status": 200,
@@ -13,7 +16,6 @@
       "enabled": false,
       "endpoint_count": 0,
       "exposure": false,
-      "fabric_count": 0,
       "listening": false
     }
   }

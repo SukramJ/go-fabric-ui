@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -18,6 +19,10 @@ import (
 // what an event names, so a dropped event costs a stale view until the
 // next one.
 const streamBuffer = 64
+
+// streamRetryAfter is the Retry-After, in seconds, of a stream refused at
+// Options.MaxStreams.
+const streamRetryAfter = 5
 
 // stream serves GET /node/stream: server-sent events from the handler's
 // own routes, the node's transitions (node.Observe) and the host's
@@ -31,7 +36,9 @@ func (h *handler) stream(w http.ResponseWriter, r *http.Request) {
 	// Read before serveSSE subscribes: a Set after this read ends the
 	// stream (NodeSwitch.swapped).
 	swapped := h.nodeSwapped()
-	h.serveSSE(r.Context(), w, swapped, h.subscribe)
+	// The admin test runs once, when the stream opens.
+	admin := h.requestAdmin(r)
+	h.serveSSE(r.Context(), w, swapped, func(fn func(Event)) func() { return h.subscribeAs(admin, fn) })
 }
 
 // nodeSwapped is closed when the host sets another node into the
@@ -74,6 +81,15 @@ func writeStreamHeaders(w http.ResponseWriter) {
 // and the controller stream (GET /controller/stream) alike. swapped is
 // the node stream's NodeSwitch.Set (nodeSwapped); nil for the others.
 func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, swapped <-chan struct{}, subscribe func(func(Event)) func()) {
+	// Every stream of the handler counts against Options.MaxStreams, the
+	// node's, the controller's and the log's alike.
+	if !h.streams.acquire() {
+		w.Header().Set("Retry-After", strconv.Itoa(streamRetryAfter))
+		writeProblem(w, nil, http.StatusServiceUnavailable, codeTooManyStreams, "Too many streams",
+			fmt.Sprintf("the handler serves %d event streams at once", h.streams.max))
+		return
+	}
+	defer h.streams.release()
 	rc := http.NewResponseController(w)
 	ch := make(chan Event, streamBuffer)
 	push := func(ev Event) {
@@ -115,6 +131,9 @@ func (h *handler) serveSSE(ctx context.Context, w http.ResponseWriter, swapped <
 			return
 		case <-h.done:
 			// The registry deleted this node (UR-P1-conc-11).
+			return
+		case <-h.hostDone:
+			// The host shuts down (Options.Done, UR-P2-conc-34).
 			return
 		case <-swapped:
 			// The host set a new node: the page reconnects and observes

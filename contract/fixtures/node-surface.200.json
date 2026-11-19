@@ -2,7 +2,10 @@
   "route": "GET /node/surface",
   "request": {
     "method": "GET",
-    "path": "/node/surface"
+    "path": "/node/surface",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,

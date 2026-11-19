@@ -2,7 +2,10 @@
   "route": "GET /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}",
   "request": {
     "method": "GET",
-    "path": "/controller/nodes/0000000000000011/endpoints/1/clusters/0x0006"
+    "path": "/controller/nodes/0000000000000011/endpoints/1/clusters/0x0006",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,

@@ -2,7 +2,10 @@
   "route": "GET /controller/diagnostics",
   "request": {
     "method": "GET",
-    "path": "/controller/diagnostics"
+    "path": "/controller/diagnostics",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 501,

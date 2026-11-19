@@ -23,6 +23,18 @@ const (
 	codeNodeError      = "node_error"
 	codeNotImplemented = "not_implemented"
 	codeTermsRequired  = "terms_required"
+	// codeMethodNotAllowed is 405 (contract 0.10.0, MethodNotAllowed).
+	codeMethodNotAllowed = "method_not_allowed"
+	// codeTooManyStreams is 503 at Options.MaxStreams (contract 0.10.0).
+	codeTooManyStreams = "too_many_streams"
+	// codeHostNotAllowed is 403 for a Host the handler does not serve
+	// (contract 0.10.0).
+	codeHostNotAllowed = "host_not_allowed"
+	// codeOriginNotAllowed is 403 for an Origin an admin route does not
+	// admit, codeUnsupportedMediaType 415 for a body that is not JSON
+	// (contract 0.10.0).
+	codeOriginNotAllowed     = "origin_not_allowed"
+	codeUnsupportedMediaType = "unsupported_media_type"
 )
 
 // problemTypeBase is the base of every problem's type URI: the contract
@@ -34,7 +46,7 @@ const problemTypeBase = "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/
 const maxBodyBytes = 1 << 20
 
 // problem is an RFC 9457 problem+json body. Mirrors loom's
-// internal/north/rest/problem/problem.go:50-59 (Details) at b40b289a,
+// internal/north/rest/problem/problem.go:78-89 (Details) at b40b289a,
 // without its host-specific members.
 type problem struct {
 	Type     string `json:"type"`
@@ -46,7 +58,7 @@ type problem struct {
 }
 
 // writeProblem writes a problem with the code, title and detail; the
-// instance is the request path. Mirrors loom problem.go:61-85 (Write, New).
+// instance is the request path. Mirrors loom problem.go:91-118 (Write, New).
 func writeProblem(w http.ResponseWriter, r *http.Request, status int, code, title, detail string) {
 	writeProblemBody(w, status, code, newProblem(r, status, code, title, detail))
 }
@@ -138,13 +150,14 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// decodeJSON reads the body into v, refusing unknown fields and a body
-// over maxBodyBytes. Mirrors loom write.go:109-114 (DecodeJSON).
+// decodeJSON reads the body into v strictly (decodeStrict), refusing a
+// body over maxBodyBytes. Mirrors loom write.go:109-114 (DecodeJSON).
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	return dec.Decode(v)
+	data, err := readBody(w, r)
+	if err != nil {
+		return err
+	}
+	return decodeStrict(data, v)
 }
 
 // badBody answers a body decodeJSON refused: 413 for one too large, 400

@@ -134,7 +134,7 @@ func TestStream_StalledReaderIsReaped(t *testing.T) {
 	if tc, ok := conn.(*net.TCPConn); ok {
 		_ = tc.SetReadBuffer(4096)
 	}
-	fmt.Fprintf(conn, "GET %s/node/stream HTTP/1.1\r\nHost: x\r\n\r\n", DefaultPrefix)
+	fmt.Fprintf(conn, "GET %s/node/stream HTTP/1.1\r\nHost: x\r\n%s: %s\r\n\r\n", DefaultPrefix, TokenHeader, testToken)
 	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -165,6 +165,7 @@ func TestStream_EndsOnTheHostsShutdown(t *testing.T) {
 	srv.RegisterOnShutdown(stopStreams)
 	go func() { _ = srv.Serve(ln) }()
 	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+ln.Addr().String()+DefaultPrefix+"/node/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -191,6 +192,7 @@ func TestStream_DataStaysOnOneLine(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/node/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -202,17 +204,33 @@ func TestStream_DataStaysOnOneLine(t *testing.T) {
 	src.publish(Event{Type: EventEndpointsChanged, Data: json.RawMessage("{\n\"a\":\n1\n}")})
 	src.publish(Event{Type: EventEndpointsChanged, Data: json.RawMessage("{}\n\nevent: fabric_removed\ndata: {}")})
 	src.publish(Event{Type: EventExposureChanged, Data: struct{}{}})
+	// Every line is an event line, one data line of valid JSON, a comment
+	// or the empty line that ends a frame; a frame has exactly one data
+	// line (UR-P3-test-34).
 	var types []string
 	sc := bufio.NewScanner(res.Body)
+	dataLines, last := 0, ""
 	for sc.Scan() {
 		line := sc.Text()
-		if typ, ok := strings.CutPrefix(line, "event: "); ok {
-			types = append(types, typ)
+		switch {
+		case line == "":
+			if last != "" && !strings.HasPrefix(last, ":") && dataLines != 1 {
+				t.Errorf("a frame with %d data lines", dataLines)
+			}
+			dataLines = 0
+		case strings.HasPrefix(line, ":"):
+		case strings.HasPrefix(line, "event: "):
+			types = append(types, strings.TrimPrefix(line, "event: "))
+		case strings.HasPrefix(line, "data: "):
+			dataLines++
+			if data := strings.TrimPrefix(line, "data: "); strings.ContainsRune(data, '\r') || !json.Valid([]byte(data)) {
+				t.Errorf("a data line that is not one JSON value: %q", line)
+			}
+		default:
+			t.Errorf("a line of no kind: %q", line)
 		}
-		if data, ok := strings.CutPrefix(line, "data: "); ok && strings.ContainsRune(data, '\r') {
-			t.Errorf("a data line holds a carriage return: %q", line)
-		}
-		if line == "event: "+EventExposureChanged {
+		last = line
+		if line == "" && len(types) > 0 && types[len(types)-1] == EventExposureChanged {
 			break
 		}
 	}

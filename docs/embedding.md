@@ -11,17 +11,27 @@ import "github.com/SukramJ/go-fabric-ui/fabricui"
 
 n, err := node.New(cfg)
 // … n.Start(ctx) — before or after the handler is built
-mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Exposure: provider}))
+h, err := fabricui.NewHandler(fabricui.Options{Node: n, Exposure: provider})
+if err != nil {
+	return err
+}
+mux.Handle("/", h)
 ```
 
-`Handler` serves the API under `/api/v1` and the standalone shell at `/`
-from the bundle embedded in the module (`fabricui/dist/`, built and
+`NewHandler` (0.10.0) serves the API under `/api/v1` and the standalone
+shell at `/` from the bundle embedded in the module (`fabricui/dist/`, built and
 committed here): no Node.js toolchain in the daemon's build, no second
 image. The root (`/`, `/index.html`) answers the shell's index, a file of
 the bundle answers itself, and any other path answers 404 — the shell
 routes by hash (`/#/node/status`), and its relative asset paths would not
 load under a deeper path; an unknown path under the API prefix answers a
-404 problem.
+404 problem, a served API path asked with another method a 405 problem.
+`NewHandler` fails on invalid options; `Handler(o)` is the same for
+options known to be valid and panics on the error. Both serve the API
+under `/api/v1` only and refuse any other `Prefix`: the shell calls
+`./api/v1` relative to the page. A host that mounts the API under
+another prefix uses [`Mount`](#mounting-the-api-alone), which keeps any
+valid prefix and serves no page.
 
 `Options`:
 
@@ -35,16 +45,57 @@ load under a deeper path; an unknown path under the API prefix answers a
 | `ExposureReason` | Why the host serves no selection (0.5.0), in the host's language; the selection page shows it instead of hiding. |
 | `Exposure` | The host's `ExposureProvider` ([provider.md](provider.md)); nil hides the selection page. A list-valued (`Multi`) column reads `Item.Lists`, one entry per value; the comma-separated `Item.Fields` form is deprecated. |
 | `Controller` | The controller family's source (`gofabric.ControllerOf` over a `*controller.Controller`, see below); nil serves no controller family and every `/controller/*` path answers 404. |
-| `Admin` | Who may write, read the pairing secret and use a controller route marked admin; nil selects token mode ([contract.md](contract.md#admin-rights)). |
+| `Admin` | Whether a request that carries `X-Fabric-UI: 1` has admin rights: every route the contract marks `x-admin` (the writes, the pairing secret and, from 0.10.0, the reading routes and the controller and log streams) and the full answer of the open ones; nil selects token mode. See [Admin rights](#admin-rights) and [contract.md](contract.md#admin-rights). |
 | `Reassemble` | Rebuilds the endpoints from the current selection (maintenance route, and after an exposure change). |
 | `Erase` | Erases the default node and brings it back (0.7.0): `POST /node/maintenance/erase`. Nil answers 501 and hides the page's button. See [Erasing a node](#erasing-a-node). A node of `Nodes` or of the registry carries its own in `NodeEntry.Erase`. |
-| `Events` | Events the host publishes beside the handler's own and the node's (an exposure change made outside the page). |
-| `Prefix` | The API prefix; default `/api/v1`. |
+| `Events` | Events the host publishes beside the handler's own and the node's (an exposure change made outside the page); they reach admin streams only, whatever their type. The handler keeps a hub of its own (0.10.0): a host that reads the `*fabricui.Events` it passes here no longer sees the handler's events in it. |
+| `Prefix` | The API prefix for `Mount`; default `/api/v1`. `NewHandler` and `Handler` take `""` or `/api/v1` only. |
 | `Logger` | The handlers' logger; nothing it receives carries a passcode. |
 | `ConfiguredWindow` | Open the window on the node's configured passcode instead of fresh credentials. |
 | `AllowEmptyTopology` | Allow a window while no endpoint is exposed. |
+| `FrameAncestors` | Further origins that may frame the page, each a CSP host-source. See [Response headers and framing](#response-headers-and-framing). |
 | `Warnings` | The host's findings about its own configuration, shown on the status and selection pages. |
+| `AllowedHosts` | The DNS names besides loopback names and IP addresses under which the handler answers (0.10.0); host names only, no scheme, port, path, wildcard or white space. Any other `Host` is 403 `host_not_allowed`. See [Behind an Ingress](#behind-an-ingress). |
+| `AllowHost` | Admits a request whose `Host` the names do not (0.10.0), asked once per request; nil admits by name only. It answers from what only the host's proxy produces, never from `Host` or anything else the browser chooses. |
+| `MaxStreams` | The event streams the handler serves at once, every kind and node together (0.10.0); 0 is `DefaultMaxStreams` (64), negative an error. One more answers 503 `too_many_streams` with `Retry-After: 5`. |
+| `Done` | Closing it ends every open stream and removes its observers (0.10.0); a host closes it from its server's shutdown hook. |
 | `Counters` | The host's own counters (0.8.0), shown on the status page and served to a scraper on `GET /node/status`. |
+
+### Admin rights
+
+`Options.Admin` answers one question per request: may this requester
+operate the daemon? The handler asks it only for a request that carries
+`X-Fabric-UI: 1` (`fabricui.RequestHeader`) and passed the Host and
+Origin checks ([contract.md](contract.md#admin-rights)), on the
+request's goroutine and on every request of a page that polls. Its yes
+opens every route the contract marks `x-admin`: the pairing codes and
+passcodes, every write — fabrics, windows, the selection, the log level,
+the node registry, erase and factory reset, and on the controller side
+commissioning, attributes, commands, ACL, bindings, credentials,
+updates — the reading routes of both families and the controller and log
+streams. So it answers yes only from what the requester cannot choose,
+such as the source address of an authenticating proxy or a session the
+host verified itself, never from a header, query or body the browser
+sends, and from memory.
+
+A request it answers no — or one without the header — is served:
+`GET /node/status` and `/nodes/{node}/status` without the configuration
+block's `store` and with every warning reduced to its code, the rest as
+for an admin (health, addresses, window state, counts, surface summary,
+counters); `GET /nodes`; `GET /operation/info` and
+`/operation/log/level`; `GET /controller/status` with `enabled`,
+`capabilities` and `admin`, every other member empty or 0; the node
+stream with `nodes_changed`, `window_opened` and `window_closed` only;
+and the bundle. Everything else answers 403 `forbidden`. In token mode
+(`Admin` nil) the token decides the same routes and answers.
+
+A host's own client of the API — a script, its own app — sends
+`X-Fabric-UI: 1` on every request in host mode (in token mode the
+`X-Fabric-UI-Token` header instead); the npm package's client sends it
+on its own. The browser's `EventSource` sends no header, so a stream it
+opens is a non-admin's node stream, and the controller and log streams
+answer it 403. A host that passes the pages an `EventSourceFactory` of
+its own makes it send the same headers over `fetch`.
 
 A provider's configuration can be half-valid — a label name that resolves
 to nothing, a rule that matches no item — and a log line is where nobody
@@ -73,7 +124,7 @@ the counters with it, as it does the warnings — a counter alone sends no
 event.
 
 `GET /node/status` is not an admin route and the page polls it, so any
-client that reaches the listener calls four host ports per request, on
+client that passes the Host check calls four host ports per request, on
 the request's goroutine: `Warnings`, `Counters`, the node's
 `FabricInfos` and the exposure provider's `List` (to count the enabled
 items). Nothing bounds the rate; keep them cheap — answers from memory,
@@ -103,8 +154,20 @@ into `Options.Events` instead would hand every stream each one twice.
 The streams are long requests: `http.Server.Shutdown` does not cancel a
 running request, so an open page holds the host's shutdown for its whole
 budget, and the stream's observers outlive it while the host stops its
-node. A handler stream ends when its request's context does, so the host
-serves with a base context it cancels when the shutdown begins:
+node. From 0.10.0 the host closes `Options.Done` when the shutdown
+begins, and every stream ends and removes its observers:
+
+```go
+done := make(chan struct{})
+h, err := fabricui.NewHandler(fabricui.Options{Node: n, Done: done})
+// …
+srv := &http.Server{Handler: mux}
+srv.RegisterOnShutdown(func() { close(done) })
+```
+
+The earlier pattern holds as well: a handler stream ends when its
+request's context does, so a host may serve with a base context it
+cancels when the shutdown begins:
 
 ```go
 base, stopStreams := context.WithCancel(context.Background())
@@ -220,8 +283,8 @@ fabricui.Handler(fabricui.Options{
 `GET /nodes` lists them in that order; `/node/*` serves the first, and
 `/nodes/{key}/*` every one. A key is stable across restarts, matches
 `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$` and is no page name of the node family
-(`status`, `pair`, …); `Handler` panics and `Mount` fails on a bad or
-repeated key. `Options.Node` is the shorthand for one node under the key
+(`status`, `pair`, …); `NewHandler` and `Mount` fail and `Handler`
+panics on a bad or repeated key. `Options.Node` is the shorthand for one node under the key
 `default`; with both, `Node` comes first. `Options.Exposure`, `Reassemble` and
 `Events` belong to the default node; another node serves the selection,
 rebuild and events of its entry (0.6.0), or reports no selection and
@@ -249,9 +312,10 @@ type Operations interface {
 The level and the ring belong in front of the host's logger, the one
 `node.Config.Logger` receives: a `slog.Handler` with a `slog.LevelVar` that
 keeps the newest records. go-fabric's `logring` package is that handler
-once it lands (go-fabric issue #393, concept U5 C.4); until then a host
-writes the adapter itself, and `fabricui.MemoryOperations` is the test
-double the handler tests and the browser smoke use. `fabricui.GoFabricVersion()`
+(`logring.New`, `Handler.Level`/`SetLevel`, `Records`, `Observe`;
+go-fabric v0.22.2 `logring/logring.go:116`, `:142-146`, `:239`, `:331`):
+a host maps its `Record` onto `fabricui.LogRecord` and adds `Info`.
+`fabricui.MemoryOperations` is the test double the handler tests and the browser smoke use. `fabricui.GoFabricVersion()`
 reads the go-fabric version from the binary's build information for
 `OperationInfo.GoFabric`. The ring holds no passcode because nothing the
 host and go-fabric log carries one; the handler adds nothing to it.
@@ -303,8 +367,8 @@ What each route calls on the facade:
 | `GET`/`PUT …/acl`, `…/bindings` | `Node.Read` and one `Node.Write` of the whole list, built from `cluster/spec/accesscontrol` and `binding` with our fabric index |
 | `…/icd`, `/icd/register`, `/icd/unregister` | `Node.ICD()` (`Register`, `Unregister`, `Forget`) |
 | `GET …/fabrics`, `DELETE …/fabrics/{index}` | `Node.Read` of OperationalCredentials `Fabrics` and `CurrentFabricIndex`, `Node.Invoke` RemoveFabric |
-| `POST /controller/commission` | `Controller.Pair`, or `Registry().ForDevice` and `Commission` for a discovered device; `PairOptions.Progress` (commissioner `Options.Progress`) for the steps, `PairOptions.TermsAndConditions` (commissioner `Options.TermsAndConditions` for a discovered device; 0.8.0) |
-| `GET /controller/discovery` | `Controller.Discover` |
+| `POST /controller/commission` | `Controller.Pair`, or `Registry().ForDevice` and `Commission` for a discovered device; `PairOptions.Progress` (commissioner `Options.Progress`) for the steps, `PairOptions.TermsAndConditions` (commissioner `Options.TermsAndConditions` for a discovered device; 0.8.0). A discovered device's commissioning applies the template's attestation policy, an unset one rejecting a failed attestation (0.10.0), but does not go through `Controller.Pair`: it adds no pairing entry to the trace `GET /controller/events` serves, counts no pairing metric and reports no Discovery step |
+| `GET /controller/discovery` | `Controller.Discover`, always with a timeout (1–60 s, default 3 s): the facade's 0 would search for 15 minutes (go-fabric `controller/code.go:92-99` at v0.22.2) |
 | `PUT /controller/fabric/label` | `Fabric().SetLabel`, then `Registry().SetFabricLabel` in the background |
 | `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates`, `AddUpdateConsent`; the stream's `update` events from `Observe`, subscribed in `ControllerOf` and released by `Hooks.Close` (0.7.0) |
 | `GET /controller/topology` | `ControllerOptions.Topology`, the host's `*topology.Service`: `Topology()`, or `Refresh` with `refresh=true`; its `OnChanged` becomes `topology_changed`. The host wires it: `topology.Changes.Install(&cfg)` before `controller.New`, `topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})`, `ControllerOf(…, ControllerOptions{Topology: svc})`, and `svc.Close()` on shutdown (the subscription goes with `Hooks.Close`). The border routers (0.8.0) need nothing more: with `topology.Config.BorderRouters` nil the service builds on the controller's own registry, `Controller.BorderRouters` (go-fabric `controller/topology/service.go:57-60`, `:163-165` at v0.19.1). Without it `NetworkTopology` answers `fabricui.ErrNotImplemented` (501) |
@@ -353,7 +417,8 @@ if err := fabricui.Mount(mux, fabricui.Options{Node: n, Admin: isAdmin, Prefix: 
 }
 ```
 
-`Mount` puts the API on the mux as the one pattern `Prefix + "/"`. It
+`Mount` puts the API on the mux as the one pattern `Prefix + "/"`, under
+any valid prefix. It
 fails — and leaves the mux as it was — on invalid options, when the mux
 already serves one of the API's routes under the prefix, and when that
 pattern conflicts with one of the mux's. A route the host registers under
@@ -387,10 +452,19 @@ path prefix it chooses:
   page never shows another palette first. Under any other origin the
   bridge stays inactive and the tokens' Home Assistant defaults apply,
   light or dark by `prefers-color-scheme`.
+- **Host names.** The handler answers only a `Host` it admits — a
+  loopback name, an IP address, a name in `Options.AllowedHosts`, or a
+  request `Options.AllowHost` admits — and answers any other 403
+  `host_not_allowed`, the page included. A proxy that sends a name of its
+  own as `Host`: list that name in `AllowedHosts`. A proxy that forwards
+  the browser's `Host` unchanged: set `AllowHost`, and answer it from what
+  only the proxy produces, such as its source address — never from `Host`
+  or anything else the browser chooses.
 - **Admin gate by the host.** The proxy authenticates the user; the host's
   `Options.Admin` admits a request when it came through the proxy (for
-  example by the proxy's source address). Token mode is for a daemon that
-  serves the page directly.
+  example by the proxy's source address), and the page's client sends
+  `X-Fabric-UI: 1` with it. Token mode is for a daemon that serves the
+  page directly.
 - **Framing.** The page's policy says `frame-ancestors 'self'`, and the
   Ingress parent is the same origin, so the Ingress panel needs no
   setting. See the next section for another parent.
@@ -408,7 +482,7 @@ What the handler sets on its responses, so a host does not have to:
   `frame-ancestors 'self'` and `Options.FrameAncestors`. The API, the
   streams and the camera scan are the page's own origin and need nothing
   more.
-- **Every response** of `Handler` and of `Mount` — page, bundle, JSON,
+- **Every response** of `NewHandler`, `Handler` and `Mount` — page, bundle, JSON,
   problem, stream — carries `X-Content-Type-Options: nosniff` and
   `Referrer-Policy: no-referrer`; every API answer carries
   `Cache-Control: no-store`, since answers hold pairing codes, the token
@@ -422,10 +496,12 @@ h := fabricui.Handler(fabricui.Options{Node: n, FrameAncestors: []string{"https:
 ```
 
 Each entry is a CSP host-source (`https://dash.example:8123`,
-`https://*.example.com`); `Handler` panics and `Mount` fails on anything
-else, a quoted keyword such as `'none'` included, and on an entry that
-admits any parent (`*`, a scheme-source such as `https:`, `https://*`),
-which is what the default prevents: the framing page acts through the
-operator's browser with the page's admin rights. Under an Ingress the parent is the same
-origin and needs no entry. `Mount` serves no page; it checks the field
+`https://*.example.com`); `NewHandler` and `Mount` fail and `Handler`
+panics on anything else, a quoted keyword such as `'none'` included, and
+on an entry that admits any parent (`*`, a scheme-source such as
+`https:`, `https://*`, a wildcard over one label such as
+`https://*.com`). A wildcard over a public suffix of more than one label
+(`https://*.co.uk`) is not recognised as such and admits every site
+under it: name the parent's own domain. Under an Ingress the parent is
+the same origin and needs no entry. `Mount` serves no page; it checks the field
 and the host's own page sets its own policy.

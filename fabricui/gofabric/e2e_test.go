@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -64,6 +65,8 @@ type ctrlSiteOptions struct {
 	// credential "lab"; log receives the adapter's lines.
 	ble bool
 	log *bytes.Buffer
+	// unsetPolicy leaves the Pair template's attestation policy unset.
+	unsetPolicy bool
 }
 
 func newCtrlSite(t *testing.T) *ctrlSite {
@@ -115,6 +118,9 @@ func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
 	creds := fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName)
 	// The site's device carries the module's test attestation.
 	pair := controller.PairOptions{OnAttestationFailure: attestation.Accept()}
+	if o.unsetPolicy {
+		pair = controller.PairOptions{}
+	}
 	var logger *slog.Logger
 	if o.log != nil {
 		logger = slog.New(slog.NewTextHandler(o.log, nil))
@@ -148,11 +154,14 @@ func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
 		Label     string `json:"label"`
 		CSRFToken string `json:"csrf_token"`
 	}
+	// The token comes with every status; the fabric's members only with
+	// the token (contract 0.10.0).
+	s.json(http.MethodGet, "/controller/status", "", http.StatusOK, &st)
+	s.token = st.CSRFToken
 	s.json(http.MethodGet, "/controller/status", "", http.StatusOK, &st)
 	if !st.Enabled || st.Label != "e2e" || st.CSRFToken == "" {
 		t.Fatalf("status %+v", st)
 	}
-	s.token = st.CSRFToken
 	return s
 }
 
@@ -171,6 +180,9 @@ func (s *ctrlSite) call(method, path, body string) (status int, out []byte) {
 			return err
 		}
 		req.Header.Set(fabricui.TokenHeader, s.token)
+		if body != "" {
+			req.Header.Set("Content-Type", "application/json")
+		}
 		resp, err := s.srv.Client().Do(req)
 		if err != nil {
 			return err
@@ -844,7 +856,12 @@ func TestEndToEnd_DetailsAndEvents(t *testing.T) {
 
 // rawEvents reads an event route outside Site.Run; nil on any failure.
 func (s *ctrlSite) rawEvents(path string) []eventRecord {
-	resp, err := s.srv.Client().Get(s.srv.URL + fabricui.DefaultPrefix + path)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, s.srv.URL+fabricui.DefaultPrefix+path, http.NoBody)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set(fabricui.TokenHeader, s.token)
+	resp, err := s.srv.Client().Do(req)
 	if err != nil {
 		return nil
 	}
@@ -857,6 +874,9 @@ func (s *ctrlSite) rawEvents(path string) []eventRecord {
 	}
 	return l.Events
 }
+
+// commissioningIDMember is the id every commissioning_progress carries.
+var commissioningIDMember = regexp.MustCompile(`,"commissioning_id":"[^"]*"`)
 
 // termsRow is the register row of GeneralCommissioning's TC feature, the
 // extension a node serves its terms behind (go-fabric node/config.go:
@@ -879,6 +899,7 @@ func (s *ctrlSite) controllerStream(typ string) <-chan string {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.t.Cleanup(cancel)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, s.srv.URL+fabricui.DefaultPrefix+"/controller/stream", http.NoBody)
+	req.Header.Set(fabricui.TokenHeader, s.token)
 	resp, err := s.srv.Client().Do(req) //nolint:bodyclose // closed by the reader
 	if err != nil {
 		s.t.Fatal(err)
@@ -1069,7 +1090,9 @@ func (s *ctrlSite) commissionEvents(body string) []string {
 	for {
 		select {
 		case d := <-progress:
-			got = append(got, d)
+			// The commissioning's id is drawn per request; the decisions
+			// are compared without it.
+			got = append(got, commissioningIDMember.ReplaceAllString(d, ""))
 			if !strings.Contains(d, `"step":`) && strings.Contains(d, `"phase":"succeeded"`) {
 				return got
 			}
@@ -1184,6 +1207,47 @@ func TestPair_ACommissioningThatHappenedIsNoFailure(t *testing.T) {
 	}
 	if perr != nil || n == nil {
 		t.Fatalf("Pair answered %v for a commissioning that happened", perr)
+	}
+}
+
+// A discovered device commissioned with the template's attestation policy
+// unset is refused when its attestation fails, as the facade's Pair
+// refuses it; with the policy set to accept it is commissioned.
+func TestEndToEnd_CommissionDiscoveredRejectsFailedAttestationByDefault(t *testing.T) {
+	for name, unset := range map[string]bool{"unset": true, "accept": false} {
+		t.Run(name, func(t *testing.T) {
+			s := newCtrlSiteWith(t, ctrlSiteOptions{unsetPolicy: unset})
+			sp, err := s.dev.Node().SetupPayload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+			defer cancel()
+			var commissionErr error
+			if err := s.site.Run(ctx, func(ctx context.Context) error {
+				found, err := s.src.Discover(ctx, fabricui.DiscoverFilter{}, 5*time.Second)
+				if err != nil {
+					return err
+				}
+				if len(found) == 0 {
+					return errors.New("no device discovered")
+				}
+				_, commissionErr = s.src.CommissionDiscovered(ctx, found[0], sp.Passcode, fabricui.PairOptions{})
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			committed := len(s.ctrl.Registry().Commissioned())
+			if unset {
+				if !errors.Is(commissionErr, fabricui.ErrNodeFailed) || !strings.Contains(commissionErr.Error(), "attestation") || committed != 0 {
+					t.Fatalf("error %v, %d commissioned; want the attestation refused and none", commissionErr, committed)
+				}
+				return
+			}
+			if commissionErr != nil || committed != 1 {
+				t.Fatalf("error %v, %d commissioned", commissionErr, committed)
+			}
+		})
 	}
 }
 

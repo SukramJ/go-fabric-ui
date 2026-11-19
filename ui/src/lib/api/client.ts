@@ -5,6 +5,7 @@
 // assets/ui/src/lib/api/client.ts:1806-1875 at b40b289a, on the node routes.
 import type { components } from "./schema.gen";
 import { parseJson, stringifyJson } from "./json";
+import { fetchEventSource, type EventSourceFactory, type EventSourceLike } from "./stream";
 
 type S = components["schemas"];
 export type Problem = S["Problem"];
@@ -83,8 +84,12 @@ export type ClusterElement = S["ClusterElement"];
 export type EventRecord = S["EventRecord"];
 export type EventRecordList = S["EventRecordList"];
 export type AttributeChangedEvent = S["AttributeChangedEvent"];
-/** What an event route selects: the lowest event number (inclusive) and how many of the newest. */
-export type EventWindow = { since?: number; limit?: number };
+/**
+ * What an event route selects: the lowest event number (inclusive) and how
+ * many of the newest. A string since (an EventRecord's number_str) is sent
+ * as since_str, exact beyond 2^53 (0.10.0).
+ */
+export type EventWindow = { since?: number | string; limit?: number };
 export type NodeWindow = S["NodeWindow"];
 export type AttributePath = S["AttributePath"];
 export type AttributeValue = S["AttributeValue"];
@@ -94,6 +99,8 @@ export type WriteResult = S["WriteResult"];
 export type InvokeRequest = S["InvokeRequest"];
 export type InvokeResult = S["InvokeResult"];
 export type AclEntry = S["AclEntry"];
+/** An entry as PUT /controller/nodes/{id}/acl takes it (0.10.0): no `unknown`. */
+export type AclEntryWrite = S["AclEntryWrite"];
 export type AclTarget = S["AclTarget"];
 export type BindingTarget = S["BindingTarget"];
 export type EndpointBindings = S["EndpointBindings"];
@@ -142,8 +149,28 @@ export type LogWindow = { since?: number; limit?: number };
 /** What GET /controller/discovery selects by. */
 export type DiscoverFilter = { filter?: "any" | "long_discriminator" | "short_discriminator" | "vendor" | "device_type"; value?: number; timeout?: number };
 
-/** The header the admin token travels in (token mode). */
+/** The header the admin token travels in (token mode); sent on every request to a same-origin base. */
 export const TOKEN_HEADER = "X-Fabric-UI-Token";
+
+/** The header the client sends on every request, the streams included, with REQUEST_HEADER_VALUE (0.10.0). */
+export const REQUEST_HEADER = "X-Fabric-UI";
+
+/** The value of REQUEST_HEADER. */
+export const REQUEST_HEADER_VALUE = "1";
+
+/** The 403 problem codes: the request lacks admin rights, or the server refuses its host or origin (0.10.0). */
+export const DENIED_CODES = ["forbidden", "host_not_allowed", "origin_not_allowed"] as const;
+export type DeniedCode = (typeof DENIED_CODES)[number];
+
+/**
+ * The 403 problem code of e, when e is a refusal (a 403 ApiError);
+ * "forbidden" for a 403 without a known code. Undefined for anything else.
+ */
+export function deniedCode(e: unknown): DeniedCode | undefined {
+  if (!(e instanceof ApiError) || e.status !== 403) return undefined;
+  const c = e.problem?.code;
+  return (DENIED_CODES as readonly string[]).includes(c ?? "") ? (c as DeniedCode) : "forbidden";
+}
 
 /** The confirmation POST /node/maintenance/factory-reset requires. */
 export const FACTORY_RESET_CONFIRMATION = "remove-all-fabrics";
@@ -154,8 +181,29 @@ export const ERASE_CONFIRMATION = "erase-node";
 /** The contract's NodeKey pattern (a node of GET /nodes). */
 export const NODE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
-/** A controller node id as the routes take it: 64-bit hex, case and leading zeros free. */
-export const NODE_ID_PATTERN = /^(?:0[xX])?[0-9A-Fa-f]{1,16}$/;
+/** The passcodes a device may not use (CommissionRequest.passcode, 0.10.0): the server answers them 400. */
+export const INVALID_PASSCODES: readonly number[] = [
+  11111111, 22222222, 33333333, 44444444, 55555555, 66666666, 77777777, 88888888, 12345678, 87654321,
+];
+
+/** Whether pin is a passcode the commissioning takes: 1 to 99999998 and none of INVALID_PASSCODES. */
+export function isValidPasscode(pin: number): boolean {
+  return Number.isInteger(pin) && pin >= 1 && pin <= 99999998 && !INVALID_PASSCODES.includes(pin);
+}
+
+/** The longest fabric label in bytes of UTF-8 (FabricLabelRequest.label, 0.10.0). */
+export const FABRIC_LABEL_MAX_BYTES = 32;
+
+/** The length of s in bytes of UTF-8. */
+export function utf8Length(s: string): number {
+  return new TextEncoder().encode(s).length;
+}
+
+/** A controller node id as the routes take it (the contract's NodeID): 1 to 16 hex digits, case and leading zeros free. */
+export const NODE_ID_PATTERN = /^[0-9A-Fa-f]{1,16}$/;
+
+/** The highest endpoint number a path takes (the contract's EndpointNumber); 65535 is no endpoint. */
+export const ENDPOINT_MAX = 65534;
 
 /** A failed call: the status and, when the server sent one, its problem. */
 export class ApiError extends Error {
@@ -172,8 +220,21 @@ export class ApiError extends Error {
 export interface FabricClient {
   /** The base URL the routes are relative to (the mount prefix). */
   readonly baseUrl: string;
-  /** Sets the admin token sent on admin routes; status() sets it from csrf_token. */
+  /**
+   * Sets the admin token sent on every request to a same-origin base;
+   * status() and controllerStatus() set it from csrf_token, and repeat
+   * their request once when the answer's token is not the one they sent.
+   */
   setToken(token: string | undefined): void;
+  /**
+   * The event source the client's streams open with (0.10.0): fetch with
+   * the client's request headers, as every other request (fetchEventSource);
+   * the token only to a URL of the page's origin. A 403 forbidden to an
+   * open that carried the token reloads the token and reopens once; a
+   * second refusal ends the source as any other. Pass it to
+   * subscribeStream, subscribeControllerStream and subscribeLogStream.
+   */
+  readonly openStream: EventSourceFactory;
   status(): Promise<Status>;
   fabrics(): Promise<FabricList>;
   removeFabric(fabricIndex: number): Promise<void>;
@@ -199,6 +260,8 @@ export interface FabricClient {
   exposure(): Promise<ItemList>;
   /** Applies the updates; 0 for an empty batch (204). */
   applyExposure(items: Update[]): Promise<number>;
+  /** Applies the updates and answers what the server did: reassembled false is stored but not in effect (0.10.0); { applied: 0 } for an empty batch. */
+  applyExposureResult(items: Update[]): Promise<Applied>;
   previewExposure(items: Update[]): Promise<ItemList>;
   reassemble(): Promise<void>;
   factoryReset(): Promise<void>;
@@ -259,7 +322,7 @@ export interface FabricClient {
   /** The payload as writeAttribute's value; the response's integers as readAttributes'. */
   invokeCommand(id: string, req: InvokeRequest): Promise<InvokeResult>;
   nodeAcl(id: string): Promise<{ entries: AclEntry[] }>;
-  setNodeAcl(id: string, entries: AclEntry[]): Promise<WriteResult>;
+  setNodeAcl(id: string, entries: AclEntryWrite[]): Promise<WriteResult>;
   nodeBindings(id: string): Promise<BindingList>;
   setNodeBindings(id: string, endpoint: number, bindings: BindingTarget[]): Promise<WriteResult>;
   nodeIcd(id: string): Promise<IcdState>;
@@ -299,21 +362,105 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
   const base = baseUrl.replace(/\/+$/, "");
   // One token for every node's client: the handler issues one per process.
   const auth: { token?: string } = {};
+  // The token goes only to a base of the page's own origin (UR-P1-web-197).
+  const sameOrigin = isSameOrigin(base);
+
+  // The headers of every request, the streams included (UR-P3-ctr-07);
+  // a stream's URL is tested on its own (UR-P3-web-194).
+  function requestHeaders(url?: string): Record<string, string> {
+    const h: Record<string, string> = { [REQUEST_HEADER]: REQUEST_HEADER_VALUE };
+    if (auth.token && (url === undefined ? sameOrigin : isSameOrigin(url))) h[TOKEN_HEADER] = auth.token;
+    return h;
+  }
+
+  // A stream over fetch whose open is refused with 403 forbidden while it
+  // carried the token: the token is reloaded once and the stream reopened
+  // once (UR-P3-web-191). Any other end reaches the listeners as it is.
+  const openStream: EventSourceFactory = (url) => {
+    const listeners = new Map<string, ((ev: MessageEvent) => void)[]>();
+    let closed = false;
+    let retried = false;
+    let src: EventSourceLike;
+    const dispatch = (type: string, ev: MessageEvent) => {
+      for (const fn of listeners.get(type) ?? []) fn(ev);
+    };
+    const forward = (s: EventSourceLike, type: string) => s.addEventListener(type, (ev) => src === s && dispatch(type, ev));
+    const attach = () => {
+      const headers = requestHeaders(url);
+      const token = headers[TOKEN_HEADER];
+      const s = fetchEventSource({ headers: () => headers, fetch: fetchImpl })(url);
+      src = s;
+      s.addEventListener("error", (ev) => {
+        if (src !== s || closed) return;
+        if (s.status === 403 && s.problemCode === "forbidden" && token && !retried) {
+          retried = true;
+          void refreshToken(token).then((changed) => {
+            if (closed || src !== s) return;
+            if (changed) attach();
+            else dispatch("error", ev);
+          });
+          return;
+        }
+        dispatch("error", ev);
+      });
+      for (const type of listeners.keys()) if (type !== "error") forward(s, type);
+    };
+    attach();
+    return {
+      addEventListener(type, fn) {
+        const l = listeners.get(type);
+        if (l) {
+          l.push(fn);
+          return;
+        }
+        listeners.set(type, [fn]);
+        if (type !== "error") forward(src, type);
+      },
+      close() {
+        closed = true;
+        src.close();
+      },
+      get readyState() {
+        return src.readyState;
+      },
+      get status() {
+        return src.status;
+      },
+      get retryAfter() {
+        return src.retryAfter;
+      },
+      get problemCode() {
+        return src.problemCode;
+      },
+    };
+  };
+
+  // A status route: it carries the token, and the request that fetched it
+  // without (or with a stale one) was answered as one without admin
+  // rights; it is repeated once with the token (UR-P3-web-190).
+  async function statusWithToken<T extends { csrf_token?: string }>(path: string): Promise<T> {
+    const sent = requestHeaders()[TOKEN_HEADER];
+    const s = await call<T>("GET", path);
+    if (!s.csrf_token || s.csrf_token === sent) return s;
+    auth.token = s.csrf_token;
+    return sameOrigin ? call<T>("GET", path) : s;
+  }
 
   // keep names the members whose integers beyond 2^53 are kept exact
   // (json.ts): the generic values of attributes, events and commands.
-  type CallOpts = { body?: unknown; admin?: boolean; keep?: readonly string[]; retried?: boolean };
+  type CallOpts = { body?: unknown; keep?: readonly string[]; retried?: boolean };
   async function call<T>(method: string, path: string, opts: CallOpts = {}): Promise<T> {
-    // A controller node id that is a dot segment ("." or "..", which the
-    // browser resolves to another route) is refused before anything is
-    // sent; any other the server judges (400), as the contract's NodeID
-    // has no pattern.
+    // A controller node id outside the contract's NodeID pattern (a dot
+    // segment the browser resolves to another route among them) is
+    // refused before anything is sent.
     const id = /^\/controller\/nodes\/([^/?]*)/.exec(path)?.[1];
-    if (id !== undefined && (id === "" || id === "." || id === "..")) throw new RangeError(`not a controller node id: "${id}"`);
-    const headers: Record<string, string> = { Accept: "application/json" };
+    if (id !== undefined && !NODE_ID_PATTERN.test(id)) throw new RangeError(`not a controller node id: "${id}"`);
+    // An endpoint in a path is 0 to ENDPOINT_MAX, as the contract's EndpointNumber.
+    const ep = /\/endpoints\/([^/?]*)/.exec(path)?.[1];
+    if (ep !== undefined && !(/^\d{1,5}$/.test(ep) && Number(ep) <= ENDPOINT_MAX)) throw new RangeError(`not an endpoint number: "${ep}"`);
+    const headers: Record<string, string> = { Accept: "application/json", ...requestHeaders() };
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
-    const token = opts.admin ? auth.token : undefined;
-    if (token) headers[TOKEN_HEADER] = token;
+    const token = headers[TOKEN_HEADER];
     // Serialised before the request: a rounded integer is refused unsent.
     const body = opts.body === undefined ? undefined : stringifyJson(opts.body);
     const res = await fetchImpl(base + path, {
@@ -385,23 +532,22 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
   function build(nodeKey: string | undefined): FabricClient {
     // np is the node routes' prefix: the default node's or the keyed node's.
     const np = nodeKey === undefined ? "/node" : `/nodes/${encodeURIComponent(nodeKey)}`;
+    const applyExposureResult = async (items: Update[]): Promise<Applied> =>
+      (await call<Applied | undefined>("PUT", np + "/exposure", { body: { items } })) ?? { applied: 0 };
     return {
       baseUrl: base,
       nodeKey,
       forNode,
+      openStream,
       setToken(t) {
         auth.token = t || undefined;
       },
-      async status() {
-        const s = await call<Status>("GET", np + "/status");
-        if (s.csrf_token) auth.token = s.csrf_token;
-        return s;
-      },
+      status: () => statusWithToken<Status>(np + "/status"),
       fabrics: () => call("GET", np + "/fabrics"),
-      removeFabric: (i) => call("DELETE", `${np}/fabrics/${encodeURIComponent(String(i))}`, { admin: true }),
-      pairing: () => call("GET", np + "/pairing", { admin: true }),
-      openWindow: (d) => call("POST", np + "/pairing/window", { admin: true, body: { duration_seconds: d } }),
-      closeWindow: () => call("POST", np + "/pairing/window/close", { admin: true }),
+      removeFabric: (i) => call("DELETE", `${np}/fabrics/${encodeURIComponent(String(i))}`),
+      pairing: () => call("GET", np + "/pairing"),
+      openWindow: (d) => call("POST", np + "/pairing/window", { body: { duration_seconds: d } }),
+      closeWindow: () => call("POST", np + "/pairing/window/close"),
       endpoints: () => call("GET", np + "/endpoints"),
       nodeEndpointDetail: (endpoint) => call("GET", `${np}/endpoints/${endpoint}`, { keep: VALUE_KEYS }),
       nodeEndpointEvents: (endpoint, w) => call("GET", `${np}/endpoints/${endpoint}/events${eventQuery(w)}`, { keep: VALUE_KEYS }),
@@ -409,88 +555,84 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       sessions: () => call("GET", np + "/sessions"),
       topology: () => call("GET", np + "/topology"),
       mdns: () => call("GET", np + "/mdns"),
-      reannounce: () => call("POST", np + "/mdns/reannounce", { admin: true }),
+      reannounce: () => call("POST", np + "/mdns/reannounce"),
       compatibility: () => call("GET", np + "/compatibility"),
       events: () => call("GET", np + "/events"),
       exposureSchema: () => call("GET", np + "/exposure/schema"),
       exposure: () => call("GET", np + "/exposure"),
+      applyExposureResult,
       async applyExposure(items) {
-        const res = await call<Applied | undefined>("PUT", np + "/exposure", { admin: true, body: { items } });
-        return res?.applied ?? 0;
+        return (await applyExposureResult(items)).applied;
       },
-      previewExposure: (items) => call("POST", np + "/exposure/preview", { admin: true, body: { items } }),
-      reassemble: () => call("POST", np + "/maintenance/reassemble", { admin: true }),
+      previewExposure: (items) => call("POST", np + "/exposure/preview", { body: { items } }),
+      reassemble: () => call("POST", np + "/maintenance/reassemble"),
       factoryReset: () =>
-        call("POST", np + "/maintenance/factory-reset", { admin: true, body: { confirm: FACTORY_RESET_CONFIRMATION } }),
-      erase: () => call("POST", np + "/maintenance/erase", { admin: true, body: { confirm: ERASE_CONFIRMATION } }),
+        call("POST", np + "/maintenance/factory-reset", { body: { confirm: FACTORY_RESET_CONFIRMATION } }),
+      erase: () => call("POST", np + "/maintenance/erase", { body: { confirm: ERASE_CONFIRMATION } }),
       streamUrl: () => base + np + "/stream",
       nodes: () => call("GET", "/nodes"),
-      createNode: (label) => call("POST", "/nodes", { admin: true, body: { label } }),
-      renameNode: (key, label) => call("PUT", `/nodes/${encodeURIComponent(key)}/label`, { admin: true, body: { label } }),
-      deleteNode: (key) => call("DELETE", `/nodes/${encodeURIComponent(key)}`, { admin: true }),
+      createNode: (label) => call("POST", "/nodes", { body: { label } }),
+      renameNode: (key, label) => call("PUT", `/nodes/${encodeURIComponent(key)}/label`, { body: { label } }),
+      deleteNode: (key) => call("DELETE", `/nodes/${encodeURIComponent(key)}`),
       operationInfo: () => call("GET", "/operation/info"),
       logLevel: () => call("GET", "/operation/log/level"),
-      setLogLevel: (level) => call("PUT", "/operation/log/level", { admin: true, body: { level } }),
+      setLogLevel: (level) => call("PUT", "/operation/log/level", { body: { level } }),
       logRecords: (w) => call("GET", `/operation/log${eventQuery(w)}`),
       logStreamUrl: () => base + "/operation/log/stream",
 
-      async controllerStatus() {
-        const s = await call<ControllerStatus>("GET", "/controller/status");
-        if (s.csrf_token) auth.token = s.csrf_token;
-        return s;
-      },
+      controllerStatus: () => statusWithToken<ControllerStatus>("/controller/status"),
       controllerNodes: () => call("GET", "/controller/nodes"),
       controllerNode: (id) => call("GET", node(id)),
       controllerEndpointDetail: (id, endpoint) => call("GET", `${node(id)}/endpoints/${endpoint}`, { keep: VALUE_KEYS }),
       controllerClusterDetail: (id, endpoint, clusterHex) =>
         call("GET", `${node(id)}/endpoints/${endpoint}/clusters/${encodeURIComponent(clusterHex)}`, { keep: VALUE_KEYS }),
       controllerNodeEvents: (id, w) => call("GET", `${node(id)}/events${eventQuery(w)}`, { keep: VALUE_KEYS }),
-      decommissionNode: (id) => call("DELETE", node(id), { admin: true }),
-      interviewNode: (id) => call("POST", node(id) + "/interview", { admin: true }),
-      pingNode: (id) => call("POST", node(id) + "/ping", { admin: true }),
-      enableNode: (id) => call("POST", node(id) + "/enable", { admin: true }),
-      disableNode: (id) => call("POST", node(id) + "/disable", { admin: true }),
-      setNodeAutoSubscribe: (id, enabled) => call("POST", node(id) + "/auto-subscribe", { admin: true, body: { enabled } }),
+      decommissionNode: (id) => call("DELETE", node(id)),
+      interviewNode: (id) => call("POST", node(id) + "/interview"),
+      pingNode: (id) => call("POST", node(id) + "/ping"),
+      enableNode: (id) => call("POST", node(id) + "/enable"),
+      disableNode: (id) => call("POST", node(id) + "/disable"),
+      setNodeAutoSubscribe: (id, enabled) => call("POST", node(id) + "/auto-subscribe", { body: { enabled } }),
       openNodeWindow: (id, timeoutSeconds) =>
-        call("POST", node(id) + "/window", { admin: true, body: timeoutSeconds === undefined ? {} : { timeout_seconds: timeoutSeconds } }),
-      closeNodeWindow: (id) => call("POST", node(id) + "/window/close", { admin: true }),
+        call("POST", node(id) + "/window", { body: timeoutSeconds === undefined ? {} : { timeout_seconds: timeoutSeconds } }),
+      closeNodeWindow: (id) => call("POST", node(id) + "/window/close"),
       readAttributes: (id, paths, fabricFiltered) =>
         call("POST", node(id) + "/attributes", {
           body: fabricFiltered === undefined ? { paths } : { paths, fabric_filtered: fabricFiltered },
           keep: VALUE_KEYS,
         }),
-      writeAttribute: (id, req) => call("PUT", node(id) + "/attributes", { admin: true, body: req }),
-      invokeCommand: (id, req) => call("POST", node(id) + "/commands", { admin: true, body: req, keep: VALUE_KEYS }),
+      writeAttribute: (id, req) => call("PUT", node(id) + "/attributes", { body: req }),
+      invokeCommand: (id, req) => call("POST", node(id) + "/commands", { body: req, keep: VALUE_KEYS }),
       nodeAcl: (id) => call("GET", node(id) + "/acl"),
-      setNodeAcl: (id, entries) => call("PUT", node(id) + "/acl", { admin: true, body: { entries } }),
+      setNodeAcl: (id, entries) => call("PUT", node(id) + "/acl", { body: { entries } }),
       nodeBindings: (id) => call("GET", node(id) + "/bindings"),
-      setNodeBindings: (id, endpoint, bindings) => call("PUT", node(id) + "/bindings", { admin: true, body: { endpoint, bindings } }),
+      setNodeBindings: (id, endpoint, bindings) => call("PUT", node(id) + "/bindings", { body: { endpoint, bindings } }),
       nodeIcd: (id) => call("GET", node(id) + "/icd"),
       registerNodeIcd: (id, allowMultiAdmin) =>
-        call("POST", node(id) + "/icd/register", { admin: true, body: allowMultiAdmin === undefined ? {} : { allow_multi_admin: allowMultiAdmin } }),
+        call("POST", node(id) + "/icd/register", { body: allowMultiAdmin === undefined ? {} : { allow_multi_admin: allowMultiAdmin } }),
       unregisterNodeIcd: (id, force) =>
-        call("POST", node(id) + "/icd/unregister", { admin: true, body: force === undefined ? {} : { force } }),
+        call("POST", node(id) + "/icd/unregister", { body: force === undefined ? {} : { force } }),
       nodeFabrics: (id) => call("GET", node(id) + "/fabrics"),
-      removeNodeFabric: (id, i) => call("DELETE", `${node(id)}/fabrics/${encodeURIComponent(String(i))}`, { admin: true }),
-      commission: (req) => call("POST", "/controller/commission", { admin: true, body: req }),
+      removeNodeFabric: (id, i) => call("DELETE", `${node(id)}/fabrics/${encodeURIComponent(String(i))}`),
+      commission: (req) => call("POST", "/controller/commission", { body: req }),
       discover(f = {}) {
         const q = new URLSearchParams();
         if (f.filter) q.set("filter", f.filter);
         if (f.value !== undefined) q.set("value", String(f.value));
         if (f.timeout !== undefined) q.set("timeout", String(f.timeout));
         const qs = q.toString();
-        return call("GET", "/controller/discovery" + (qs ? "?" + qs : ""), { admin: true });
+        return call("GET", "/controller/discovery" + (qs ? "?" + qs : ""));
       },
       credentials: () => call("GET", "/controller/credentials"),
-      setCredential: (req) => call("PUT", "/controller/credentials", { admin: true, body: req }),
+      setCredential: (req) => call("PUT", "/controller/credentials", { body: req }),
       removeCredential: (kind, id) =>
-        call("DELETE", `/controller/credentials?${new URLSearchParams({ kind, id }).toString()}`, { admin: true }),
-      setFabricLabel: (label) => call("PUT", "/controller/fabric/label", { admin: true, body: { label } }),
+        call("DELETE", `/controller/credentials?${new URLSearchParams({ kind, id }).toString()}`),
+      setFabricLabel: (label) => call("PUT", "/controller/fabric/label", { body: { label } }),
       updates: () => call("GET", "/controller/updates"),
-      consentUpdate: (req) => call("POST", "/controller/updates/consent", { admin: true, body: req }),
-      checkUpdates: () => call("POST", "/controller/updates/check", { admin: true }),
+      consentUpdate: (req) => call("POST", "/controller/updates/consent", { body: req }),
+      checkUpdates: () => call("POST", "/controller/updates/check"),
       controllerTopology: (refresh) =>
-        refresh ? call("GET", "/controller/topology?refresh=true", { admin: true }) : call("GET", "/controller/topology"),
+        refresh ? call("GET", "/controller/topology?refresh=true") : call("GET", "/controller/topology"),
       controllerDiagnostics: () => call("GET", "/controller/diagnostics"),
       controllerMdns: () => call("GET", "/controller/mdns"),
       controllerEvents: () => call("GET", "/controller/events"),
@@ -512,10 +654,27 @@ const VALUE_KEYS = ["value", "data", "response"] as const;
 /** The query of an event route; empty without since and limit. */
 function eventQuery(w: EventWindow | LogWindow = {}): string {
   const q = new URLSearchParams();
-  if (w.since !== undefined) q.set("since", String(w.since));
+  if (typeof w.since === "string") q.set("since_str", w.since);
+  else if (w.since !== undefined) q.set("since", String(w.since));
   if (w.limit !== undefined) q.set("limit", String(w.limit));
   const qs = q.toString();
   return qs ? "?" + qs : "";
+}
+
+/**
+ * Whether base addresses the page's own origin, decided as fetch resolves
+ * it: against the page's URL, the origin compared (UR-P3-web-194). Without
+ * a page (no location) against a placeholder origin, so only a base that
+ * stays on it — a path — does.
+ */
+function isSameOrigin(base: string): boolean {
+  let here = typeof location !== "undefined" ? location.href : undefined;
+  if (!here || here === "about:blank") here = "http://fabric-ui.invalid/";
+  try {
+    return new URL(base, here).origin === new URL(here).origin;
+  } catch {
+    return false;
+  }
 }
 
 /** The path of a controller node. */

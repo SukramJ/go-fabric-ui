@@ -168,17 +168,25 @@ describe("Endpoints", () => {
     expect(ui.sent.some((s) => s.method === "POST" && s.path === "/api/v1/node/mdns/reannounce")).toBe(true);
   });
 
-  it("offers no re-announce without admin rights, and lists the session parameters", async () => {
+  it("shows the admin notice and no re-announce without admin rights (0.10.0)", async () => {
     const s = body<StatusT>("node-status.200");
     s.admin = false;
+    delete s.csrf_token;
     const ui = testUI({ fixtures: ALL, answers: { "GET /node/status": { status: 200, body: s } } });
+    await ui.node.loadStatus();
+    render(Harness, { ui, page: Diagnostics });
+    expect(await screen.findByTestId("denied")).toHaveAttribute("data-code", "forbidden");
+    expect(screen.queryByTestId("node-reannounce")).toBeNull();
+  });
+
+  it("lists the session parameters", async () => {
+    const ui = testUI({ fixtures: [...ALL, "node-status.200"] });
     await ui.node.loadStatus();
     render(Harness, { ui, page: Diagnostics });
     const params = await screen.findByTestId("session-parameters");
     expect(params).toHaveTextContent("0x01050000");
     expect(params).toHaveTextContent("500 ms");
     expect(params).toHaveTextContent("node.diag.params.tcp_no");
-    expect(screen.queryByTestId("node-reannounce")).toBeNull();
   });
 
   it("renders two interface findings with the same code and no service (UR-P1-ui-130)", async () => {

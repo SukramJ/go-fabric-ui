@@ -40,7 +40,9 @@ const MaxNodeLabel = 64
 // and store; it starts the node in Create and stops it in Delete. Delete
 // is final: the host removes the node's fabrics (its controllers lose the
 // node), its store and its selection. The methods are called from the
-// request goroutines, concurrently.
+// request goroutines, concurrently. They must not call back into the
+// handler — no request to it, no wait on one of its answers: the
+// handler may hold a lock of its own while it calls them.
 type NodeRegistry interface {
 	// List is every node of the registry, in the selector's order; it is
 	// called on every GET /nodes and on every request under

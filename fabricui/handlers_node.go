@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -26,13 +27,15 @@ import (
 // 350-360 at b40b289a) plus the health probe's verdict, whether the
 // selection page is served and the token of token mode.
 type statusResponse struct {
-	Enabled        bool   `json:"enabled"`
-	Listening      bool   `json:"listening"`
-	ListenAddr     string `json:"listen_addr,omitempty"`
-	Healthy        *bool  `json:"healthy,omitempty"`
-	HealthNote     string `json:"health_note,omitempty"`
-	EndpointCount  int    `json:"endpoint_count"`
-	FabricCount    int    `json:"fabric_count"`
+	Enabled       bool   `json:"enabled"`
+	Listening     bool   `json:"listening"`
+	ListenAddr    string `json:"listen_addr,omitempty"`
+	Healthy       *bool  `json:"healthy,omitempty"`
+	HealthNote    string `json:"health_note,omitempty"`
+	EndpointCount int    `json:"endpoint_count"`
+	// FabricCount is absent when the fabric read failed (0.10.0,
+	// UR-P1-err-07).
+	FabricCount    *int   `json:"fabric_count,omitempty"`
 	EnabledCount   *int   `json:"enabled_count,omitempty"`
 	Advertising    bool   `json:"advertising"`
 	WindowOpen     bool   `json:"commissioning_window_open"`
@@ -43,7 +46,10 @@ type statusResponse struct {
 	// WindowDeadline is when the open window's timer closes it, on the
 	// node's clock (node.Window); absent while none is open.
 	WindowDeadline string `json:"window_deadline,omitempty"`
-	Exposure       bool   `json:"exposure"`
+	// WindowRemaining is the seconds until the open window's timer
+	// closes it (0.10.0); absent while none is open.
+	WindowRemaining *int `json:"window_remaining_seconds,omitempty"`
+	Exposure        bool `json:"exposure"`
 	// ExposureReason is why the host serves no selection
 	// (Options.ExposureReason); absent with a selection.
 	ExposureReason string `json:"exposure_reason,omitempty"`
@@ -132,20 +138,27 @@ func summariseSurface(r *surface.Report) *surfaceSummary {
 	return out
 }
 
+// attestationErrorNonAdmin is attestation_error for a request without
+// admin rights (decision 63).
+const attestationErrorNonAdmin = "The node's attestation files did not load."
+
 // status serves GET /node/status. A host without a node is answered with
 // 200 and enabled false, not 503: the status is what tells a page the
 // family is off (loom matter_exposures.go:363-372).
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	res := statusResponse{Exposure: h.exposure != nil, CSRFToken: h.token, NodeRegistry: h.registry != nil, Erase: h.eraseFn() != nil}
+	admin := h.requestAdmin(r)
 	if h.admin != nil {
-		admin := h.admin(r)
 		res.Admin = &admin
 	}
 	if c := h.config.Load(); c != nil {
 		res.Config = &nodeConfig{
 			Source: c.Source, SourceNote: c.SourceNote, Label: c.Label, Listen: c.Listen,
 			Discriminator: c.Discriminator, VendorID: c.VendorID, VendorName: c.VendorName,
-			ProductID: c.ProductID, ProductName: c.ProductName, Store: c.Store,
+			ProductID: c.ProductID, ProductName: c.ProductName,
+		}
+		if admin {
+			res.Config.Store = c.Store
 		}
 	}
 	if h.exposure == nil {
@@ -157,6 +170,14 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		res.Warnings = h.warnings(r.Context())
 		if res.Warnings == nil {
 			res.Warnings = []Warning{}
+		}
+		if !admin {
+			// Without admin rights the codes only (decision 34).
+			reduced := make([]Warning, len(res.Warnings))
+			for i, w := range res.Warnings {
+				reduced[i] = Warning{Code: w.Code}
+			}
+			res.Warnings = reduced
 		}
 	}
 	if h.counters != nil {
@@ -173,7 +194,12 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	res.Enabled = true
 	if err := h.node.attestationError(); err != nil {
-		res.AttestationError = err.Error()
+		// The loader's text names files: an administrator's only
+		// (decision 63).
+		res.AttestationError = attestationErrorNonAdmin
+		if admin {
+			res.AttestationError = err.Error()
+		}
 	}
 	boot := h.node.bootReason()
 	res.BootReason = &boot
@@ -196,11 +222,11 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 			res.WindowDeadline = win.Deadline.UTC().Format(time.RFC3339)
 		}
 	}
+	res.WindowRemaining = remainingSeconds(win, h.node.now())
 	if fabrics, err := h.node.fabrics(r.Context()); err == nil {
-		res.FabricCount = len(fabrics)
+		res.FabricCount = ptr(len(fabrics))
 	} else {
-		// fabric_count then says 0 where the truth is unknown; the log
-		// says why (UR-P1-err-07).
+		// fabric_count is then absent; the log says why (UR-P1-err-07).
 		h.log.WarnContext(r.Context(), "fabricui.status.fabrics_failed", slog.String("error", err.Error()))
 	}
 	if h.exposure != nil {
@@ -217,10 +243,24 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, res)
 }
 
+// remainingSeconds is the whole seconds from now until win's timer closes
+// it, rounded up, at least 0; nil while no window is open or without a
+// deadline.
+func remainingSeconds(win node.WindowSnapshot, now time.Time) *int {
+	if !win.Open || win.Deadline.IsZero() {
+		return nil
+	}
+	d := win.Deadline.Sub(now)
+	if d <= 0 {
+		return ptr(0)
+	}
+	return ptr(int((d + time.Second - 1) / time.Second))
+}
+
 // fabricResponse is one entry of GET /node/fabrics. Mirrors loom's
-// MatterFabricResponse (matter.go:232-255): a JSON number carries 53 bits,
-// so the 64-bit ids travel exactly as 16-digit uppercase hex, and the
-// numeric fields are informational only.
+// MatterFabricResponse (internal/north/rest/handlers/matter.go:234-256):
+// a JSON number carries 53 bits, so the 64-bit ids travel exactly as
+// 16-digit uppercase hex, and the numeric fields are informational only.
 type fabricResponse struct {
 	FabricIndex   uint8  `json:"fabric_index"`
 	FabricID      uint64 `json:"fabric_id"`
@@ -282,6 +322,15 @@ func (h *handler) removeFabric(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusBadRequest, codeBadRequest, "Invalid fabric index", "fabric_index must be 1..254")
 		return
 	}
+	infos, err := h.node.fabrics(r.Context())
+	if err != nil {
+		h.serverError(w, r, "Failed to list fabrics", err)
+		return
+	}
+	if !slices.ContainsFunc(infos, func(f node.FabricInfo) bool { return uint64(f.FabricIndex) == idx }) {
+		writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such fabric", fmt.Sprintf("the node has no fabric %d", idx))
+		return
+	}
 	if err := h.node.removeFabric(r.Context(), uint8(idx)); err != nil {
 		h.serverError(w, r, "Failed to remove fabric", err)
 		return
@@ -317,7 +366,7 @@ func (h *handler) maintenanceReassemble(w http.ResponseWriter, r *http.Request) 
 
 // factoryResetConfirmation is the word the body has to carry. It names the
 // action rather than agreeing with it, so a client replaying a generic
-// {"confirm":"yes"} cannot unpair a house (loom matter_maintenance.go:58-61).
+// {"confirm":"yes"} cannot unpair a house (loom matter_maintenance.go:54-57).
 const factoryResetConfirmation = "remove-all-fabrics"
 
 // factoryReset serves POST /node/maintenance/factory-reset: every fabric
@@ -332,8 +381,10 @@ func (h *handler) factoryReset(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Confirm string `json:"confirm"`
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if err := decodeJSON(w, r, &body); err != nil {
+		badBody(w, r, err)
+		return
+	}
 	if body.Confirm != factoryResetConfirmation {
 		writeProblem(w, r, http.StatusBadRequest, codeBadRequest, "Factory reset not confirmed",
 			`send {"confirm":"`+factoryResetConfirmation+`"} — this removes every fabric `+
@@ -389,8 +440,10 @@ func (h *handler) eraseNode(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Confirm string `json:"confirm"`
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
-	_ = json.NewDecoder(r.Body).Decode(&body)
+	if err := decodeJSON(w, r, &body); err != nil {
+		badBody(w, r, err)
+		return
+	}
 	if body.Confirm != eraseConfirmation {
 		writeProblem(w, r, http.StatusBadRequest, codeBadRequest, "Erase not confirmed",
 			`send {"confirm":"`+eraseConfirmation+`"} — this erases the node's fabrics, store and endpoint records `+
@@ -444,7 +497,7 @@ func eventRecords(in []EventRecord) api.EventRecordList {
 	for i := range in {
 		e := &in[i]
 		r := api.EventRecord{
-			Number: int(e.Number), Priority: api.EventRecordPriority(e.Priority), Endpoint: int(e.Endpoint), //nolint:gosec // an event number fits int64
+			Number: int(e.Number), NumberStr: ptr(strconv.FormatUint(e.Number, 10)), Priority: api.EventRecordPriority(e.Priority), Endpoint: int(e.Endpoint), //nolint:gosec // an event number fits int64
 			ClusterHex: hexID(e.Cluster), EventHex: hexID(e.Event), Name: optString(e.Name),
 		}
 		if e.EpochMS != nil {
@@ -474,8 +527,8 @@ func queryInt(r *http.Request, name string) (*int, error) {
 // pathEndpoint is the {ep} path value as an endpoint number.
 func pathEndpoint(r *http.Request) (uint16, error) {
 	v, err := strconv.ParseUint(r.PathValue("ep"), 10, 16)
-	if err != nil {
-		return 0, badRequest("ep: %q is not an endpoint number", r.PathValue("ep"))
+	if err != nil || v == endpointWildcard {
+		return 0, badRequest("ep: %q is not an endpoint number (0 to 65534)", r.PathValue("ep"))
 	}
 	return uint16(v), nil
 }
@@ -592,23 +645,47 @@ func (h *handler) nodeEndpointEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s, l, err := eventWindow(since, limit)
+	if err == nil {
+		s, err = eventSince(s, queryString(r, "since_str"))
+	}
 	if err != nil {
 		h.writeAPIError(w, r, "", err)
-		return
-	}
-	if ep == endpointWildcard {
-		// 0xFFFF is no endpoint, and go-fabric reads it as "any
-		// endpoint": answered as the contract answers an unknown
-		// endpoint, not with every endpoint's events (UR-P1-adpt-35).
-		writeJSON(w, eventRecords(nil))
 		return
 	}
 	writeJSON(w, eventRecords(h.node.eventLog(node.EventQuery{Endpoint: &ep, MinNumber: s, Limit: l})))
 }
 
 // endpointWildcard is the endpoint number go-fabric's event log reads as
-// any endpoint (im/eventlog.go:443 at v0.22.2).
+// any endpoint (im/eventlog.go:443 at v0.22.2); the contract's
+// EndpointNumber ends below it (0.10.0, UR-P1-adpt-35).
 const endpointWildcard = 0xFFFF
+
+// queryString is an optional query parameter; nil when absent.
+func queryString(r *http.Request, name string) *string {
+	q := r.URL.Query()
+	if !q.Has(name) {
+		return nil
+	}
+	v := q.Get(name)
+	return &v
+}
+
+// eventSince is since, or since_str when present (contract 0.10.0,
+// EventSinceStr): the event number in decimal, exact beyond 2^53.
+func eventSince(since uint64, sinceStr *string) (uint64, error) {
+	if sinceStr == nil {
+		return since, nil
+	}
+	s := *sinceStr
+	if s == "" || len(s) > 20 || (len(s) > 1 && s[0] == '0') {
+		return 0, badRequest("since_str: %q is not an event number", s)
+	}
+	v, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return 0, badRequest("since_str: %q is not an event number", s)
+	}
+	return v, nil
+}
 
 // detachedTimeout bounds work that outlives its request (detached).
 const detachedTimeout = 2 * time.Minute

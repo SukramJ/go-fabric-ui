@@ -133,7 +133,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The endpoint number. */
+                /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
                 ep: components["parameters"]["EndpointNumber"];
             };
             cookie?: never;
@@ -169,7 +169,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The endpoint number. */
+                /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
                 ep: components["parameters"]["EndpointNumber"];
             };
             cookie?: never;
@@ -493,6 +493,9 @@ export interface paths {
          *     session_closed and subscriptions_changed follow only a session
          *     session_opened reported.
          *     A comment line arrives every 15 s. No payload carries a passcode.
+         *     A request without admin rights receives `nodes_changed`,
+         *     `window_opened` and `window_closed` only (`x-non-admin-events`, 0.10.0);
+         *     a host's own events reach admin requests only.
          */
         get: operations["stream"];
         put?: never;
@@ -758,7 +761,7 @@ export interface paths {
             path: {
                 /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
                 node: components["parameters"]["NodeKey"];
-                /** @description The endpoint number. */
+                /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
                 ep: components["parameters"]["EndpointNumber"];
             };
             cookie?: never;
@@ -783,7 +786,7 @@ export interface paths {
             path: {
                 /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
                 node: components["parameters"]["NodeKey"];
-                /** @description The endpoint number. */
+                /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
                 ep: components["parameters"]["EndpointNumber"];
             };
             cookie?: never;
@@ -1220,7 +1223,10 @@ export interface paths {
          * The controller's fabric, its node count and capabilities.
          * @description Answered only when the host serves the controller family
          *     (`Options.Controller`); without it every `/controller/*` path is
-         *     404, which is how a page tells the family is absent.
+         *     404, which is how a page tells the family is absent. Open (0.10.0):
+         *     a request without admin rights gets `enabled`, `capabilities`,
+         *     `admin` and `csrf_token` as they are and every other required member
+         *     empty or 0.
          */
         get: operations["getControllerStatus"];
         put?: never;
@@ -1253,7 +1259,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1274,9 +1280,9 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
-                /** @description The endpoint number. */
+                /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
                 ep: components["parameters"]["EndpointNumber"];
             };
             cookie?: never;
@@ -1306,9 +1312,9 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
-                /** @description The endpoint number. */
+                /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
                 ep: components["parameters"]["EndpointNumber"];
                 /** @description The cluster id in hex, `0x` optional ("0x0006"). */
                 cluster_hex: string;
@@ -1339,7 +1345,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1367,7 +1373,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1387,7 +1393,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1423,7 +1429,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1443,7 +1449,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1463,7 +1469,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1483,7 +1489,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1506,7 +1512,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1526,7 +1532,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1554,7 +1560,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1574,7 +1580,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1600,7 +1606,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1621,7 +1627,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1641,7 +1647,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1661,7 +1667,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1681,7 +1687,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -1701,7 +1707,7 @@ export interface paths {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
                 index: number;
             };
@@ -1873,9 +1879,9 @@ export interface paths {
          *     node off Thread and Wi-Fi. Edges are a `session` from the
          *     controller to every commissioned node and a `link` per Thread pair
          *     and Wi-Fi station with its strength, LQI and RSSI.
-         *     `refresh=true` re-reads the nodes' network diagnostics first and
-         *     needs admin rights (403 without them); 501 `not_implemented` is a
-         *     host whose controller serves no network graph.
+         *     `refresh=true` re-reads the nodes' network diagnostics first; a
+         *     value other than `true` or `false` is 400. 501 `not_implemented` is
+         *     a host whose controller serves no network graph.
          */
         get: operations["getControllerTopology"];
         put?: never;
@@ -2004,7 +2010,7 @@ export interface components {
             detail?: string;
             instance?: string;
             /** @enum {string} */
-            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default" | "terms_required";
+            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default" | "terms_required" | "method_not_allowed" | "too_many_streams" | "unsupported_media_type" | "host_not_allowed" | "origin_not_allowed";
             /** @description terms_required (0.8.0): the device's TCMinRequiredVersion, the lowest version an acknowledgement has to name (go-fabric commissioner.TermsRequiredError.Version). */
             version?: number;
             /** @description terms_required (0.8.0): the acknowledgement bits the device requires; null, since no device attribute names them — the terms the user accepts set them. */
@@ -2020,7 +2026,8 @@ export interface components {
             healthy?: boolean;
             health_note?: string;
             endpoint_count: number;
-            fabric_count: number;
+            /** @description Absent when the fabric read failed (optional since 0.10.0). */
+            fabric_count?: number;
             /** @description Enabled selection items; absent without a selection. */
             enabled_count?: number;
             advertising: boolean;
@@ -2036,6 +2043,8 @@ export interface components {
              * @description When the open window's timer closes it
              */
             window_deadline?: string;
+            /** @description Seconds until the open window's timer closes it, on the node's clock when the answer was written (0.10.0); absent while no window is open. */
+            window_remaining_seconds?: number;
             /** @description Whether the host serves a selection. */
             exposure: boolean;
             /** @description Why the host serves no selection, in the host's language; absent when it serves one or gives no reason (0.5.0). */
@@ -2047,13 +2056,13 @@ export interface components {
             /** @description Whether the host keeps a node registry (0.6.0): `POST /nodes` creates a node and a `managed` node can be renamed and deleted. Absent without one. */
             node_registry?: boolean;
             config?: components["schemas"]["NodeConfig"];
-            /** @description Why the node's attestation files did not load (0.7.0, go-fabric `Node.AttestationError`): the node runs on the test chain and refuses every commissioning until the files are fixed and a new node is built. Absent when the files loaded, named nothing, or without a node. */
+            /** @description Why the node's attestation files did not load (0.7.0, go-fabric `Node.AttestationError`): the node runs on the test chain and refuses every commissioning until the files are fixed and a new node is built. Absent when the files loaded, named nothing, or without a node. Without admin rights (0.10.0, decision 63) a fixed sentence, "The node's attestation files did not load.", not the loader's text. */
             attestation_error?: string;
             /** @description The GeneralDiagnostics BootReason the node was built with (0.7.0, go-fabric `Node.BootReason`; BootReasonEnum: 0 Unspecified, 1 PowerOnReboot, 2 BrownOutReset, 3 SoftwareWatchdogReset, 4 HardwareWatchdogReset, 5 SoftwareUpdateCompleted, 6 SoftwareReset). Absent without a node. */
             boot_reason?: number;
             /** @description Whether the host wires an erase of this node (0.7.0, `Options.Erase` or `NodeEntry.Erase`): `POST /node/maintenance/erase` is served. Absent without one. */
             erase?: boolean;
-            /** @description The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing. */
+            /** @description The host's findings about its own configuration; absent when the host reports none (no Options.Warnings), empty when it finds nothing. A request without admin rights gets every entry with its `code`, an empty `message` and no `since` (0.10.0). */
             warnings?: components["schemas"]["Warning"][];
             /** @description The host's own counters a scraper reads beside the health (0.8.0), e.g. `discards`, commands the host answered with success and acted on nothing; absent when the host reports none (no Options.Counters), empty when it has none to report. Host-wide: every node's status carries the same list. */
             counters?: components["schemas"]["Counter"][];
@@ -2080,11 +2089,11 @@ export interface components {
         Warning: {
             /** @description The kind of finding, stable across host releases. */
             code: string;
-            /** @description What is wrong, in the host's language. */
+            /** @description What is wrong, in the host's language; empty for a request without admin rights (0.10.0). */
             message: string;
             /**
              * Format: date-time
-             * @description When the host first saw it; absent when unknown.
+             * @description When the host first saw it; absent when unknown or for a request without admin rights.
              */
             since?: string;
         };
@@ -2099,10 +2108,16 @@ export interface components {
         };
         Fabric: {
             fabric_index: number;
-            /** @description Informational; use fabric_id_hex. */
+            /**
+             * @deprecated
+             * @description Informational; use fabric_id_hex.
+             */
             fabric_id: number;
             fabric_id_hex: string;
-            /** @description Informational; use node_id_hex. */
+            /**
+             * @deprecated
+             * @description Informational; use node_id_hex.
+             */
             node_id: number;
             node_id_hex: string;
             vendor_id: number;
@@ -2125,6 +2140,10 @@ export interface components {
             source: "configured" | "window";
             window_open: boolean;
             duration_seconds?: number;
+            /** @description As on `Status` (0.10.0): seconds until the open window's timer closes it; absent while no window is open. */
+            window_remaining_seconds?: number;
+            /** @description True: the open window admits the codes of this answer; false: a window is open on other credentials (0.10.0). Absent while no window is open. */
+            window_match?: boolean;
         };
         WindowRequest: {
             /** @description 180..900; 0 or absent is 900. */
@@ -2182,10 +2201,18 @@ export interface components {
         Session: {
             session_id: number;
             fabric_index: number;
-            /** @description Informational; use peer_node_id_hex. */
+            /**
+             * Format: uint64
+             * @deprecated
+             * @description Informational; use peer_node_id_hex.
+             */
             peer_node_id: number;
             peer_node_id_hex: string;
-            /** @description Informational; use local_node_id_hex. */
+            /**
+             * Format: uint64
+             * @deprecated
+             * @description Informational; use local_node_id_hex.
+             */
             local_node_id: number;
             local_node_id_hex: string;
             is_pase: boolean;
@@ -2430,7 +2457,7 @@ export interface components {
             vendor_name?: string;
             product_id: number;
             product_name?: string;
-            /** @description Where the node keeps its state (a file name); absent when the host does not say. */
+            /** @description Where the node keeps its state (a file name); absent when the host does not say */
             store?: string;
         };
         /** @description The body of `POST /nodes` and `PUT /nodes/{node}/label` (0.6.0); an unknown field is refused. */
@@ -2576,6 +2603,8 @@ export interface components {
         };
         Applied: {
             applied: number;
+            /** @description False: the selection is stored, the rebuild failed and it is not in effect (0.10.0). */
+            reassembled?: boolean;
         };
         FactoryResetRequest: {
             /** @constant */
@@ -2599,10 +2628,18 @@ export interface components {
         SessionEvent: {
             session_id: number;
             fabric_index: number;
-            /** @description Informational; use peer_node_id_hex. */
+            /**
+             * Format: uint64
+             * @deprecated
+             * @description Informational; use peer_node_id_hex.
+             */
             peer_node_id: number;
             peer_node_id_hex: string;
-            /** @description Informational; use local_node_id_hex. */
+            /**
+             * Format: uint64
+             * @deprecated
+             * @description Informational; use local_node_id_hex.
+             */
             local_node_id: number;
             local_node_id_hex: string;
             is_pase: boolean;
@@ -2764,6 +2801,8 @@ export interface components {
             capabilities: components["schemas"]["ControllerCapabilities"];
             /** @description The admin token of token mode */
             csrf_token?: string;
+            /** @description Whether this request has admin rights (0.10.0), as `Status.admin`: present when the host decides admin rights, absent in token mode. */
+            admin?: boolean;
         };
         ControllerCapabilities: {
             /** @description The source serves the controller's diagnostics (0.9.0): `GET /controller/diagnostics`, `/controller/mdns` and `/controller/events` answer, the stream carries controller_diagnostic_event. False: the three routes answer 501. */
@@ -2845,6 +2884,8 @@ export interface components {
             addresses: string[];
             /** Format: date-time */
             commissioned_at?: string;
+            /** @description The auto-subscribe setting, not the live subscription (`subscription_active`) (0.10.0). */
+            auto_subscribe?: boolean;
         };
         ControllerNodeList: {
             nodes: components["schemas"]["ControllerNodeSummary"][];
@@ -3021,8 +3062,13 @@ export interface components {
         };
         /** @description One Matter event (0.4.1), one shape for both families — an event the node served, or one the controller received from a node. */
         EventRecord: {
-            /** @description The node-wide event number (Matter Core §7.14.2.1). */
+            /**
+             * @deprecated
+             * @description The node-wide event number (Matter Core §7.14.2.1); use `number_str`.
+             */
             number: number;
+            /** @description The event number in decimal, exact (0.10.0). */
+            number_str?: string;
             /** @enum {string} */
             priority: "debug" | "info" | "critical";
             endpoint: number;
@@ -3125,10 +3171,16 @@ export interface components {
             device_type_hex?: string;
         };
         AclEntry: {
-            /** @enum {string} */
-            privilege: "view" | "proxy_view" | "operate" | "manage" | "administer";
-            /** @enum {string} */
-            auth_mode: "pase" | "case" | "group";
+            /**
+             * @description `unknown` (0.10.0): a value the node sent that this list does not name.
+             * @enum {string}
+             */
+            privilege: "view" | "proxy_view" | "operate" | "manage" | "administer" | "unknown";
+            /**
+             * @description `unknown` (0.10.0): a value the node sent that this list does not name.
+             * @enum {string}
+             */
+            auth_mode: "pase" | "case" | "group" | "unknown";
             /** @description Node ids (CASE), group ids (Group) or CATs in hex; empty is every subject of the auth mode. */
             subjects_hex: string[];
             /** @description Empty is the whole node. */
@@ -3138,6 +3190,23 @@ export interface components {
         };
         AclEntryList: {
             entries: components["schemas"]["AclEntry"][];
+        };
+        /** @description One entry of `PUT /controller/nodes/{id}/acl` (0.10.0); `AclEntry` without `unknown`. */
+        AclEntryWrite: {
+            /** @enum {string} */
+            privilege: "view" | "proxy_view" | "operate" | "manage" | "administer";
+            /** @enum {string} */
+            auth_mode: "pase" | "case" | "group";
+            /** @description Node ids (CASE), group ids (Group) or CATs in hex; empty is every subject of the auth mode. */
+            subjects_hex: string[];
+            /** @description Empty is the whole node. */
+            targets: components["schemas"]["AclTarget"][];
+            /** @description Set by the node; ignored. */
+            fabric_index?: number;
+        };
+        /** @description The body of `PUT /controller/nodes/{id}/acl` (0.10.0). */
+        AclWriteRequest: {
+            entries: components["schemas"]["AclEntryWrite"][];
         };
         BindingTarget: {
             /** @description A unicast target's node; with `endpoint`. */
@@ -3151,6 +3220,13 @@ export interface components {
             fabric_index?: number;
         };
         EndpointBindings: {
+            endpoint: number;
+            bindings: components["schemas"]["BindingTarget"][];
+            /** @description The node's status for this endpoint's read (0.10.0), as `AttributeValue.status`; absent on success, `bindings` then `[]`. */
+            status?: number;
+        };
+        /** @description The body of `PUT /controller/nodes/{id}/bindings` (0.10.0). */
+        EndpointBindingsWrite: {
             endpoint: number;
             bindings: components["schemas"]["BindingTarget"][];
         };
@@ -3201,6 +3277,7 @@ export interface components {
             /** @description A QR payload ("MT:…") or a manual pairing code. */
             code?: string;
             discovered?: components["schemas"]["DiscoveredRef"];
+            /** @description Not 11111111, 22222222, … 88888888, 12345678 or 87654321 (400, 0.10.0). */
             passcode?: number;
             /** @description The stored Wi-Fi credential to put the device on. */
             wifi_id?: string;
@@ -3211,6 +3288,8 @@ export interface components {
             /** @description The whole commissioning's bound; absent is the controller's default. */
             timeout_seconds?: number;
             terms_and_conditions?: components["schemas"]["TermsAcknowledgement"];
+            /** @description The client's id for this commissioning, echoed as `commissioning_id` on its `commissioning_progress` events (0.10.0); absent: the server draws one. */
+            commissioning_id?: string;
         };
         /** @description The Terms and Conditions acknowledgement the commissioning sends with GeneralCommissioning's SetTCAcknowledgements (0.7.0; go-fabric commissioner.Options.TermsAndConditions, chip-tool's --tc-acknowledgements-version and --tc-acknowledgements). A device that requires terms fails the commissioning without one, or with one below its version, with 409 terms_required (0.8.0; before 0.8.0 a 502 at CommissioningComplete); absent sends none. */
         TermsAcknowledgement: {
@@ -3261,6 +3340,7 @@ export interface components {
             dataset_hex?: string;
         };
         FabricLabelRequest: {
+            /** @description At most 32 bytes of UTF-8; a longer label is 400 (0.10.0). */
             label: string;
         };
         PendingUpdate: {
@@ -3313,6 +3393,8 @@ export interface components {
             detail?: string;
             step?: components["schemas"]["PairingStep"];
             ble?: components["schemas"]["BLEDecision"];
+            /** @description commissioning_progress (0.10.0): the commissioning's id, the request's `commissioning_id` or one the server drew; on every such event. */
+            commissioning_id?: string;
             /**
              * @description update (0.7.0): what the controller's update manager reported (go-fabric softwareupdate.UpdateEventKind).
              * @enum {string}
@@ -3351,6 +3433,28 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description 405 `method_not_allowed` (0.10.0): the path is served, the method is not. Answered at path level, not listed per operation. */
+        MethodNotAllowed: {
+            headers: {
+                /** @description The path's methods in this contract, plus `HEAD` where `GET` is listed. */
+                Allow: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description 503 (0.10.0): `too_many_streams` while the handler serves its limit of open event streams, with `Retry-After`; else the problem the operation names. */
+        StreamUnavailable: {
+            headers: {
+                /** @description Seconds after which to try again; present with `too_many_streams`. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
     };
     parameters: {
         /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
@@ -3359,12 +3463,14 @@ export interface components {
         LogSince: number;
         /** @description Only the newest `limit` of the matching records; absent is 200. */
         LogLimit: number;
-        /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+        /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
         NodeID: string;
-        /** @description The endpoint number. */
+        /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
         EndpointNumber: number;
         /** @description The lowest event number returned (inclusive); absent is every event the log holds. A page passes the last number it has plus one to fetch only the newer ones. */
         EventSince: number;
+        /** @description `since` in decimal as a string, exact beyond 2^53 (0.10.0); when present it is used and `since` ignored. */
+        EventSinceStr: string;
         /** @description Only the newest `limit` of the matching events; absent is 100. */
         EventLimit: number;
     };
@@ -3392,6 +3498,7 @@ export interface operations {
                     "application/json": components["schemas"]["Status"];
                 };
             };
+            403: components["responses"]["Problem"];
         };
     };
     listFabrics: {
@@ -3412,6 +3519,7 @@ export interface operations {
                     "application/json": components["schemas"]["FabricList"];
                 };
             };
+            403: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -3436,6 +3544,7 @@ export interface operations {
             };
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -3487,6 +3596,8 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -3530,6 +3641,7 @@ export interface operations {
                     "application/json": components["schemas"]["EndpointList"];
                 };
             };
+            403: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -3538,7 +3650,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The endpoint number. */
+                /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
                 ep: components["parameters"]["EndpointNumber"];
             };
             cookie?: never;
@@ -3555,6 +3667,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
@@ -3565,12 +3678,14 @@ export interface operations {
             query?: {
                 /** @description The lowest event number returned (inclusive); absent is every event the log holds. A page passes the last number it has plus one to fetch only the newer ones. */
                 since?: components["parameters"]["EventSince"];
+                /** @description `since` in decimal as a string, exact beyond 2^53 (0.10.0); when present it is used and `since` ignored. */
+                since_str?: components["parameters"]["EventSinceStr"];
                 /** @description Only the newest `limit` of the matching events; absent is 100. */
                 limit?: components["parameters"]["EventLimit"];
             };
             header?: never;
             path: {
-                /** @description The endpoint number. */
+                /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
                 ep: components["parameters"]["EndpointNumber"];
             };
             cookie?: never;
@@ -3587,6 +3702,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -3608,6 +3724,8 @@ export interface operations {
                     "application/json": components["schemas"]["SurfaceReport"];
                 };
             };
+            403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -3629,6 +3747,7 @@ export interface operations {
                     "application/json": components["schemas"]["SessionList"];
                 };
             };
+            403: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -3650,6 +3769,7 @@ export interface operations {
                     "application/json": components["schemas"]["TopologyGraph"];
                 };
             };
+            403: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -3672,6 +3792,7 @@ export interface operations {
                     "application/json": components["schemas"]["Mdns"];
                 };
             };
+            403: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -3713,6 +3834,8 @@ export interface operations {
                     "application/json": components["schemas"]["Compatibility"];
                 };
             };
+            403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -3734,6 +3857,7 @@ export interface operations {
                     "application/json": components["schemas"]["DiagnosticEventList"];
                 };
             };
+            403: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -3755,6 +3879,7 @@ export interface operations {
                     "application/json": components["schemas"]["ExposureSchema"];
                 };
             };
+            403: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -3777,6 +3902,7 @@ export interface operations {
                     "application/json": components["schemas"]["ItemList"];
                 };
             };
+            403: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -3812,6 +3938,8 @@ export interface operations {
             };
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -3840,6 +3968,8 @@ export interface operations {
             };
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -3887,6 +4017,8 @@ export interface operations {
             };
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -3913,6 +4045,8 @@ export interface operations {
             };
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
@@ -3936,6 +4070,8 @@ export interface operations {
                     "text/event-stream": string;
                 };
             };
+            403: components["responses"]["Problem"];
+            503: components["responses"]["StreamUnavailable"];
         };
     };
     listNodes: {
@@ -3956,6 +4092,7 @@ export interface operations {
                     "application/json": components["schemas"]["NodeSummaryList"];
                 };
             };
+            403: components["responses"]["Problem"];
         };
     };
     createNode: {
@@ -3983,6 +4120,8 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4006,6 +4145,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
@@ -4040,6 +4180,8 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4065,6 +4207,8 @@ export interface operations {
                     "application/json": components["schemas"]["Status"];
                 };
             };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
         };
     };
@@ -4089,6 +4233,8 @@ export interface operations {
                     "application/json": components["schemas"]["FabricList"];
                 };
             };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
@@ -4142,6 +4288,7 @@ export interface operations {
                     "application/json": components["schemas"]["Pairing"];
                 };
             };
+            400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
@@ -4176,6 +4323,8 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4199,6 +4348,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
@@ -4226,6 +4376,8 @@ export interface operations {
                     "application/json": components["schemas"]["EndpointList"];
                 };
             };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4237,7 +4389,7 @@ export interface operations {
             path: {
                 /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
                 node: components["parameters"]["NodeKey"];
-                /** @description The endpoint number. */
+                /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
                 ep: components["parameters"]["EndpointNumber"];
             };
             cookie?: never;
@@ -4254,6 +4406,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
@@ -4264,6 +4417,8 @@ export interface operations {
             query?: {
                 /** @description The lowest event number returned (inclusive); absent is every event the log holds. A page passes the last number it has plus one to fetch only the newer ones. */
                 since?: components["parameters"]["EventSince"];
+                /** @description `since` in decimal as a string, exact beyond 2^53 (0.10.0); when present it is used and `since` ignored. */
+                since_str?: components["parameters"]["EventSinceStr"];
                 /** @description Only the newest `limit` of the matching events; absent is 100. */
                 limit?: components["parameters"]["EventLimit"];
             };
@@ -4271,7 +4426,7 @@ export interface operations {
             path: {
                 /** @description The key of a device node as `GET /nodes` lists it (0.5.0). */
                 node: components["parameters"]["NodeKey"];
-                /** @description The endpoint number. */
+                /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
                 ep: components["parameters"]["EndpointNumber"];
             };
             cookie?: never;
@@ -4288,6 +4443,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4313,7 +4469,10 @@ export interface operations {
                     "application/json": components["schemas"]["SurfaceReport"];
                 };
             };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -4338,6 +4497,8 @@ export interface operations {
                     "application/json": components["schemas"]["SessionList"];
                 };
             };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4363,6 +4524,8 @@ export interface operations {
                     "application/json": components["schemas"]["TopologyGraph"];
                 };
             };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
@@ -4389,6 +4552,8 @@ export interface operations {
                     "application/json": components["schemas"]["Mdns"];
                 };
             };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4412,6 +4577,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
@@ -4438,7 +4604,10 @@ export interface operations {
                     "application/json": components["schemas"]["Compatibility"];
                 };
             };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -4463,6 +4632,8 @@ export interface operations {
                     "application/json": components["schemas"]["DiagnosticEventList"];
                 };
             };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4488,6 +4659,8 @@ export interface operations {
                     "application/json": components["schemas"]["ExposureSchema"];
                 };
             };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
@@ -4514,6 +4687,8 @@ export interface operations {
                     "application/json": components["schemas"]["ItemList"];
                 };
             };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
@@ -4554,6 +4729,8 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4586,6 +4763,8 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4609,6 +4788,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
@@ -4641,6 +4821,8 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4671,6 +4853,8 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
@@ -4697,7 +4881,10 @@ export interface operations {
                     "text/event-stream": string;
                 };
             };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            503: components["responses"]["StreamUnavailable"];
         };
     };
     getOperationInfo: {
@@ -4718,6 +4905,7 @@ export interface operations {
                     "application/json": components["schemas"]["OperationInfo"];
                 };
             };
+            403: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -4739,6 +4927,7 @@ export interface operations {
                     "application/json": components["schemas"]["LogLevel"];
                 };
             };
+            403: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -4766,6 +4955,8 @@ export interface operations {
             };
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4794,6 +4985,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -4815,7 +5007,8 @@ export interface operations {
                     "text/event-stream": string;
                 };
             };
-            503: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            503: components["responses"]["StreamUnavailable"];
         };
     };
     getControllerStatus: {
@@ -4836,6 +5029,7 @@ export interface operations {
                     "application/json": components["schemas"]["ControllerStatus"];
                 };
             };
+            403: components["responses"]["Problem"];
         };
     };
     listControllerNodes: {
@@ -4856,6 +5050,7 @@ export interface operations {
                     "application/json": components["schemas"]["ControllerNodeList"];
                 };
             };
+            403: components["responses"]["Problem"];
         };
     };
     getControllerNode: {
@@ -4863,7 +5058,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -4880,6 +5075,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
         };
     };
@@ -4888,7 +5084,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -4905,6 +5101,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
@@ -4914,9 +5111,9 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
-                /** @description The endpoint number. */
+                /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
                 ep: components["parameters"]["EndpointNumber"];
             };
             cookie?: never;
@@ -4933,6 +5130,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
         };
     };
@@ -4941,9 +5139,9 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
-                /** @description The endpoint number. */
+                /** @description The endpoint number; 65535 is no endpoint (0.10.0). */
                 ep: components["parameters"]["EndpointNumber"];
                 /** @description The cluster id in hex, `0x` optional ("0x0006"). */
                 cluster_hex: string;
@@ -4962,6 +5160,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -4971,12 +5170,14 @@ export interface operations {
             query?: {
                 /** @description The lowest event number returned (inclusive); absent is every event the log holds. A page passes the last number it has plus one to fetch only the newer ones. */
                 since?: components["parameters"]["EventSince"];
+                /** @description `since` in decimal as a string, exact beyond 2^53 (0.10.0); when present it is used and `since` ignored. */
+                since_str?: components["parameters"]["EventSinceStr"];
                 /** @description Only the newest `limit` of the matching events; absent is 100. */
                 limit?: components["parameters"]["EventLimit"];
             };
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -4993,6 +5194,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
         };
     };
@@ -5001,7 +5203,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5018,6 +5220,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5026,7 +5229,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5052,7 +5255,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5069,7 +5272,9 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
         };
     };
     disableNode: {
@@ -5077,7 +5282,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5094,7 +5299,9 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
         };
     };
     setNodeAutoSubscribe: {
@@ -5102,7 +5309,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5123,7 +5330,11 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
         };
     };
     openNodeWindow: {
@@ -5131,7 +5342,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5154,6 +5365,9 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5162,7 +5376,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5179,6 +5393,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5187,7 +5402,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5210,6 +5425,9 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5218,7 +5436,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5239,7 +5457,11 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5248,7 +5470,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5271,6 +5493,9 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5279,7 +5504,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5296,7 +5521,9 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5305,14 +5532,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AclEntryList"];
+                "application/json": components["schemas"]["AclWriteRequest"];
             };
         };
         responses: {
@@ -5328,6 +5555,9 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5336,7 +5566,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5353,7 +5583,9 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5362,14 +5594,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["EndpointBindings"];
+                "application/json": components["schemas"]["EndpointBindingsWrite"];
             };
         };
         responses: {
@@ -5385,6 +5617,9 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5393,7 +5628,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5410,6 +5645,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
         };
     };
@@ -5418,7 +5654,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5442,6 +5678,8 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5450,7 +5688,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5473,6 +5711,9 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5481,7 +5722,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
             };
             cookie?: never;
@@ -5498,7 +5739,9 @@ export interface operations {
                 };
             };
             400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5507,7 +5750,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free. */
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
                 id: components["parameters"]["NodeID"];
                 index: number;
             };
@@ -5525,6 +5768,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5562,6 +5806,8 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -5594,6 +5840,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
         };
     };
     listCredentials: {
@@ -5614,6 +5861,7 @@ export interface operations {
                     "application/json": components["schemas"]["CredentialList"];
                 };
             };
+            403: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -5640,6 +5888,8 @@ export interface operations {
             };
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -5692,6 +5942,8 @@ export interface operations {
             };
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
         };
     };
@@ -5713,6 +5965,7 @@ export interface operations {
                     "application/json": components["schemas"]["UpdateQueue"];
                 };
             };
+            403: components["responses"]["Problem"];
         };
     };
     consentUpdate: {
@@ -5738,6 +5991,8 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -5768,7 +6023,7 @@ export interface operations {
     getControllerTopology: {
         parameters: {
             query?: {
-                /** @description Re-read the nodes' network diagnostics before answering; admin only. */
+                /** @description Re-read the nodes' network diagnostics before answering. */
                 refresh?: boolean;
             };
             header?: never;
@@ -5786,6 +6041,7 @@ export interface operations {
                     "application/json": components["schemas"]["TopologyGraph"];
                 };
             };
+            400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
@@ -5809,6 +6065,7 @@ export interface operations {
                     "application/json": components["schemas"]["ControllerDiagnostics"];
                 };
             };
+            403: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
         };
     };
@@ -5830,6 +6087,7 @@ export interface operations {
                     "application/json": components["schemas"]["ControllerMdns"];
                 };
             };
+            403: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
         };
     };
@@ -5851,6 +6109,7 @@ export interface operations {
                     "application/json": components["schemas"]["DiagnosticEventList"];
                 };
             };
+            403: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
         };
     };
@@ -5872,6 +6131,8 @@ export interface operations {
                     "text/event-stream": string;
                 };
             };
+            403: components["responses"]["Problem"];
+            503: components["responses"]["StreamUnavailable"];
         };
     };
 }

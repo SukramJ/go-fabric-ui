@@ -17,7 +17,6 @@
         "product_id": 32768,
         "product_name": "Bridge",
         "source": "registry",
-        "store": "bridge-kitchen.db",
         "vendor_id": 65521,
         "vendor_name": "go-fabric"
       },

@@ -19,10 +19,11 @@
      the code or passcode is held for that retry only, and dropped when
      the block is closed. -->
 <script lang="ts">
+  import DeniedState from "../../kit/DeniedState.svelte";
   import { onMount, tick, untrack } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
-  import { ApiError, type CommissionRequest, type ControllerNodeDetail, type Discovered } from "../../api/client";
+  import { ApiError, isValidPasscode, type CommissionRequest, type ControllerNodeDetail, type Discovered } from "../../api/client";
   import type { DataColumn } from "../../kit/data-table";
   import Badge from "../../kit/Badge.svelte";
   import Button from "../../kit/Button.svelte";
@@ -123,7 +124,9 @@
     try {
       // A copy: the request held for a terms retry stays without the
       // network and terms of this attempt, which the retry sets anew.
-      result = await client.commission(withNetwork({ ...req }));
+      // Each attempt is a run of its own: its id matches its progress
+      // events (decision 59).
+      result = await client.commission(withNetwork({ ...req, commissioning_id: controller.beginCommissioning() }));
       toast.success(t("controller.commission.done", { name: nodeName(result.node) }));
       void controller.loadNodes();
     } catch (err) {
@@ -189,7 +192,8 @@
 
   async function pair(d: Discovered) {
     const pin = Number((passcodes[d.instance_name] ?? "").trim());
-    if (!Number.isInteger(pin) || pin < 1 || pin > 99999998) {
+    // A passcode the contract refuses (400) is refused here first (UR-P1-ui-178).
+    if (!isValidPasscode(pin)) {
       toast.error(t("controller.commission.passcode_invalid"));
       return;
     }
@@ -220,6 +224,10 @@
     p === "succeeded" ? "success" : p === "failed" ? "danger" : p === "skipped" ? "muted" : "default";
 </script>
 
+<!-- Without admin rights the routes of this page are refused (0.10.0): a notice, not an error. -->
+{#if controller.status !== null && !controller.isAdmin}
+  <DeniedState />
+{:else}
 <div class="space-y-6">
   <Card class="p-4">
     <h3 class="mb-1 font-medium text-[var(--ha-primary-text-color)]">{t("controller.commission.by_code")}</h3>
@@ -336,3 +344,4 @@
     {/if}
   </Card>
 </div>
+{/if}

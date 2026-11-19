@@ -1,11 +1,14 @@
 <!-- The node's access control entries of our fabric: read, edit, write
      back as one list. Saving a list without an Administer entry for this
-     controller locks it out; the page asks first. -->
+     controller locks it out; the page asks first. An entry is added with
+     CASE or Group authentication only (decision 52); a PASE entry the node
+     holds is shown, and an entry the page cannot name (unknown) has to be
+     removed before the list is saved (0.10.0). -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { useFabricUI } from "../../../context";
   import { errorText } from "../../../store.svelte";
-  import type { AclEntry } from "../../../api/client";
+  import type { AclEntry, AclEntryWrite } from "../../../api/client";
   import Badge from "../../../kit/Badge.svelte";
   import Button from "../../../kit/Button.svelte";
   import Card from "../../../kit/Card.svelte";
@@ -24,14 +27,15 @@
   let dirty = $state(false);
   let busy = $state(false);
 
-  let privilege = $state<AclEntry["privilege"]>("operate");
-  let authMode = $state<AclEntry["auth_mode"]>("case");
+  let privilege = $state<AclEntryWrite["privilege"]>("operate");
+  let authMode = $state<(typeof MODES)[number]>("case");
   let subjects = $state("");
   let targetCluster = $state("");
   let targetEndpoint = $state("");
 
   const PRIVILEGES = ["view", "proxy_view", "operate", "manage", "administer"] as const;
-  const MODES = ["pase", "case", "group"] as const;
+  // The add form's modes: no PASE (UR-P1-ui-179).
+  const MODES = ["case", "group"] as const;
 
   async function load() {
     error = null;
@@ -67,7 +71,7 @@
       }
       target.endpoint = ep;
     }
-    const e: AclEntry = {
+    const e: AclEntryWrite = {
       privilege,
       auth_mode: authMode,
       subjects_hex: subs.map((s) => s.replace(/^0x/i, "").toUpperCase().padStart(16, "0")),
@@ -83,10 +87,19 @@
     dirty = true;
   }
 
-  // Does the list keep this controller's Administer access?
+  // The list as the write takes it; undefined when an entry names a
+  // privilege or mode the page does not know (unknown).
+  function writableEntries(list: AclEntry[]): AclEntryWrite[] | undefined {
+    if (list.some((e) => e.privilege === "unknown" || e.auth_mode === "unknown")) return undefined;
+    return list as AclEntryWrite[];
+  }
+
+  // Does the list keep this controller's Administer access? An entry for
+  // every subject does; one naming subjects only when the own id is known
+  // and among them, so an unknown id asks (UR-P3-web-190).
   function keepsUs(list: AclEntry[]): boolean {
     const own = controller.status?.node_id_hex;
-    return list.some((e) => e.privilege === "administer" && e.auth_mode === "case" && (!own || e.subjects_hex.length === 0 || e.subjects_hex.includes(own)));
+    return list.some((e) => e.privilege === "administer" && e.auth_mode === "case" && (e.subjects_hex.length === 0 || (!!own && e.subjects_hex.includes(own))));
   }
 
   async function save() {
@@ -95,9 +108,14 @@
       const ok = await confirm({ title: t("controller.acl.lockout"), body: t("controller.acl.lockout_body"), destructive: true, confirmLabel: t("common.save") });
       if (!ok) return;
     }
+    const writable = writableEntries(entries);
+    if (!writable) {
+      toast.error(t("controller.acl.unknown_entry"));
+      return;
+    }
     busy = true;
     try {
-      const res = await client.setNodeAcl(nodeId, entries);
+      const res = await client.setNodeAcl(nodeId, writable);
       if (res.status === 0) toast.success(t("controller.acl.saved"));
       else toast.error(t("controller.attributes.write_status", { status: hexId(res.status) }));
       await load();

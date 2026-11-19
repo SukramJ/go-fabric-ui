@@ -12,6 +12,7 @@
      shows them (0.2.5). A host without a selection gets the page all the
      same when it says why (Status.exposure_reason, 0.5.0). -->
 <script lang="ts">
+  import DeniedState from "../../kit/DeniedState.svelte";
   import { onMount, tick } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
@@ -224,7 +225,9 @@
     try {
       const applied = await node.saveBulk();
       previewItems = null;
-      toast.success(t("node.selection.saved_toast", { count: applied }));
+      // Stored, but the rebuild failed: not in effect (Applied.reassembled false, 0.10.0).
+      if (node.exposureNotInEffect) toast.error(t("node.selection.not_in_effect"));
+      else toast.success(t("node.selection.saved_toast", { count: applied }));
     } catch (err) {
       toast.error(errorText(err));
     } finally {
@@ -255,6 +258,10 @@
   ]);
 </script>
 
+<!-- Without admin rights the routes of this page are refused (0.10.0): a notice, not an error. -->
+{#if node.status !== null && !node.isAdmin}
+  <DeniedState />
+{:else}
 {#snippet groupHeader(group: string, rows: Item[])}
   <div class="flex flex-wrap items-center gap-2">
     <span class="font-semibold text-[var(--ha-primary-text-color)]">{group || "—"}</span>
@@ -323,6 +330,11 @@
   <ErrorState message={node.exposureError} onRetry={() => void node.loadExposure()} />
 {:else if schema}
   <HostWarnings warnings={node.status?.warnings ?? []} collapsed />
+  {#if node.exposureNotInEffect}
+    <p class="mb-3 rounded border border-[var(--ha-warning-color)] p-3 text-sm text-[var(--ha-primary-text-color)]" role="note" data-testid="selection-not-in-effect">
+      {t("node.selection.not_in_effect")}
+    </p>
+  {/if}
   <div class="mb-3 flex flex-col gap-2">
     <div class="flex flex-wrap items-center gap-2">
       <Input placeholder={t("node.selection.search_placeholder")} bind:value={search} class="w-full sm:w-64" />
@@ -483,4 +495,5 @@
       <Button size="sm" variant="outline" onclick={closeDrawer}>{t("common.cancel")}</Button>
     </div>
   </div>
+{/if}
 {/if}

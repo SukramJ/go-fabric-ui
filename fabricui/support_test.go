@@ -169,6 +169,11 @@ type fakeNode struct {
 	// node opened it but could not publish its record (go-fabric records
 	// the discriminator once published).
 	unannounced bool
+	// opens counts the windows opened; each opens one second after the
+	// last, so a replacing window has an OpenedAt of its own, as in
+	// go-fabric's snapshot (UR-P3-test-32).
+	opens    int
+	openedAt time.Time
 	// beforeBasic, when set, runs at the start of openBasicWindow, outside
 	// the lock: a second request that lands while the first opens.
 	beforeBasic func()
@@ -388,7 +393,7 @@ func (f *fakeNode) window() node.WindowSnapshot {
 		return node.WindowSnapshot{}
 	}
 	w := node.WindowSnapshot{
-		Open: true, Own: true, Kind: f.kind, Discriminator: f.disc,
+		Open: true, Kind: f.kind, Discriminator: f.disc,
 		Timeout: time.Duration(f.duration) * time.Second,
 	}
 	if w.Kind == node.WindowNone {
@@ -397,8 +402,14 @@ func (f *fakeNode) window() node.WindowSnapshot {
 	if w.Kind == node.WindowBasic && f.unannounced {
 		w.Discriminator = 0
 	}
+	// Own is false exactly for an enhanced window (go-fabric
+	// node/observers.go:181-196 at v0.22.2).
+	w.Own = w.Kind != node.WindowEnhanced
 	w.OpenedAt = testNow
-	w.Deadline = testNow.Add(w.Timeout)
+	if !f.openedAt.IsZero() {
+		w.OpenedAt = f.openedAt
+	}
+	w.Deadline = w.OpenedAt.Add(w.Timeout)
 	return w
 }
 
@@ -415,6 +426,7 @@ func (f *fakeNode) openBasicWindow(_ context.Context, creds node.WindowCredentia
 		return f.openErr
 	}
 	f.basic = append(f.basic, creds)
+	f.stampOpen()
 	f.open, f.duration = true, uint16(creds.Timeout/time.Second)
 	f.kind, f.disc = node.WindowBasic, creds.Discriminator
 	f.mu.Unlock()
@@ -429,11 +441,18 @@ func (f *fakeNode) openOwnWindow(_ context.Context, timeout time.Duration) error
 		return f.openErr
 	}
 	f.own = append(f.own, timeout)
+	f.stampOpen()
 	f.open, f.duration = true, uint16(timeout/time.Second)
 	f.kind, f.disc = node.WindowOwn, fakeDiscriminator
 	f.mu.Unlock()
 	f.transition()
 	return nil
+}
+
+// stampOpen gives the window being opened its own OpenedAt (f.mu held).
+func (f *fakeNode) stampOpen() {
+	f.openedAt = testNow.Add(time.Duration(f.opens) * time.Second)
+	f.opens++
 }
 
 func (f *fakeNode) closeWindow(context.Context) error {
@@ -516,7 +535,7 @@ func sampleDetails() map[uint16]EndpointDetail {
 	agg := uint16(1)
 	return map[uint16]EndpointDetail{2: {
 		Number: 2, Parent: &agg, Name: "Kitchen lamp", Reachable: true, Scope: "default",
-		DeviceTypes: []NodeDeviceType{{ID: 0x0100, Name: "OnOffLight", Revision: 3}, {ID: 0x0013, Name: "BridgedNode", Revision: 3}},
+		DeviceTypes: []NodeDeviceType{{ID: 0x0100, Name: "On/Off Light", Revision: 3}, {ID: 0x0013, Name: "BridgedNode", Revision: 3}},
 		Tags:        []SemanticTag{{Namespace: 7, Tag: 1, Label: "One"}},
 		Labels:      []EndpointLabel{{Label: "room", Value: "Kitchen"}},
 		Parts:       []uint16{},
@@ -596,7 +615,7 @@ func (k stringKey) String() string { return string(k) }
 // mandatory (Keep with a reason) — beside one withheld element and one
 // announced change of "lamp-1" with two element changes. Every element
 // carries a kind and an origin: the report's encoding has no name for
-// either's zero value (go-fabric surface/element.go:135-140).
+// either's zero value (go-fabric surface/element.go:137-142 at v0.22.2).
 func sampleSurface() surface.Report {
 	r := surface.Policies{
 		Level:      "1.5.1",
@@ -769,12 +788,15 @@ type testOptions struct {
 	// (contract 0.6.0).
 	registry   NodeRegistry
 	nodeConfig *NodeConfigView
+	// allowHost is Options.AllowHost; every test handler lists
+	// httptest's default Host, example.com, in Options.AllowedHosts.
+	allowHost func(*http.Request) bool
 }
 
 // newTestHandler builds a handler on the fake node and returns it with its
 // routes.
-func newTestHandler(t *testing.T, o testOptions) (*handler, *http.ServeMux) {
-	t.Helper()
+func newTestHandler(tb testing.TB, o testOptions) (*handler, *http.ServeMux) {
+	tb.Helper()
 	logger := slog.New(slog.DiscardHandler)
 	if o.log != nil {
 		logger = slog.New(slog.NewTextHandler(o.log, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -789,9 +811,10 @@ func newTestHandler(t *testing.T, o testOptions) (*handler, *http.ServeMux) {
 		Exposure: o.exposure, Admin: o.admin, Reassemble: o.reassemble, Erase: o.erase, Events: o.events,
 		Logger: logger, ConfiguredWindow: o.configured, AllowEmptyTopology: o.allowEmpty,
 		Warnings: o.warnings, Counters: o.counters, Controller: o.controller, Operations: o.operations, ExposureReason: o.exposureReason,
+		AllowedHosts: []string{"example.com"}, AllowHost: o.allowHost,
 	})
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	if !o.noNode {
 		if o.node == nil {
@@ -825,6 +848,10 @@ func do(t *testing.T, mux http.Handler, method, path, body string) *httptest.Res
 	}
 	req := httptest.NewRequestWithContext(context.Background(), method, DefaultPrefix+path, rd)
 	req.Header.Set(TokenHeader, testToken)
+	req.Header.Set(RequestHeader, "1")
+	if rd != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec

@@ -10,36 +10,39 @@ files. A test on each side fails when a fixture is used by no test on that
 side.
 
 Paths are relative to the mount prefix (`Options.Prefix`, default
-`/api/v1`).
+`/api/v1`). The tables list the statuses the contract declares per
+operation; "Admin: yes" is an operation marked `x-admin`. A 403 on an
+open route is `host_not_allowed`; see [Admin rights](#admin-rights) and
+[Requests](#requests-0100) for what every route checks.
 
 ## Node routes (v1)
 
 | Route | Method | Admin | Answers | Reads in go-fabric |
 | --- | --- | --- | --- | --- |
-| `/node/status` | GET | – | 200 | `Health`, `LocalAddr`, `Topology`, `MDNSEnabled`, `Window` (open, duration, `window_kind`, `window_deadline`), `FabricInfos`; the provider's `List` for `enabled_count`; `Options.Warnings` for `warnings`; `Surface` for `surface`; `AttestationError` for `attestation_error`, `BootReason` for `boot_reason`, `Options.Erase`/`NodeEntry.Erase` for `erase` (0.7.0) |
-| `/node/fabrics` | GET | – | 200, 500, 503 | `FabricInfos`, `eligibility.VendorName` |
-| `/node/fabrics/{index}` | DELETE | yes | 204, 400, 403, 500, 503 | `RemoveFabric` |
+| `/node/status` | GET | – | 200, 403 | `Health`, `LocalAddr`, `Topology`, `MDNSEnabled`, `Window` (open, duration, `window_kind`, `window_deadline`), `FabricInfos`; the provider's `List` for `enabled_count`; `Options.Warnings` for `warnings`; `Surface` for `surface`; `AttestationError` for `attestation_error`, `BootReason` for `boot_reason`, `Options.Erase`/`NodeEntry.Erase` for `erase` (0.7.0) |
+| `/node/fabrics` | GET | yes | 200, 403, 500, 503 | `FabricInfos`, `eligibility.VendorName` |
+| `/node/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 500, 503 | `RemoveFabric` |
 | `/node/pairing` | GET | yes | 200, 403, 503 | `SetupPayload`, or the credentials of the window this handler opened while `Window` still reports it |
-| `/node/pairing/window` | POST | yes | 200, 400, 403, 409, 500, 503 | `NewWindowCredentials`, `PairingCodesFor` and `OpenBasicWindow`, or `CommissioningWindow().OpenOwnWindow` and `SetupPayload` with `Options.ConfiguredWindow`; `Window` for the duration |
+| `/node/pairing/window` | POST | yes | 200, 400, 403, 409, 413, 415, 500, 503 | `NewWindowCredentials`, `PairingCodesFor` and `OpenBasicWindow`, or `CommissioningWindow().OpenOwnWindow` and `SetupPayload` with `Options.ConfiguredWindow`; `Window` for the duration |
 | `/node/pairing/window/close` | POST | yes | 204, 403, 500, 503 | `Node.CloseWindow` |
-| `/node/endpoints` | GET | – | 200, 503 | `Topology` (`Clusters`, `DeviceTypeRevision` of every endpoint, parts included) |
-| `/node/endpoints/{ep}` | GET | – | 200, 400, 404, 500, 503 | `ReadCluster` (the Descriptor, then every cluster of its ServerList), `ReadAttribute` (the parts' PartsList), `Topology`, `Surface`, `schema` names — served from 0.4.1 |
-| `/node/endpoints/{ep}/events` | GET | – | 200, 400, 503 | `Events` with the endpoint's filter, `since` and `limit` — served from 0.4.1 |
-| `/node/surface` | GET | – | 200, 500, 503 | `Surface` — the `surface.Report` in go-fabric's own JSON encoding (`MarshalJSON`) |
-| `/node/sessions` | GET | – | 200, 503 | `SessionDiagnostics` (sessions with subscription counts and idle ages on the node's clock, occupancy); `SessionParameters` for `parameters` (0.7.0: the intervals, revisions, `specification_version_hex` as 8 hex digits, paths per invoke, transports, `tcp` and `max_tcp_message_size` with TCP) |
-| `/node/topology` | GET | – | 200, 500, 503 | `Topology`, `FabricInfos`, `SessionDiagnostics`, `Health`, `LocalAddr` → `TopologyGraph` (v0.4.0); 503 also before the node assembled (`Topology().Aggregator` 0) |
-| `/node/mdns` | GET | – | 200, 503 | `MDNSEnabled`, `MDNSServices`, `DiagnoseMDNS` |
+| `/node/endpoints` | GET | yes | 200, 403, 503 | `Topology` (`Clusters`, `DeviceTypeRevision` of every endpoint, parts included) |
+| `/node/endpoints/{ep}` | GET | yes | 200, 400, 403, 404, 500, 503 | `ReadCluster` (the Descriptor, then every cluster of its ServerList), `ReadAttribute` (the parts' PartsList), `Topology`, `Surface`, `schema` names — served from 0.4.1 |
+| `/node/endpoints/{ep}/events` | GET | yes | 200, 400, 403, 503 | `Events` with the endpoint's filter, `since` and `limit` — served from 0.4.1 |
+| `/node/surface` | GET | yes | 200, 403, 500, 503 | `Surface` — the `surface.Report` in go-fabric's own JSON encoding (`MarshalJSON`) |
+| `/node/sessions` | GET | yes | 200, 403, 503 | `SessionDiagnostics` (sessions with subscription counts and idle ages on the node's clock, occupancy); `SessionParameters` for `parameters` (0.7.0: the intervals, revisions, `specification_version_hex` as 8 hex digits, paths per invoke, transports, `tcp` and `max_tcp_message_size` with TCP) |
+| `/node/topology` | GET | yes | 200, 403, 500, 503 | `Topology`, `FabricInfos`, `SessionDiagnostics`, `Health`, `LocalAddr` → `TopologyGraph` (v0.4.0); 503 also before the node assembled (`Topology().Aggregator` 0) |
+| `/node/mdns` | GET | yes | 200, 403, 503 | `MDNSEnabled`, `MDNSServices`, `DiagnoseMDNS` |
 | `/node/mdns/reannounce` | POST | yes | 204, 403, 503 | `TriggerReannounce` (0.7.0; a no-op on an advertiser that cannot) |
-| `/node/compatibility` | GET | – | 200, 503 | `FabricInfos`, `Topology`, `eligibility.Compat` |
-| `/node/events` | GET | – | 200, 503 | `DiagnosticEvents` (newest first) |
-| `/node/exposure/schema` | GET | – | 200, 500, 503 | provider `Schema` |
-| `/node/exposure` | GET | – | 200, 500, 503 | provider `List` |
-| `/node/exposure` | PUT | yes | 200, 204, 400, 403, 500, 503 | provider `Apply`, then `Options.Reassemble` |
-| `/node/exposure/preview` | POST | yes | 200, 400, 403, 500, 503 | provider `Preview` |
+| `/node/compatibility` | GET | yes | 200, 403, 500, 503 | `FabricInfos`, `Topology`, `eligibility.Compat` |
+| `/node/events` | GET | yes | 200, 403, 503 | `DiagnosticEvents` (newest first) |
+| `/node/exposure/schema` | GET | yes | 200, 403, 500, 503 | provider `Schema` |
+| `/node/exposure` | GET | yes | 200, 403, 500, 503 | provider `List` |
+| `/node/exposure` | PUT | yes | 200, 204, 400, 403, 413, 415, 500, 503 | provider `Apply`, then `Options.Reassemble` |
+| `/node/exposure/preview` | POST | yes | 200, 400, 403, 413, 415, 500, 503 | provider `Preview` |
 | `/node/maintenance/reassemble` | POST | yes | 204, 403, 500, 503 | `Options.Reassemble` |
-| `/node/maintenance/factory-reset` | POST | yes | 204, 400, 403, 500, 503 | `FabricInfos`, `RemoveFabric` for each |
-| `/node/maintenance/erase` | POST | yes | 204, 400, 403, 500, 501, 503 | `Options.Erase` (0.7.0), the host's `Node.FactoryReset` and its way back to a node; body `{"confirm":"erase-node"}`; 501 `not_implemented` without one |
-| `/node/stream` | GET | – | 200 (`text/event-stream`) | `Observe`, `OnHealthSample`, `OnDiagnosticEvent` (per stream), `Options.Events`, the handler's own events |
+| `/node/maintenance/factory-reset` | POST | yes | 204, 400, 403, 413, 415, 500, 503 | `FabricInfos`, `RemoveFabric` for each |
+| `/node/maintenance/erase` | POST | yes | 204, 400, 403, 413, 415, 500, 501, 503 | `Options.Erase` (0.7.0), the host's `Node.FactoryReset` and its way back to a node; body `{"confirm":"erase-node"}`; 501 `not_implemented` without one |
+| `/node/stream` | GET | – | 200 (`text/event-stream`), 403, 503 | `Observe`, `OnHealthSample`, `OnDiagnosticEvent` (per stream), `Options.Events`, the handler's own events |
 
 `GET /node/status` also reports `exposure_reason` (0.5.0): why the host
 serves no selection (`Options.ExposureReason`), absent with a selection;
@@ -61,11 +64,21 @@ reading the `NodeSource` it was given, so a host that builds a new node
 hands over a source that follows it (`fabricui.NodeSwitch`, 0.7.1); the
 page polls `GET /node/status` until it answers again.
 
+From 0.10.0 `fabric_count` is absent when the fabric read failed and
+without a node, and `window_remaining_seconds` is the seconds until the
+open window's timer closes it, on the node's clock when the answer was
+written (absent while no window is open). `GET /node/pairing` carries
+`window_remaining_seconds` too, and `window_match`: true when the open
+window admits the codes of the answer, false when a window is open on
+other credentials (opened elsewhere); absent while no window is open.
+`GET /node/compatibility` answers 500 when the fabric read fails, and
+`DELETE /node/fabrics/{index}` 404 for an index the node does not hold.
+
 ## The node selector (0.5.0)
 
 | Route | Method | Admin | Answers | Reads |
 | --- | --- | --- | --- | --- |
-| `/nodes` | GET | – | 200 | `Options.Node` (key `default`) and `Options.Nodes`, the default first: `{nodes: [{key, label, kind?, enabled}]}` |
+| `/nodes` | GET | – | 200, 403 | `Options.Node` (key `default`) and `Options.Nodes`, the default first: `{nodes: [{key, label, kind?, enabled}]}` |
 | `/nodes/{node}/…` | as `/node/…` | as `/node/…` | as `/node/…`, and 404 for a key `/nodes` does not list | the node of that key |
 
 Every node route is served twice: under `/node/…` for the **default node**
@@ -87,10 +100,10 @@ node selector in its header when the list holds more than one node.
 
 | Route | Method | Admin | Answers | Reads |
 | --- | --- | --- | --- | --- |
-| `/nodes` | GET | – | 200 | `Options.Node` (key `default`), then `Options.Registry.List()` on every request: `{nodes: [{key, label, kind?, enabled, managed, exposure}]}` |
-| `/nodes` | POST | yes | 201 `NodeSummary`, 400, 403, 409 `node_limit`, 500, 503 | `NodeRegistry.Create(ctx, NodeSpec{Label})` with `{label}` |
-| `/nodes/{node}/label` | PUT | yes | 204, 400, 403, 404, 409 `node_is_default`, 500, 503 | `NodeRegistry.Rename(ctx, key, label)` with `{label}` |
-| `/nodes/{node}` | DELETE | yes | 204, 403, 404, 409 `node_is_default`, 500, 503 | `NodeRegistry.Delete(ctx, key)` |
+| `/nodes` | GET | – | 200, 403 | `Options.Node` (key `default`), then `Options.Registry.List()` on every request: `{nodes: [{key, label, kind?, enabled, managed, exposure}]}` |
+| `/nodes` | POST | yes | 201 `NodeSummary`, 400, 403, 409 `node_limit`, 413, 415, 500, 503 | `NodeRegistry.Create(ctx, NodeSpec{Label})` with `{label}` |
+| `/nodes/{node}/label` | PUT | yes | 204, 400, 403, 404, 409 `node_is_default`, 413, 415, 500, 503 | `NodeRegistry.Rename(ctx, key, label)` with `{label}` |
+| `/nodes/{node}` | DELETE | yes | 204, 400, 403, 404, 409 `node_is_default`, 500, 503 | `NodeRegistry.Delete(ctx, key)` |
 
 The first node is the host's configuration (`Options.Node`, the key
 `default`); every further node is registry state in the host's store,
@@ -127,9 +140,9 @@ everything else is 0.5.0.
   `NodeSummary.exposure` and the node's `Status.exposure` report it. The
   Options-level ones stay the default node's.
 - **Status**: `node_registry: true` with a registry (absent without), so
-  the shell offers "Create node…"; `admin` (host mode only) whether the
-  host's admin check admits this request — in token mode `csrf_token`
-  says it.
+  the shell offers "Create node…"; `admin` (host mode only) whether this
+  request has admin rights — the request header and the host's check, see
+  [Admin rights](#admin-rights) — in token mode `csrf_token` says it.
 
 ### The configuration block
 
@@ -148,17 +161,18 @@ unchanged). One shape for every node, read-only:
 | `store` | Where the node keeps its state (a file name); optional. |
 
 It never carries the passcode — that stays with the admin route `GET
-/node/pairing`.
+/node/pairing`. A request without admin rights receives the block without
+`store` (0.10.0).
 
 ## Operation (0.5.0)
 
 | Route | Method | Admin | Answers | Reads |
 | --- | --- | --- | --- | --- |
-| `/operation/info` | GET | – | 200, 503 | `Operations.Info`: `{version, go_fabric, uptime_s, started_at}` |
-| `/operation/log/level` | GET | – | 200, 503 | `Operations.LogLevel`: `{level, levels[]}` |
-| `/operation/log/level` | PUT | yes | 200, 400, 403, 500, 503 | `Operations.SetLogLevel` with `{level}` |
-| `/operation/log` | GET | – | 200, 400, 503 | `Operations.Log(since, limit)`: `{records: [{seq, time, level, msg, attrs}]}`, oldest first; `limit` 1..2000, default 200 |
-| `/operation/log/stream` | GET | – | 200 (`text/event-stream`), 503 | `Operations.ObserveLog`: `event: log_record` with a `LogRecord`, a comment line every 15 s, the oldest dropped for a client 64 records behind |
+| `/operation/info` | GET | – | 200, 403, 503 | `Operations.Info`: `{version, go_fabric, uptime_s, started_at}` |
+| `/operation/log/level` | GET | – | 200, 403, 503 | `Operations.LogLevel`: `{level, levels[]}` |
+| `/operation/log/level` | PUT | yes | 200, 400, 403, 413, 415, 500, 503 | `Operations.SetLogLevel` with `{level}` |
+| `/operation/log` | GET | yes | 200, 400, 403, 503 | `Operations.Log(since, limit)`: `{records: [{seq, time, level, msg, attrs}]}`, oldest first; `limit` 1..2000, default 200 |
+| `/operation/log/stream` | GET | yes | 200 (`text/event-stream`), 403, 503 | `Operations.ObserveLog`: `event: log_record` with a `LogRecord`, a comment line every 15 s, the oldest dropped for a client 64 records behind |
 
 The levels are slog's four, lower-case: `debug`, `info`, `warn`, `error`;
 a level between two names reads as the lower one. Every route answers 503
@@ -192,8 +206,9 @@ Details the fixtures pin:
 
 - **64-bit ids** (fabric id, node id, session peer and local node id)
   travel exactly as 16-digit uppercase hex in `*_hex`; the numeric twins
-  are informational — a JSON number carries 53 bits and a browser rounds
-  larger ids.
+  are informational and deprecated from 0.10.0 — a JSON number carries 53
+  bits and a browser rounds larger ids. An event number travels as
+  `number_str` (decimal, exact) beside the deprecated `number`.
 - **Generic values** (`value`, `data` and `response` of the controller's
   attribute, event and command routes and of `cluster_event`) carry 64-bit
   integers as plain JSON numbers. A JavaScript client parses them
@@ -253,7 +268,12 @@ Details the fixtures pin:
   a burst of them. `diagnostic_event` (0.5.0) is every entry the node adds
   to the trace `GET /node/events` serves (`Node.OnDiagnosticEvent`), in its
   shape — the diagnostics page reloads on a burst of them. Both callbacks
-  are registered per stream and removed when it closes.
+  are registered per stream and removed when it closes. A request
+  without admin rights (0.10.0) receives `nodes_changed`, `window_opened`
+  and `window_closed` only, and no event of `Options.Events`
+  ([Admin rights](#admin-rights)). A stream beyond `Options.MaxStreams`
+  answers 503 `too_many_streams` with `Retry-After: 5`; closing
+  `Options.Done` ends every open stream.
 
 ## The endpoint detail and the event log (0.4.1)
 
@@ -280,13 +300,15 @@ read fails is listed with the schema's name and revision and no values.
 404 for an endpoint the node does not serve, 503 before the node started.
 
 `GET /node/endpoints/{ep}/events` and `GET /controller/nodes/{id}/events`
-answer an `EventRecordList` of `EventRecord{number, priority, endpoint,
-cluster_hex, event_hex, name?, epoch_ms?, data?}`, oldest first:
+answer an `EventRecordList` of `EventRecord{number, number_str, priority,
+endpoint, cluster_hex, event_hex, name?, epoch_ms?, data?}`, oldest first:
 `priority` is `debug`, `info` or `critical`, `name` the schema's, `data`
 the event's fields by name — absent without data or when they do not
 render. `since` is the lowest event number returned (a page passes the
 last number it shows plus one), `limit` keeps the newest (default 100,
-1 to 1000, else 400). The node's log (`Node.Events`) is bounded and
+1 to 1000, else 400). `number_str` (0.10.0) is the number in decimal,
+exact beyond 2^53, and `number` is deprecated; the query `since_str`
+takes `since` the same way and, when present, wins over it. The node's log (`Node.Events`) is bounded and
 volatile, emptied when the node stops; an endpoint it no longer serves
 keeps its events there, so an unknown endpoint is an empty list. The
 controller's history (`client.Node.EventHistory`) holds the events the
@@ -367,27 +389,118 @@ partitions and tags wait for go-fabric (brief U3a decision 0.4).
 
 ## Admin rights
 
-A writing route (POST, PUT, DELETE), `GET /node/pairing` and every
-controller route marked `x-admin` (among them `GET /controller/discovery`)
-run only for an admin; anything else answers `403 forbidden`, before the
-request's parameters or body are read. `GET /controller/status` serves the
-token of token mode as `csrf_token` too. Two modes:
+Every operation the contract marks `x-admin` runs only for an admin:
+every writing route, `GET /node/pairing`, and from 0.10.0 the reading
+routes of both families (the node's fabrics, endpoints, surface,
+sessions, topology, mDNS, compatibility, events and selection; the log;
+the controller's nodes, credentials, updates, topology, diagnostics,
+mDNS and events) and the controller and log streams. A request without
+admin rights answers `403 forbidden` before its parameters or body are
+read.
 
-- **Host mode** — `Options.Admin` decides per request. A host behind an
-  authenticating proxy (a Home Assistant Ingress, where the proxy's source
-  address is the check) answers from what the proxy vouches for.
+Open to a request without admin rights, with this answer:
+
+- `GET /node/status`, `/nodes/{node}/status`: without `config.store`;
+  every `warnings[]` entry with its `code`, an empty `message` and no
+  `since`; `attestation_error`, when present, the fixed sentence "The
+  node's attestation files did not load." instead of the loader's text;
+  `counters` unchanged.
+- `GET /nodes`, `/operation/info`, `/operation/log/level`: unchanged.
+- `GET /controller/status`: `enabled`, `capabilities`, `admin` and
+  `csrf_token` as they are, every other member empty (`""`) or 0.
+- `GET /node/stream`, `/nodes/{node}/stream`: `nodes_changed`,
+  `window_opened` and `window_closed` only (`x-non-admin-events`), and no
+  event of `Options.Events`, whatever its type. The admin test runs once,
+  when the stream opens.
+
+One admin test decides the routes, the streams and the status fields, in
+one of two modes:
+
+- **Host mode** — `Options.Admin` is set. A request has admin rights when
+  it carries the header `X-Fabric-UI: 1` (`fabricui.RequestHeader`) and
+  `Options.Admin` admits it. A host behind an authenticating proxy (a
+  Home Assistant Ingress, where the proxy's source address is the check)
+  answers from what the proxy vouches for. `admin` in `GET /node/status`
+  and `GET /controller/status` reports the result for the request.
 - **Token mode** — `Options.Admin` is nil. The handler draws a random token
-  per process and serves it as `csrf_token` in `GET /node/status`; an admin
-  request carries it in the `X-Fabric-UI-Token` header. A page of another
-  origin in the same browser cannot read the status, so it cannot forge an
-  admin request. The standalone shell does this on its own.
+  per process and serves it as `csrf_token` in `GET /node/status` and
+  `GET /controller/status`; an admin request carries it in the
+  `X-Fabric-UI-Token` header. The standalone shell does this on its own.
+
+A client sends its admin headers on every request, the event streams
+included. The browser's `EventSource` sends no header, so a stream it
+opens is a non-admin's (node) or 403 (controller, log); the shipped
+client reads the streams through `fetch`.
+
+**Host.** Every request — every route, in every mode, the bundle that
+`NewHandler` and `Handler` serve included — passes a check of its `Host`
+header before it is routed. Admitted are `localhost` and the names under
+`.localhost`, an IP address without a zone, and a name listed in
+`Options.AllowedHosts`; else `Options.AllowHost`, when set, is asked once.
+Any other request, one with an empty `Host` included, answers
+`403 host_not_allowed`. A daemon reached under a DNS name lists that
+name; behind a proxy that forwards the browser's `Host` unchanged it sets
+`AllowHost` ([embedding.md](embedding.md#behind-an-ingress)).
+
+**Origin.** On an `x-admin` route a request that carries an `Origin`
+header answers `403 origin_not_allowed` unless the origin's host passes
+the name rules above or, for a request `AllowHost` admitted, the origin's
+host and port equal the request's `Host`; `null` and an origin that does
+not parse are refused. On an open route such an origin makes the request
+a non-admin's. A request without `Origin` passes this check.
+
+**Order.** Host (403 `host_not_allowed`), then the route (404, 405), the
+Origin on an admin route (403 `origin_not_allowed`), the admin test
+(403 `forbidden`), the body's media type (415), and the body itself
+(413, 400).
+
+## Requests (0.10.0)
+
+- **Bodies** are JSON: a body of at least one byte needs
+  `Content-Type: application/json` (parameters allowed), else
+  `415 unsupported_media_type`, a body without `Content-Type` included.
+  At most 1 MiB, else `413 payload_too_large`. Strict, nested objects
+  included: one JSON value with nothing after it, no unknown member,
+  member names exactly as the contract spells them (case included), the
+  declared types; anything else is `400 bad_request`.
+  `POST /node/maintenance/factory-reset` and `/erase` answer a body that
+  does not decode with 400 as well. The controller's ACL and binding
+  writes take bodies of their own, `AclWriteRequest` of `AclEntryWrite`
+  and `EndpointBindingsWrite`, closed like every request-only schema.
+- **Paths**: a path under the prefix that the contract does not name
+  answers `404 not_found`; a named path asked with a method it does not
+  list answers `405 method_not_allowed` with `Allow` naming the path's
+  methods, plus `HEAD` where `GET` is listed. Both are path-level and
+  listed per operation nowhere.
+- **Parameters**: `{id}` (`NodeID`) is 1 to 16 hex digits; `{ep}`
+  (`EndpointNumber`) ends at 65534, and 65535 is 400.
+
+Statuses new in 0.10.0, beside 403, 405, 413 and 415 above:
+
+- **400**: endpoint 65535; a fabric label over 32 bytes of UTF-8
+  (`PUT /controller/fabric/label`; bytes, not characters); a setup
+  passcode the specification excludes (11111111, 22222222, … 88888888,
+  12345678, 87654321) or a `commissioning_id` outside
+  `^[A-Za-z0-9_-]{1,64}$` on `POST /controller/commission`.
+- **404**: an unknown fabric index on `DELETE /node/fabrics/{index}` and
+  `/nodes/{node}/fabrics/{index}`. `DELETE
+  /controller/nodes/{id}/fabrics/{index}` keeps its behaviour.
+- **409** `conflict` on the routes under `/controller/nodes/{id}` that
+  call the node: the controller's client refuses the call itself (an ICD
+  operation it does not allow, the node disabled, a fabric operation in
+  progress); declared on enable, disable and auto-subscribe with 502.
+- **500** on `GET /node/compatibility` when the fabric read fails.
+- **502** on `GET /controller/discovery`.
+- **503** `too_many_streams` with `Retry-After: 5` on the four streams
+  when the handler serves `Options.MaxStreams` streams already.
 
 ## Problems
 
 Errors are RFC 9457 `application/problem+json` with `type`, `title`,
 `status`, `detail`, `instance` and `code`; the code also travels in
-`X-Problem-Code`. A 5xx problem carries no detail — the cause, which can
-name paths, goes to the log.
+`X-Problem-Code`. A 500 problem carries no detail — the cause, which can
+name paths, goes to the log; a 501 or 503 carries a fixed sentence, and a
+502 the node's answer.
 
 ### problem-bad_request
 The request body or a path parameter is invalid; `detail` says what.
@@ -395,11 +508,37 @@ The request body or a path parameter is invalid; `detail` says what.
 ### problem-forbidden
 The request needs admin rights (see above).
 
+### problem-host_not_allowed
+The request's `Host` is not admitted: no loopback name, IP address or
+entry of `Options.AllowedHosts`, and `Options.AllowHost` did not admit it
+(403, 0.10.0). Every route, the bundle included, answers it before
+routing.
+
+### problem-origin_not_allowed
+An `x-admin` route got an `Origin` the handler does not admit (403,
+0.10.0); see [Admin rights](#admin-rights).
+
+### problem-method_not_allowed
+The path is served, the method is not (405, 0.10.0); `Allow` names the
+path's methods, plus `HEAD` where `GET` is served.
+
+### problem-unsupported_media_type
+The request carries a body that is not `application/json`, or a body
+without `Content-Type` (415, 0.10.0).
+
+### problem-too_many_streams
+The handler serves `Options.MaxStreams` event streams already (503,
+0.10.0); `Retry-After: 5`.
+
 ### problem-conflict
-A commissioning window is already open, or commissioning is blocked.
+A commissioning window is already open, or commissioning is blocked; on
+a route under `/controller/nodes/{id}` (0.10.0), the controller's client
+refuses the call itself — an ICD operation it does not allow, the node
+disabled, or a fabric operation in progress.
 
 ### problem-not_found
-No such route under the API prefix.
+No such route under the API prefix, or no such resource on the route (a
+node key, an endpoint, a fabric index, a commissioned node).
 
 ### problem-service_unready
 A dependency is not wired, or the node is not ready for the action.
@@ -451,9 +590,14 @@ paths, methods, responses, fields and optional request fields; it never
 removes or renames one and never makes an optional request field required.
 A patch may add the optional field or event field a fix needs to state
 its behaviour; it adds no route and no problem code.
-`contract/previous/openapi.yaml` is the copy of the last release, and the
-contract guard (`make contract-check`, CI job `contract`) fails on a
-removal against it. The guard also fails on a schema a response is decoded
+`contract/previous/openapi.yaml` is the contract of the newest release
+tag, byte for byte, and the contract guard (`make contract-check`, CI job
+`contract`) fails on a removal against it, on a response field that stops
+being required, on a changed type, and on a request parameter or field
+that gets narrower (pattern, maximum, minimum, length, enum). A break a
+release makes on purpose is listed, in the guard's own sentence, in the
+contract's `info.x-accepted-breaks` and named in this file; an entry the
+guard no longer reports fails as well. The guard also fails on a schema a response is decoded
 through that sets `additionalProperties: false` — a generated client turns
 it into a strict model, and the next added field, a minor here, breaks
 every installed client (issue #27); only a request body, which the handler
@@ -461,8 +605,11 @@ decodes and whose unknown fields it rejects, may be closed. Its tests check
 every fixture's response against the route's schema, so a field an encoder
 writes and the contract does not name fails there. An operation marked
 `x-status: planned` promises no answer: when it is served its placeholder responses may go, its path and
-method may not. The release commit that tags a version copies the
-contract to `contract/previous/`.
+method may not. The first contract change after a release copies that
+release's contract to `contract/previous/` (`git show
+<tag>:contract/openapi.yaml`) and empties `info.x-accepted-breaks`; the
+guard fails while `previous/` is not the newest tag's contract and the
+contract has moved past it.
 
 Contract 0.7.0 (wave U7) is additive over 0.6.0, which
 `contract/previous/` holds as release 0.6.1 shipped it: two admin routes
@@ -503,6 +650,36 @@ routes (`/controller/diagnostics`, `/controller/mdns`,
 `DiagnosticEvent` kinds `reachability`, `icd`, `ota` and `camera`. No
 problem code is new.
 
+Contract 0.10.0 (review phase 3) is over 0.9.0, which
+`contract/previous/` holds as release 0.9.2 shipped it. Three breaks
+are made on purpose and listed in `info.x-accepted-breaks`:
+`Status.fabric_count` is optional (absent when the fabric read
+failed), the `NodeID` path parameter takes 1 to 16 hex digits only,
+and the `EndpointNumber` path parameter ends at 65534. One more the
+guard does not see, a deliberate break for a client without admin
+rights: 43 reading operations and the controller and log
+streams are `x-admin` now. A client without admin rights keeps
+`GET /node/status`, `/nodes/{node}/status`, `/nodes`,
+`/operation/info`, `/operation/log/level`, `/controller/status` and
+the node stream, which then carries `nodes_changed`, `window_opened`
+and `window_closed` only; its status has no `config.store` and every
+warning's `message` is empty. An admin request carries the admin
+headers on every route, the streams included, so a client reads them
+through `fetch`. Every request body is strict and JSON. New: the
+statuses 405, 413, 415 and the stream's 503 with `Retry-After`; the
+problem codes `method_not_allowed`, `too_many_streams`,
+`unsupported_media_type`, `host_not_allowed` and `origin_not_allowed`;
+the fields `Status.window_remaining_seconds`,
+`Pairing.window_remaining_seconds` and `window_match`,
+`EventRecord.number_str` with the query `since_str`,
+`Applied.reassembled`, `ControllerStatus.admin`,
+`ControllerNodeSummary.auto_subscribe`, `commissioning_id` on
+`CommissionRequest` and every `commissioning_progress`,
+`EndpointBindings.status`, the write bodies `AclWriteRequest`,
+`AclEntryWrite` and `EndpointBindingsWrite`, and the value `unknown` of
+`AclEntry.privilege` and `auth_mode`. The numeric twins of the 64-bit
+ids and `EventRecord.number` are deprecated.
+
 ## Controller routes (v0.2.0)
 
 Served only when the host passes `Options.Controller`; without it every
@@ -515,40 +692,40 @@ hand-written.
 
 | Route | Method | Admin | Answers |
 | --- | --- | --- | --- |
-| `/controller/status` | GET | – | 200 |
-| `/controller/nodes` | GET | – | 200 |
-| `/controller/nodes/{id}` | GET | – | 200, 400, 404 |
-| `/controller/nodes/{id}/endpoints/{ep}` | GET | – | 200, 400, 404 — served from 0.4.0 |
-| `/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}` | GET | – | 200, 400, 404, 503 — served from 0.4.0 |
-| `/controller/nodes/{id}/events` | GET | – | 200, 400, 404 — served from 0.4.1 |
-| `/controller/nodes/{id}` | DELETE | yes | 204, 400, 403, 404, 500, 502 |
-| `/controller/nodes/{id}/interview` | POST | yes | 204, 400, 403, 404, 502 |
+| `/controller/status` | GET | – | 200, 403 |
+| `/controller/nodes` | GET | yes | 200, 403 |
+| `/controller/nodes/{id}` | GET | yes | 200, 400, 403, 404 |
+| `/controller/nodes/{id}/endpoints/{ep}` | GET | yes | 200, 400, 403, 404 — served from 0.4.0 |
+| `/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}` | GET | yes | 200, 400, 403, 404, 503 — served from 0.4.0 |
+| `/controller/nodes/{id}/events` | GET | yes | 200, 400, 403, 404 — served from 0.4.1 |
+| `/controller/nodes/{id}` | DELETE | yes | 204, 400, 403, 404, 409, 500, 502 |
+| `/controller/nodes/{id}/interview` | POST | yes | 204, 400, 403, 404, 409, 502 |
 | `/controller/nodes/{id}/ping` | POST | yes | 200, 400, 403, 404 — served from 0.5.0 |
-| `/controller/nodes/{id}/enable`, `/disable` | POST | yes | 204, 400, 403, 404, 500 |
-| `/controller/nodes/{id}/auto-subscribe` | POST | yes | 204, 400, 403, 404, 500 |
-| `/controller/nodes/{id}/window` | POST | yes | 200, 400, 403, 404, 502 |
-| `/controller/nodes/{id}/window/close` | POST | yes | 204, 400, 403, 404, 502 |
-| `/controller/nodes/{id}/attributes` | POST | – | 200, 400, 404, 502 |
-| `/controller/nodes/{id}/attributes` | PUT | yes | 200, 400, 403, 404, 502 |
-| `/controller/nodes/{id}/commands` | POST | yes | 200, 400, 403, 404, 502 |
-| `/controller/nodes/{id}/acl` | GET / PUT | – / yes | 200, 400, (403), 404, 502 |
-| `/controller/nodes/{id}/bindings` | GET / PUT | – / yes | 200, 400, (403), 404, 502 |
-| `/controller/nodes/{id}/icd` | GET | – | 200, 400, 404 |
-| `/controller/nodes/{id}/icd/register`, `/unregister` | POST | yes | 200, 400, 403, 404, 409, 502 |
-| `/controller/nodes/{id}/fabrics` | GET | – | 200, 400, 404, 502 |
-| `/controller/nodes/{id}/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 502 |
-| `/controller/commission` | POST | yes | 200, 400, 403, 404, 409 (0.8.0), 502, 503 |
-| `/controller/discovery` | GET | yes | 200, 400, 403, 500 |
-| `/controller/credentials` | GET | – | 200, 500, 503 |
-| `/controller/credentials` | PUT / DELETE | yes | 204, 400, 403, (404), 500, 503 |
-| `/controller/fabric/label` | PUT | yes | 204, 400, 403, 500 |
-| `/controller/updates` | GET | – | 200 |
-| `/controller/updates/consent`, `/check` | POST | yes | 200/204, 400, 403, 404, 500, 503 |
-| `/controller/topology` | GET | `refresh=true` only | 200, 403, 501, 502 — served from 0.3.1; 501 `not_implemented` from a host without a topology service |
-| `/controller/diagnostics` | GET | – | 200, 501 — served from 0.9.0 |
-| `/controller/mdns` | GET | – | 200, 501 — served from 0.9.0 |
-| `/controller/events` | GET | – | 200, 501 — served from 0.9.0 |
-| `/controller/stream` | GET | – | 200 (`text/event-stream`) |
+| `/controller/nodes/{id}/enable`, `/disable` | POST | yes | 204, 400, 403, 404, 409, 500, 502 |
+| `/controller/nodes/{id}/auto-subscribe` | POST | yes | 204, 400, 403, 404, 409, 413, 415, 500, 502 |
+| `/controller/nodes/{id}/window` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
+| `/controller/nodes/{id}/window/close` | POST | yes | 204, 400, 403, 404, 409, 502 |
+| `/controller/nodes/{id}/attributes` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
+| `/controller/nodes/{id}/attributes` | PUT | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
+| `/controller/nodes/{id}/commands` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
+| `/controller/nodes/{id}/acl` | GET / PUT | yes | 200, 400, 403, 404, 409, 413 and 415 (PUT), 502 |
+| `/controller/nodes/{id}/bindings` | GET / PUT | yes | 200, 400, 403, 404, 409, 413 and 415 (PUT), 502 |
+| `/controller/nodes/{id}/icd` | GET | yes | 200, 400, 403, 404 |
+| `/controller/nodes/{id}/icd/register`, `/unregister` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
+| `/controller/nodes/{id}/fabrics` | GET | yes | 200, 400, 403, 404, 409, 502 |
+| `/controller/nodes/{id}/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 409, 502 |
+| `/controller/commission` | POST | yes | 200, 400, 403, 404, 409 (0.8.0), 413, 415, 502, 503 |
+| `/controller/discovery` | GET | yes | 200, 400, 403, 500, 502 |
+| `/controller/credentials` | GET | yes | 200, 403, 500, 503 |
+| `/controller/credentials` | PUT / DELETE | yes | 204, 400, 403, 404 (DELETE), 413 and 415 (PUT), 500, 503 |
+| `/controller/fabric/label` | PUT | yes | 204, 400, 403, 413, 415, 500 |
+| `/controller/updates` | GET | yes | 200, 403 |
+| `/controller/updates/consent`, `/check` | POST | yes | 200/204, 400, 403, 404, 413 and 415 (`consent`), 500, 503 |
+| `/controller/topology` | GET | yes | 200, 400, 403, 501, 502 — served from 0.3.1; 501 `not_implemented` from a host without a topology service |
+| `/controller/diagnostics` | GET | yes | 200, 403, 501 — served from 0.9.0 |
+| `/controller/mdns` | GET | yes | 200, 403, 501 — served from 0.9.0 |
+| `/controller/events` | GET | yes | 200, 403, 501 — served from 0.9.0 |
+| `/controller/stream` | GET | yes | 200 (`text/event-stream`), 403, 503 |
 
 Details the fixtures pin:
 
@@ -594,11 +771,19 @@ Details the fixtures pin:
   `reachable: false` and the reason, not an error.
 - **ACL and bindings** are written as one list. A subject naming the node
   itself is left out of an ACL write, and an entry left without subjects
-  dropped, as matterjs-server does. The page warns before a list that
+  dropped, as matterjs-server does. From 0.10.0 the write bodies are
+  `AclWriteRequest` and `EndpointBindingsWrite`; a read answers
+  `privilege` or `auth_mode` `unknown` for a value the node sends that
+  the contract does not name, and lists an endpoint whose Binding read
+  the node refused with its `status` and `bindings: []`. The page warns before a list that
   keeps no Administer entry for this controller.
 - **Our fabric** is removed with `DELETE /controller/nodes/{id}`;
   `DELETE …/fabrics/{index}` with our index is 400.
 - **Commissioning**: `{code}` or `{discovered, passcode}`, not both; a
+  passcode the specification excludes is 400 (0.10.0). The optional
+  `commissioning_id` (0.10.0) is echoed on every
+  `commissioning_progress` of the commissioning; without it the server
+  draws one. A
   code that does not parse is 400, no device answering is 404, a node
   that fails (PASE, attestation) is 502 with the node's error as detail.
   `terms_and_conditions` `{version, acknowledgements}` (0.7.0, each
