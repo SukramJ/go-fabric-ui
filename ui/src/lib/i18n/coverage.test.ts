@@ -92,6 +92,28 @@ function sources(dir: string): string[] {
 const code = sources(SRC).map((f) => fs.readFileSync(f, "utf8")).join("\n");
 const en = new Set(catalogKeys("en"));
 const de = new Set(catalogKeys("de"));
+const NAMESPACES = [...new Set([...en].map((k) => k.split(".")[0]))];
+
+// Template-literal prefixes whose key may be missing by design: the code
+// asks the catalogue and shows the raw value when the key is not there
+// (Graph.svelte detailName, Diagnostics.svelte ecosystemName).
+const FALLBACK_PREFIXES = new Set(["graph.detail.", "node.diag.ecosystem."]);
+
+/**
+ * Every string literal of `src` that names a catalogue namespace — the
+ * argument of t(), both branches of a ternary inside it, and a key handed
+ * to t() through a variable or a parameter alike (UR-P4-test-63).
+ */
+function literalKeys(src: string, namespaces: readonly string[]): string[] {
+  const re = new RegExp(`(["'])((?:${namespaces.join("|")})\\.[a-z0-9_.]+)\\1`, "g");
+  return [...src.matchAll(re)].map((m) => m[2]);
+}
+
+/** The prefix of every template literal that starts with a catalogue namespace and an interpolation. */
+function templatePrefixes(src: string, namespaces: readonly string[]): string[] {
+  const re = new RegExp(`\`((?:${namespaces.join("|")})\\.[a-z0-9_.]*)\\$\\{`, "g");
+  return [...src.matchAll(re)].map((m) => m[1]);
+}
 
 describe("catalogues", () => {
   it("hold the same keys in English and German", () => {
@@ -99,10 +121,19 @@ describe("catalogues", () => {
     expect([...de].filter((k) => !en.has(k))).toEqual([]);
   });
 
-  it("define every literal key the code passes to t()", () => {
-    const used = [...code.matchAll(/\bt\(\s*"([a-z0-9_.]+)"/g)].map((m) => m[1]);
-    expect(used.length).toBeGreaterThan(100);
-    expect([...new Set(used)].filter((k) => !en.has(k))).toEqual([]);
+  // Not only the first literal of a t() call: every literal in a
+  // catalogue namespace is a key, wherever it is written (UR-P4-test-63).
+  it("define every literal key the code names, in both catalogues", () => {
+    const used = new Set(literalKeys(code, NAMESPACES));
+    expect(used.size).toBeGreaterThan(400);
+    expect([...used].filter((k) => !en.has(k) || !de.has(k))).toEqual([]);
+  });
+
+  it("read a ternary's both keys and a key passed through a variable (UR-P4-test-63)", () => {
+    const src = `t(ok ? "node.endpoints.reachable" : "node.endpoints.unreachable_typo"); act(n, f, 'controller.nodes.removed_typo'); const k = \`graph.kind.\${x}\`;`;
+    expect(literalKeys(src, NAMESPACES)).toEqual(["node.endpoints.reachable", "node.endpoints.unreachable_typo", "controller.nodes.removed_typo"]);
+    expect(templatePrefixes(src, NAMESPACES)).toEqual(["graph.kind."]);
+    expect(literalKeys(`"nodes.x" "common" "common.x.y"`, NAMESPACES)).toEqual(["common.x.y"]);
   });
 
   // A template-literal t() call builds its key at run time: every prefix
@@ -111,10 +142,12 @@ describe("catalogues", () => {
   // enumerates is in both catalogues. A prefix without one fails, so a
   // new call cannot pass on any key that merely starts with it
   // (UR-P3-test-33).
-  it("define every key a template-literal t() call can build", () => {
-    const prefixes = new Set([...code.matchAll(/\bt\(\s*`([a-z0-9_.]+)\$\{/g)].map((m) => m[1]));
-    expect(prefixes.size).toBeGreaterThan(0);
-    const missing = [...prefixes].filter((p) => !(p in TEMPLATE_KEYS));
+  // The template literal need not stand in the t() call: one built into a
+  // variable first counts too (UR-P4-test-63).
+  it("define every key a template literal can build", () => {
+    const prefixes = new Set(templatePrefixes(code, NAMESPACES));
+    expect(prefixes.size).toBeGreaterThan(20);
+    const missing = [...prefixes].filter((p) => !(p in TEMPLATE_KEYS) && !FALLBACK_PREFIXES.has(p));
     expect(missing, "a template-literal prefix without an enumeration in TEMPLATE_KEYS").toEqual([]);
     const keys = Object.entries(TEMPLATE_KEYS).flatMap(([p, vs]) => vs.map((v) => p + v));
     expect(keys.filter((k) => !en.has(k) || !de.has(k))).toEqual([]);
