@@ -611,6 +611,7 @@ func TestRegistry_DeleteEndsTheNodesStreams(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/nodes/"+key+"/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	resp, err := srv.Client().Do(req) //nolint:bodyclose // closed below; the reader goroutine drains it
 	if err != nil {
 		t.Fatal(err)
@@ -644,6 +645,7 @@ func TestRegistry_SwappedSourceEndsTheOldStreams(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/nodes/"+key+"/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	resp, err := srv.Client().Do(req) //nolint:bodyclose // closed below; the reader goroutine drains it
 	if err != nil {
 		t.Fatal(err)

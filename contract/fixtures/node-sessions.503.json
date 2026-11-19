@@ -2,7 +2,10 @@
   "route": "GET /node/sessions",
   "request": {
     "method": "GET",
-    "path": "/node/sessions"
+    "path": "/node/sessions",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 503,

@@ -2,7 +2,10 @@
   "route": "GET /operation/log",
   "request": {
     "method": "GET",
-    "path": "/operation/log?limit=0"
+    "path": "/operation/log?limit=0",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 400,

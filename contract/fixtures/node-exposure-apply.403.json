@@ -16,7 +16,7 @@
     "status": 403,
     "body": {
       "code": "forbidden",
-      "detail": "this route writes or reads a pairing secret",
+      "detail": "this route needs admin rights",
       "instance": "/api/v1/node/exposure",
       "status": 403,
       "title": "Admin rights required",

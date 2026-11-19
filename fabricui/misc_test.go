@@ -89,6 +89,7 @@ func TestStream_DeliversEventsAndHeartbeats(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/node/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -446,6 +447,7 @@ func TestStream_DropsAnEventWithAnInvalidType(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/node/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	resp, err := srv.Client().Do(req)
 	if err != nil {
 		t.Fatal(err)

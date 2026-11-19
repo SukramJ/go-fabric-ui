@@ -53,35 +53,45 @@ const maxReadPaths = 32
 // (TestControllerAdminMatchesTheContract holds it against
 // contract/openapi.yaml).
 var controllerAdmin = map[string]bool{
-	"DELETE /controller/nodes/{id}":                 true,
-	"POST /controller/nodes/{id}/interview":         true,
-	"POST /controller/nodes/{id}/enable":            true,
-	"POST /controller/nodes/{id}/disable":           true,
-	"POST /controller/nodes/{id}/auto-subscribe":    true,
-	"POST /controller/nodes/{id}/window":            true,
-	"POST /controller/nodes/{id}/window/close":      true,
-	"PUT /controller/nodes/{id}/attributes":         true,
-	"POST /controller/nodes/{id}/commands":          true,
-	"PUT /controller/nodes/{id}/acl":                true,
-	"PUT /controller/nodes/{id}/bindings":           true,
-	"POST /controller/nodes/{id}/icd/register":      true,
-	"POST /controller/nodes/{id}/icd/unregister":    true,
-	"DELETE /controller/nodes/{id}/fabrics/{index}": true,
-	"POST /controller/commission":                   true,
-	"GET /controller/discovery":                     true,
-	"PUT /controller/credentials":                   true,
-	"DELETE /controller/credentials":                true,
-	"PUT /controller/fabric/label":                  true,
-	"POST /controller/nodes/{id}/ping":              true,
-	"POST /controller/updates/consent":              true,
-	"POST /controller/updates/check":                true,
-}
-
-// controllerAdminQuery holds the controller routes with a query parameter
-// the contract marks x-admin: the route itself is open, the parameter set
-// to true needs admin rights (TestControllerAdminQueryMatchesTheContract).
-var controllerAdminQuery = map[string]string{
-	"GET /controller/topology": "refresh",
+	"DELETE /controller/nodes/{id}":                                    true,
+	"POST /controller/nodes/{id}/interview":                            true,
+	"POST /controller/nodes/{id}/enable":                               true,
+	"POST /controller/nodes/{id}/disable":                              true,
+	"POST /controller/nodes/{id}/auto-subscribe":                       true,
+	"POST /controller/nodes/{id}/window":                               true,
+	"POST /controller/nodes/{id}/window/close":                         true,
+	"PUT /controller/nodes/{id}/attributes":                            true,
+	"POST /controller/nodes/{id}/commands":                             true,
+	"PUT /controller/nodes/{id}/acl":                                   true,
+	"PUT /controller/nodes/{id}/bindings":                              true,
+	"POST /controller/nodes/{id}/icd/register":                         true,
+	"POST /controller/nodes/{id}/icd/unregister":                       true,
+	"DELETE /controller/nodes/{id}/fabrics/{index}":                    true,
+	"POST /controller/commission":                                      true,
+	"GET /controller/discovery":                                        true,
+	"PUT /controller/credentials":                                      true,
+	"DELETE /controller/credentials":                                   true,
+	"PUT /controller/fabric/label":                                     true,
+	"POST /controller/nodes/{id}/ping":                                 true,
+	"POST /controller/updates/consent":                                 true,
+	"POST /controller/updates/check":                                   true,
+	"GET /controller/nodes":                                            true,
+	"GET /controller/nodes/{id}":                                       true,
+	"GET /controller/nodes/{id}/endpoints/{ep}":                        true,
+	"GET /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}": true,
+	"GET /controller/nodes/{id}/events":                                true,
+	"POST /controller/nodes/{id}/attributes":                           true,
+	"GET /controller/nodes/{id}/acl":                                   true,
+	"GET /controller/nodes/{id}/bindings":                              true,
+	"GET /controller/nodes/{id}/icd":                                   true,
+	"GET /controller/nodes/{id}/fabrics":                               true,
+	"GET /controller/credentials":                                      true,
+	"GET /controller/updates":                                          true,
+	"GET /controller/topology":                                         true,
+	"GET /controller/diagnostics":                                      true,
+	"GET /controller/mdns":                                             true,
+	"GET /controller/events":                                           true,
+	"GET /controller/stream":                                           true,
 }
 
 // controllerServer implements the generated strict server interface: the
@@ -128,19 +138,13 @@ func (h *handler) controllerGate(sub *http.ServeMux) http.Handler {
 		route := method + " " + strings.TrimPrefix(path, h.prefix)
 		if controllerAdmin[route] && !h.isAdmin(r) {
 			writeProblem(w, r, http.StatusForbidden, codeForbidden, "Admin rights required",
-				"this route writes, commissions or reads a secret")
+				"this route needs admin rights")
 			return
-		}
-		if q, ok := controllerAdminQuery[route]; ok && !h.isAdmin(r) {
-			if on, err := strconv.ParseBool(r.URL.Query().Get(q)); err == nil && on {
-				writeProblem(w, r, http.StatusForbidden, codeForbidden, "Admin rights required",
-					q+"=true makes the controller talk to its nodes")
-				return
-			}
 		}
 		if r.Body != nil {
 			r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 		}
+		r = r.WithContext(context.WithValue(r.Context(), requestAdminKey{}, h.requestAdmin(r)))
 		sub.ServeHTTP(w, r)
 	})
 }
@@ -301,7 +305,21 @@ func nonZero[T ~uint8 | ~uint16 | ~uint32](v T) *int {
 
 // --- status, nodes ---
 
-func (s *controllerServer) GetControllerStatus(context.Context, api.GetControllerStatusRequestObject) (api.GetControllerStatusResponseObject, error) {
+func (s *controllerServer) GetControllerStatus(ctx context.Context, _ api.GetControllerStatusRequestObject) (api.GetControllerStatusResponseObject, error) {
+	admin := requestAdminOf(ctx)
+	caps := api.ControllerCapabilities{
+		Ota:         s.src.SoftwareUpdates() != nil,
+		Credentials: s.src.Credentials() != nil,
+		Ble:         s.src.Capabilities().BLE,
+		Diagnostics: s.diagnosticsServed(),
+	}
+	if !admin {
+		// Without admin rights the identity members are empty or 0
+		// (decision 57).
+		st := api.GetControllerStatus200JSONResponse{Enabled: true, Capabilities: caps}
+		s.statusAuth(&st, admin)
+		return st, nil
+	}
 	f := s.src.Fabric()
 	st := api.GetControllerStatus200JSONResponse{
 		Enabled:               true,
@@ -313,17 +331,30 @@ func (s *controllerServer) GetControllerStatus(context.Context, api.GetControlle
 		VendorName:            eligibility.VendorName(f.VendorID),
 		Label:                 f.Label,
 		NodeCount:             len(s.src.Nodes()),
-		Capabilities: api.ControllerCapabilities{
-			Ota:         s.src.SoftwareUpdates() != nil,
-			Credentials: s.src.Credentials() != nil,
-			Ble:         s.src.Capabilities().BLE,
-			Diagnostics: s.diagnosticsServed(),
-		},
+		Capabilities:          caps,
 	}
+	s.statusAuth(&st, admin)
+	return st, nil
+}
+
+// statusAuth sets the status's csrf_token (token mode) or admin (host
+// mode).
+func (s *controllerServer) statusAuth(st *api.GetControllerStatus200JSONResponse, admin bool) {
 	if s.h.admin == nil {
 		st.CsrfToken = ptr(s.h.token)
+		return
 	}
-	return st, nil
+	st.Admin = ptr(admin)
+}
+
+// requestAdminKey carries the request's admin test into a strict handler
+// body (controllerGate).
+type requestAdminKey struct{}
+
+// requestAdminOf is the admin test controllerGate stored in ctx.
+func requestAdminOf(ctx context.Context) bool {
+	v, _ := ctx.Value(requestAdminKey{}).(bool)
+	return v
 }
 
 func (s *controllerServer) ListControllerNodes(context.Context, api.ListControllerNodesRequestObject) (api.ListControllerNodesResponseObject, error) {

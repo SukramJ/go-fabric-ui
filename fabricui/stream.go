@@ -31,7 +31,9 @@ func (h *handler) stream(w http.ResponseWriter, r *http.Request) {
 	// Read before serveSSE subscribes: a Set after this read ends the
 	// stream (NodeSwitch.swapped).
 	swapped := h.nodeSwapped()
-	h.serveSSE(r.Context(), w, swapped, h.subscribe)
+	// The admin test runs once, when the stream opens.
+	admin := h.requestAdmin(r)
+	h.serveSSE(r.Context(), w, swapped, func(fn func(Event)) func() { return h.subscribeAs(admin, fn) })
 }
 
 // nodeSwapped is closed when the host sets another node into the

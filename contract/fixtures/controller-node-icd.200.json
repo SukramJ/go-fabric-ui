@@ -2,7 +2,10 @@
   "route": "GET /controller/nodes/{id}/icd",
   "request": {
     "method": "GET",
-    "path": "/controller/nodes/0000000000000012/icd"
+    "path": "/controller/nodes/0000000000000012/icd",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,

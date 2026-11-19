@@ -8,7 +8,7 @@
     "status": 403,
     "body": {
       "code": "forbidden",
-      "detail": "this route writes, commissions or reads a secret",
+      "detail": "this route needs admin rights",
       "instance": "/api/v1/controller/nodes/0000000000000012",
       "status": 403,
       "title": "Admin rights required",

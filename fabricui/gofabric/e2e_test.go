@@ -148,11 +148,14 @@ func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
 		Label     string `json:"label"`
 		CSRFToken string `json:"csrf_token"`
 	}
+	// The token comes with every status; the fabric's members only with
+	// the token (contract 0.10.0).
+	s.json(http.MethodGet, "/controller/status", "", http.StatusOK, &st)
+	s.token = st.CSRFToken
 	s.json(http.MethodGet, "/controller/status", "", http.StatusOK, &st)
 	if !st.Enabled || st.Label != "e2e" || st.CSRFToken == "" {
 		t.Fatalf("status %+v", st)
 	}
-	s.token = st.CSRFToken
 	return s
 }
 
@@ -844,7 +847,12 @@ func TestEndToEnd_DetailsAndEvents(t *testing.T) {
 
 // rawEvents reads an event route outside Site.Run; nil on any failure.
 func (s *ctrlSite) rawEvents(path string) []eventRecord {
-	resp, err := s.srv.Client().Get(s.srv.URL + fabricui.DefaultPrefix + path)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, s.srv.URL+fabricui.DefaultPrefix+path, http.NoBody)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set(fabricui.TokenHeader, s.token)
+	resp, err := s.srv.Client().Do(req)
 	if err != nil {
 		return nil
 	}
@@ -879,6 +887,7 @@ func (s *ctrlSite) controllerStream(typ string) <-chan string {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.t.Cleanup(cancel)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, s.srv.URL+fabricui.DefaultPrefix+"/controller/stream", http.NoBody)
+	req.Header.Set(fabricui.TokenHeader, s.token)
 	resp, err := s.srv.Client().Do(req) //nolint:bodyclose // closed by the reader
 	if err != nil {
 		s.t.Fatal(err)

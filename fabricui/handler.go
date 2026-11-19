@@ -195,17 +195,14 @@ func nodeEntries(o *Options) ([]nodeEntry, error) {
 	return out, nil
 }
 
-// hubOf is the hub a node's handler publishes into and the host's source
-// beside it: the host's *Events itself, else a hub of the handler's own
-// and src.
+// hubOf is the hub a node's handler publishes into, always its own, and
+// the host's source beside it, which reaches admin requests only
+// (UR-P3-api-08): a host's *Events no longer carries the handler's events.
 func hubOf(src EventSource) (hub *Events, extra EventSource) {
-	if ev, ok := src.(*Events); ok {
-		if ev == nil {
-			// A typed-nil *Events is no source: as extra it would pass an
-			// interface nil check and panic on Subscribe (UR-P1-err-03).
-			return NewEvents(), nil
-		}
-		return ev, nil
+	if ev, ok := src.(*Events); ok && ev == nil {
+		// A typed-nil *Events is no source: as extra it would pass an
+		// interface nil check and panic on Subscribe (UR-P1-err-03).
+		return NewEvents(), nil
 	}
 	return NewEvents(), src
 }
@@ -293,7 +290,8 @@ func newHandler(o Options) (*handler, error) {
 // default node and under /nodes/{node} for every node by its key.
 type nodeRoute struct {
 	method, path string
-	// admin routes write or read a pairing secret (contract x-admin).
+	// admin is the contract's x-admin: the route answers 403 to a request
+	// without admin rights.
 	admin bool
 	serve func(*handler, http.ResponseWriter, *http.Request)
 }
@@ -303,23 +301,23 @@ type nodeRoute struct {
 // internal/north/rest/router.go:1328-1359 at b40b289a.
 var nodeRoutes = []nodeRoute{
 	{"GET", "/status", false, (*handler).status},
-	{"GET", "/fabrics", false, (*handler).fabrics},
+	{"GET", "/fabrics", true, (*handler).fabrics},
 	{"DELETE", "/fabrics/{index}", true, (*handler).removeFabric},
 	{"GET", "/pairing", true, (*handler).pairing},
 	{"POST", "/pairing/window", true, (*handler).openWindow},
 	{"POST", "/pairing/window/close", true, (*handler).closeWindow},
-	{"GET", "/endpoints", false, (*handler).endpoints},
-	{"GET", "/endpoints/{ep}", false, (*handler).nodeEndpoint},
-	{"GET", "/endpoints/{ep}/events", false, (*handler).nodeEndpointEvents},
-	{"GET", "/surface", false, (*handler).surfaceReport},
-	{"GET", "/sessions", false, (*handler).sessions},
-	{"GET", "/topology", false, (*handler).topology},
-	{"GET", "/mdns", false, (*handler).mdns},
+	{"GET", "/endpoints", true, (*handler).endpoints},
+	{"GET", "/endpoints/{ep}", true, (*handler).nodeEndpoint},
+	{"GET", "/endpoints/{ep}/events", true, (*handler).nodeEndpointEvents},
+	{"GET", "/surface", true, (*handler).surfaceReport},
+	{"GET", "/sessions", true, (*handler).sessions},
+	{"GET", "/topology", true, (*handler).topology},
+	{"GET", "/mdns", true, (*handler).mdns},
 	{"POST", "/mdns/reannounce", true, (*handler).reannounce},
-	{"GET", "/compatibility", false, (*handler).compatibility},
-	{"GET", "/events", false, (*handler).diagnosticEvents},
-	{"GET", "/exposure/schema", false, (*handler).exposureSchema},
-	{"GET", "/exposure", false, (*handler).exposureList},
+	{"GET", "/compatibility", true, (*handler).compatibility},
+	{"GET", "/events", true, (*handler).diagnosticEvents},
+	{"GET", "/exposure/schema", true, (*handler).exposureSchema},
+	{"GET", "/exposure", true, (*handler).exposureList},
 	{"PUT", "/exposure", true, (*handler).exposureApply},
 	{"POST", "/exposure/preview", true, (*handler).exposurePreview},
 	{"POST", "/maintenance/reassemble", true, (*handler).maintenanceReassemble},
@@ -337,7 +335,11 @@ var registryRoutes = []nodeRoute{
 }
 
 // operationAdmin are the /operation routes the contract marks x-admin.
-var operationAdmin = map[string]bool{"PUT /operation/log/level": true}
+var operationAdmin = map[string]bool{
+	"PUT /operation/log/level":  true,
+	"GET /operation/log":        true,
+	"GET /operation/log/stream": true,
+}
 
 // register puts the API on mux (see mount) and panics where mount fails.
 func (h *handler) register(mux *http.ServeMux) {
@@ -461,8 +463,8 @@ func (h *handler) routes() (api http.Handler, patterns []string) {
 	read("GET "+h.prefix+"/operation/info", h.operationInfo)
 	read("GET "+h.prefix+"/operation/log/level", h.logLevel)
 	handle("PUT "+h.prefix+"/operation/log/level", h.adminOnlyBecause(h.setLogLevel, "this route changes the daemon's log level"))
-	read("GET "+h.prefix+"/operation/log", h.logRecords)
-	read("GET "+h.prefix+"/operation/log/stream", h.logStream)
+	write("GET "+h.prefix+"/operation/log", h.logRecords)
+	write("GET "+h.prefix+"/operation/log/stream", h.logStream)
 	if h.ctrl != nil {
 		handle(h.prefix+"/controller/", h.controllerRoutes())
 	}
@@ -607,7 +609,7 @@ func (h *handler) listNodes(w http.ResponseWriter, _ *http.Request) {
 // token mode, one without the token. Mirrors loom's admin-gated route
 // group (router.go:1336-1353, `pr.With(admin)`).
 func (h *handler) adminOnly(next http.HandlerFunc) http.HandlerFunc {
-	return h.adminOnlyBecause(next, "this route writes or reads a pairing secret")
+	return h.adminOnlyBecause(next, "this route needs admin rights")
 }
 
 // adminOnlyBecause is adminOnly with the refusal's detail.
@@ -621,6 +623,10 @@ func (h *handler) adminOnlyBecause(next http.HandlerFunc, detail string) http.Ha
 	}
 }
 
+// requestAdmin is the one admin test of a request on an open route: the
+// status's admin field, its reduced answer and the node stream's filter.
+func (h *handler) requestAdmin(r *http.Request) bool { return h.isAdmin(r) }
+
 func (h *handler) isAdmin(r *http.Request) bool {
 	if h.admin != nil {
 		return h.admin(r)
@@ -632,18 +638,34 @@ func (h *handler) isAdmin(r *http.Request) bool {
 // publish hands ev to the stream's subscribers.
 func (h *handler) publish(ev Event) { h.hub.Publish(ev) }
 
-// subscribe registers fn for every event from now on — the handler's own,
+// subscribe registers fn for every event from now on as an admin request
+// receives them (subscribeAs).
+func (h *handler) subscribe(fn func(Event)) (unsubscribe func()) {
+	return h.subscribeAs(true, fn)
+}
+
+// subscribeAs registers fn for every event from now on — the handler's own,
 // the host's source and the node's transitions (node.Observe, the health
 // probe and the diagnostic trace: observeNode) — and
 // returns the function that unregisters it from all three. A route that
 // removes a fabric or opens a window does not publish the transition
-// itself: the node reports it through the observer, once.
-func (h *handler) subscribe(fn func(Event)) (unsubscribe func()) {
+// itself: the node reports it through the observer, once. Without admin
+// rights fn receives the types nodeStreamEvents allows and nothing of the
+// host's source.
+func (h *handler) subscribeAs(admin bool, fn func(Event)) (unsubscribe func()) {
+	if !admin {
+		all := fn
+		fn = func(ev Event) {
+			if nodeStreamEvents[ev.Type] {
+				all(ev)
+			}
+		}
+	}
 	unsubs := []func(){h.hub.Subscribe(fn)}
 	if h.nodesHub != nil {
 		unsubs = append(unsubs, h.nodesHub.Subscribe(fn))
 	}
-	if h.extra != nil {
+	if h.extra != nil && admin {
 		unsubs = append(unsubs, h.extra.Subscribe(fn))
 	}
 	if h.node != nil {

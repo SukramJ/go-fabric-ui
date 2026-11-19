@@ -2,7 +2,10 @@
   "route": "GET /controller/nodes/{id}/bindings",
   "request": {
     "method": "GET",
-    "path": "/controller/nodes/0000000000000011/bindings"
+    "path": "/controller/nodes/0000000000000011/bindings",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,

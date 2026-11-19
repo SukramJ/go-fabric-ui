@@ -2,7 +2,10 @@
   "route": "GET /controller/nodes/{id}",
   "request": {
     "method": "GET",
-    "path": "/controller/nodes/00000000000000AA"
+    "path": "/controller/nodes/00000000000000AA",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 404,

@@ -2,7 +2,10 @@
   "route": "GET /controller/mdns",
   "request": {
     "method": "GET",
-    "path": "/controller/mdns"
+    "path": "/controller/mdns",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,

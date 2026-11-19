@@ -137,15 +137,18 @@ func summariseSurface(r *surface.Report) *surfaceSummary {
 // family is off (loom matter_exposures.go:363-372).
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	res := statusResponse{Exposure: h.exposure != nil, CSRFToken: h.token, NodeRegistry: h.registry != nil, Erase: h.eraseFn() != nil}
+	admin := h.requestAdmin(r)
 	if h.admin != nil {
-		admin := h.admin(r)
 		res.Admin = &admin
 	}
 	if c := h.config.Load(); c != nil {
 		res.Config = &nodeConfig{
 			Source: c.Source, SourceNote: c.SourceNote, Label: c.Label, Listen: c.Listen,
 			Discriminator: c.Discriminator, VendorID: c.VendorID, VendorName: c.VendorName,
-			ProductID: c.ProductID, ProductName: c.ProductName, Store: c.Store,
+			ProductID: c.ProductID, ProductName: c.ProductName,
+		}
+		if admin {
+			res.Config.Store = c.Store
 		}
 	}
 	if h.exposure == nil {
@@ -157,6 +160,14 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		res.Warnings = h.warnings(r.Context())
 		if res.Warnings == nil {
 			res.Warnings = []Warning{}
+		}
+		if !admin {
+			// Without admin rights the codes only (decision 34).
+			reduced := make([]Warning, len(res.Warnings))
+			for i, w := range res.Warnings {
+				reduced[i] = Warning{Code: w.Code}
+			}
+			res.Warnings = reduced
 		}
 	}
 	if h.counters != nil {

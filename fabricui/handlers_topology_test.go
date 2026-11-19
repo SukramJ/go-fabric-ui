@@ -259,12 +259,12 @@ func TestControllerTopology_Fixtures(t *testing.T) {
 	runFixture(t, mux, "controller-topology.200")
 }
 
-// refresh=true needs admin rights; the plain read does not.
-func TestControllerTopology_RefreshNeedsAdmin(t *testing.T) {
+// The graph needs admin rights, with refresh or without (contract 0.10.0).
+func TestControllerTopology_NeedsAdmin(t *testing.T) {
 	_, mux := newTestHandler(t, testOptions{noNode: true, controller: NewMemoryController(), admin: func(*http.Request) bool { return false }})
 	for path, want := range map[string]int{
-		"/controller/topology":               http.StatusNotImplemented,
-		"/controller/topology?refresh=false": http.StatusNotImplemented,
+		"/controller/topology":               http.StatusForbidden,
+		"/controller/topology?refresh=false": http.StatusForbidden,
 		"/controller/topology?refresh=true":  http.StatusForbidden,
 		"/controller/topology?refresh=1":     http.StatusForbidden,
 	} {
@@ -317,9 +317,9 @@ func TestControllerEvent_TopologyChanged(t *testing.T) {
 	}
 }
 
-// controllerAdminQuery names exactly the query parameters the contract
-// marks x-admin under /controller.
-func TestControllerAdminQueryMatchesTheContract(t *testing.T) {
+// No query parameter under /controller is x-admin in the contract: the
+// operation's own mark gates it (contract 0.10.0).
+func TestNoControllerQueryParameterIsAdmin(t *testing.T) {
 	b, err := os.ReadFile("../contract/openapi.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -338,7 +338,7 @@ func TestControllerAdminQueryMatchesTheContract(t *testing.T) {
 			got[method+" "+path] = m[1]
 		}
 	}
-	if !reflect.DeepEqual(got, controllerAdminQuery) {
-		t.Fatalf("contract %v, controllerAdminQuery %v", got, controllerAdminQuery)
+	if len(got) != 0 {
+		t.Fatalf("contract marks query parameters x-admin: %v", got)
 	}
 }

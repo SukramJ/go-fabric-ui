@@ -134,7 +134,7 @@ func TestStream_StalledReaderIsReaped(t *testing.T) {
 	if tc, ok := conn.(*net.TCPConn); ok {
 		_ = tc.SetReadBuffer(4096)
 	}
-	fmt.Fprintf(conn, "GET %s/node/stream HTTP/1.1\r\nHost: x\r\n\r\n", DefaultPrefix)
+	fmt.Fprintf(conn, "GET %s/node/stream HTTP/1.1\r\nHost: x\r\n%s: %s\r\n\r\n", DefaultPrefix, TokenHeader, testToken)
 	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -165,6 +165,7 @@ func TestStream_EndsOnTheHostsShutdown(t *testing.T) {
 	srv.RegisterOnShutdown(stopStreams)
 	go func() { _ = srv.Serve(ln) }()
 	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+ln.Addr().String()+DefaultPrefix+"/node/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -191,6 +192,7 @@ func TestStream_DataStaysOnOneLine(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/node/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)

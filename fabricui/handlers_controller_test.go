@@ -302,6 +302,7 @@ func TestControllerStream_DeliversEvents(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/controller/stream", http.NoBody)
+	req.Header.Set(TokenHeader, testToken)
 	resp, err := srv.Client().Do(req) //nolint:bodyclose // closed below; the reader goroutine drains it
 	if err != nil {
 		t.Fatal(err)

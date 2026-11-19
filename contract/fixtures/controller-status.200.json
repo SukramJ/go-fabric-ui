@@ -2,7 +2,10 @@
   "route": "GET /controller/status",
   "request": {
     "method": "GET",
-    "path": "/controller/status"
+    "path": "/controller/status",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,

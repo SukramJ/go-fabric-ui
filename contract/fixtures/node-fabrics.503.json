@@ -2,7 +2,10 @@
   "route": "GET /node/fabrics",
   "request": {
     "method": "GET",
-    "path": "/node/fabrics"
+    "path": "/node/fabrics",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 503,

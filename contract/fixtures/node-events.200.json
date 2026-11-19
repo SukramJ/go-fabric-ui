@@ -2,7 +2,10 @@
   "route": "GET /node/events",
   "request": {
     "method": "GET",
-    "path": "/node/events"
+    "path": "/node/events",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
   },
   "response": {
     "status": 200,
