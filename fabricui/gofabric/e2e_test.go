@@ -65,6 +65,8 @@ type ctrlSiteOptions struct {
 	// credential "lab"; log receives the adapter's lines.
 	ble bool
 	log *bytes.Buffer
+	// unsetPolicy leaves the Pair template's attestation policy unset.
+	unsetPolicy bool
 }
 
 func newCtrlSite(t *testing.T) *ctrlSite {
@@ -116,6 +118,9 @@ func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
 	creds := fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName)
 	// The site's device carries the module's test attestation.
 	pair := controller.PairOptions{OnAttestationFailure: attestation.Accept()}
+	if o.unsetPolicy {
+		pair = controller.PairOptions{}
+	}
 	var logger *slog.Logger
 	if o.log != nil {
 		logger = slog.New(slog.NewTextHandler(o.log, nil))
@@ -1202,6 +1207,47 @@ func TestPair_ACommissioningThatHappenedIsNoFailure(t *testing.T) {
 	}
 	if perr != nil || n == nil {
 		t.Fatalf("Pair answered %v for a commissioning that happened", perr)
+	}
+}
+
+// A discovered device commissioned with the template's attestation policy
+// unset is refused when its attestation fails, as the facade's Pair
+// refuses it; with the policy set to accept it is commissioned.
+func TestEndToEnd_CommissionDiscoveredRejectsFailedAttestationByDefault(t *testing.T) {
+	for name, unset := range map[string]bool{"unset": true, "accept": false} {
+		t.Run(name, func(t *testing.T) {
+			s := newCtrlSiteWith(t, ctrlSiteOptions{unsetPolicy: unset})
+			sp, err := s.dev.Node().SetupPayload()
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+			defer cancel()
+			var commissionErr error
+			if err := s.site.Run(ctx, func(ctx context.Context) error {
+				found, err := s.src.Discover(ctx, fabricui.DiscoverFilter{}, 5*time.Second)
+				if err != nil {
+					return err
+				}
+				if len(found) == 0 {
+					return errors.New("no device discovered")
+				}
+				_, commissionErr = s.src.CommissionDiscovered(ctx, found[0], sp.Passcode, fabricui.PairOptions{})
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			committed := len(s.ctrl.Registry().Commissioned())
+			if unset {
+				if !errors.Is(commissionErr, fabricui.ErrNodeFailed) || !strings.Contains(commissionErr.Error(), "attestation") || committed != 0 {
+					t.Fatalf("error %v, %d commissioned; want the attestation refused and none", commissionErr, committed)
+				}
+				return
+			}
+			if commissionErr != nil || committed != 1 {
+				t.Fatalf("error %v, %d commissioned", commissionErr, committed)
+			}
+		})
 	}
 }
 

@@ -602,6 +602,13 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 		},
 		AutoSubscribe: po.AutoSubscribe,
 	}
+	// The template's unset policy rejects, as the controller facade
+	// applies it before Edit (go-fabric controller/controller.go:845-847
+	// at v0.22.2); commissioner.Options' own zero value would accept.
+	if p := copts.Options.OnAttestationFailure; p.Decide == nil && p.OnFailure == nil {
+		reject := false
+		copts.Options.OnAttestationFailure.OnFailure = &reject
+	}
 	if po.Edit != nil {
 		po.Edit(&copts.Options)
 	}
