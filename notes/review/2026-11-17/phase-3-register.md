@@ -170,7 +170,7 @@ merged 5, struck 0.
 
 ## Guards
 
-At `512f2bc` (the code head; `c15727e` adds notes only), local, all exit 0: `make ci`, `make race`, `make cover-check`, `make vuln licenses secrets`, `GOARCH=386 make build`, `make notices-check`, `make version-check`, `make contract-check`, `make e2e`, `make e2e-web` (44/44).
+At `512dd13` (go-fabric v0.23.0 and the two CI fixes; first at `512f2bc` on v0.22.2), local, all exit 0: `make ci`, `make race`, `make cover-check`, `make vuln licenses secrets`, `GOARCH=386 make build`, `make notices-check`, `make version-check`, `make contract-check`, `make e2e`, `make e2e-web` (44/44).
 
 ## Differences from the brief
 
