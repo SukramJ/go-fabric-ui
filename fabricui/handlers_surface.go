@@ -21,7 +21,7 @@ func (h *handler) surfaceReport(w http.ResponseWriter, r *http.Request) {
 	b, err := json.Marshal(h.node.surface())
 	if err != nil {
 		// A report with an element of no kind or no origin has no
-		// encoding (surface/element.go:135-140).
+		// encoding (surface/element.go:137-142 at v0.22.2).
 		h.serverError(w, r, "Failed to encode the surface report", err)
 		return
 	}

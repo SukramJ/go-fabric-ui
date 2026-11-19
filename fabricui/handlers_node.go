@@ -249,9 +249,9 @@ func remainingSeconds(win node.WindowSnapshot, now time.Time) *int {
 }
 
 // fabricResponse is one entry of GET /node/fabrics. Mirrors loom's
-// MatterFabricResponse (matter.go:232-255): a JSON number carries 53 bits,
-// so the 64-bit ids travel exactly as 16-digit uppercase hex, and the
-// numeric fields are informational only.
+// MatterFabricResponse (internal/north/rest/handlers/matter.go:234-256):
+// a JSON number carries 53 bits, so the 64-bit ids travel exactly as
+// 16-digit uppercase hex, and the numeric fields are informational only.
 type fabricResponse struct {
 	FabricIndex   uint8  `json:"fabric_index"`
 	FabricID      uint64 `json:"fabric_id"`
@@ -357,7 +357,7 @@ func (h *handler) maintenanceReassemble(w http.ResponseWriter, r *http.Request) 
 
 // factoryResetConfirmation is the word the body has to carry. It names the
 // action rather than agreeing with it, so a client replaying a generic
-// {"confirm":"yes"} cannot unpair a house (loom matter_maintenance.go:58-61).
+// {"confirm":"yes"} cannot unpair a house (loom matter_maintenance.go:54-57).
 const factoryResetConfirmation = "remove-all-fabrics"
 
 // factoryReset serves POST /node/maintenance/factory-reset: every fabric

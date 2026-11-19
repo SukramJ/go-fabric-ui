@@ -79,10 +79,10 @@ type NodeSource interface {
 	// shows it (contract 0.7.0, Status.attestation_error).
 	AttestationError() error
 	// BootReason is the GeneralDiagnostics BootReason the node was built
-	// with (node/node.go:1138-1141); Status.boot_reason.
+	// with (node/node.go:1195-1199 at v0.22.2); Status.boot_reason.
 	BootReason() uint8
 	// SessionParameters are the session parameters the node reports to
-	// every PASE and CASE peer (node/sessions.go:110-118); GET
+	// every PASE and CASE peer (node/sessions.go:105-112 at v0.22.2); GET
 	// /node/sessions serves them as parameters.
 	SessionParameters() node.SessionParameters
 	// TriggerReannounce announces the node's DNS-SD records now, a no-op

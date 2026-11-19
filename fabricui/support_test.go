@@ -615,7 +615,7 @@ func (k stringKey) String() string { return string(k) }
 // mandatory (Keep with a reason) — beside one withheld element and one
 // announced change of "lamp-1" with two element changes. Every element
 // carries a kind and an origin: the report's encoding has no name for
-// either's zero value (go-fabric surface/element.go:135-140).
+// either's zero value (go-fabric surface/element.go:137-142 at v0.22.2).
 func sampleSurface() surface.Report {
 	r := surface.Policies{
 		Level:      "1.5.1",

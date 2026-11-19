@@ -10,6 +10,8 @@ with live values, events, parts, tags, reachability, the host's surface
 decision; on the controller side an inventory tab, an event log, decoded
 feature maps“.
 
+Citations are of the day above (this repository at `6688e11`), not maintained.
+
 ## A. Ausgangslage
 
 - **Node-Familie.** `Endpoints.svelte` listet Endpoints mit Gerätetyp (ohne

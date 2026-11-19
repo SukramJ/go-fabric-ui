@@ -16,7 +16,7 @@ import (
 )
 
 // Window duration bounds, Matter §11.19.8.1: 180..900 s, 0 is the 15-minute
-// default. Mirrors loom internal/north/rest/handlers/matter.go:169-180
+// default. Mirrors loom internal/north/rest/handlers/matter.go:174-183
 // (matterOpenCommissioningWindow) at b40b289a.
 const (
 	windowMinSeconds     = 180
@@ -187,7 +187,7 @@ func (h *handler) openWindow(w http.ResponseWriter, r *http.Request) {
 	const title = "Failed to open commissioning window"
 	if !h.allowEmpty && len(h.node.topology().Devices) == 0 {
 		// A controller that subscribes before the first endpoint is in the
-		// topology caches an empty parts list (loom matter.go:131-139,
+		// topology caches an empty parts list (loom matter.go:134-140,
 		// ErrBridgeTopologyNotReady).
 		w.Header().Set("Retry-After", "30")
 		unready(w, r, title, "the node exposes no endpoint yet; retry once the host has assembled its endpoints")

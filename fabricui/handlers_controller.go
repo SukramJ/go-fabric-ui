@@ -648,7 +648,7 @@ func (s *controllerServer) DecommissionNode(ctx context.Context, req api.Decommi
 // PingNode serves POST /controller/nodes/{id}/ping: the port's outcome,
 // per address where the port measured each (go-fabric's
 // client.Node.PingAddress), else one read as go-fabric-server's ping_node
-// answers it (controllerapi/cmd_node.go:167-204).
+// answers it (controllerapi/cmd_node.go:167-204 at v0.3.2).
 func (s *controllerServer) PingNode(ctx context.Context, req api.PingNodeRequestObject) (api.PingNodeResponseObject, error) {
 	n, err := s.node(req.ID)
 	if err != nil {
@@ -1022,7 +1022,7 @@ func (s *controllerServer) GetNodeACL(ctx context.Context, req api.GetNodeACLReq
 // group id, a PASE entry's a passcode id: neither names a node), and an
 // entry left without subjects dropped — a node always has access to itself — as
 // go-fabric-server's set_acl_entry does after matterjs-server
-// (ControllerCommandHandler.ts:2618-2668).
+// (ControllerCommandHandler.ts:2618-2668 at 0bd06f2).
 func (s *controllerServer) SetNodeACL(ctx context.Context, req api.SetNodeACLRequestObject) (api.SetNodeACLResponseObject, error) {
 	n, err := s.node(req.ID)
 	if err != nil {

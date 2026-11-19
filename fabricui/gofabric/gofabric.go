@@ -455,7 +455,7 @@ func identifierOf(f fabricui.DiscoverFilter) (discovery.Identifier, error) {
 }
 
 // Discover lists the commissionable devices — controller.Controller.Discover,
-// as go-fabric-server's discover (controllerapi/cmd_commission.go:335-347).
+// as go-fabric-server's discover (controllerapi/cmd_commission.go:335-347 at v0.3.2).
 func (s *source) Discover(ctx context.Context, f fabricui.DiscoverFilter, timeout time.Duration) ([]fabricui.Discovered, error) {
 	id, err := identifierOf(f)
 	if err != nil {
@@ -561,7 +561,7 @@ func (s *source) forget(instance string) {
 // CommissionDiscovered commissions a discovered device with its passcode
 // through the registry (client.Registry.ForDevice and Commission), as
 // go-fabric-server's commission_on_network does
-// (controllerapi/cmd_commission.go:159-232). The BLE decision does not
+// (controllerapi/cmd_commission.go:159-232 at v0.3.2). The BLE decision does not
 // apply — the device came from a DNS-SD discovery — so it reports no
 // PairOptions.Transport.
 func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered, passcode uint32, o fabricui.PairOptions) (fabricui.ControllerNode, error) {
@@ -626,7 +626,7 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 }
 
 // Decommission removes our fabric from the node — client.Registry.Decommission
-// (go-fabric-server's remove_node, controllerapi/cmd_node.go:81-94).
+// (go-fabric-server's remove_node, controllerapi/cmd_node.go:81-94 at v0.3.2).
 func (s *source) Decommission(ctx context.Context, id uint64) error {
 	n, ok := s.lookup(id)
 	if !ok {
@@ -649,7 +649,7 @@ const labelPushTimeout = 2 * time.Minute
 // SetFabricLabel sets the fabric's label at once and pushes it to the
 // connected nodes in the background (client.Registry.SetFabricLabel), as
 // go-fabric-server's set_default_fabric_label answers before the push
-// (controllerapi/cmd_server.go:217-286).
+// (controllerapi/cmd_server.go:217-286 at v0.3.2).
 func (s *source) SetFabricLabel(_ context.Context, label string) error {
 	f := s.ctrl.Fabric()
 	if f == nil {

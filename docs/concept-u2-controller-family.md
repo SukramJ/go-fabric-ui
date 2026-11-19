@@ -8,6 +8,8 @@ als Routen-Platzhalter angelegt: `/controller/commission`, `/controller/discover
 go-fabric-server `v0.3.2`). Sprache: Deutsch (Phasenkonzept); Briefs,
 Issues und Doku auf Englisch.
 
+Citations are of the day above (this repository at `531fdbb`), not maintained.
+
 ## A. Ausgangslage
 
 - go-fabric-ui `v0.1.3` hat die Node-Familie vollständig (17 Routen, sechs

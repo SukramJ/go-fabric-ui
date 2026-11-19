@@ -46,7 +46,7 @@ const problemTypeBase = "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/
 const maxBodyBytes = 1 << 20
 
 // problem is an RFC 9457 problem+json body. Mirrors loom's
-// internal/north/rest/problem/problem.go:50-59 (Details) at b40b289a,
+// internal/north/rest/problem/problem.go:78-89 (Details) at b40b289a,
 // without its host-specific members.
 type problem struct {
 	Type     string `json:"type"`
@@ -58,7 +58,7 @@ type problem struct {
 }
 
 // writeProblem writes a problem with the code, title and detail; the
-// instance is the request path. Mirrors loom problem.go:61-85 (Write, New).
+// instance is the request path. Mirrors loom problem.go:91-118 (Write, New).
 func writeProblem(w http.ResponseWriter, r *http.Request, status int, code, title, detail string) {
 	writeProblemBody(w, status, code, newProblem(r, status, code, title, detail))
 }

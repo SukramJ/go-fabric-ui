@@ -691,7 +691,7 @@ type PairOptions struct {
 	TermsAndConditions *TermsAcknowledgement
 	// Progress, when set, is called on the commissioning's goroutine as
 	// each step starts and ends (go-fabric controller.PairOptions.Progress,
-	// controller/controller.go:611-618); it must not block. The handler
+	// controller/controller.go:720-727 at v0.22.2); it must not block. The handler
 	// sets it to report commissioning_progress with the step.
 	Progress func(PairingStep)
 	// Transport, when set, is called once on the commissioning's
