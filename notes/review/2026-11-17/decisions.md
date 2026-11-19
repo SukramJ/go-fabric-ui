@@ -209,3 +209,9 @@ took both ("Behebe die offenen issues").
 | --- | --- | --- |
 | 80 | go-fabric-ui#81 (`PairDiscovered`, go-fabric #552, in no tag) and go-fabric #554 (`PairOptions` timeout), #555 (`QueryUpdates` per-product errors) | **go-fabric fixes #554 and #555 and releases `v0.24.0`** — in a go-fabric session (go-fabric's CLAUDE.md: a host does not implement in the module); run 2's fix wave then pins `v0.24.0` and does #81 (drops UR-P1-adpt-60's restatement, closes UR-P3-adpt-92), gives decision 71's code path the new timeout, and replaces UR-P4-adpt-192's re-query with #555's errors; `v0.12.0` waits for it |
 | 81 | go-fabric-ui#68 (wave U12), unblocked by v0.23.0 (#520, #537) | **After `v0.12.0`, in a fresh session**: the brief rebased onto contract 0.12.0, its re-check R1–R8 against the then-pinned tag first |
+
+## 2026-11-19, decision 79's 500
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 82 | Decision 79's 500: 29 of the 40 controller operations declare no 500 | **Declare it**: a shared 500 response on every controller operation (additive, contract 0.12.0); the test goes through the full handler so the status guard sees every answer |
