@@ -143,3 +143,9 @@ took every recommendation. Source: `notes/briefs/2026-11-18-review-p3-contract.m
 | # | Subject | Decision |
 | --- | --- | --- |
 | 63 | UR-P3-web-195: `attestation_error` on the node status carries the loader's error text to a non-admin, the class decision 34 withheld | **A fixed sentence for a non-admin**: the field stays present when the node refuses commissioning, its text a fixed neutral sentence; an administrator gets the loader's text. Additive, no guard break; a `docs/contract.md` line |
+
+## 2026-11-19, before the release
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 64 | Owner, 2026-11-19: "In das Release soll auch die neuste Go-fabric Version" — the go-fabric pin of `v0.10.0` | **go-fabric v0.23.0 in PR #78**, not in phase 4: the pin lift with decision 62's migration (two deprecated window errors no node method returns, their branches and their test dropped) and the adapter's label push fixed, whose lost update v0.23.0's timing exposed. The fixes that use what v0.23.0 exports (UR-P1-err-33's controller route, UR-P2-err-37, decision 30's window kind, UR-P2-err-09) stay phase 4. |

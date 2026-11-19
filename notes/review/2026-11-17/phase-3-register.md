@@ -2,7 +2,8 @@
 
 Branch `review/p3` from `f4b8573`, HEAD `512f2bc` when written; the pull
 request is squashed, its single commits stay retrievable through the pull
-request's reference. go-fabric pin `v0.22.2`. Decisions 37–63. Contract
+request's reference. go-fabric pin `v0.22.2`, lifted to `v0.23.0` at the
+end (decision 64). Decisions 37–64. Contract
 0.9.0 → 0.10.0 with three accepted breaks (`info.x-accepted-breaks` in
 `contract/openapi.yaml`): `Status.fabric_count` no longer required, the
 `NodeID` path parameter narrower (pattern), the `EndpointNumber` path
@@ -24,9 +25,9 @@ request, so every phase 3 report publishes with it. The public copy of
 `phase-3-verify.md` "Item 2"; scratch paths are replaced by "(scratch
 worktree)". The held files of phases 0–2 stay held.
 
-"→ phase 4" means the remaining fix waits on the go-fabric `v0.23.0` pin
-lift (phase 4), which exports what it needs; decision 62 (no deprecated
-go-fabric identifier, held by staticcheck SA1019) applies to that lift.
+"→ phase 4" means the remaining fix uses what go-fabric `v0.23.0`
+exports; the pin is lifted in this pull request (decision 64, with
+decision 62's migration), the fixes are phase 4.
 
 ## Findings of phase 3
 
@@ -120,7 +121,7 @@ the owner confirms.
 | UR-P1-ctr-17 | note | fixed `ec57fba` | with ctr-28 |
 | UR-P1-api-18 | note | fixed `ec57fba`, `9350659` | decision 59: `commissioning_id` chosen by the client, echoed on progress |
 | UR-P1-ui-38 | note | fixed `77e35df`, `9a184ea` | one device type name across the node family |
-| UR-P1-adpt-40 | note | fixed `ec57fba`; upstream question | a fabric label over 32 bytes is 400; go-fabric's controller counts runes (issue to file) |
+| UR-P1-adpt-40 | note | fixed `ec57fba` | a fabric label over 32 bytes is 400; go-fabric v0.23.0's controller checks bytes too (`commissioner.MaxLabelLength`), the question is answered |
 | UR-P1-leak-66 | note | fixed `19fb493` | decision 20; takes UR-P2-leak-63 |
 | UR-P1-ctr-113 | low | fixed `841b8fb`, `9350659` | `number_str` twin |
 | UR-P1-ui-133 | low | fixed `841b8fb`, `9350659` | `admin` on the controller status |
@@ -173,6 +174,16 @@ At `512f2bc` (the code head; `c15727e` adds notes only), local, all exit 0: `mak
 
 ## Differences from the brief
 
+- The go-fabric pin is lifted to `v0.23.0` in this pull request
+  (decision 64), not in phase 4. Its timing exposed a lost update in
+  the adapter's label push (a fabric label set twice ended at the
+  first); fixed with it.
+- The pull request's first CI run failed two jobs the local guards had
+  passed: `web` (the contract guard's test reads the newest tag; the
+  job's checkout had no tags → `fetch-depth: 0`) and `e2e-web` (1 in
+  about 45 runs: the shell chose the Operation page before its probes
+  answered and read the log without the token → it waits for them; a
+  shell test holds it).
 - G spawned two helper agents (F and D) beyond the cap of two
   implementing agents (decision 39); their tokens are in G's line.
 - A measurement of the pinned hosts' proxy contradicted one premise of
@@ -186,11 +197,11 @@ At `512f2bc` (the code head; `c15727e` adds notes only), local, all exit 0: `mak
 ## Upstream
 
 - go-fabric v0.23.0 closed #539, #543 (UR-P2-err-09) and #544
-  (UR-P2-err-37); its pin lift is phase 4 (UR-P1-err-33, UR-P2-err-37,
-  decision 62).
+  (UR-P2-err-37); its pin is lifted here (decision 64), the fixes using
+  it are phase 4 (UR-P1-err-33, UR-P2-err-37). It also answers
+  UR-P1-adpt-40's question: the controller checks the label in bytes.
 - To file after the merge: decision 25's facade gap together with
-  UR-P3-adpt-92 (one issue); UR-P1-adpt-40's question (runes on the
-  controller, bytes on the node).
+  UR-P3-adpt-92 (one issue).
 
 ## Hosts' obligations (0.10.0)
 
