@@ -5,6 +5,82 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). The Go module and the npm package
 `@sukramj/fabric-ui` share one version.
 
+## [0.11.0] - 2026-11-19
+
+The review, phase 4 (`notes/review/2026-11-17/`); contract 0.11.0, additive
+over 0.10.0 (no accepted break). `docs/contract.md` ("Versioning") lists
+the contract's changes for the hosts.
+
+### Hosts
+
+- **Behind a proxy, the Host check is the proxy's when the proxy replaces
+  `Host`** (decision 69): the check sees the `Host` the proxy sends. A
+  proxy that replaces it — with a name of its own or the upstream's
+  address — makes the check pass every request whatever name the browser
+  used; such a proxy serves only its own names, with no catch-all server,
+  and refuses any other `Host`, or it forwards the browser's `Host` and
+  the host lists the names or sets `AllowHost` (`docs/embedding.md`,
+  "Behind an Ingress"; godoc of `Options.AllowedHosts`).
+- **A node without a fabric reopens its own window** after a window the
+  page opened closes or expires, on the configured passcode — go-fabric's
+  design, now said in the contract (`closeWindow`), the godoc of
+  `Options.ConfiguredWindow` and the page; a host that wants no window it
+  did not open sets go-fabric's `Commissioning.WindowOnDemand` (decision
+  73).
+- **`SoftwareUpdateSource.Check`** may return the updates found with a
+  `fabricui.UpdateCheckFailures` naming the nodes whose check failed; the
+  route answers 200 with them in `errors`. Any other error of `Check` is
+  500. A host's own source keeps compiling; the go-fabric adapter checks
+  node by node after a failed check, so each node's failure is named
+  (decision 70).
+- **Commissioning a discovered device** without `timeout_seconds` is
+  bounded at 600 s; a code's commissioning is not, so go-fabric's
+  one-minute bound on the search stays (decision 71).
+- **32-bit hosts**: the contract's integers of 32-bit unsigned range or
+  wider are `int64` in the generated handlers, so a uint32 at or above
+  2^31 is no longer a negative number and a consent to such a version
+  decodes; the suite runs under `GOARCH=386` (`make test-386`, CI).
+
+### Added
+
+- `errors` (`UpdateCheckError`) on `POST /controller/updates/check`'s
+  answer; `fabricui.UpdateCheckFailures`, `fabricui.UpdateCheckFailure`.
+- `window_kind` `administrator_basic`: an administrator's basic window
+  (OpenBasicCommissioningWindow), which go-fabric 0.23.0 tells from an
+  enhanced one (decision 30).
+- Web: the controller Diagnostics page exported from `./pages` as
+  `ControllerDiagnosticsPage`; `NodeStore.reassemble()`; i18n keys
+  `controller.updates.check_failed`, `node.pair.own_window_back`,
+  `node.warnings.viewer`; `controller.settings.label_hint` takes `{max}`.
+
+### Fixed
+
+- An unknown fabric index is 404 on `DELETE /node/fabrics/{index}` also
+  when the fabric went meanwhile (go-fabric's `node.ErrFabricNotFound`),
+  and on `DELETE /controller/nodes/{id}/fabrics/{index}` when the node
+  answers InvalidFabricIndex (UR-P1-err-33).
+- A request go-fabric refuses before sending it (too large for one
+  message, malformed) is 400, not the node's 502 (UR-P2-err-37).
+- The fabric label on a controller without a fabric, and an update
+  consent the manager refuses, answer 500 as their routes declare, not
+  502 (UR-P4-test-33).
+- `gofabric.Hooks.Wrap` chains the host's `Deleted` hook (go-fabric
+  0.23.0), and a test fails on any `client.Hooks` field it does not chain
+  (UR-P4-adpt-31).
+- Every node's handler, not only the default node's, carries
+  `AllowedHosts` and `AllowHost` (UR-P4-auth-01).
+- The open status and node list log a failed fabric read or a skipped
+  registry entry when it starts, not per request (UR-P4-leak-91).
+- Web: the node stream reopens on a token change (UR-P3-web-191); the
+  token's same-origin test honours `<base href>` (UR-P4-web-04).
+
+### Changed
+
+- The status guard of decision 47 also observes the controller adapter's
+  tests (`internal/statusguard`).
+- A test holds that a commissioning cancelled before CommissioningComplete
+  leaves no fail-safe armed (UR-P2-err-09).
+
 ## [0.10.0] - 2026-11-19
 
 The review, phases 0 to 3 (`notes/review/2026-11-17/`); contract 0.10.0
