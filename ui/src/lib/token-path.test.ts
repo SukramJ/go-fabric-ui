@@ -10,6 +10,7 @@ import NodeHarness from "../test/NodeHarness.svelte";
 import { body, testUI } from "../test/support";
 import { createClient, REQUEST_HEADER, TOKEN_HEADER, type ControllerStatus, type Status } from "./api/client";
 import { createControllerStore } from "./controller-store.svelte";
+import { createNodeStore, type NodeStoreDeps } from "./store.svelte";
 
 afterEach(() => {
   cleanup();
@@ -156,6 +157,65 @@ describe("UR-P3-web-191: a stream refused with a stale token", () => {
     expect(src.readyState).toBe(2);
     expect(src.status).toBe(403);
     expect(s.seen).toEqual(["/controller/stream old", "/node/status old", "/controller/stream new"]);
+  });
+});
+
+// The node stream is an open route: a stale token is not refused, the
+// stream is answered as one without admin rights and stays filtered. The
+// store reopens it when a status read brings another token (UR-P3-web-191,
+// the rest carried to phase 4).
+describe("UR-P3-web-191: the node stream after a token change", () => {
+  function server() {
+    const state = { token: "t1" };
+    const seen: string[] = [];
+    const fetchImpl = async (url: string, init?: RequestInit) => {
+      seen.push(`${url.replace("/api/v1", "")} ${tokenOf(init) ?? "-"}`);
+      if (url.endsWith("/node/status")) return json({ ...NODE, csrf_token: state.token });
+      if (url.endsWith("/node/stream")) return sse();
+      return json({ code: "not_found", title: "no route", status: 404, type: "x" }, 404);
+    };
+    return { state, fetchImpl, seen };
+  }
+  const deps: NodeStoreDeps = { t: (k) => k, toast: { success: () => undefined, error: () => undefined, info: () => undefined } };
+  const streams = (seen: string[]) => seen.filter((l) => l.startsWith("/node/stream"));
+
+  it("reopens with the new token when a status read brings one", async () => {
+    const s = server();
+    const store = createNodeStore(createClient("/api/v1", s.fetchImpl), deps);
+    await store.loadStatus();
+    store.connect();
+    await flush();
+    expect(streams(s.seen)).toEqual(["/node/stream t1"]);
+    // The daemon restarted: a new token per process.
+    s.state.token = "t2";
+    await store.loadStatus();
+    await vi.waitFor(() => expect(streams(s.seen)).toEqual(["/node/stream t1", "/node/stream t2"]));
+    // The reopened stream resyncs once; the same token does not reopen again.
+    await flush();
+    await store.loadStatus();
+    await flush();
+    expect(streams(s.seen)).toEqual(["/node/stream t1", "/node/stream t2"]);
+    store.close();
+  });
+
+  it("reopens a stream opened before the first status brought the token", async () => {
+    const s = server();
+    const store = createNodeStore(createClient("/api/v1", s.fetchImpl), deps);
+    store.connect();
+    await flush();
+    await store.loadStatus();
+    await vi.waitFor(() => expect(streams(s.seen)).toEqual(["/node/stream -", "/node/stream t1"]));
+    store.close();
+  });
+
+  it("leaves a closed store's stream closed", async () => {
+    const s = server();
+    const store = createNodeStore(createClient("/api/v1", s.fetchImpl), deps);
+    await store.loadStatus();
+    s.state.token = "t2";
+    await store.loadStatus();
+    await flush();
+    expect(streams(s.seen)).toEqual([]);
   });
 });
 
