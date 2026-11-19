@@ -49,6 +49,9 @@ vet: ## go vet ./...
 test: ## go test -count=1 ./... (handlers, fixtures, import guard, end-to-end on fabrictest)
 	CGO_ENABLED=0 $(GO) test -count=1 -timeout 300s ./...
 
+test-386: ## the whole suite under GOARCH=386: a 32-bit int does not cut a uint32 or int64 field (UR-P4-ctr-30)
+	GOARCH=386 CGO_ENABLED=0 $(GO) test -count=1 -timeout 300s ./...
+
 race: ## go test -race (CGO_ENABLED=1 for this run only)
 	CGO_ENABLED=1 $(GO) test -race -count=1 -timeout 600s ./...
 
@@ -172,9 +175,9 @@ version-check: ## internal/version, ui/package.json and the changelog's newest s
 		echo "version-check: internal/version=$(VERSION_GO) ui/package.json=$(VERSION_NPM) changelog=$(VERSION_LOG)"; exit 1; fi
 	@echo "version-check: $(VERSION_GO)"
 
-ci: build vet test lint generate-check web-check dist-check ## the main Go and web checks; the pipeline also runs race, cover-check, vuln, licenses, secrets, pins-check, npm-audit, notices-check, version-check, contract-check, e2e-web and the 386 build
+ci: build vet test lint generate-check web-check dist-check ## the main Go and web checks; the pipeline also runs race, cover-check, vuln, licenses, secrets, pins-check, npm-audit, notices-check, version-check, contract-check, e2e-web and the 386 build and test-386
 
 clean: ## remove local build artefacts (never the committed bundle)
 	rm -rf coverage.out $(CHECK_DIR)
 
-.PHONY: help setup build vet test race e2e e2e-web fuzz fmt fmt-check lint tidy-check pins-check cover cover-check vuln licenses secrets web-install npm-audit npm-audit-all web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean
+.PHONY: help setup build vet test test-386 race e2e e2e-web fuzz fmt fmt-check lint tidy-check pins-check cover cover-check vuln licenses secrets web-install npm-audit npm-audit-all web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean

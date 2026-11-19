@@ -196,7 +196,7 @@ rules below are what keeps that from doubling.
 - **The pipeline's guards before the pull request, not after.** The local
   guard set is what the jobs of `.github/workflows/ci.yml` run: `make ci`,
   `make race`, `make cover-check`, `make vuln licenses secrets`,
-  `GOARCH=386 make build`, and after `make web-install` the web jobs'
+  `GOARCH=386 make build`, `make test-386`, and after `make web-install` the web jobs'
   `make notices-check`, `make version-check`, `make contract-check` and
   `make e2e-web`. A red pipeline costs a round of coordinator turns.
 - **Agents read what the brief names.** An implementing agent gets the
