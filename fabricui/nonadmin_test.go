@@ -4,6 +4,7 @@
 package fabricui
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"go/ast"
@@ -124,6 +125,57 @@ func TestNodeStream_NonAdminFilter(t *testing.T) {
 	}
 }
 
+// The node stream route itself makes a request without admin rights a
+// filtered stream: the decision that selects subscribeAs's filter, not
+// only the filter (UR-P4-test-320). In token mode without the token and
+// in host mode with an admin check that refuses, the stream receives
+// window_closed and not fabric_added.
+func TestNodeStream_RouteFiltersARequestWithoutAdminRights(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		o    testOptions
+		hdr  map[string]string
+	}{
+		{"token mode, no token", testOptions{}, nil},
+		{"host mode, admin refused", testOptions{admin: func(*http.Request) bool { return false }}, map[string]string{RequestHeader: "1"}},
+	} {
+		h, mux := newTestHandler(t, c.o)
+		h.heartbeat = time.Hour
+		srv := httptest.NewServer(mux)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+DefaultPrefix+"/node/stream", http.NoBody)
+		for k, v := range c.hdr {
+			req.Header.Set(k, v)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("%s: %d", c.name, res.StatusCode)
+		}
+		waitFor(t, func() bool { return subsOf(h.hub) == 1 })
+		h.publish(Event{Type: EventFabricAdded, Data: FabricEvent{FabricIndex: 1}})
+		h.publish(Event{Type: EventWindowClosed, Data: WindowEvent{}})
+		var types []string
+		sc := bufio.NewScanner(res.Body)
+		for sc.Scan() {
+			if v, ok := strings.CutPrefix(sc.Text(), "event: "); ok {
+				types = append(types, v)
+				if v == EventWindowClosed {
+					break
+				}
+			}
+		}
+		res.Body.Close()
+		cancel()
+		srv.Close()
+		if !slices.Equal(types, []string{EventWindowClosed}) {
+			t.Errorf("%s: the stream received %v, want only window_closed", c.name, types)
+		}
+	}
+}
+
 // The handler's own events no longer reach the host's *Events.
 func TestNodeStream_HostEventsAreNotTheHandlersHub(t *testing.T) {
 	host := NewEvents()
@@ -171,7 +223,8 @@ func TestStatus_NonAdminIsReduced(t *testing.T) {
 }
 
 // Without admin rights the controller status keeps enabled, capabilities
-// and the auth members; every other member is empty or 0.
+// and the auth members; every other member is empty or 0, each checked,
+// not a sample (decision 57, UR-P4-test-321).
 func TestControllerStatus_NonAdminIsZeroed(t *testing.T) {
 	_, mux := newTestHandler(t, testOptions{controller: NewMemoryController(), admin: func(*http.Request) bool { return false }})
 	rec := do(t, mux, http.MethodGet, "/controller/status", "")
@@ -182,6 +235,15 @@ func TestControllerStatus_NonAdminIsZeroed(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &st)
 	if st["fabric_id_hex"] != "" || st["node_count"] != float64(0) || st["label"] != "" || st["admin"] != false || st["enabled"] != true || st["capabilities"] == nil {
 		t.Fatalf("non-admin controller status %v", st)
+	}
+	for k, v := range st {
+		switch k {
+		case "enabled", "capabilities", "admin", "csrf_token":
+			continue
+		}
+		if v != "" && v != float64(0) && v != nil && v != false {
+			t.Errorf("non-admin controller status carries %s = %v", k, v)
+		}
 	}
 }
 
