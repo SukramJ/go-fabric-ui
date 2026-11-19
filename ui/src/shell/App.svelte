@@ -88,8 +88,11 @@
   let denied = $state<string | null>(null);
   const controllerDecided = $derived(controller.present !== null || controller.statusDenied !== null);
   const probed = $derived(nodeServed !== null && controllerDecided);
+  // The Operation page waits for the probes as the families do: its log
+  // is an admin's, and the token arrives with the status (UR-P3-web-190),
+  // so an Operation page chosen before them reads the log without it.
   const family = $derived<"node" | "controller" | "operation" | null>(
-    route.family === "operation" && operationServed
+    route.family === "operation" && operationServed && probed
       ? "operation"
       : route.family === "controller" && controllerFamily
         ? "controller"
@@ -97,7 +100,7 @@
           ? "node"
           : controllerFamily
             ? "controller"
-            : operationServed
+            : operationServed && probed
               ? "operation"
               : null,
   );

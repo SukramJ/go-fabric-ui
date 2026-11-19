@@ -169,3 +169,24 @@ describe("UR-P1-conc-199: one probe chain, none after the shell is gone", () => 
     expect(calls).toBe(1);
   });
 });
+
+describe("the Operation page waits for the probes", () => {
+  it("reads no log while the node status is still unanswered", async () => {
+    let release = () => {};
+    const statusHeld = new Promise<void>((r) => (release = r));
+    const fetchImpl = serve(["node-status.200", "operation-info.200"]);
+    const inner = fetchImpl.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+    fetchImpl.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/node/status")) await statusHeld;
+      return streamAnswer(url, init) ?? inner(url, init);
+    });
+    location.hash = "#/node/endpoints";
+    render(App);
+    await waitFor(() => expect(fetchImpl.mock.calls.some(([u]) => String(u).endsWith("/operation/info"))).toBe(true));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(fetchImpl.mock.calls.filter(([u]) => String(u).includes("/operation/log"))).toEqual([]);
+    release();
+    expect(await screen.findByRole("heading", { name: "Node" })).toBeInTheDocument();
+    expect(fetchImpl.mock.calls.filter(([u]) => String(u).includes("/operation/log"))).toEqual([]);
+  });
+});
