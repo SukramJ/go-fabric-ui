@@ -161,3 +161,15 @@ took every recommendation.
 | 66 | Breadth of run 1 | **The full cut, the delta first**: the README's four agents read every hand-written file of their half; the files changed since `f4b8573` (phase 3's fix bundle, the held rows' fixes, the v0.23.0 lift), which only the pre-merge read saw, line by line first |
 | 67 | The release after phase 4 (decision 15) | **v0.11.0 with contract 0.11.0**: the controller route's 404 for an unknown fabric is a contract change; `contract/previous/` is copied from `v0.10.0`, a `docs/contract.md` line for the hosts |
 | 68 | Where go-fabric-server's plan is written (decision 6: while go-fabric-ui is in phase 4) | **Its own fresh session**, started by the owner in parallel; this session stays phase 4's coordinator |
+
+## 2026-11-19, after run 1's verification
+
+Put as one wizard of four questions, the recommendation first; the owner
+took every recommendation. Source: `held/phase-4-verify.md`.
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 69 | Held row UR-P4-auth-03 (detail in `held/`) | **Docs for the whole class**: `docs/embedding.md`, godoc and changelog; no `Options` field, no contract artefact; its red test becomes a docs guard. Held until the fix merges |
+| 70 | UR-P4-adpt-32: one product's failed image download fails `POST /controller/updates/check` for every node with an undeclared 502 | **A partial result with an error per node**: the route returns what was found, an optional per-node error field (additive, contract 0.11.0); the status guard also sees the real adapter's errors (UR-P4-test-33) |
+| 71 | UR-P4-bound-02: commissioning without `timeout_seconds` has no deadline | **A 600 s default on the commission-by-code path only**; `Pair` keeps its one-minute search bound, a go-fabric issue asks for a timeout in `PairOptions`; the contract's description names both paths |
+| 72 | Unit S's partial coverage (the verifier's list) | **One more Fable reader now** (unit S2, the fifth review agent of run 1) over exactly those gaps at `979a67a`, before the fix wave; its findings go into the same pull request; the run-1 verifier, resumed, verifies its high and medium |
