@@ -72,7 +72,7 @@
   // The nodes GET /nodes lists, the default first; empty until loaded or
   // from a server before 0.5.0.
   const nodeList = $derived(ui.nodes.list);
-  // Whether GET /operation/info answered (not 404 or 503).
+  // Whether GET /operation/info answered (UR-P4-ui-232: not on a failure).
   let operationServed = $state(false);
   let route = $state<Route>(routeOf(location.hash));
   const onHash = () => (route = routeOf(location.hash));
@@ -226,12 +226,23 @@
     void probe();
   }
 
+  // The Operation tab shows on an answer only. A refusal (403), no route
+  // (404) or no operations port (503) decides against it; anything else (a
+  // network error, a proxy's 502) is asked again with the families'
+  // backoff (UR-P4-ui-232).
+  let operationAttempt = 0;
+  let operationTimer: ReturnType<typeof setTimeout> | null = null;
+  let destroyed = false;
   async function probeOperation() {
+    operationTimer = null;
     try {
       await ui.client.operationInfo();
       operationServed = true;
     } catch (err) {
-      operationServed = !(err instanceof ApiError && (err.status === 403 || err.status === 404 || err.status === 503));
+      operationServed = false;
+      if (destroyed || (err instanceof ApiError && (err.status === 403 || err.status === 404 || err.status === 503))) return;
+      const wait = PROBE_BACKOFF_MS[Math.min(operationAttempt++, PROBE_BACKOFF_MS.length - 1)];
+      operationTimer = setTimeout(() => void probeOperation(), wait);
     }
   }
 
@@ -266,7 +277,9 @@
 
   onDestroy(() => {
     probeGen++;
+    destroyed = true;
     if (probeTimer) clearTimeout(probeTimer);
+    if (operationTimer) clearTimeout(operationTimer);
     window.removeEventListener("hashchange", onHash);
     media?.removeEventListener("change", onScheme);
     stopBridge();
