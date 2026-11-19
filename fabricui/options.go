@@ -320,7 +320,10 @@ type Options struct {
 	// from what only its proxy can produce, such as the proxy's source
 	// address. It is asked once per request, on every route and in every
 	// mode, and must not answer from the Host header or anything else the
-	// browser chooses. Nil admits by name only.
+	// browser chooses. Every name it admits passes, reads and writes (an
+	// Origin equal to the request's Host passes): the Host check is then
+	// the proxy's — its authentication of the user, its server names
+	// (docs/embedding.md, Behind an Ingress). Nil admits by name only.
 	AllowHost func(r *http.Request) bool
 	// MaxStreams caps the event streams this handler serves at once, every
 	// kind and node together; one more answers 503 with Retry-After. Zero

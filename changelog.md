@@ -13,14 +13,17 @@ the contract's changes for the hosts.
 
 ### Hosts
 
-- **Behind a proxy, the Host check is the proxy's when the proxy replaces
-  `Host`** (decision 69): the check sees the `Host` the proxy sends. A
+- **Behind a proxy, the Host check is the proxy's unless the proxy
+  forwards `Host` and the host lists the names** (decision 69): the check sees the `Host` the proxy sends. A
   proxy that replaces it — with a name of its own or the upstream's
   address — makes the check pass every request whatever name the browser
   used; such a proxy serves only its own names, with no catch-all server,
   and refuses any other `Host`, or it forwards the browser's `Host` and
-  the host lists the names or sets `AllowHost` (`docs/embedding.md`,
-  "Behind an Ingress"; godoc of `Options.AllowedHosts`).
+  the host lists the names, which keeps the check. A host that sets
+  `AllowHost` (by the proxy's source address) admits every name the proxy
+  forwards, reads and writes: the check is then the proxy's — its
+  authentication, its server names (`docs/embedding.md`, "Behind an
+  Ingress"; godoc of `Options.AllowedHosts` and `Options.AllowHost`).
 - **A node without a fabric reopens its own window** after a window the
   page opened closes or expires, on the configured passcode — go-fabric's
   design, now said in the contract (`closeWindow`), the godoc of

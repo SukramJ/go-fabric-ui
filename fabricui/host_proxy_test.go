@@ -62,11 +62,33 @@ func TestHostCheck_BehindAProxyThatReplacesHost(t *testing.T) {
 	}
 	flat := strings.Join(strings.Fields(string(doc)), " ")
 	for _, want := range []string{
-		"A proxy that replaces `Host` — with a name of its own or with the upstream's address — makes the check constant",
-		"Behind such a proxy the check is the proxy's: it serves only its own names, with no catch-all server, and refuses any other `Host`",
+		"the host **lists** the names the browser uses in `AllowedHosts`: the handler checks the name — the one setup in which the check is the handler's",
+		"every name the proxy forwards passes, and the page's own `Origin` equals its `Host`, so reads and writes pass under any name. The check is then the proxy's",
+		"It replaces `Host` — with a name of its own or with the upstream's address: the check is constant",
+		"There the proxy authenticates the user, or serves only its own names, with no catch-all server, and refuses any other `Host`",
 	} {
 		if !strings.Contains(flat, want) {
 			t.Errorf("docs/embedding.md no longer says: %s", want)
 		}
+	}
+}
+
+// Behind a proxy that forwards Host, AllowHost answered from the proxy's
+// source address admits every name the proxy forwards: a rebound name
+// reads the token, and its own Origin equals its Host, so its admin
+// writes pass too. The check is then the proxy's, as docs/embedding.md
+// says (the second kind of proxy; decision 61, UR-P4-doc-190).
+func TestHostCheck_AllowHostBySourceAdmitsEveryForwardedName(t *testing.T) {
+	bySource := func(r *http.Request) bool { return strings.HasPrefix(r.RemoteAddr, "192.0.2.1:") } // httptest's RemoteAddr
+	_, mux := newTestHandler(t, testOptions{allowHost: bySource})
+	rec := reqWith(t, mux, http.MethodGet, DefaultPrefix+"/node/status", "", map[string]string{"Host": "rebound.attacker.example"})
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), testToken) {
+		t.Errorf("status under a forwarded name: %d, token issued: %v", rec.Code, strings.Contains(rec.Body.String(), testToken))
+	}
+	rec = reqWith(t, mux, http.MethodPost, DefaultPrefix+"/node/pairing/window/close", "", map[string]string{
+		"Host": "rebound.attacker.example", "Origin": "http://rebound.attacker.example", TokenHeader: testToken,
+	})
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("an admin write under a forwarded name with its own Origin: %d %s", rec.Code, rec.Body)
 	}
 }

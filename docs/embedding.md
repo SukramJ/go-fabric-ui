@@ -56,7 +56,7 @@ valid prefix and serves no page.
 | `FrameAncestors` | Further origins that may frame the page, each a CSP host-source. See [Response headers and framing](#response-headers-and-framing). |
 | `Warnings` | The host's findings about its own configuration, shown on the status and selection pages. |
 | `AllowedHosts` | The DNS names besides loopback names and IP addresses under which the handler answers (0.10.0); host names only, no scheme, port, path, wildcard or white space. Any other `Host` is 403 `host_not_allowed`. The check sees the `Host` the proxy sends: a proxy that replaces it makes the check constant (stated from 0.11.0). See [Behind an Ingress](#behind-an-ingress). |
-| `AllowHost` | Admits a request whose `Host` the names do not (0.10.0), asked once per request; nil admits by name only. It answers from what only the host's proxy produces, never from `Host` or anything else the browser chooses. |
+| `AllowHost` | Admits a request whose `Host` the names do not (0.10.0), asked once per request; nil admits by name only. It answers from what only the host's proxy produces, never from `Host` or anything else the browser chooses. Every name it admits passes, reads and writes: the Host check is then the proxy's (its authentication, its server names); see [Behind an Ingress](#behind-an-ingress). |
 | `MaxStreams` | The event streams the handler serves at once, every kind and node together (0.10.0); 0 is `DefaultMaxStreams` (64), negative an error. One more answers 503 `too_many_streams` with `Retry-After: 5`. |
 | `Done` | Closing it ends every open stream and removes its observers (0.10.0); a host closes it from its server's shutdown hook. |
 | `Counters` | The host's own counters (0.8.0), shown on the status page and served to a scraper on `GET /node/status`. |
@@ -456,18 +456,26 @@ path prefix it chooses:
   loopback name, an IP address, a name in `Options.AllowedHosts`, or a
   request `Options.AllowHost` admits — and answers any other 403
   `host_not_allowed`, the page included. The check sees the `Host` the
-  proxy sends, not the browser's. A proxy that forwards the browser's
-  `Host` unchanged keeps the check: list the names the browser uses in
-  `AllowedHosts`, or set `AllowHost` and answer it from what only the
-  proxy produces, such as its source address — never from `Host` or
-  anything else the browser chooses. A proxy that replaces `Host` — with
-  a name of its own or with the upstream's address — makes the check
-  constant: every request passes it, whatever name the browser used, so
-  a page under a name that resolves to the proxy (DNS rebinding) reads
-  what a page under the proxy's own name reads, the token and the admin
-  answers included. Behind such a proxy the check is the proxy's: it
-  serves only its own names, with no catch-all server, and refuses any
-  other `Host` — or it forwards `Host`, as above.
+  proxy sends, not the browser's. Three kinds of proxy:
+  - It forwards the browser's `Host` unchanged and the host **lists**
+    the names the browser uses in `AllowedHosts`: the handler checks
+    the name — the one setup in which the check is the handler's.
+  - It forwards the browser's `Host` and the host sets `AllowHost`,
+    answered from what only the proxy produces, such as its source
+    address — never from `Host` or anything else the browser chooses:
+    every name the proxy forwards passes, and the page's own `Origin`
+    equals its `Host`, so reads and writes pass under any name. The
+    check is then the proxy's — its authentication of the user, its
+    server names — as for the Ingress, whose proxy authenticates.
+  - It replaces `Host` — with a name of its own or with the upstream's
+    address: the check is constant, every request passes it whatever
+    name the browser used.
+
+  In the second and third case a page under a name that resolves to the
+  proxy (DNS rebinding) reads what a page under the proxy's own name
+  reads, the token and the admin answers included, and in the second it
+  writes too. There the proxy authenticates the user, or serves only its
+  own names, with no catch-all server, and refuses any other `Host`.
 - **Admin gate by the host.** The proxy authenticates the user; the host's
   `Options.Admin` admits a request when it came through the proxy (for
   example by the proxy's source address), and the page's client sends

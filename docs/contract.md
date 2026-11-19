@@ -449,8 +449,11 @@ header before it is routed. Admitted are `localhost` and the names under
 `Options.AllowedHosts`; else `Options.AllowHost`, when set, is asked once.
 Any other request, one with an empty `Host` included, answers
 `403 host_not_allowed`. A daemon reached under a DNS name lists that
-name; behind a proxy that forwards the browser's `Host` unchanged it sets
-`AllowHost` ([embedding.md](embedding.md#behind-an-ingress)). A proxy that
+name. Behind a proxy that forwards the browser's `Host` unchanged, a host
+that lists the names keeps this check; one that sets `AllowHost` (by the
+proxy's source address) admits every name the proxy forwards, reads and
+writes, and the check is then the proxy's — its authentication, its server
+names ([embedding.md](embedding.md#behind-an-ingress)). A proxy that
 replaces `Host` — with a name of its own or the upstream's address —
 makes this check constant; the check is then the proxy's (no catch-all
 server, unknown names refused).
