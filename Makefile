@@ -14,6 +14,7 @@ FUZZTIME ?= 30s
 FUZZ_TARGETS := \
 	./fabricui:FuzzParseHex ./fabricui:FuzzQueryWindows ./fabricui:FuzzStrings \
 	./fabricui:FuzzDecodeBodies ./fabricui:FuzzControllerBodies ./fabricui:FuzzMux \
+	./fabricui:FuzzHostCheck ./fabricui:FuzzOrigin ./fabricui:FuzzMediaType ./fabricui:FuzzDecodeStrict ./fabricui:FuzzEventSince \
 	./fabricui/gofabric:FuzzThreadDatasetName ./fabricui/gofabric:FuzzDiscoveredAndCode
 
 GOFUMPT_VERSION       ?= v0.12.0
