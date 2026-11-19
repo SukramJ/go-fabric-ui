@@ -8,6 +8,7 @@
   import Button from "../lib/kit/Button.svelte";
   import Input from "../lib/kit/Input.svelte";
   import { trapFocus } from "./focus-trap";
+  import { NODE_LABEL_INPUT_MAX, nodeLabelFits } from "../lib/pages/node/fields";
 
   let { onCreate, onClose }: { onCreate: (label: string) => Promise<void>; onClose: () => void } = $props();
 
@@ -16,7 +17,7 @@
   let label = $state("");
   let busy = $state(false);
   let error = $state<string | null>(null);
-  const valid = $derived(label.trim().length > 0 && label.trim().length <= 64);
+  const valid = $derived(nodeLabelFits(label.trim()));
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
@@ -47,7 +48,7 @@
     <h2 id="fui-node-create-title" class="text-base font-semibold text-[var(--ha-primary-text-color)]">{t("shell.node_create.title")}</h2>
     <p class="mt-2 text-sm text-[var(--ha-secondary-text-color)]">{t("shell.node_create.intro")}</p>
     <label class="mt-4 block text-sm font-medium text-[var(--ha-primary-text-color)]" for="fui-node-create-label">{t("shell.node_create.label")}</label>
-    <Input id="fui-node-create-label" class="mt-1" maxlength={64} data-autofocus placeholder={t("shell.node_create.placeholder")} bind:value={label} />
+    <Input id="fui-node-create-label" class="mt-1" maxlength={NODE_LABEL_INPUT_MAX} data-autofocus placeholder={t("shell.node_create.placeholder")} bind:value={label} />
     {#if error}
       <p class="mt-2 text-sm text-[var(--fui-error-text)]" role="alert">{error}</p>
     {/if}

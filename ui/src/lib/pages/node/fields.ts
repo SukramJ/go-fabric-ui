@@ -65,3 +65,18 @@ export function distinctValues(
     a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }),
   );
 }
+
+/** The longest node label, in characters (Unicode code points) as the server counts them (registry.go, MaxNodeLabel). */
+export const NODE_LABEL_MAX = 64;
+
+/**
+ * The input's maxlength for a node label: maxlength counts UTF-16 units,
+ * and a character outside the BMP is two (UR-P4-ui-297).
+ */
+export const NODE_LABEL_INPUT_MAX = NODE_LABEL_MAX * 2;
+
+/** Whether a trimmed label is 1 to 64 characters, counted as the server counts them, not in UTF-16 units (UR-P4-ui-297). */
+export function nodeLabelFits(trimmed: string): boolean {
+  const n = [...trimmed].length;
+  return n > 0 && n <= NODE_LABEL_MAX;
+}
