@@ -176,3 +176,13 @@ took every recommendation. Source: `held/phase-4-verify.md`.
 | 73 | UR-P4-auth-90: closing a window on a node without a fabric answers "Closed." while go-fabric reopens the node's own window on the configured passcode | **Say it and show it**: the `closeWindow` description, the godoc of `ConfiguredWindow` and the page say that such a node has its own window open afterwards; the page shows the window status after the close instead of a bare "Closed."; no change of behaviour |
 
 Decision 71, read at the code (stage 1, 2026-11-19): the handler's code branch *is* `Pair`, and go-fabric bounds `Pair`'s search only when the context has no deadline (`gf:controller/controller.go:1227-1234`). So the 600 s default sits on the `discovered` path (`CommissionDiscovered`); the code path keeps the one-minute search bound and has no bound after it from this route until go-fabric's `PairOptions` gains a timeout (the issue of decision 71). This is the decision's intent — bound commissioning without stretching the search — not a new decision.
+
+## 2026-11-19, before phase 4's run 2
+
+Put as one wizard of two questions, the recommendation first; the owner
+took both recommendations.
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 74 | The cut of run 2 (run 1's unit S covered only part of its scope, decision 72) | **The security unit split upfront**: S-go (Fable: the Go security paths and the adapter against go-fabric `v0.23.0`), S-web (Fable: the web security paths), G and W (Opus, the rest of each half), a Fable verifier — five agents (decision 6); full cut over `792d15b`, the delta since `979a67a` first (as decision 66) |
+| 75 | The rows carried to run 2 (UR-P4-adpt-197, UR-P4-ui-61's other-tab path, UR-P4-ctr-196's mapping) when run 2 finds no new high or medium | **One fix wave and a patch release**: at most two implementers, the carried rows with run 2's lows and notes, one pull request `review/p4r2`, release `v0.11.1`; contract unchanged unless ctr-196's mapping needs an enum value (then 0.12.0 and `v0.12.0`) |
