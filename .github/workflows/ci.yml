@@ -126,6 +126,8 @@ jobs:
         run: make build
       - name: build (32-bit, the armv7 add-on and arm/386 hosts of the consumers)
         run: GOARCH=386 make build
+      - name: test (32-bit)
+        run: make test-386
 
   coverage:
     name: coverage

@@ -25,6 +25,10 @@
   let hydrateError = $state<string | null>(null);
   let opening = $state(false);
   let closing = $state(false);
+  // The last close left a window open: on a node without a fabric
+  // go-fabric reopens the node's own window on its configured codes
+  // (decision 73).
+  let ownWindowBack = $state(false);
   let selectedDuration = $state(300);
 
   // A refresh, a tab switch or a window opened elsewhere shows the codes
@@ -54,7 +58,17 @@
   const isAdmin = $derived(node.isAdmin);
   // Without admin rights: the window the status names, and what is left of it.
   const viewerWindowOpen = $derived(node.status?.enabled === true && node.status.commissioning_window_open);
-  const viewerLeft = $derived(windowSecondsLeft(node.status, node.statusAt));
+  // A clock for it: Date.now() alone is not tracked, and the number would
+  // stand still between two status reads (UR-P4-ui-60). It ticks only
+  // while such a window is shown.
+  let now = $state(Date.now());
+  $effect(() => {
+    if (!viewerWindowOpen || phase !== "idle" || isAdmin) return;
+    now = Date.now();
+    const tick = setInterval(() => (now = Date.now()), 1000);
+    return () => clearInterval(tick);
+  });
+  const viewerLeft = $derived(windowSecondsLeft(node.status, node.statusAt, now));
 
   // Opening a window on a node controllers already hold adds a controller;
   // the card says which of the two the operator is doing.
@@ -75,6 +89,7 @@
 
   async function openWindow() {
     opening = true;
+    ownWindowBack = false;
     try {
       await node.openWindow(selectedDuration);
     } catch (err) {
@@ -84,15 +99,27 @@
     }
   }
 
+  // After the close the page shows what the node reports, not a bare
+  // "closed": the window that is open again with its codes, or that none
+  // is (decision 73).
   async function closeWindow() {
     closing = true;
+    ownWindowBack = false;
     try {
       await node.closeWindow();
     } catch (err) {
       toast.error(errorText(err));
-    } finally {
       closing = false;
+      return;
     }
+    try {
+      await node.hydrateCommissioning();
+    } catch {
+      // The status (read first) still says whether a window is open.
+    }
+    if (node.status?.commissioning_window_open) ownWindowBack = true;
+    else toast.info(t("node.commissioning.closed"));
+    closing = false;
   }
 
   const RING_R = 54;
@@ -102,6 +129,11 @@
 </script>
 
 <div class="max-w-lg">
+  {#if ownWindowBack && phase !== "success" && node.status?.commissioning_window_open}
+    <p class="mb-4 rounded border border-[var(--ha-warning-color)] p-3 text-sm text-[var(--ha-primary-text-color)]" role="status" data-testid="pair-own-window">
+      {t("node.pair.own_window_back")}
+    </p>
+  {/if}
   {#if hydrateLoading}
     <p class="text-sm text-[var(--ha-secondary-text-color)]">{t("node.pair.loading")}</p>
   {:else if hydrateError}

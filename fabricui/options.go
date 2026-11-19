@@ -270,7 +270,14 @@ type Options struct {
 	// window with its configured passcode and discriminator
 	// (Node.OpenOwnWindow). The default opens it with
 	// fresh random credentials (node.OpenBasicWindow), which no earlier
-	// reader of the configured codes can use.
+	// reader of the configured codes can use while it is open. On a node
+	// without a fabric go-fabric reopens the node's own window on the
+	// configured codes when that fresh window closes or expires, so after
+	// POST /node/pairing/window/close of it such a node has its own window
+	// open again (a second close closes it). With ConfiguredWindow the
+	// page opens the own window, and its close leaves none open. A host
+	// that wants no window it did not open sets go-fabric's
+	// Commissioning.WindowOnDemand.
 	ConfiguredWindow bool
 	// AllowEmptyTopology lets POST /node/pairing/window open a window
 	// while the node exposes no endpoint yet. By default that is refused
@@ -298,10 +305,14 @@ type Options struct {
 	// nil omits the status response's warnings.
 	Warnings func(ctx context.Context) []Warning
 	// AllowedHosts are the DNS names besides loopback names and IP
-	// addresses under which requests reach the handler; a host behind a
-	// proxy lists the name the proxy sends as Host. Every other Host is
-	// answered 403 host_not_allowed, on every route and in every mode, the
-	// web interface included. Entries are host names only — no scheme,
+	// addresses under which requests reach the handler. Every other Host
+	// is answered 403 host_not_allowed, on every route and in every mode,
+	// the web interface included. The check sees the Host a request
+	// arrives with: behind a proxy that forwards the browser's Host, list
+	// the names the browser uses; a proxy that replaces Host — with a name
+	// of its own or the upstream's address — makes the check constant, and
+	// the check is then the proxy's: it serves only its own names and
+	// refuses any other Host (docs/embedding.md, Behind an Ingress). Entries are host names only — no scheme,
 	// port, path, wildcard or white space — compared case-insensitively;
 	// [NewHandler] and [Mount] refuse anything else.
 	AllowedHosts []string
@@ -311,7 +322,10 @@ type Options struct {
 	// from what only its proxy can produce, such as the proxy's source
 	// address. It is asked once per request, on every route and in every
 	// mode, and must not answer from the Host header or anything else the
-	// browser chooses. Nil admits by name only.
+	// browser chooses. Every name it admits passes, reads and writes (an
+	// Origin equal to the request's Host passes): the Host check is then
+	// the proxy's — its authentication of the user, its server names
+	// (docs/embedding.md, Behind an Ingress). Nil admits by name only.
 	AllowHost func(r *http.Request) bool
 	// MaxStreams caps the event streams this handler serves at once, every
 	// kind and node together; one more answers 503 with Retry-After. Zero

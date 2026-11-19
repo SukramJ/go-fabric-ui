@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/SukramJ/go-fabric/eligibility"
@@ -41,7 +42,7 @@ type statusResponse struct {
 	WindowOpen     bool   `json:"commissioning_window_open"`
 	WindowDuration uint16 `json:"commissioning_window_duration_seconds,omitempty"`
 	// WindowKind is which window is open (node.WindowKind: none, own,
-	// basic, enhanced); absent without a node.
+	// basic, enhanced, administrator_basic); absent without a node.
 	WindowKind string `json:"window_kind,omitempty"`
 	// WindowDeadline is when the open window's timer closes it, on the
 	// node's clock (node.Window); absent while none is open.
@@ -215,7 +216,9 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	res.Advertising = h.node.mdns().Advertising
 	win := h.node.window()
 	res.WindowOpen = win.Open
-	res.WindowKind = win.Kind.String()
+	// go-fabric's names, its "administrator-basic" (v0.23.0) as the
+	// contract's administrator_basic (0.11.0, decision 30).
+	res.WindowKind = strings.ReplaceAll(win.Kind.String(), "-", "_")
 	if win.Open {
 		res.WindowDuration = durationSeconds(win.Timeout)
 		if !win.Deadline.IsZero() {
@@ -223,12 +226,13 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	res.WindowRemaining = remainingSeconds(win, h.node.now())
-	if fabrics, err := h.node.fabrics(r.Context()); err == nil {
+	fabrics, err := h.node.fabrics(r.Context())
+	if err == nil {
 		res.FabricCount = ptr(len(fabrics))
-	} else {
-		// fabric_count is then absent; the log says why (UR-P1-err-07).
-		h.log.WarnContext(r.Context(), "fabricui.status.fabrics_failed", slog.String("error", err.Error()))
 	}
+	// fabric_count is then absent; the log says why (UR-P1-err-07), once
+	// per failure, not per request: the route is open (UR-P4-leak-91).
+	h.logFabricsState(r.Context(), err)
 	if h.exposure != nil {
 		if items, err := h.exposure.List(r.Context()); err == nil {
 			n := 0
@@ -332,6 +336,12 @@ func (h *handler) removeFabric(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.node.removeFabric(r.Context(), uint8(idx)); err != nil {
+		if errors.Is(err, node.ErrFabricNotFound) {
+			// Removed meanwhile, by another admin or the controller itself
+			// (UR-P1-err-33).
+			writeProblem(w, r, http.StatusNotFound, codeNotFound, "No such fabric", fmt.Sprintf("the node has no fabric %d", idx))
+			return
+		}
 		h.serverError(w, r, "Failed to remove fabric", err)
 		return
 	}
@@ -497,11 +507,11 @@ func eventRecords(in []EventRecord) api.EventRecordList {
 	for i := range in {
 		e := &in[i]
 		r := api.EventRecord{
-			Number: int(e.Number), NumberStr: ptr(strconv.FormatUint(e.Number, 10)), Priority: api.EventRecordPriority(e.Priority), Endpoint: int(e.Endpoint), //nolint:gosec // an event number fits int64
+			Number: int64(e.Number), NumberStr: ptr(strconv.FormatUint(e.Number, 10)), Priority: api.EventRecordPriority(e.Priority), Endpoint: int(e.Endpoint), //nolint:gosec // an event number fits int64
 			ClusterHex: hexID(e.Cluster), EventHex: hexID(e.Event), Name: optString(e.Name),
 		}
 		if e.EpochMS != nil {
-			r.EpochMs = ptr(int(*e.EpochMS))
+			r.EpochMs = ptr(*e.EpochMS)
 		}
 		if e.Data != nil {
 			r.Data = ptr(e.Data)
@@ -695,4 +705,24 @@ const detachedTimeout = 2 * time.Minute
 // attributes) stay.
 func detached(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), detachedTimeout)
+}
+
+// logFabricsState logs the status's fabric read when its outcome changes:
+// a failure, a failure with another text, its end.
+func (h *handler) logFabricsState(ctx context.Context, err error) {
+	text := ""
+	if err != nil {
+		text = err.Error()
+	}
+	h.logMu.Lock()
+	last := h.fabricsErr
+	h.fabricsErr = text
+	h.logMu.Unlock()
+	switch {
+	case text == last:
+	case text != "":
+		h.log.WarnContext(ctx, "fabricui.status.fabrics_failed", slog.String("error", text))
+	default:
+		h.log.InfoContext(ctx, "fabricui.status.fabrics_recovered")
+	}
 }

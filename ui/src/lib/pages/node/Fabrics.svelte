@@ -61,7 +61,7 @@
   async function reassemble() {
     busy = true;
     try {
-      await client.reassemble();
+      await node.reassemble();
       toast.success(t("node.maint.reassemble_done"));
       await node.loadStatus();
     } catch (err) {

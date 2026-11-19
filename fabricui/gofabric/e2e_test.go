@@ -559,7 +559,7 @@ func TestEndToEnd_Controller(t *testing.T) {
 			Title string `json:"title"`
 			Bit   int    `json:"bit"`
 		} `json:"features"`
-		DataVersion *int `json:"data_version"`
+		DataVersion *int64 `json:"data_version"`
 		Attributes  []struct {
 			ID    int             `json:"id"`
 			Name  string          `json:"name"`
@@ -677,7 +677,7 @@ type endpointDetail struct {
 		Features   []struct {
 			Code string `json:"code"`
 		} `json:"features"`
-		DataVersion *int `json:"data_version"`
+		DataVersion *int64 `json:"data_version"`
 		Attributes  []struct {
 			ID    int             `json:"id"`
 			Name  string          `json:"name"`

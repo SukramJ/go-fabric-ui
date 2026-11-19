@@ -147,15 +147,17 @@ func (h *handler) registryEntries() []NodeEntry {
 	for k := range h.keyed {
 		seen[k] = true
 	}
+	var skipped []string
 	for i := range list {
 		e := list[i]
 		if err := checkNodeKey(e.Key, seen); err != nil {
-			h.log.Warn("fabricui.registry.entry_skipped", slog.String("error", err.Error()))
+			skipped = append(skipped, err.Error())
 			continue
 		}
 		seen[e.Key] = true
 		out = append(out, e)
 	}
+	h.logSkipped(skipped)
 	h.regMu.Lock()
 	for k := range h.regCache {
 		if !seen[k] {
@@ -363,5 +365,26 @@ func (h *handler) deleteNode(w http.ResponseWriter, r *http.Request) {
 func (h *handler) publishNodesChanged(keys ...string) {
 	if h.nodesHub != nil {
 		h.nodesHub.Publish(Event{Type: EventNodesChanged, Data: NodesChangedEvent{Keys: keys}})
+	}
+}
+
+// logSkipped logs an entry left out when it is first left out, not on
+// every request that lists the registry: GET /nodes is open
+// (UR-P4-leak-91). An entry that is served again, or no longer listed,
+// is forgotten, so it is logged again when it returns.
+func (h *handler) logSkipped(errs []string) {
+	now := make(map[string]bool, len(errs))
+	var fresh []string
+	h.logMu.Lock()
+	for _, e := range errs {
+		now[e] = true
+		if !h.skipped[e] {
+			fresh = append(fresh, e)
+		}
+	}
+	h.skipped = now
+	h.logMu.Unlock()
+	for _, e := range fresh {
+		h.log.Warn("fabricui.registry.entry_skipped", slog.String("error", e))
 	}
 }

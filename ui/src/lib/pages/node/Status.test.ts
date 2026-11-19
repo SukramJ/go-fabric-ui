@@ -63,6 +63,21 @@ describe("Status", () => {
     expect(card.compareDocumentPosition(screen.getByTestId("node-status")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  // Without admin rights a warning carries its code only (decision 34): the
+  // card says why, instead of a row of bare codes (UR-P4-ui-65).
+  it("says that an administrator sees the details when the warnings carry no message", async () => {
+    const s = body<StatusT>("node-status.200");
+    s.warnings = (s.warnings ?? []).map((w) => ({ ...w, message: "" }));
+    render(Harness, { ui: testUI({ answers: { "GET /node/status": { status: 200, body: { ...s, admin: false, csrf_token: undefined } } } }), page: Status });
+    const card = await screen.findByTestId("host-warnings");
+    expect(within(card).getByText("label_unresolved")).toBeInTheDocument();
+    expect(within(card).getByTestId("host-warnings-viewer")).toHaveTextContent("node.warnings.viewer");
+    cleanup();
+    render(Harness, { ui: testUI({ fixtures: ["node-status.200"] }), page: Status });
+    expect(await screen.findByTestId("host-warnings")).toBeInTheDocument();
+    expect(screen.queryByTestId("host-warnings-viewer")).toBeNull();
+  });
+
   it("shows no warnings card when the host reports none", async () => {
     const s = body<StatusT>("node-status.200");
     delete s.warnings;

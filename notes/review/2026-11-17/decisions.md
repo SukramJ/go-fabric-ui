@@ -149,3 +149,30 @@ took every recommendation. Source: `notes/briefs/2026-11-18-review-p3-contract.m
 | # | Subject | Decision |
 | --- | --- | --- |
 | 64 | Owner, 2026-11-19: "In das Release soll auch die neuste Go-fabric Version" — the go-fabric pin of `v0.10.0` | **go-fabric v0.23.0 in PR #78**, not in phase 4: the pin lift with decision 62's migration (two deprecated window errors no node method returns, their branches and their test dropped) and the adapter's label push fixed, whose lost update v0.23.0's timing exposed. The fixes that use what v0.23.0 exports (UR-P1-err-33's controller route, UR-P2-err-37, decision 30's window kind, UR-P2-err-09) stay phase 4. |
+
+## 2026-11-19, before phase 4
+
+Put as one wizard of four questions, the recommendation first; the owner
+took every recommendation.
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 65 | Order of phase 4's first run and the six carried rows (UR-P1-err-33's controller route, UR-P2-err-37, decision 30's window kind, UR-P2-err-09, UR-P1-api-171, UR-P3-web-191's rest) | **Review first, then one fix wave** (as decision 39): run 1 reads `979a67a`, the carried rows are not re-reported; one fix wave (at most two agents) implements them with run 1's findings, one pull request `review/p4` |
+| 66 | Breadth of run 1 | **The full cut, the delta first**: the README's four agents read every hand-written file of their half; the files changed since `f4b8573` (phase 3's fix bundle, the held rows' fixes, the v0.23.0 lift), which only the pre-merge read saw, line by line first |
+| 67 | The release after phase 4 (decision 15) | **v0.11.0 with contract 0.11.0**: the controller route's 404 for an unknown fabric is a contract change; `contract/previous/` is copied from `v0.10.0`, a `docs/contract.md` line for the hosts |
+| 68 | Where go-fabric-server's plan is written (decision 6: while go-fabric-ui is in phase 4) | **Its own fresh session**, started by the owner in parallel; this session stays phase 4's coordinator |
+
+## 2026-11-19, after run 1's verification
+
+Put as one wizard of four questions, the recommendation first; the owner
+took every recommendation. Source: `held/phase-4-verify.md`.
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 69 | Held row UR-P4-auth-03 (detail in `held/`) | **Docs for the whole class**: `docs/embedding.md`, godoc and changelog; no `Options` field, no contract artefact; its red test becomes a docs guard. Held until the fix merges |
+| 70 | UR-P4-adpt-32: one product's failed image download fails `POST /controller/updates/check` for every node with an undeclared 502 | **A partial result with an error per node**: the route returns what was found, an optional per-node error field (additive, contract 0.11.0); the status guard also sees the real adapter's errors (UR-P4-test-33) |
+| 71 | UR-P4-bound-02: commissioning without `timeout_seconds` has no deadline | **A 600 s default on the commission-by-code path only**; `Pair` keeps its one-minute search bound, a go-fabric issue asks for a timeout in `PairOptions`; the contract's description names both paths |
+| 72 | Unit S's partial coverage (the verifier's list) | **One more Fable reader now** (unit S2, the fifth review agent of run 1) over exactly those gaps at `979a67a`, before the fix wave; its findings go into the same pull request; the run-1 verifier, resumed, verifies its high and medium |
+| 73 | UR-P4-auth-90: closing a window on a node without a fabric answers "Closed." while go-fabric reopens the node's own window on the configured passcode | **Say it and show it**: the `closeWindow` description, the godoc of `ConfiguredWindow` and the page say that such a node has its own window open afterwards; the page shows the window status after the close instead of a bare "Closed."; no change of behaviour |
+
+Decision 71, read at the code (stage 1, 2026-11-19): the handler's code branch *is* `Pair`, and go-fabric bounds `Pair`'s search only when the context has no deadline (`gf:controller/controller.go:1227-1234`). So the 600 s default sits on the `discovered` path (`CommissionDiscovered`); the code path keeps the one-minute search bound and has no bound after it from this route until go-fabric's `PairOptions` gains a timeout (the issue of decision 71). This is the decision's intent — bound commissioning without stretching the search — not a new decision.

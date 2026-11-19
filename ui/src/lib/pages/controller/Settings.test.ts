@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/sv
 import Harness from "../../../test/Harness.svelte";
 import { fixture, testUI } from "../../../test/support";
 import Settings from "./Settings.svelte";
+import { createTranslator } from "../../i18n";
 
 afterEach(cleanup);
 
@@ -75,5 +76,19 @@ describe("Controller Settings — capabilities and the credential form", () => {
     }
     expect(ui.toastSpy.error).toHaveBeenCalledWith("controller.settings.dataset_invalid");
     expect(ui.sent.some((s) => s.method === "PUT")).toBe(false);
+  });
+});
+
+describe("Controller Settings — the label's limit (UR-P4-ui-64)", () => {
+  // The rule is 32 bytes of UTF-8 (decision 52): the hint names bytes and
+  // the limit, as the refusal does.
+  it("states the limit in bytes, in both catalogues", async () => {
+    const ui = testUI({ fixtures: ["controller-status.200", "controller-credentials.200"] });
+    render(Harness, { ui, page: Settings });
+    expect(await screen.findByText('controller.settings.label_hint:{"max":32}')).toBeInTheDocument();
+    const en = createTranslator(() => "en");
+    const de = createTranslator(() => "de");
+    expect(en("controller.settings.label_hint", { max: 32 })).toMatch(/32 bytes/);
+    expect(de("controller.settings.label_hint", { max: 32 })).toMatch(/32 Bytes/);
   });
 });

@@ -426,7 +426,7 @@ func TestStream_FabricUpdatedCommissioningCompleteClusterEvent(t *testing.T) {
 		{Type: EventCommissioningComplete, Data: FabricEvent{FabricIndex: 3}},
 		{Type: EventClusterEvent, Data: api.EventRecord{
 			Number: 12, NumberStr: ptr("12"), Priority: "info", Endpoint: 2, ClusterHex: "0x0039", EventHex: "0x0003",
-			Name: ptr("ReachableChanged"), EpochMs: ptr(int(ms)),
+			Name: ptr("ReachableChanged"), EpochMs: ptr(ms),
 		}},
 	}
 	if !reflect.DeepEqual(stream.events, want) {

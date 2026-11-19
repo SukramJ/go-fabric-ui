@@ -4,10 +4,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
-import { body, testUI } from "../../../test/support";
+import { body, fixtureFetch, testUI } from "../../../test/support";
 import { reactiveLocale } from "../../../test/locale.svelte";
 import { createTranslator } from "../../i18n";
-import type { Status } from "../../api/client";
+import { createClient, type Status } from "../../api/client";
 import Pair from "./Pair.svelte";
 
 const writeText = vi.fn();
@@ -69,6 +69,53 @@ describe("Pair — the window", () => {
     ui.node.applyEvent({ type: "fabric_added", data: { fabric_index: 3, label: "Home" } });
     expect(await screen.findByText("node.pair.success")).toBeInTheDocument();
     expect(screen.getByText("Home")).toBeInTheDocument();
+  });
+});
+
+// Decision 73: on a node without a fabric go-fabric reopens the node's own
+// window on its configured codes when a fresh window closes. The page
+// shows the window after the close, not a bare "closed".
+describe("decision 73: the window after a close", () => {
+  async function renderClose(after: Partial<Status>) {
+    const ff = fixtureFetch(["node-pairing.200-window", "node-pairing-window-close.204"]);
+    const answer = (route: string, b: unknown) =>
+      ff.routes.set(`GET /api/v1${route}`, { route: `GET ${route}`, request: { method: "GET", path: route }, response: { status: 200, body: b } });
+    answer("/node/status", { ...body<Status>("node-status.200"), fabric_count: 0, commissioning_window_open: true, window_kind: "basic" });
+    // What the node reports once the close is answered.
+    const closed = () => {
+      answer("/node/status", { ...body<Status>("node-status.200"), fabric_count: 0, ...after });
+      answer("/node/pairing", {
+        ...body<Record<string, unknown>>("node-pairing.200-window"),
+        source: "configured",
+        manual_code: "34970112332",
+        window_open: after.commissioning_window_open === true,
+      });
+    };
+    const ui = testUI({
+      client: createClient("/api/v1", async (url, init) => {
+        const res = await ff.fetch(url, init);
+        if (init?.method === "POST" && url.endsWith("/pairing/window/close")) closed();
+        return res;
+      }),
+    });
+    render(Harness, { ui, page: Pair });
+    await fireEvent.click(await screen.findByText("node.pair.close_window"));
+    return ui;
+  }
+
+  it("shows the node's own window on its configured codes when it is open after the close", async () => {
+    const ui = await renderClose({ commissioning_window_open: true, window_kind: "own", window_remaining_seconds: 172800 });
+    expect(await screen.findByTestId("pair-own-window")).toHaveTextContent("node.pair.own_window_back");
+    expect(screen.getByText("34970112332")).toBeInTheDocument();
+    expect(screen.getByText("node.pair.close_window")).toBeInTheDocument();
+    expect(ui.toastSpy.info).not.toHaveBeenCalled();
+  });
+
+  it("says the window is closed when the status reads it closed", async () => {
+    const ui = await renderClose({ commissioning_window_open: false, window_kind: "none" });
+    await waitFor(() => expect(ui.toastSpy.info).toHaveBeenCalledWith("node.commissioning.closed"));
+    expect(screen.getByText("node.pair.window_open")).toBeInTheDocument();
+    expect(screen.queryByTestId("pair-own-window")).toBeNull();
   });
 });
 
@@ -217,6 +264,20 @@ describe("UR-P1-ui-133: a viewer without admin rights", () => {
     expect(screen.queryByText("node.pair.close_window")).toBeNull();
     expect(screen.queryByText("node.pair.load_error")).toBeNull();
     expect(ui.sent.some((s) => s.path.endsWith("/pairing"))).toBe(false);
+  });
+
+  it("counts the open window down while the page is shown (UR-P4-ui-60)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await renderPair({ admin: false, csrf_token: undefined, commissioning_window_open: true, window_remaining_seconds: 300, window_deadline: undefined });
+      const v = await screen.findByTestId("pair-viewer");
+      expect(v).toHaveTextContent(/n.":300\b/);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(v).toHaveTextContent(/n.":29\d\b/);
+      expect(v).not.toHaveTextContent(/n.":300\b/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

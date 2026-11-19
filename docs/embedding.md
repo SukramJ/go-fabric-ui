@@ -51,12 +51,12 @@ valid prefix and serves no page.
 | `Events` | Events the host publishes beside the handler's own and the node's (an exposure change made outside the page); they reach admin streams only, whatever their type. The handler keeps a hub of its own (0.10.0): a host that reads the `*fabricui.Events` it passes here no longer sees the handler's events in it. |
 | `Prefix` | The API prefix for `Mount`; default `/api/v1`. `NewHandler` and `Handler` take `""` or `/api/v1` only. |
 | `Logger` | The handlers' logger; nothing it receives carries a passcode. |
-| `ConfiguredWindow` | Open the window on the node's configured passcode instead of fresh credentials. |
+| `ConfiguredWindow` | Open the window on the node's configured passcode instead of fresh credentials. Without it, a node without a fabric has its own window on the configured passcode open again once the window on fresh credentials closes or expires (go-fabric's design; `Commissioning.WindowOnDemand` turns it off); with it, the closed window stays closed. |
 | `AllowEmptyTopology` | Allow a window while no endpoint is exposed. |
 | `FrameAncestors` | Further origins that may frame the page, each a CSP host-source. See [Response headers and framing](#response-headers-and-framing). |
 | `Warnings` | The host's findings about its own configuration, shown on the status and selection pages. |
-| `AllowedHosts` | The DNS names besides loopback names and IP addresses under which the handler answers (0.10.0); host names only, no scheme, port, path, wildcard or white space. Any other `Host` is 403 `host_not_allowed`. See [Behind an Ingress](#behind-an-ingress). |
-| `AllowHost` | Admits a request whose `Host` the names do not (0.10.0), asked once per request; nil admits by name only. It answers from what only the host's proxy produces, never from `Host` or anything else the browser chooses. |
+| `AllowedHosts` | The DNS names besides loopback names and IP addresses under which the handler answers (0.10.0); host names only, no scheme, port, path, wildcard or white space. Any other `Host` is 403 `host_not_allowed`. The check sees the `Host` the proxy sends: a proxy that replaces it makes the check constant (stated from 0.11.0). See [Behind an Ingress](#behind-an-ingress). |
+| `AllowHost` | Admits a request whose `Host` the names do not (0.10.0), asked once per request; nil admits by name only. It answers from what only the host's proxy produces, never from `Host` or anything else the browser chooses. Every name it admits passes, reads and writes: the Host check is then the proxy's (its authentication, its server names); see [Behind an Ingress](#behind-an-ingress). |
 | `MaxStreams` | The event streams the handler serves at once, every kind and node together (0.10.0); 0 is `DefaultMaxStreams` (64), negative an error. One more answers 503 `too_many_streams` with `Retry-After: 5`. |
 | `Done` | Closing it ends every open stream and removes its observers (0.10.0); a host closes it from its server's shutdown hook. |
 | `Counters` | The host's own counters (0.8.0), shown on the status page and served to a scraper on `GET /node/status`. |
@@ -370,7 +370,7 @@ What each route calls on the facade:
 | `POST /controller/commission` | `Controller.Pair`, or `Registry().ForDevice` and `Commission` for a discovered device; `PairOptions.Progress` (commissioner `Options.Progress`) for the steps, `PairOptions.TermsAndConditions` (commissioner `Options.TermsAndConditions` for a discovered device; 0.8.0). A discovered device's commissioning applies the template's attestation policy, an unset one rejecting a failed attestation (0.10.0), but does not go through `Controller.Pair`: it adds no pairing entry to the trace `GET /controller/events` serves, counts no pairing metric and reports no Discovery step |
 | `GET /controller/discovery` | `Controller.Discover`, always with a timeout (1–60 s, default 3 s): the facade's 0 would search for 15 minutes (go-fabric `controller/code.go:92-99` at v0.22.2) |
 | `PUT /controller/fabric/label` | `Fabric().SetLabel`, then `Registry().SetFabricLabel` in the background |
-| `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates`, `AddUpdateConsent`; the stream's `update` events from `Observe`, subscribed in `ControllerOf` and released by `Hooks.Close` (0.7.0) |
+| `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates` (over every node, then one node per product among the nodes without an update found when the whole check failed, 0.11.0), `AddUpdateConsent`; the stream's `update` events from `Observe`, subscribed in `ControllerOf` and released by `Hooks.Close` (0.7.0) |
 | `GET /controller/topology` | `ControllerOptions.Topology`, the host's `*topology.Service`: `Topology()`, or `Refresh` with `refresh=true`; its `OnChanged` becomes `topology_changed`. The host wires it: `topology.Changes.Install(&cfg)` before `controller.New`, `topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})`, `ControllerOf(…, ControllerOptions{Topology: svc})`, and `svc.Close()` on shutdown (the subscription goes with `Hooks.Close`). The border routers (0.8.0) need nothing more: with `topology.Config.BorderRouters` nil the service builds on the controller's own registry, `Controller.BorderRouters` (go-fabric `controller/topology/service.go:57-60`, `:163-165` at v0.19.1). Without it `NetworkTopology` answers `fabricui.ErrNotImplemented` (501) |
 | `GET /controller/diagnostics`, `/mdns`, `/events`; `controller_diagnostic_event` | `Controller.SessionDiagnostics`, `DiagnoseMDNS`, `DiagnosticEvents` and `OnDiagnosticEvent` (go-fabric `controller/diagnostics.go:46`, `:547`, `:140`, `:154` at v0.21.0), mapped one to one onto the port's types; nothing to wire. `DiagnoseMDNS` waits for the DNS-SD cache and is called from the request only; `OnDiagnosticEvent` runs on the goroutine that recorded the event, and the handler only queues it (0.9.0) |
 
@@ -455,11 +455,27 @@ path prefix it chooses:
 - **Host names.** The handler answers only a `Host` it admits — a
   loopback name, an IP address, a name in `Options.AllowedHosts`, or a
   request `Options.AllowHost` admits — and answers any other 403
-  `host_not_allowed`, the page included. A proxy that sends a name of its
-  own as `Host`: list that name in `AllowedHosts`. A proxy that forwards
-  the browser's `Host` unchanged: set `AllowHost`, and answer it from what
-  only the proxy produces, such as its source address — never from `Host`
-  or anything else the browser chooses.
+  `host_not_allowed`, the page included. The check sees the `Host` the
+  proxy sends, not the browser's. Three kinds of proxy:
+  - It forwards the browser's `Host` unchanged and the host **lists**
+    the names the browser uses in `AllowedHosts`: the handler checks
+    the name — the one setup in which the check is the handler's.
+  - It forwards the browser's `Host` and the host sets `AllowHost`,
+    answered from what only the proxy produces, such as its source
+    address — never from `Host` or anything else the browser chooses:
+    every name the proxy forwards passes, and the page's own `Origin`
+    equals its `Host`, so reads and writes pass under any name. The
+    check is then the proxy's — its authentication of the user, its
+    server names — as for the Ingress, whose proxy authenticates.
+  - It replaces `Host` — with a name of its own or with the upstream's
+    address: the check is constant, every request passes it whatever
+    name the browser used.
+
+  In the second and third case a page under a name that resolves to the
+  proxy (DNS rebinding) reads what a page under the proxy's own name
+  reads, the token and the admin answers included, and in the second it
+  writes too. There the proxy authenticates the user, or serves only its
+  own names, with no catch-all server, and refuses any other `Host`.
 - **Admin gate by the host.** The proxy authenticates the user; the host's
   `Options.Admin` admits a request when it came through the proxy (for
   example by the proxy's source address), and the page's client sends

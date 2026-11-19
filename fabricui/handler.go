@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/SukramJ/go-fabric/node"
+
+	"github.com/SukramJ/go-fabric-ui/internal/statusobs"
 )
 
 // TokenHeader carries the admin token in token mode (a nil
@@ -115,6 +117,13 @@ type handler struct {
 	// the Host check (hostCheck).
 	allowedHosts map[string]bool
 	allowHost    func(*http.Request) bool
+
+	// logMu guards fabricsErr and skipped, the states the status and the
+	// registry log on a change only: the last fabric read's error text,
+	// the registry entries' errors left out (UR-P4-leak-91).
+	logMu      sync.Mutex
+	fabricsErr string
+	skipped    map[string]bool
 }
 
 // streamCount is the open streams and their bound.
@@ -433,22 +442,18 @@ func apiHeaders(next http.Handler) http.Handler {
 		hdr := w.Header()
 		hdr.Set("Cache-Control", "no-store")
 		setCommonHeaders(hdr)
-		if observeStatus == nil {
+		observe := statusobs.Observe
+		if observe == nil {
 			next.ServeHTTP(w, r)
 			return
 		}
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(sw, r)
 		if !sw.pathLevel {
-			observeStatus(r.Method, r.URL.Path, sw.status)
+			observe(r.Method, r.URL.Path, sw.status)
 		}
 	})
 }
-
-// observeStatus, set by the package's tests only, sees every status the
-// API answers: the guard that each is declared for its operation in the
-// contract (decision 47, TestMain).
-var observeStatus func(method, path string, status int)
 
 // statusWriter records the status written through it.
 type statusWriter struct {
@@ -614,6 +619,8 @@ func (h *handler) sibling(e nodeEntry) *handler {
 		exposureReason: h.exposureReason,
 		streams:        h.streams,
 		hostDone:       h.hostDone,
+		allowedHosts:   h.allowedHosts,
+		allowHost:      h.allowHost,
 	}
 	s.hub, s.extra = hubOf(e.events)
 	s.config.Store(e.config)

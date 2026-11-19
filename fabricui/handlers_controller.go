@@ -342,6 +342,22 @@ func nonZero[T ~uint8 | ~uint16 | ~uint32](v T) *int {
 	return ptr(int(v))
 }
 
+// optUint64 and nonZero64 are optUint and nonZero for a contract field
+// of format int64 (0.11.0): a uint32 does not fit int on arm/386.
+func optUint64[T ~uint32](v *T) *int64 {
+	if v == nil {
+		return nil
+	}
+	return ptr(int64(*v))
+}
+
+func nonZero64[T ~uint32](v T) *int64 {
+	if v == 0 {
+		return nil
+	}
+	return ptr(int64(v))
+}
+
 // --- status, nodes ---
 
 func (s *controllerServer) GetControllerStatus(ctx context.Context, _ api.GetControllerStatusRequestObject) (api.GetControllerStatusResponseObject, error) {
@@ -450,7 +466,7 @@ func nodeDetail(n ControllerNode) api.ControllerNodeDetail {
 			Discriminator:       optUint(rec.Discriminator),
 			AnnouncedVendorID:   optUint(rec.VendorID),
 			AnnouncedProductID:  optUint(rec.ProductID),
-			AnnouncedDeviceType: optUint(rec.DeviceType),
+			AnnouncedDeviceType: optUint64(rec.DeviceType),
 			DeviceName:          optString(rec.DeviceName),
 		},
 		Properties: api.NodeProperties{
@@ -460,10 +476,10 @@ func nodeDetail(n ControllerNode) api.ControllerNodeDetail {
 			MainsPowered:            p.MainsPowered,
 			BatteryPowered:          p.BatteryPowered,
 			IntermittentlyConnected: p.IntermittentlyConnected,
-			SpecificationVersion:    nonZero(p.SpecificationVersion),
+			SpecificationVersion:    nonZero64(p.SpecificationVersion),
 			SerialNumber:            optString(b.SerialNumber),
 			SoftwareVersion:         optString(b.SoftwareVersion),
-			DeviceTypes:             []int{},
+			DeviceTypes:             []int64{},
 		},
 		Endpoints: []api.NodeEndpoint{},
 	}
@@ -477,7 +493,7 @@ func nodeDetail(n ControllerNode) api.ControllerNodeDetail {
 		d.Properties.IdleModeDurationSeconds = ptr(int(p.IdleModeDuration / time.Second))
 	}
 	for _, t := range p.DeviceTypes {
-		d.Properties.DeviceTypes = append(d.Properties.DeviceTypes, int(t))
+		d.Properties.DeviceTypes = append(d.Properties.DeviceTypes, int64(t))
 	}
 	for _, ep := range n.Endpoints() {
 		e := api.NodeEndpoint{Endpoint: int(ep.Number), Name: optString(ep.Name), Reachable: ep.Reachable, DeviceTypes: []api.NodeDeviceType{}, Clusters: []api.NodeCluster{}}
@@ -485,10 +501,10 @@ func nodeDetail(n ControllerNode) api.ControllerNodeDetail {
 			e.Parent = ptr(int(*ep.Parent))
 		}
 		for _, dt := range ep.DeviceTypes {
-			e.DeviceTypes = append(e.DeviceTypes, api.NodeDeviceType{ID: int(dt.ID), IDHex: hexID(dt.ID), Name: dt.Name, Revision: nonZero(dt.Revision)})
+			e.DeviceTypes = append(e.DeviceTypes, api.NodeDeviceType{ID: int64(dt.ID), IDHex: hexID(dt.ID), Name: dt.Name, Revision: nonZero(dt.Revision)})
 		}
 		for _, c := range ep.Clusters {
-			e.Clusters = append(e.Clusters, api.NodeCluster{ID: int(c.ID), IDHex: hexID(c.ID), Name: c.Name, Revision: int(c.Revision), Features: nonNil(c.Features)})
+			e.Clusters = append(e.Clusters, api.NodeCluster{ID: int64(c.ID), IDHex: hexID(c.ID), Name: c.Name, Revision: int(c.Revision), Features: nonNil(c.Features)})
 		}
 		d.Endpoints = append(d.Endpoints, e)
 	}
@@ -514,7 +530,7 @@ func endpointDetail(d EndpointDetail) api.EndpointDetail {
 		out.ParentEndpointID = ptr(int(*d.Parent))
 	}
 	for _, dt := range d.DeviceTypes {
-		out.DeviceTypes = append(out.DeviceTypes, api.EndpointDeviceType{ID: int(dt.ID), IDHex: hexID(dt.ID), Name: optString(dt.Name), Revision: int(dt.Revision)})
+		out.DeviceTypes = append(out.DeviceTypes, api.EndpointDeviceType{ID: int64(dt.ID), IDHex: hexID(dt.ID), Name: optString(dt.Name), Revision: int(dt.Revision)})
 	}
 	for _, t := range d.Tags {
 		out.Tags = append(out.Tags, api.SemanticTag{Namespace: int(t.Namespace), Tag: int(t.Tag), MfgCode: optUint(t.MfgCode), Label: optString(t.Label)})
@@ -532,7 +548,7 @@ func endpointDetail(d EndpointDetail) api.EndpointDetail {
 		v := api.ConformanceVerdict{Status: api.ConformanceVerdictStatus(c.Status), Violations: []api.ConformanceViolation{}, Unjudged: elements(c.Unjudged)}
 		for _, x := range c.Violations {
 			v.Violations = append(v.Violations, api.ConformanceViolation{
-				DeviceType: x.DeviceType, DeviceTypeID: nonZero(x.DeviceTypeID), Requirement: x.Requirement, Kind: x.Kind, Detail: x.Detail,
+				DeviceType: x.DeviceType, DeviceTypeID: nonZero64(x.DeviceTypeID), Requirement: x.Requirement, Kind: x.Kind, Detail: x.Detail,
 			})
 		}
 		out.Conformance = &v
@@ -543,18 +559,18 @@ func endpointDetail(d EndpointDetail) api.EndpointDetail {
 // clusterDetail is the contract's ClusterDetail of the port's.
 func clusterDetail(c ClusterDetail) api.ClusterDetail {
 	out := api.ClusterDetail{
-		ID: int(c.ID), IDHex: hexID(c.ID), Name: optString(c.Name), Revision: int(c.Revision),
+		ID: int64(c.ID), IDHex: hexID(c.ID), Name: optString(c.Name), Revision: int(c.Revision),
 		FeatureMapHex: fmt.Sprintf("0x%08X", c.FeatureMap), Features: []api.ClusterFeature{},
 		Attributes: []api.ClusterAttribute{}, Accepted: elements(c.Accepted), Generated: elements(c.Generated), Events: elements(c.Events),
 	}
 	if c.DataVersion != nil {
-		out.DataVersion = ptr(int(*c.DataVersion))
+		out.DataVersion = ptr(int64(*c.DataVersion))
 	}
 	for _, f := range c.Features {
 		out.Features = append(out.Features, api.ClusterFeature{Code: f.Code, Title: optString(f.Title), Bit: int(f.Bit)})
 	}
 	for _, a := range c.Attributes {
-		e := api.ClusterAttribute{ID: int(a.ID), IDHex: hexID(a.ID), Name: optString(a.Name), Status: nonZero(a.Status)}
+		e := api.ClusterAttribute{ID: int64(a.ID), IDHex: hexID(a.ID), Name: optString(a.Name), Status: nonZero(a.Status)}
 		if a.Value != nil {
 			e.Value = ptr(a.Value)
 		}
@@ -566,7 +582,7 @@ func clusterDetail(c ClusterDetail) api.ClusterDetail {
 func elements(in []ClusterElement) []api.ClusterElement {
 	out := make([]api.ClusterElement, 0, len(in))
 	for _, e := range in {
-		out = append(out, api.ClusterElement{ID: int(e.ID), IDHex: hexID(e.ID), Name: optString(e.Name)})
+		out = append(out, api.ClusterElement{ID: int64(e.ID), IDHex: hexID(e.ID), Name: optString(e.Name)})
 	}
 	return out
 }
@@ -613,7 +629,7 @@ func (s *controllerServer) GetNodeCluster(_ context.Context, req api.GetNodeClus
 
 // ListNodeEvents serves the node's event history in the controller
 // (client.Node.EventHistory, go-fabric controller/client/event_history.go:100-115
-// at 894adbcd): no interaction, no admin.
+// at 894adbcd): no interaction with the node.
 func (s *controllerServer) ListNodeEvents(_ context.Context, req api.ListNodeEventsRequestObject) (api.ListNodeEventsResponseObject, error) {
 	n, err := s.node(req.ID)
 	if err != nil {
@@ -1364,14 +1380,28 @@ func (s *controllerServer) RemoveNodeFabric(ctx context.Context, req api.RemoveN
 		if err := json.Unmarshal(res.Response, &noc); err != nil {
 			return nil, fmt.Errorf("%w: RemoveFabric answered a NOCResponse that does not decode", ErrNodeFailed)
 		}
-		if noc.StatusCode != 0 {
+		switch noc.StatusCode {
+		case 0:
+		case nocInvalidFabricIndex:
+			// The node holds no such fabric: 404 (contract 0.11.0,
+			// UR-P1-err-33).
+			return nil, &apiProblem{http.StatusNotFound, codeNotFound, "No such fabric", fmt.Sprintf("the node has no fabric %d", req.Index)}
+		default:
 			return nil, fmt.Errorf("%w: RemoveFabric answered NOCResponse status %d", ErrNodeFailed, noc.StatusCode)
 		}
 	}
 	return api.RemoveNodeFabric204Response{}, nil
 }
 
+// nocInvalidFabricIndex is the NOCResponse status InvalidFabricIndex
+// (NodeOperationalCertStatusEnum, value 11).
+const nocInvalidFabricIndex = 11
+
 // --- commissioning, discovery ---
+
+// defaultCommissionTimeout bounds a discovered device's commissioning
+// without timeout_seconds (contract 0.11.0).
+const defaultCommissionTimeout = 600 * time.Second
 
 func pairOptionsOf(b *api.CommissionRequest) PairOptions {
 	var o PairOptions
@@ -1417,12 +1447,22 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 		(*b.Discovered.LongDiscriminator < 0 || *b.Discovered.LongDiscriminator > maxLongDiscriminator):
 		return nil, badRequest("discovered.long_discriminator: %d is not 0 to %d", *b.Discovered.LongDiscriminator, maxLongDiscriminator)
 	}
-	if b.TimeoutSeconds != nil {
+	switch {
+	case b.TimeoutSeconds != nil:
 		if *b.TimeoutSeconds < 1 || *b.TimeoutSeconds > 600 {
 			return nil, badRequest("timeout_seconds: %d is not 1 to 600", *b.TimeoutSeconds)
 		}
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(*b.TimeoutSeconds)*time.Second)
+		defer cancel()
+	case !hasCode:
+		// A discovered device's commissioning is bounded at 600 s, the
+		// contract's maximum: go-fabric bounds it by ctx and the device's
+		// own budgets only. A code's is not: go-fabric's Pair bounds its
+		// search for the device at one minute only while ctx has no
+		// deadline (decision 71, UR-P4-bound-02).
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, defaultCommissionTimeout)
 		defer cancel()
 	}
 	opts := pairOptionsOf(b)
@@ -1520,8 +1560,8 @@ func (s *controllerServer) DiscoverDevices(ctx context.Context, req api.Discover
 		e := api.Discovered{
 			InstanceName: d.InstanceName, Hostname: optString(d.Hostname), Addresses: nonNil(d.Addresses),
 			LongDiscriminator: int(d.LongDiscriminator), CommissioningMode: int(d.CommissioningMode),
-			VendorID: nonZero(d.VendorID), ProductID: nonZero(d.ProductID), DeviceType: nonZero(d.DeviceType),
-			DeviceName: optString(d.DeviceName), PairingHint: nonZero(d.PairingHint),
+			VendorID: nonZero(d.VendorID), ProductID: nonZero(d.ProductID), DeviceType: nonZero64(d.DeviceType),
+			DeviceName: optString(d.DeviceName), PairingHint: nonZero64(d.PairingHint),
 			PairingInstruction: optString(d.PairingInstruction), Port: nonZero(d.Port),
 		}
 		if d.VendorID != 0 {
@@ -1651,14 +1691,14 @@ func (s *controllerServer) ListUpdates(context.Context, api.ListUpdatesRequestOb
 	for _, p := range u.Queue() {
 		e := api.PendingUpdate{
 			NodeIDHex: hex16(p.NodeID), VendorID: int(p.VendorID), ProductID: int(p.ProductID),
-			TargetSoftwareVersion: int(p.TargetSoftwareVersion), Status: api.PendingUpdateStatus(p.Status),
+			TargetSoftwareVersion: int64(p.TargetSoftwareVersion), Status: api.PendingUpdateStatus(p.Status),
 			ProgressStatus: optString(p.ProgressStatus), ProgressAt: optTime(p.ProgressAt),
 		}
 		if p.Transferred != nil {
-			e.Transferred = ptr(int(*p.Transferred)) //nolint:gosec // a transfer's byte count
+			e.Transferred = ptr(int64(*p.Transferred)) //nolint:gosec // a transfer's byte count
 		}
 		if p.Length != nil {
-			e.Length = ptr(int(*p.Length)) //nolint:gosec // an image's byte count
+			e.Length = ptr(int64(*p.Length)) //nolint:gosec // an image's byte count
 		}
 		out.Queue = append(out.Queue, e)
 	}
@@ -1686,7 +1726,7 @@ func (s *controllerServer) ConsentUpdate(ctx context.Context, req api.ConsentUpd
 	if err != nil {
 		return nil, err
 	}
-	if b.VendorID < 0 || b.VendorID > 0xFFFF || b.ProductID < 0 || b.ProductID > 0xFFFF || b.TargetSoftwareVersion < 0 || int64(b.TargetSoftwareVersion) > 0xFFFFFFFF { // int64: int is 32 bits on arm/386
+	if b.VendorID < 0 || b.VendorID > 0xFFFF || b.ProductID < 0 || b.ProductID > 0xFFFF || b.TargetSoftwareVersion < 0 || b.TargetSoftwareVersion > 0xFFFFFFFF {
 		return nil, badRequest("vendor_id, product_id or target_software_version out of range")
 	}
 	if _, ok := s.src.Node(id); !ok {
@@ -1705,14 +1745,26 @@ func (s *controllerServer) CheckUpdates(ctx context.Context, _ api.CheckUpdatesR
 		return nil, err
 	}
 	list, err := u.Check(ctx)
-	if err != nil {
-		return nil, err
+	failures, partial := errors.AsType[UpdateCheckFailures](err)
+	if err != nil && !partial {
+		// A check that failed as a whole is the controller's failure
+		// (500): no node's, since a node's is listed in errors.
+		return nil, fmt.Errorf("update check: %v", err) //nolint:errorlint // no port kind: 500, never a node's 502
 	}
 	out := api.CheckUpdates200JSONResponse{Updates: []api.AvailableUpdate{}}
+	// A node whose check failed does not fail the others' (contract
+	// 0.11.0, decision 70): its error is listed beside the updates.
+	if len(failures) > 0 {
+		errs := make([]api.UpdateCheckError, 0, len(failures))
+		for _, f := range failures {
+			errs = append(errs, api.UpdateCheckError{NodeIDHex: hex16(f.NodeID), Error: f.Err.Error()})
+		}
+		out.Errors = &errs
+	}
 	for _, a := range list {
 		out.Updates = append(out.Updates, api.AvailableUpdate{
 			NodeIDHex: hex16(a.NodeID), VendorID: int(a.VendorID), ProductID: int(a.ProductID),
-			SoftwareVersion: int(a.SoftwareVersion), SoftwareVersionString: a.SoftwareVersionString,
+			SoftwareVersion: int64(a.SoftwareVersion), SoftwareVersionString: a.SoftwareVersionString,
 		})
 	}
 	// The update event is the source's (ControllerEvent.UpdateKind).
@@ -2001,7 +2053,7 @@ func controllerPeerOf(p *ControllerPeer) api.ControllerPeer {
 		FabricIndex:         int(p.FabricIndex),
 		Registered:          p.Registered,
 		LoadError:           optString(p.LoadError),
-		TimeOfflineMs:       int(p.TimeOffline.Milliseconds()),
+		TimeOfflineMs:       p.TimeOffline.Milliseconds(),
 		OperationalAddress:  optString(p.OperationalAddress),
 		OperationalHost:     optString(p.OperationalHost),
 		TCPUnsupported:      p.TCPUnsupported,

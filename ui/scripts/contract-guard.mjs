@@ -1,19 +1,20 @@
 // The contract guard: compares contract/openapi.yaml with the copy of the
 // last release (contract/previous/openapi.yaml) and fails on a removed
 // path, method, response status, schema or response field, on a request
-// field that became required, on a response field that stopped being
-// required, on a changed type, and on a request parameter or field that
-// got narrower (pattern, maximum, minimum, length, enum). A minor version
-// only adds; a break the release makes on purpose is listed, sentence for
-// sentence, in the contract's `info.x-accepted-breaks` and named in
-// docs/contract.md — an entry the guard no longer reports fails too, so the
-// list empties itself at the next copy to previous/. The baseline is
-// checked as well: previous/ is byte for byte the contract of the newest
-// release tag, unless the contract has not moved since that tag. A
-// planned operation keeps its path and method; its placeholder responses
-// are no promise. It also fails on a response schema that forbids unknown
-// fields (closedResponseSchemas): a client generated from such a schema
-// rejects the whole answer once a field is added, which a minor may do.
+// field, parameter or body that became required (or is new and required),
+// on a response field that stopped being required, on a changed type, and
+// on a request parameter or field that got narrower (pattern, maximum,
+// minimum, length, enum). A minor version only adds; a break the release
+// makes on purpose is listed, sentence for sentence, in the contract's
+// `info.x-accepted-breaks` and named in docs/contract.md — an entry the
+// guard no longer reports fails too, so the list empties itself at the next
+// copy to previous/. The baseline is checked as well: previous/ is byte for
+// byte the contract of the newest release tag, unless the contract has not
+// moved since that tag. A planned operation keeps its path and method; its
+// placeholder responses are no promise. It also fails on a response schema
+// that forbids unknown fields (closedResponseSchemas): a client generated
+// from such a schema rejects the whole answer once a field is added, which
+// a minor may do.
 //
 //   node scripts/contract-guard.mjs <previous.yaml> <current.yaml>
 import fs from "node:fs";
@@ -46,6 +47,7 @@ export function diffContracts(prev, cur) {
       for (const status of Object.keys(item[m].responses ?? {})) {
         if (!(now[m].responses ?? {})[status]) out.push(`${m.toUpperCase()} ${path}: response ${status} removed`);
       }
+      requiredRequestParts(prev, item, m, cur, now, `${m.toUpperCase()} ${path}`, out);
     }
   }
   const responseNamed = reachableSchemas(prev, "response");
@@ -130,6 +132,30 @@ function compareNode(was, now, at, request, out) {
     if (q) compareNode(p, q, `${at}: field ${prop}`, request, out);
   }
   if (was.items && now.items) compareNode(was.items, now.items, `${at}[]`, request, out);
+}
+
+/**
+ * What an old client of one operation may leave out and the current
+ * contract requires: a parameter that became required or is new and
+ * required (path-level and `$ref` parameters resolved), and a request body
+ * that became required or is new and required (UR-P4-test-62).
+ */
+function requiredRequestParts(prev, pItem, m, cur, cItem, at, out) {
+  const params = (doc, item) => {
+    const byKey = new Map();
+    for (const ref of [...(item.parameters ?? []), ...(item[m].parameters ?? [])]) {
+      const p = resolve(doc, ref);
+      if (p?.name) byKey.set(`${p.in} ${p.name}`, p);
+    }
+    return byKey;
+  };
+  const was = params(prev, pItem);
+  for (const [key, p] of params(cur, cItem)) {
+    if (p.required === true && was.get(key)?.required !== true) out.push(`${at}: parameter ${p.name} became required`);
+  }
+  if (resolve(cur, cItem[m].requestBody)?.required === true && resolve(prev, pItem[m].requestBody)?.required !== true) {
+    out.push(`${at}: request body became required`);
+  }
 }
 
 /** Every parameter, component and inline, keyed so the next version finds it again. */

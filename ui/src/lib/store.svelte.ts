@@ -126,6 +126,9 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   let unsub: (() => void) | null = null;
   // Whether the stream was connected before: connecting again resyncs.
   let connectedBefore = false;
+  // The token the status had when this store opened its stream: the
+  // stream's admin test runs once, at its open (UR-P3-web-191).
+  let streamToken: string | undefined;
   let countdown: ReturnType<typeof setInterval> | null = null;
   let exposureReload: ReturnType<typeof setTimeout> | null = null;
   let closedTimer: ReturnType<typeof setTimeout> | null = null;
@@ -151,6 +154,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       if (mine === statusGen) {
         setStatus(s);
         statusDenied = null;
+        reopenOnNewToken(s);
       }
     } catch (err) {
       if (mine === statusGen) {
@@ -258,6 +262,13 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     const updates = Array.from(pending.values());
     if (updates.length === 0) return [];
     return (await client.previewExposure(updates)).items;
+  }
+
+  // Rebuilds the node from the stored selection: a success puts a stored
+  // selection the last apply could not rebuild into effect (UR-P4-ui-61).
+  async function reassemble() {
+    await client.reassemble();
+    exposureNotInEffect = false;
   }
 
   async function saveBulk(): Promise<number> {
@@ -517,6 +528,17 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     }
   }
 
+  // The node stream is an open route: opened with a stale token (a daemon
+  // restart, a new token per process) or before the first status brought
+  // one, it is answered as one without admin rights and filtered for its
+  // whole life. A status with another token reopens it; the new open
+  // resyncs (UR-P3-web-191).
+  function reopenOnNewToken(s: Status) {
+    if (!unsub || deps.subscribe || !s.csrf_token || s.csrf_token === streamToken) return;
+    disconnect();
+    connect();
+  }
+
   function connect() {
     if (unsub) return;
     if (deps.subscribe) {
@@ -528,6 +550,11 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       // no event falls between the reload and the subscription
       // (UR-P1-conc-192).
       streamDenied = null;
+      // The token the stream opens with is the one the shared client
+      // sends now, not this store's last status: a scoped store connects
+      // before its first status, with the token the shell's probe set
+      // (UR-P4-web-195).
+      streamToken = client.currentToken ? client.currentToken() : status?.csrf_token;
       unsub = subscribeStream(client.streamUrl(), applyEvent, client.openStream, {
         onResync: resync,
         resyncOnFirstOpen: connectedBefore,
@@ -591,6 +618,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     discardDirty,
     preview,
     saveBulk,
+    reassemble,
     openWindow,
     hydrateCommissioning,
     closeWindow,

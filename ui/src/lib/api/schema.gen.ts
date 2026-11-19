@@ -96,7 +96,18 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Close the open commissioning window. */
+        /**
+         * Close the open commissioning window.
+         * @description Closes the open window. When it is a window on fresh credentials
+         *     (`window_kind` `basic`) on a node without a fabric, go-fabric then
+         *     reopens the node's own window on its configured codes, as when such
+         *     a window expires (stated from 0.11.0, not new): `GET /node/status`
+         *     reports `window_kind` `own` and `GET /node/pairing` the configured
+         *     codes. A second close closes that window too; the close of the
+         *     node's own window (`ConfiguredWindow`, or that second close) leaves
+         *     no window open. A host that wants no window it did not open sets
+         *     go-fabric's `Commissioning.WindowOnDemand`.
+         */
         post: operations["closeWindow"];
         delete?: never;
         options?: never;
@@ -1718,7 +1729,7 @@ export interface paths {
         post?: never;
         /**
          * Remove another administrator's fabric from the node (RemoveFabric).
-         * @description Our own fabric is removed with `DELETE /controller/nodes/{id}`; naming it here is 400.
+         * @description Our own fabric is removed with `DELETE /controller/nodes/{id}`; naming it here is 400. An index the node does not hold is 404 `not_found` (0.11.0), like an unknown node.
          */
         delete: operations["removeNodeFabric"];
         options?: never;
@@ -1844,7 +1855,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Ask every node for an available update. */
+        /**
+         * Ask every node for an available update.
+         * @description A node whose update check failed does not fail the others (0.11.0):
+         *     the answer lists the updates found and, in `errors`, each node
+         *     whose check failed with the reason.
+         */
         post: operations["checkUpdates"];
         delete?: never;
         options?: never;
@@ -2015,7 +2031,10 @@ export interface components {
             version?: number;
             /** @description terms_required (0.8.0): the acknowledgement bits the device requires; null, since no device attribute names them — the terms the user accepts set them. */
             acknowledgements?: number | null;
-            /** @description terms_required (0.8.0): the device's TCUpdateDeadline in Matter epoch seconds (from 2000-01-01T00:00:00Z), by which a commissioned device expects an updated acceptance; null when the attribute is null. */
+            /**
+             * Format: int64
+             * @description terms_required (0.8.0): the device's TCUpdateDeadline in Matter epoch seconds (from 2000-01-01T00:00:00Z), by which a commissioned device expects an updated acceptance; null when the attribute is null.
+             */
             deadline?: number | null;
         };
         Status: {
@@ -2034,10 +2053,10 @@ export interface components {
             commissioning_window_open: boolean;
             commissioning_window_duration_seconds?: number;
             /**
-             * @description Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one; absent without a node.
+             * @description Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one, or (0.11.0) an administrator's basic one (OpenBasicCommissioningWindow, on the node's own passcode); absent without a node.
              * @enum {string}
              */
-            window_kind?: "none" | "own" | "basic" | "enhanced";
+            window_kind?: "none" | "own" | "basic" | "enhanced" | "administrator_basic";
             /**
              * Format: date-time
              * @description When the open window's timer closes it
@@ -2160,6 +2179,7 @@ export interface components {
         };
         /** @description One cluster server mounted on the endpoint, in its Descriptor's ServerList order. */
         Cluster: {
+            /** Format: int64 */
             id: number;
             /** @description The schema's cluster name; absent for a cluster the schema does not know. */
             name?: string;
@@ -2838,7 +2858,10 @@ export interface components {
             state?: components["schemas"]["ConnectionState"];
             /** @description Why the node's stored state did not load; absent when it did or without a registered node. */
             load_error?: string;
-            /** @description How long the peer's connection process has been trying; 0 when none runs. */
+            /**
+             * Format: int64
+             * @description How long the peer's connection process has been trying; 0 when none runs.
+             */
             time_offline_ms: number;
             /** @description The address the peer's sessions use; absent when none is known. */
             operational_address?: string;
@@ -2907,6 +2930,7 @@ export interface components {
             discriminator?: number;
             announced_vendor_id?: number;
             announced_product_id?: number;
+            /** Format: int64 */
             announced_device_type?: number;
             device_name?: string;
         };
@@ -2920,12 +2944,14 @@ export interface components {
             long_idle_time_operating?: boolean;
             thread_sleepy_end_device?: boolean;
             idle_mode_duration_seconds?: number;
+            /** Format: int64 */
             specification_version?: number;
             serial_number?: string;
             software_version?: string;
             device_types: number[];
         };
         NodeDeviceType: {
+            /** Format: int64 */
             id: number;
             id_hex: string;
             /** @description The device type's name; empty for one the schema does not know. */
@@ -2933,6 +2959,7 @@ export interface components {
             revision?: number;
         };
         NodeCluster: {
+            /** Format: int64 */
             id: number;
             id_hex: string;
             /** @description The cluster's name; empty for one the schema does not know. */
@@ -2983,6 +3010,7 @@ export interface components {
             decisions?: components["schemas"]["SurfaceDecision"][];
         };
         EndpointDeviceType: {
+            /** Format: int64 */
             id: number;
             id_hex: string;
             /** @description The device type's name; absent for one the schema does not know. */
@@ -3012,7 +3040,10 @@ export interface components {
         };
         ConformanceViolation: {
             device_type: string;
-            /** @description Absent for Base and where the violation names no device type. */
+            /**
+             * Format: int64
+             * @description Absent for Base and where the violation names no device type.
+             */
             device_type_id?: number;
             requirement: string;
             kind: string;
@@ -3020,6 +3051,7 @@ export interface components {
         };
         /** @description One server cluster with its inventory (contract 0.4.0). */
         ClusterDetail: {
+            /** Format: int64 */
             id: number;
             id_hex: string;
             /** @description The cluster's name; absent for one no definition names. */
@@ -3028,7 +3060,10 @@ export interface components {
             feature_map_hex: string;
             /** @description The features the feature map sets, in bit order. */
             features: components["schemas"]["ClusterFeature"][];
-            /** @description The cluster's DataVersion; absent while unknown. */
+            /**
+             * Format: int64
+             * @description The cluster's DataVersion; absent while unknown.
+             */
             data_version?: number;
             /** @description The AttributeList in id order. */
             attributes: components["schemas"]["ClusterAttribute"][];
@@ -3047,6 +3082,7 @@ export interface components {
             bit: number;
         };
         ClusterAttribute: {
+            /** Format: int64 */
             id: number;
             id_hex: string;
             name?: string;
@@ -3056,6 +3092,7 @@ export interface components {
             status?: number;
         };
         ClusterElement: {
+            /** Format: int64 */
             id: number;
             id_hex: string;
             name?: string;
@@ -3063,6 +3100,7 @@ export interface components {
         /** @description One Matter event (0.4.1), one shape for both families — an event the node served, or one the controller received from a node. */
         EventRecord: {
             /**
+             * Format: int64
              * @deprecated
              * @description The node-wide event number (Matter Core §7.14.2.1); use `number_str`.
              */
@@ -3076,7 +3114,10 @@ export interface components {
             event_hex: string;
             /** @description The event's name in go-fabric's schema; absent for one it does not name. */
             name?: string;
-            /** @description The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only. */
+            /**
+             * Format: int64
+             * @description The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only.
+             */
             epoch_ms?: number;
             /** @description The event's data as JSON by field name; absent without data or when it cannot be rendered. */
             data?: unknown;
@@ -3285,7 +3326,7 @@ export interface components {
             thread_id?: string;
             /** @description Never commission over Bluetooth LE, and the `commissioning_progress` event's `ble` reason is `network_only` (0.7.1). */
             network_only?: boolean;
-            /** @description The whole commissioning's bound; absent is the controller's default. */
+            /** @description The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device then has no bound of this route's. */
             timeout_seconds?: number;
             terms_and_conditions?: components["schemas"]["TermsAcknowledgement"];
             /** @description The client's id for this commissioning, echoed as `commissioning_id` on its `commissioning_progress` events (0.10.0); absent: the server draws one. */
@@ -3307,9 +3348,11 @@ export interface components {
             vendor_id?: number;
             vendor_name?: string;
             product_id?: number;
+            /** Format: int64 */
             device_type?: number;
             device_name?: string;
             commissioning_mode: number;
+            /** Format: int64 */
             pairing_hint?: number;
             pairing_instruction?: string;
         };
@@ -3347,6 +3390,7 @@ export interface components {
             node_id_hex: string;
             vendor_id: number;
             product_id: number;
+            /** Format: int64 */
             target_software_version: number;
             /** @enum {string} */
             status: "queued" | "in_progress" | "stalled";
@@ -3354,7 +3398,9 @@ export interface components {
             progress_status?: string;
             /** Format: date-time */
             progress_at?: string;
+            /** Format: int64 */
             transferred?: number;
+            /** Format: int64 */
             length?: number;
         };
         UpdateQueue: {
@@ -3365,17 +3411,27 @@ export interface components {
             node_id_hex: string;
             vendor_id: number;
             product_id: number;
+            /** @description 0 to 4294967295; a generated server holds it in 64 bits (0.11.0). */
             target_software_version: number;
         };
         AvailableUpdate: {
             node_id_hex: string;
             vendor_id: number;
             product_id: number;
+            /** Format: int64 */
             software_version: number;
             software_version_string: string;
         };
         AvailableUpdateList: {
             updates: components["schemas"]["AvailableUpdate"][];
+            /** @description The nodes whose update check failed (0.11.0); absent when every check succeeded. Such a node is not in `updates`. */
+            errors?: components["schemas"]["UpdateCheckError"][];
+        };
+        /** @description One node whose update check failed (0.11.0). */
+        UpdateCheckError: {
+            node_id_hex: string;
+            /** @description Why the check failed, as go-fabric names it (no secret). */
+            error: string;
         };
         /** @description The payload of every controller stream event. */
         ControllerEvent: {
@@ -3400,7 +3456,10 @@ export interface components {
              * @enum {string}
              */
             update_kind?: "available" | "consent_changed" | "check_finished" | "applying" | "done" | "failed" | "queued" | "transfer_started";
-            /** @description update: the target software version, for the kinds that carry one. */
+            /**
+             * Format: int64
+             * @description update: the target software version, for the kinds that carry one.
+             */
             update_version?: number;
             /** @description update: the error of check_finished and failed (no secret). */
             update_error?: string;
@@ -3611,7 +3670,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Closed. */
+            /** @description The window is closed; after a window on fresh credentials a node without a fabric has its own window open again (see the description). */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -6006,7 +6065,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The updates the nodes can take. */
+            /** @description The updates the nodes can take, and the nodes whose check failed. */
             200: {
                 headers: {
                     [name: string]: unknown;

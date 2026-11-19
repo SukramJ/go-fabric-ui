@@ -1,21 +1,28 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.10.0
+  version: 0.11.0
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
     (default `/api/v1`). Errors are RFC 9457 problem+json (`Problem`).
 
     Versioning: a minor version adds paths, methods, response fields and
-    optional request fields; it never removes or renames one, and never
-    makes an optional request field required. `contract/previous/` holds
+    optional request fields, and may add a value to a response field's
+    enum, so a client tolerates a value it does not know (0.11.0); it
+    never removes or renames one, and never makes an optional request
+    field required. `contract/previous/` holds
     the last released copy, and a test fails on a removal.
 
-    Contract 0.10.0 makes three breaks on purpose, listed in
-    `x-accepted-breaks`: `Status.fabric_count` is optional (absent when the
-    fabric read failed), the `NodeID` path parameter takes 1 to 16 hex
-    digits only, and the `EndpointNumber` path parameter ends at 65534.
+    Contract 0.10.0 made three breaks on purpose: `Status.fabric_count` is
+    optional (absent when the fabric read failed), the `NodeID` path
+    parameter takes 1 to 16 hex digits only, and the `EndpointNumber` path
+    parameter ends at 65534. Contract 0.11.0 is additive over 0.10.0.
+
+    Response integers that range over 32 bits unsigned or wider are
+    `format: int64` (0.11.0), and the one such request field carries
+    `x-go-type: int64`: a generated server or client holds them in 64
+    bits, also on a 32-bit platform. The wire is unchanged.
 
     Request bodies are JSON (`Content-Type: application/json`, parameters
     allowed; else 415 `unsupported_media_type`) of at most 1 MiB (else 413
@@ -44,10 +51,6 @@ info:
     `GET /controller/status` with its identity members empty or 0, and the
     node stream with `nodes_changed`, `window_opened` and `window_closed`
     only.
-  x-accepted-breaks:
-    - "schema Status: field fabric_count no longer required"
-    - "parameter NodeID: narrower (pattern)"
-    - "parameter EndpointNumber: narrower (maximum)"
   license:
     name: Apache-2.0
     identifier: Apache-2.0
@@ -59,6 +62,11 @@ tags:
       The controller page family — the commissioner side of a go-fabric
       controller. Present only when the host serves it; otherwise every
       `/controller/*` path answers 404.
+
+      A request go-fabric refuses before it is sent to the node — one too
+      large for a single message (a timed write), or malformed — is 400
+      `bad_request` (0.11.0); 502 `node_error` stays the node's or the
+      network's failure.
   - name: operation
     description: |
       The daemon's operation, beside both page families: its log level,
@@ -155,8 +163,18 @@ paths:
       operationId: closeWindow
       summary: Close the open commissioning window.
       x-admin: true
+      description: |
+        Closes the open window. When it is a window on fresh credentials
+        (`window_kind` `basic`) on a node without a fabric, go-fabric then
+        reopens the node's own window on its configured codes, as when such
+        a window expires (stated from 0.11.0, not new): `GET /node/status`
+        reports `window_kind` `own` and `GET /node/pairing` the configured
+        codes. A second close closes that window too; the close of the
+        node's own window (`ConfiguredWindow`, or that second close) leaves
+        no window open. A host that wants no window it did not open sets
+        go-fabric's `Commissioning.WindowOnDemand`.
       responses:
-        "204": { description: Closed. }
+        "204": { description: "The window is closed; after a window on fresh credentials a node without a fabric has its own window open again (see the description)." }
         "403": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
@@ -1789,7 +1807,7 @@ paths:
       operationId: removeNodeFabric
       x-admin: true
       summary: Remove another administrator's fabric from the node (RemoveFabric).
-      description: Our own fabric is removed with `DELETE /controller/nodes/{id}`; naming it here is 400.
+      description: Our own fabric is removed with `DELETE /controller/nodes/{id}`; naming it here is 400. An index the node does not hold is 404 `not_found` (0.11.0), like an unknown node.
       responses:
         "204": { description: The fabric is removed. }
         "400": { $ref: "#/components/responses/Problem" }
@@ -1970,9 +1988,13 @@ paths:
       operationId: checkUpdates
       x-admin: true
       summary: Ask every node for an available update.
+      description: |
+        A node whose update check failed does not fail the others (0.11.0):
+        the answer lists the updates found and, in `errors`, each node
+        whose check failed with the reason.
       responses:
         "200":
-          description: The updates the nodes can take.
+          description: The updates the nodes can take, and the nodes whose check failed.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AvailableUpdateList" }
@@ -2203,6 +2225,7 @@ components:
           description: "terms_required (0.8.0): the acknowledgement bits the device requires; null, since no device attribute names them — the terms the user accepts set them."
         deadline:
           type: ["integer", "null"]
+          format: int64
           minimum: 0
           description: "terms_required (0.8.0): the device's TCUpdateDeadline in Matter epoch seconds (from 2000-01-01T00:00:00Z), by which a commissioned device expects an updated acceptance; null when the attribute is null."
     Status:
@@ -2222,8 +2245,8 @@ components:
         commissioning_window_duration_seconds: { type: integer }
         window_kind:
           type: string
-          enum: [none, own, basic, enhanced]
-          description: Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one; absent without a node.
+          enum: [none, own, basic, enhanced, administrator_basic]
+          description: "Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one, or (0.11.0) an administrator's basic one (OpenBasicCommissioningWindow, on the node's own passcode); absent without a node."
         window_deadline: { type: string, format: date-time, description: When the open window's timer closes it, on the node's clock; absent while no window is open. }
         window_remaining_seconds: { type: integer, minimum: 0, description: "Seconds until the open window's timer closes it, on the node's clock when the answer was written (0.10.0); absent while no window is open." }
         exposure: { type: boolean, description: Whether the host serves a selection. }
@@ -2328,7 +2351,7 @@ components:
       description: One cluster server mounted on the endpoint, in its Descriptor's ServerList order.
       required: [id]
       properties:
-        id: { type: integer }
+        id: { type: integer, format: int64 }
         name: { type: string, description: The schema's cluster name; absent for a cluster the schema does not know. }
         revision: { type: integer, description: The schema's ClusterRevision; absent for a cluster the schema does not know. }
     Endpoint:
@@ -2728,7 +2751,7 @@ components:
         state: { type: string, enum: [mappable, partially_mappable, unmappable] }
         device_type: { type: integer }
         device_type_name: { type: string }
-        clusters: { type: array, items: { type: integer } }
+        clusters: { type: array, items: { type: integer, format: int64 } }
         reason: { type: string }
     Item:
       type: object
@@ -3008,7 +3031,7 @@ components:
         registered: { type: boolean, description: "A commissioned node of the controller's registry has this address; a peer the host added itself has none." }
         state: { $ref: "#/components/schemas/ConnectionState" }
         load_error: { type: string, description: "Why the node's stored state did not load; absent when it did or without a registered node." }
-        time_offline_ms: { type: integer, description: "How long the peer's connection process has been trying; 0 when none runs." }
+        time_offline_ms: { type: integer, format: int64, description: "How long the peer's connection process has been trying; 0 when none runs." }
         operational_address: { type: string, description: "The address the peer's sessions use; absent when none is known." }
         operational_host: { type: string, description: "The discovered SRV target that owns the operational address; absent when none does." }
         tcp_unsupported: { type: boolean, description: The peer refused TCP. }
@@ -3066,7 +3089,7 @@ components:
         discriminator: { type: integer }
         announced_vendor_id: { type: integer }
         announced_product_id: { type: integer }
-        announced_device_type: { type: integer }
+        announced_device_type: { type: integer, format: int64 }
         device_name: { type: string }
     NodeProperties:
       type: object
@@ -3081,15 +3104,15 @@ components:
         long_idle_time_operating: { type: boolean }
         thread_sleepy_end_device: { type: boolean }
         idle_mode_duration_seconds: { type: integer }
-        specification_version: { type: integer }
+        specification_version: { type: integer, format: int64 }
         serial_number: { type: string }
         software_version: { type: string }
-        device_types: { type: array, items: { type: integer } }
+        device_types: { type: array, items: { type: integer, format: int64 } }
     NodeDeviceType:
       type: object
       required: [id, id_hex, name]
       properties:
-        id: { type: integer }
+        id: { type: integer, format: int64 }
         id_hex: { type: string }
         name: { type: string, description: The device type's name; empty for one the schema does not know. }
         revision: { type: integer }
@@ -3097,7 +3120,7 @@ components:
       type: object
       required: [id, id_hex, name, revision, features]
       properties:
-        id: { type: integer }
+        id: { type: integer, format: int64 }
         id_hex: { type: string }
         name: { type: string, description: The cluster's name; empty for one the schema does not know. }
         revision: { type: integer }
@@ -3161,7 +3184,7 @@ components:
       type: object
       required: [id, id_hex, revision]
       properties:
-        id: { type: integer }
+        id: { type: integer, format: int64 }
         id_hex: { type: string }
         name: { type: string, description: The device type's name; absent for one the schema does not know. }
         revision: { type: integer }
@@ -3198,7 +3221,7 @@ components:
       required: [device_type, requirement, kind, detail]
       properties:
         device_type: { type: string }
-        device_type_id: { type: integer, description: Absent for Base and where the violation names no device type. }
+        device_type_id: { type: integer, format: int64, description: Absent for Base and where the violation names no device type. }
         requirement: { type: string }
         kind: { type: string }
         detail: { type: string }
@@ -3207,7 +3230,7 @@ components:
       description: One server cluster with its inventory (contract 0.4.0).
       required: [id, id_hex, revision, feature_map_hex, features, attributes, accepted, generated, events]
       properties:
-        id: { type: integer }
+        id: { type: integer, format: int64 }
         id_hex: { type: string }
         name: { type: string, description: The cluster's name; absent for one no definition names. }
         revision: { type: integer }
@@ -3216,7 +3239,7 @@ components:
           type: array
           description: The features the feature map sets, in bit order.
           items: { $ref: "#/components/schemas/ClusterFeature" }
-        data_version: { type: integer, description: The cluster's DataVersion; absent while unknown. }
+        data_version: { type: integer, format: int64, description: The cluster's DataVersion; absent while unknown. }
         attributes:
           type: array
           description: The AttributeList in id order.
@@ -3244,7 +3267,7 @@ components:
       type: object
       required: [id, id_hex]
       properties:
-        id: { type: integer }
+        id: { type: integer, format: int64 }
         id_hex: { type: string }
         name: { type: string }
         value: { description: The attribute's value as JSON by field name; absent in a structure-only answer or while unknown., x-go-type: json.RawMessage }
@@ -3253,7 +3276,7 @@ components:
       type: object
       required: [id, id_hex]
       properties:
-        id: { type: integer }
+        id: { type: integer, format: int64 }
         id_hex: { type: string }
         name: { type: string }
     EventRecord:
@@ -3261,14 +3284,14 @@ components:
       description: One Matter event (0.4.1), one shape for both families — an event the node served, or one the controller received from a node.
       required: [number, priority, endpoint, cluster_hex, event_hex]
       properties:
-        number: { type: integer, deprecated: true, description: "The node-wide event number (Matter Core §7.14.2.1); use `number_str`." }
+        number: { type: integer, format: int64, deprecated: true, description: "The node-wide event number (Matter Core §7.14.2.1); use `number_str`." }
         number_str: { type: string, pattern: "^(0|[1-9][0-9]{0,19})$", description: "The event number in decimal, exact (0.10.0)." }
         priority: { type: string, enum: [debug, info, critical] }
         endpoint: { type: integer }
         cluster_hex: { type: string }
         event_hex: { type: string }
         name: { type: string, description: The event's name in go-fabric's schema; absent for one it does not name. }
-        epoch_ms: { type: integer, description: The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only. }
+        epoch_ms: { type: integer, format: int64, description: The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only. }
         data: { description: The event's data as JSON by field name; absent without data or when it cannot be rendered., x-go-type: json.RawMessage }
     EventRecordList:
       type: object
@@ -3523,7 +3546,12 @@ components:
         wifi_id: { type: string, description: The stored Wi-Fi credential to put the device on. }
         thread_id: { type: string, description: The stored Thread dataset to put the device on. }
         network_only: { type: boolean, description: "Never commission over Bluetooth LE, and the `commissioning_progress` event's `ble` reason is `network_only` (0.7.1)." }
-        timeout_seconds: { type: integer, minimum: 1, maximum: 600, description: The whole commissioning's bound; absent is the controller's default. }
+        timeout_seconds:
+          type: integer
+          minimum: 1
+          maximum: 600
+          description: "The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device then has no bound of this route's."
+
         terms_and_conditions: { $ref: "#/components/schemas/TermsAcknowledgement" }
         commissioning_id: { type: string, pattern: "^[A-Za-z0-9_-]{1,64}$", description: "The client's id for this commissioning, echoed as `commissioning_id` on its `commissioning_progress` events (0.10.0); absent: the server draws one." }
     TermsAcknowledgement:
@@ -3546,10 +3574,10 @@ components:
         vendor_id: { type: integer }
         vendor_name: { type: string }
         product_id: { type: integer }
-        device_type: { type: integer }
+        device_type: { type: integer, format: int64 }
         device_name: { type: string }
         commissioning_mode: { type: integer }
-        pairing_hint: { type: integer }
+        pairing_hint: { type: integer, format: int64 }
         pairing_instruction: { type: string }
     DiscoveredList:
       type: object
@@ -3596,12 +3624,12 @@ components:
         node_id_hex: { type: string }
         vendor_id: { type: integer }
         product_id: { type: integer }
-        target_software_version: { type: integer }
+        target_software_version: { type: integer, format: int64 }
         status: { type: string, enum: [queued, in_progress, stalled] }
         progress_status: { type: string, description: The last status the node reported; absent before one. }
         progress_at: { type: string, format: date-time }
-        transferred: { type: integer }
-        length: { type: integer }
+        transferred: { type: integer, format: int64 }
+        length: { type: integer, format: int64 }
     UpdateQueue:
       type: object
       required: [available, queue]
@@ -3618,7 +3646,7 @@ components:
         node_id_hex: { type: string }
         vendor_id: { type: integer }
         product_id: { type: integer }
-        target_software_version: { type: integer }
+        target_software_version: { type: integer, x-go-type: int64, description: "0 to 4294967295; a generated server holds it in 64 bits (0.11.0)." }
     AvailableUpdate:
       type: object
       required: [node_id_hex, vendor_id, product_id, software_version, software_version_string]
@@ -3626,7 +3654,7 @@ components:
         node_id_hex: { type: string }
         vendor_id: { type: integer }
         product_id: { type: integer }
-        software_version: { type: integer }
+        software_version: { type: integer, format: int64 }
         software_version_string: { type: string }
     AvailableUpdateList:
       type: object
@@ -3635,6 +3663,17 @@ components:
         updates:
           type: array
           items: { $ref: "#/components/schemas/AvailableUpdate" }
+        errors:
+          type: array
+          description: "The nodes whose update check failed (0.11.0); absent when every check succeeded. Such a node is not in `updates`."
+          items: { $ref: "#/components/schemas/UpdateCheckError" }
+    UpdateCheckError:
+      type: object
+      description: One node whose update check failed (0.11.0).
+      required: [node_id_hex, error]
+      properties:
+        node_id_hex: { type: string }
+        error: { type: string, description: "Why the check failed, as go-fabric names it (no secret)." }
     ControllerEvent:
       type: object
       description: The payload of every controller stream event.
@@ -3651,7 +3690,7 @@ components:
           type: string
           enum: [available, consent_changed, check_finished, applying, done, failed, queued, transfer_started]
           description: "update (0.7.0): what the controller's update manager reported (go-fabric softwareupdate.UpdateEventKind)."
-        update_version: { type: integer, description: "update: the target software version, for the kinds that carry one." }
+        update_version: { type: integer, format: int64, description: "update: the target software version, for the kinds that carry one." }
         update_error: { type: string, description: "update: the error of check_finished and failed (no secret)." }
     BLEDecision:
       type: object

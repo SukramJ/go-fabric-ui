@@ -98,9 +98,11 @@ func (h *handler) pairing(w http.ResponseWriter, r *http.Request) {
 	}
 	if win.Open {
 		// The configured codes commission through the node's own window
-		// only (decision 28).
+		// (decision 28) and an administrator's basic window, which runs
+		// on the configured passcode and discriminator (go-fabric v0.23.0
+		// node.WindowAdministratorBasic; UR-P4-ctr-193).
 		res.WindowRemaining = remainingSeconds(win, h.node.now())
-		res.WindowMatch = ptr(win.Kind == node.WindowOwn)
+		res.WindowMatch = ptr(win.Kind == node.WindowOwn || win.Kind == node.WindowAdministratorBasic)
 	}
 	writeJSON(w, res)
 }

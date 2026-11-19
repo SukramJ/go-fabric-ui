@@ -5,6 +5,10 @@ package gofabric
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -199,5 +203,62 @@ func TestHooks_CloseWaitsForARunningTimer(t *testing.T) {
 	<-closed
 	if !done.Load() {
 		t.Fatal("Close returned before the callback ended")
+	}
+}
+
+// TestHooks_WrapCallsEveryHostHook holds Wrap against go-fabric's Hooks
+// by reflection: every func field of client.Hooks the host sets runs
+// through the chain, so a hook a go-fabric release adds (Deleted, v0.23.0)
+// fails here until chain carries it (UR-P4-adpt-31).
+func TestHooks_WrapCallsEveryHostHook(t *testing.T) {
+	var host client.Hooks
+	hv := reflect.ValueOf(&host).Elem()
+	called := map[string]bool{}
+	for i := range hv.NumField() {
+		f := hv.Field(i)
+		if f.Kind() != reflect.Func {
+			continue
+		}
+		name := hv.Type().Field(i).Name
+		f.Set(reflect.MakeFunc(f.Type(), func([]reflect.Value) []reflect.Value {
+			called[name] = true
+			return nil
+		}))
+	}
+	h, _ := hooksOnClosedController(t)
+	got := reflect.ValueOf(h.Wrap(func(string) client.Hooks { return host })("n"))
+	for i := range got.NumField() {
+		f := got.Field(i)
+		if f.Kind() != reflect.Func {
+			continue
+		}
+		name := got.Type().Field(i).Name
+		if f.IsNil() {
+			t.Errorf("Wrap drops the host's %s hook", name)
+			continue
+		}
+		args := make([]reflect.Value, f.Type().NumIn())
+		for j := range args {
+			args[j] = reflect.Zero(f.Type().In(j))
+		}
+		f.Call(args)
+		if !called[name] {
+			t.Errorf("Wrap's %s does not call the host's", name)
+		}
+	}
+}
+
+// A label set on a controller without a fabric is the controller's
+// failure, 500 as PUT /controller/fabric/label declares, not a node's
+// 502 (UR-P4-test-33; the status guard of main_test.go holds it).
+func TestSource_FabricLabelWithoutAFabricIs500(t *testing.T) {
+	src := ControllerOf(&controller.Controller{}, ControllerOptions{})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, fabricui.DefaultPrefix+"/controller/fabric/label", strings.NewReader(`{"label":"x"}`))
+	req.Header.Set(fabricui.RequestHeader, "1")
+	req.Header.Set("Content-Type", "application/json")
+	fabricui.Handler(fabricui.Options{AllowedHosts: []string{"example.com"}, Controller: src, Admin: func(*http.Request) bool { return true }}).ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("label without a fabric: %d %s", rec.Code, rec.Body)
 	}
 }

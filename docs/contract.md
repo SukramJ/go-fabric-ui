@@ -19,12 +19,12 @@ open route is `host_not_allowed`; see [Admin rights](#admin-rights) and
 
 | Route | Method | Admin | Answers | Reads in go-fabric |
 | --- | --- | --- | --- | --- |
-| `/node/status` | GET | – | 200, 403 | `Health`, `LocalAddr`, `Topology`, `MDNSEnabled`, `Window` (open, duration, `window_kind`, `window_deadline`), `FabricInfos`; the provider's `List` for `enabled_count`; `Options.Warnings` for `warnings`; `Surface` for `surface`; `AttestationError` for `attestation_error`, `BootReason` for `boot_reason`, `Options.Erase`/`NodeEntry.Erase` for `erase` (0.7.0) |
+| `/node/status` | GET | – | 200, 403 | `Health`, `LocalAddr`, `Topology`, `MDNSEnabled`, `Window` (open, duration, `window_kind` — `administrator_basic` from 0.11.0 —, `window_deadline`), `FabricInfos`; the provider's `List` for `enabled_count`; `Options.Warnings` for `warnings`; `Surface` for `surface`; `AttestationError` for `attestation_error`, `BootReason` for `boot_reason`, `Options.Erase`/`NodeEntry.Erase` for `erase` (0.7.0) |
 | `/node/fabrics` | GET | yes | 200, 403, 500, 503 | `FabricInfos`, `eligibility.VendorName` |
-| `/node/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 500, 503 | `RemoveFabric` |
+| `/node/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 500, 503 | `FabricInfos`, `RemoveFabric`; its `node.ErrFabricNotFound` (a fabric gone meanwhile) is 404 (0.11.0) |
 | `/node/pairing` | GET | yes | 200, 403, 503 | `SetupPayload`, or the credentials of the window this handler opened while `Window` still reports it |
 | `/node/pairing/window` | POST | yes | 200, 400, 403, 409, 413, 415, 500, 503 | `NewWindowCredentials`, `PairingCodesFor` and `OpenBasicWindow`, or `CommissioningWindow().OpenOwnWindow` and `SetupPayload` with `Options.ConfiguredWindow`; `Window` for the duration |
-| `/node/pairing/window/close` | POST | yes | 204, 403, 500, 503 | `Node.CloseWindow` |
+| `/node/pairing/window/close` | POST | yes | 204, 403, 500, 503 | `Node.CloseWindow`; after a window on fresh credentials a node without a fabric has its own window open again on its configured codes, closed by a second close (0.11.0) |
 | `/node/endpoints` | GET | yes | 200, 403, 503 | `Topology` (`Clusters`, `DeviceTypeRevision` of every endpoint, parts included) |
 | `/node/endpoints/{ep}` | GET | yes | 200, 400, 403, 404, 500, 503 | `ReadCluster` (the Descriptor, then every cluster of its ServerList), `ReadAttribute` (the parts' PartsList), `Topology`, `Surface`, `schema` names — served from 0.4.1 |
 | `/node/endpoints/{ep}/events` | GET | yes | 200, 400, 403, 503 | `Events` with the endpoint's filter, `since` and `limit` — served from 0.4.1 |
@@ -73,6 +73,18 @@ window admits the codes of the answer, false when a window is open on
 other credentials (opened elsewhere); absent while no window is open.
 `GET /node/compatibility` answers 500 when the fabric read fails, and
 `DELETE /node/fabrics/{index}` 404 for an index the node does not hold.
+
+From 0.11.0 `window_kind` is `administrator_basic` for an administrator's
+basic window (OpenBasicCommissioningWindow, on the node's own passcode),
+which go-fabric 0.22 reported as `enhanced`; `basic` stays the window this
+handler opened on fresh credentials. `DELETE /node/fabrics/{index}`
+answers 404 also for a fabric removed between the list and the removal.
+After `POST /node/pairing/window/close` of a window on fresh credentials
+(`basic`) a node without a fabric has its own window open again on its
+configured codes, as when such a window expires; a second close closes
+it, the close of the node's own window (`ConfiguredWindow`) leaves none
+open, and a host that wants no window it did
+not open sets go-fabric's `Commissioning.WindowOnDemand`.
 
 ## The node selector (0.5.0)
 
@@ -439,8 +451,14 @@ header before it is routed. Admitted are `localhost` and the names under
 `Options.AllowedHosts`; else `Options.AllowHost`, when set, is asked once.
 Any other request, one with an empty `Host` included, answers
 `403 host_not_allowed`. A daemon reached under a DNS name lists that
-name; behind a proxy that forwards the browser's `Host` unchanged it sets
-`AllowHost` ([embedding.md](embedding.md#behind-an-ingress)).
+name. Behind a proxy that forwards the browser's `Host` unchanged, a host
+that lists the names keeps this check; one that sets `AllowHost` (by the
+proxy's source address) admits every name the proxy forwards, reads and
+writes, and the check is then the proxy's — its authentication, its server
+names ([embedding.md](embedding.md#behind-an-ingress)). A proxy that
+replaces `Host` — with a name of its own or the upstream's address —
+makes this check constant; the check is then the proxy's (no catch-all
+server, unknown names refused).
 
 **Origin.** On an `x-admin` route a request that carries an `Origin`
 header answers `403 origin_not_allowed` unless the origin's host passes
@@ -484,7 +502,8 @@ Statuses new in 0.10.0, beside 403, 405, 413 and 415 above:
   `^[A-Za-z0-9_-]{1,64}$` on `POST /controller/commission`.
 - **404**: an unknown fabric index on `DELETE /node/fabrics/{index}` and
   `/nodes/{node}/fabrics/{index}`. `DELETE
-  /controller/nodes/{id}/fabrics/{index}` keeps its behaviour.
+  /controller/nodes/{id}/fabrics/{index}` keeps its behaviour until
+  0.11.0, which answers 404 there too.
 - **409** `conflict` on the routes under `/controller/nodes/{id}` that
   call the node: the controller's client refuses the call itself (an ICD
   operation it does not allow, the node disabled, a fabric operation in
@@ -586,8 +605,11 @@ sentence, never an error's text.
 ## Versioning
 
 The Go module and the npm package share one version. A minor version adds
-paths, methods, responses, fields and optional request fields; it never
-removes or renames one and never makes an optional request field required.
+paths, methods, responses, fields and optional request fields, and may add
+a value to a response field's enum — a client tolerates a value it does
+not know, as the shipped page does (0.11.0 adds `window_kind`
+`administrator_basic`); it never removes or renames one and never makes an
+optional request field required.
 A patch may add the optional field or event field a fix needs to state
 its behaviour; it adds no route and no problem code.
 `contract/previous/openapi.yaml` is the contract of the newest release
@@ -680,6 +702,29 @@ the fields `Status.window_remaining_seconds`,
 `AclEntry.privilege` and `auth_mode`. The numeric twins of the 64-bit
 ids and `EventRecord.number` are deprecated.
 
+Contract 0.11.0 (review phase 4) is additive over 0.10.0, which
+`contract/previous/` holds as release 0.10.0 shipped it; no break is
+accepted. `POST /controller/updates/check` answers the updates found when
+a node's check fails, with that node in the optional
+`AvailableUpdateList.errors` (`UpdateCheckError`), instead of failing the
+whole check. `DELETE /controller/nodes/{id}/fabrics/{index}` answers 404
+for an index the node does not hold. On the controller routes a request
+go-fabric refuses before sending it (too large for one message, malformed)
+is 400, and 502 stays the node's failure. `CommissionRequest.timeout_seconds`
+states what its absence means on both paths: a discovered device's
+commissioning is bounded at 600 s, a code keeps go-fabric's one-minute
+search bound. `POST /node/pairing/window/close` says that a node without
+a fabric has its own window open again after the close of a window on
+fresh credentials. `Status.window_kind`
+gains `administrator_basic`: an administrator's basic window
+(OpenBasicCommissioningWindow, on the node's own passcode), which
+go-fabric 0.22 reported as `enhanced` and 0.10.0 on go-fabric 0.23.0 sent
+as `administrator-basic`, outside its own enum. The response integers
+that range over 32 bits unsigned or wider are `format: int64` and
+`UpdateConsentRequest.target_software_version` is `x-go-type: int64`, so a
+generated server holds them in 64 bits on a 32-bit platform; the wire is
+unchanged. No problem code is new.
+
 ## Controller routes (v0.2.0)
 
 Served only when the host passes `Options.Controller`; without it every
@@ -720,7 +765,7 @@ hand-written.
 | `/controller/credentials` | PUT / DELETE | yes | 204, 400, 403, 404 (DELETE), 413 and 415 (PUT), 500, 503 |
 | `/controller/fabric/label` | PUT | yes | 204, 400, 403, 413, 415, 500 |
 | `/controller/updates` | GET | yes | 200, 403 |
-| `/controller/updates/consent`, `/check` | POST | yes | 200/204, 400, 403, 404, 413 and 415 (`consent`), 500, 503 |
+| `/controller/updates/consent`, `/check` | POST | yes | 200/204, 400, 403, 404, 413 and 415 (`consent`), 500, 503; `check` answers 200 with `errors` for the nodes whose check failed (0.11.0) |
 | `/controller/topology` | GET | yes | 200, 400, 403, 501, 502 — served from 0.3.1; 501 `not_implemented` from a host without a topology service |
 | `/controller/diagnostics` | GET | yes | 200, 403, 501 — served from 0.9.0 |
 | `/controller/mdns` | GET | yes | 200, 403, 501 — served from 0.9.0 |
@@ -778,7 +823,20 @@ Details the fixtures pin:
   the node refused with its `status` and `bindings: []`. The page warns before a list that
   keeps no Administer entry for this controller.
 - **Our fabric** is removed with `DELETE /controller/nodes/{id}`;
-  `DELETE …/fabrics/{index}` with our index is 400.
+  `DELETE …/fabrics/{index}` with our index is 400, and with an index the
+  node does not hold (NOCResponse InvalidFabricIndex) 404 (0.11.0).
+- **Refused before sending** (0.11.0): a request go-fabric refuses before
+  it reaches the node — too large for one message where it must fit (a
+  timed write), or malformed — is 400 `bad_request`; 502 `node_error`
+  stays the node's or the network's failure.
+- **Updates** (0.11.0): `POST /controller/updates/check` answers the
+  updates found and, in `errors` (`UpdateCheckError`: `node_id_hex`,
+  `error`), every node whose check failed; such a node is not in
+  `updates`. A check that fails as a whole is 500. go-fabric reports one
+  joined error that names no node, so the adapter asks again one node per
+  product (vendor, product, software version) among the nodes without an
+  update found, and gives a failure to every node of that product; each
+  such check ends with its own `check_finished` event.
 - **Commissioning**: `{code}` or `{discovered, passcode}`, not both; a
   passcode the specification excludes is 400 (0.10.0). The optional
   `commissioning_id` (0.10.0) is echoed on every
@@ -786,6 +844,10 @@ Details the fixtures pin:
   draws one. A
   code that does not parse is 400, no device answering is 404, a node
   that fails (PASE, attestation) is 502 with the node's error as detail.
+  `timeout_seconds` (1–600) bounds the whole commissioning; without it
+  (0.11.0) a discovered device's commissioning is bounded at 600 s, and a
+  code keeps go-fabric's one-minute bound on the search for the device,
+  with no bound of this route's on the commissioning of a found device.
   `terms_and_conditions` `{version, acknowledgements}` (0.7.0, each
   0–65535, else 400) is the Terms and Conditions acknowledgement the
   commissioning sends with SetTCAcknowledgements, chip-tool's
@@ -896,6 +958,7 @@ The port is `ControllerSource.Diagnostics`, `DiagnoseMDNS`,
   `/controller/topology`. `controller_diagnostic_event` (0.9.0) carries a
   `DiagnosticEvent`, not a `ControllerEvent` (section "Controller
   diagnostics"). A comment line arrives every 15 s.
-- **`node_error`** (502): the interaction with the node failed. Unlike
+- **`node_error`** (502): the interaction with the node failed (a
+  request go-fabric refuses before sending is 400 from 0.11.0). Unlike
   the other 5xx problems it carries a detail — the node's answer, which
   names no host path.

@@ -225,6 +225,8 @@ func (h *Hooks) Wrap(next func(id string) client.Hooks) func(id string) client.H
 	return func(id string) client.Hooks { return chain(next(id), h.For(id)) }
 }
 
+// chain runs every hook of a, then b's; TestHooks_WrapCallsEveryHostHook
+// fails when a field of client.Hooks is missing here.
 func chain(a, b client.Hooks) client.Hooks {
 	return client.Hooks{
 		EndpointInstalled:           both1(a.EndpointInstalled, b.EndpointInstalled),
@@ -238,6 +240,7 @@ func chain(a, b client.Hooks) client.Hooks {
 		Event:                       bothEvent(a.Event, b.Event),
 		Seeded:                      both0(a.Seeded, b.Seeded),
 		Decommissioned:              both0(a.Decommissioned, b.Decommissioned),
+		Deleted:                     both0(a.Deleted, b.Deleted),
 		Commissioned:                both0(a.Commissioned, b.Commissioned),
 		ConfigurationVersionChanged: both1(a.ConfigurationVersionChanged, b.ConfigurationVersionChanged),
 	}

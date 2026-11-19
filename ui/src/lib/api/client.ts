@@ -227,6 +227,12 @@ export interface FabricClient {
    */
   setToken(token: string | undefined): void;
   /**
+   * The admin token the client sends now, shared by every node's client
+   * (0.11.0); undefined without one. A store compares a status's token
+   * with it to tell whether a stream was opened with that token.
+   */
+  currentToken?(): string | undefined;
+  /**
    * The event source the client's streams open with (0.10.0): fetch with
    * the client's request headers, as every other request (fetchEventSource);
    * the token only to a URL of the page's origin. A 403 forbidden to an
@@ -542,6 +548,7 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       setToken(t) {
         auth.token = t || undefined;
       },
+      currentToken: () => auth.token,
       status: () => statusWithToken<Status>(np + "/status"),
       fabrics: () => call("GET", np + "/fabrics"),
       removeFabric: (i) => call("DELETE", `${np}/fabrics/${encodeURIComponent(String(i))}`),
@@ -663,15 +670,19 @@ function eventQuery(w: EventWindow | LogWindow = {}): string {
 
 /**
  * Whether base addresses the page's own origin, decided as fetch resolves
- * it: against the page's URL, the origin compared (UR-P3-web-194). Without
- * a page (no location) against a placeholder origin, so only a base that
- * stays on it — a path — does.
+ * it: against the document's base (a host page's <base href> may name
+ * another origin, UR-P4-web-04), else the page's URL, the result's origin
+ * compared with the page's (UR-P3-web-194). Without a page (no location)
+ * against a placeholder origin, so only a base that stays on it — a path —
+ * does.
  */
 function isSameOrigin(base: string): boolean {
   let here = typeof location !== "undefined" ? location.href : undefined;
   if (!here || here === "about:blank") here = "http://fabric-ui.invalid/";
+  let resolveAt = here;
+  if (typeof document !== "undefined" && document.querySelector?.("base[href]") && document.baseURI) resolveAt = document.baseURI;
   try {
-    return new URL(base, here).origin === new URL(here).origin;
+    return new URL(base, resolveAt).origin === new URL(here).origin;
   } catch {
     return false;
   }

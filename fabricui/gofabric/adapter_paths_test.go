@@ -15,7 +15,8 @@ import (
 )
 
 // nodeError maps an interaction's error to the port's kinds: a value that
-// does not fit its type is an invalid argument (400), an ICD refusal over
+// does not fit its type, or a request go-fabric refuses before sending
+// it, is an invalid argument (400), an ICD refusal over
 // other administrators a conflict (409), a cancellation stays itself,
 // anything else is the node's failure (502) (UR-P3-test-30).
 func TestNodeError_MapsTheKinds(t *testing.T) {
@@ -26,6 +27,9 @@ func TestNodeError_MapsTheKinds(t *testing.T) {
 		want error
 	}{
 		{"json value", fmt.Errorf("write: %w", client.ErrJSONValue), fabricui.ErrInvalidArgument},
+		// Refused before sending: the request's error (UR-P2-err-37).
+		{"request too large", fmt.Errorf("write: %w", client.ErrRequestTooLarge), fabricui.ErrInvalidArgument},
+		{"malformed request", fmt.Errorf("write: %w", client.ErrMalformedRequest), fabricui.ErrInvalidArgument},
 		{"icd multi-admin", fmt.Errorf("register: %w", multiAdmin), fabricui.ErrConflict},
 		{"icd refused by the client", fmt.Errorf("register: %w", client.ErrICDOperation), fabricui.ErrConflict},
 		{"node disabled", fmt.Errorf("read: %w", client.ErrDisabled), fabricui.ErrConflict},

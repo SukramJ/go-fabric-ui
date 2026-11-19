@@ -11,6 +11,9 @@
   let { warnings, collapsed = false }: Props = $props();
 
   const { t } = useFabricUI();
+  // Without admin rights a warning carries its code only (decision 34):
+  // one line says why, instead of a row of bare codes (UR-P4-ui-65).
+  const bare = $derived(warnings.length > 0 && warnings.every((w) => !w.message));
 </script>
 
 {#snippet list()}
@@ -18,13 +21,16 @@
     {#each warnings as w, i (i)}
       <li class="flex flex-wrap items-center gap-2 text-sm">
         <Badge variant="warning">{w.code}</Badge>
-        <span class="text-[var(--ha-primary-text-color)]">{w.message}</span>
+        {#if w.message}<span class="text-[var(--ha-primary-text-color)]">{w.message}</span>{/if}
         {#if w.since}
           <span class="text-xs text-[var(--ha-secondary-text-color)]">{t("node.warnings.since", { time: formatDate(t, w.since) })}</span>
         {/if}
       </li>
     {/each}
   </ul>
+  {#if bare}
+    <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]" data-testid="host-warnings-viewer">{t("node.warnings.viewer")}</p>
+  {/if}
 {/snippet}
 
 {#if warnings.length > 0}

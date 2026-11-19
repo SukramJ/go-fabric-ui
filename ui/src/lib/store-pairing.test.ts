@@ -103,6 +103,23 @@ describe("UR-P2-ui-05: the page's own window on fresh credentials", () => {
   });
 });
 
+// Contract 0.11.0: an administrator's basic window (OpenBasicCommissioningWindow,
+// on the node's own passcode) has its own kind. No page renders the kind; the
+// store compares it, and the pairing's window_match decides the notice.
+describe("window_kind administrator_basic (0.11.0)", () => {
+  it("replaces the page's own window under an open flow and is judged by window_match", async () => {
+    const h = harness({ pairing: () => new Response(JSON.stringify({ ...body<Record<string, unknown>>("node-pairing.200"), source: "configured", window_open: true, window_match: true }), { status: 200 }) });
+    h.set(basic());
+    await h.store.openWindow(300);
+    h.set({ window_kind: "administrator_basic", window_deadline: new Date(Date.now() + 900_000).toISOString() });
+    h.store.resync();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(h.reads()).toBe(1);
+    expect(h.store.commissioning).toMatchObject({ phase: "open", foreignWindow: false });
+    expect(h.store.commissioning.window?.qr_code).not.toBe(fresh.qr_code);
+  });
+});
+
 describe("UR-P2-conc-04: an erase under an open Pair flow", () => {
   // The erase ends the node; the new node opens its own window on the
   // configured credentials. The page resyncs once the node answers.

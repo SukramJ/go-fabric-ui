@@ -14,6 +14,9 @@
   const { t, toast, client, controller } = useFabricUI();
 
   let available = $state<AvailableUpdate[]>([]);
+  // Why this node's last check failed, or null; another node's failure
+  // does not fail it (decision 70, contract 0.11.0).
+  let checkError = $state<string | null>(null);
   let busy = $state(false);
 
   // Whether a read of the queue finished: before it, and after one that
@@ -28,9 +31,12 @@
 
   async function check() {
     busy = true;
+    checkError = null;
     try {
-      available = (await client.checkUpdates()).updates.filter((u) => u.node_id_hex === nodeId);
-      if (available.length === 0) toast.info(t("controller.updates.none_available"));
+      const res = await client.checkUpdates();
+      available = res.updates.filter((u) => u.node_id_hex === nodeId);
+      checkError = res.errors?.find((e) => e.node_id_hex === nodeId)?.error ?? null;
+      if (available.length === 0 && checkError === null) toast.info(t("controller.updates.none_available"));
     } catch (err) {
       toast.error(errorText(err));
     } finally {
@@ -79,5 +85,8 @@
         <Button disabled={busy} onclick={() => void consent(u)}>{t("controller.updates.consent", { version: u.software_version_string || String(u.software_version) })}</Button>
       {/each}
     </div>
+    {#if checkError !== null}
+      <p class="mt-2 text-sm text-[var(--ha-error-color)]" role="alert" data-testid="updates-check-error">{t("controller.updates.check_failed", { error: checkError })}</p>
+    {/if}
   </Card>
 {/if}

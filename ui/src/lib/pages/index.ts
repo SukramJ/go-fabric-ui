@@ -20,6 +20,10 @@ export { default as ControllerNetwork } from "./controller/Network.svelte";
 export { default as ControllerCommission } from "./controller/Commission.svelte";
 export { default as ControllerNode } from "./controller/Node.svelte";
 export { default as ControllerSettings } from "./controller/Settings.svelte";
+// The controller's diagnostics (contract 0.9.0, exported from 0.11.0):
+// "Page" because ControllerDiagnostics is the API type the package root
+// re-exports as well (UR-P1-api-171).
+export { default as ControllerDiagnosticsPage } from "./controller/Diagnostics.svelte";
 // The daemon's operation, beside both families (wave U5a): log level, log
 // view and version.
 export { default as Operation } from "./operation/Operation.svelte";

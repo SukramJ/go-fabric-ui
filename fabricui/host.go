@@ -42,7 +42,10 @@ func hostName(hostport string) string {
 
 // nameAllowed reports whether name passes the name rules: a loopback
 // name (localhost, *.localhost), an IP address without a zone, or an
-// entry of Options.AllowedHosts.
+// entry of Options.AllowedHosts. *.localhost is admitted on the
+// assumption that the client resolves it to loopback (RFC 6761 §6.3); a
+// client that asks a resolver for it trusts that resolver (decision 37
+// (a), UR-P4-auth-05).
 func (h *handler) nameAllowed(name string) bool {
 	switch {
 	case name == "":

@@ -104,14 +104,16 @@
 
   async function save() {
     if (!entries) return;
-    if (!keepsUs(entries)) {
-      const ok = await confirm({ title: t("controller.acl.lockout"), body: t("controller.acl.lockout_body"), destructive: true, confirmLabel: t("common.save") });
-      if (!ok) return;
-    }
+    // A list the write cannot take is refused before the lock-out
+    // question: nothing would be written to confirm (UR-P4-ui-66).
     const writable = writableEntries(entries);
     if (!writable) {
       toast.error(t("controller.acl.unknown_entry"));
       return;
+    }
+    if (!keepsUs(entries)) {
+      const ok = await confirm({ title: t("controller.acl.lockout"), body: t("controller.acl.lockout_body"), destructive: true, confirmLabel: t("common.save") });
+      if (!ok) return;
     }
     busy = true;
     try {

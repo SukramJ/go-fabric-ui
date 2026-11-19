@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -820,7 +821,11 @@ type Credential struct {
 type SoftwareUpdateSource interface {
 	// Queue is the update queue.
 	Queue() []PendingUpdate
-	// Check asks every node for an available update.
+	// Check asks every node for an available update. When the check
+	// failed for some nodes it returns the updates of the others with an
+	// [UpdateCheckFailures] naming the nodes that failed (contract
+	// 0.11.0, AvailableUpdateList.errors); any other error fails the
+	// whole check.
 	Check(ctx context.Context) ([]AvailableUpdate, error)
 	// Consent consents to node's update to the version.
 	Consent(ctx context.Context, node uint64, vendorID, productID uint16, version uint32) error
@@ -840,6 +845,25 @@ type PendingUpdate struct {
 	// Transferred and Length are an in-progress transfer's bytes; nil
 	// otherwise.
 	Transferred, Length *uint64
+}
+
+// UpdateCheckFailures is the error of a [SoftwareUpdateSource.Check]
+// that failed for some nodes only: the updates Check returns with it are
+// those of the other nodes.
+type UpdateCheckFailures []UpdateCheckFailure
+
+// UpdateCheckFailure is one node whose update check failed.
+type UpdateCheckFailure struct {
+	NodeID uint64
+	Err    error
+}
+
+func (f UpdateCheckFailures) Error() string {
+	parts := make([]string, 0, len(f))
+	for _, e := range f {
+		parts = append(parts, fmt.Sprintf("node %016X: %v", e.NodeID, e.Err))
+	}
+	return "update check failed for " + strings.Join(parts, "; ")
 }
 
 // AvailableUpdate is an update a node can take.
