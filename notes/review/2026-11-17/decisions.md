@@ -117,3 +117,16 @@ and the verification of phase 3 (published with phase 3's pull request).
 | 54 | Decision 11, UR-P3-sup-70: `npm audit` | **A failing `npm audit --omit=dev --audit-level=low` in the web job**, a full audit in the nightly job that reports without failing |
 | 55 | UR-P3-sup-69: the generator's requirements | **A separate tools module** for oapi-codegen; the module's `go.mod` keeps only runtime dependencies |
 | 56 | Repository settings (UR-P3-sup-61, -63, -64, -66) | **All four set**: the six unbound required checks bound to GitHub Actions; a ruleset on `v*` tags (and the release checks the tag is on `main`); an `npm` environment for the publish job; CodeQL for the web half as a required context. Settings, not code: applied by the owner's session with the owner's confirmation |
+
+## 2026-11-19, the contract design note's open points
+
+Put as one wizard of four questions, the recommendation first; the owner
+took every recommendation. Source: `notes/briefs/2026-11-18-review-p3-contract.md`
+"Open points" (Fable).
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 57 | OPEN-1: `GET /controller/status` in class H (decision 35) carries `admin` (decision 44) and the token | **Open, the rest zeroed**: a non-admin gets `enabled`, `capabilities`, `admin` and the token as they are, every other required member empty or 0 (decision 46's pattern); no guard break |
+| 58 | OPEN-2/3: `GET /operation/log/level` and the `window_closed` event, named by no decision | **Both open**: the log level route keeps no `x-admin`; `window_closed` joins `window_opened` and `nodes_changed` on the node stream's non-admin allow-list |
+| 59 | OPEN-4: the commissioning id of UR-P1-api-18 | **Chosen by the client**: an optional `CommissionRequest.commissioning_id`, echoed on the progress events; additive |
+| 60 | OPEN-5/6: 405, the unknown-path 404, and decision 48's `Mount` variant | **At path level**: a `MethodNotAllowed` component, a line in `info.description` and a Go guard on `Allow`, not per operation; `Mount` already returns an error, so only `NewHandler(o) (http.Handler, error)` is new |
