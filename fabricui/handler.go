@@ -612,6 +612,8 @@ func (h *handler) sibling(e nodeEntry) *handler {
 		exposureReason: h.exposureReason,
 		streams:        h.streams,
 		hostDone:       h.hostDone,
+		allowedHosts:   h.allowedHosts,
+		allowHost:      h.allowHost,
 	}
 	s.hub, s.extra = hubOf(e.events)
 	s.config.Store(e.config)
