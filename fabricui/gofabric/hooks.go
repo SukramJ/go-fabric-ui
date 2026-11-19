@@ -33,10 +33,16 @@ type Hooks struct {
 	mu     sync.Mutex
 	src    *source
 	closed bool
-	// ids are the node ids by local id, kept so a Decommissioned hook,
-	// which runs once the peer address is gone, still names its node; the
-	// entry goes with that hook.
+	// ids are the node ids by local id, kept so a Decommissioned or
+	// Deleted hook, which runs once the peer address is gone, still names
+	// its node; the entry goes with that hook.
 	ids map[string]uint64
+	// gone marks a local id whose node_removed was emitted: a decommission
+	// and a peer's leave run Decommissioned and then Deleted, and a hook
+	// between them can learn the id again, so the second hook emits
+	// nothing (UR-P4-adpt-201). Commissioned clears it, for a node that
+	// receives the local id later.
+	gone map[string]bool
 	// pending are the coalescing timers of node_updated, by local id. A
 	// timer's function emits only while it is still the one in pending.
 	pending map[string]*time.Timer
@@ -53,7 +59,7 @@ type Hooks struct {
 
 // NewHooks returns hooks bound to no controller yet.
 func NewHooks() *Hooks {
-	return &Hooks{ids: map[string]uint64{}, pending: map[string]*time.Timer{}, delay: updateDelay}
+	return &Hooks{ids: map[string]uint64{}, gone: map[string]bool{}, pending: map[string]*time.Timer{}, delay: updateDelay}
 }
 
 // bind sets the source the hooks publish to; from then on hooks fire
@@ -105,14 +111,30 @@ func (h *Hooks) stop(local string) {
 	}
 }
 
-// removed emits node_removed and forgets the node: its id and its pending
-// node_updated, which would otherwise follow the removal.
+// removed emits node_removed, once per node, and forgets the node: its
+// id and its pending node_updated, which would otherwise follow the
+// removal.
 func (h *Hooks) removed(local string) {
-	h.emit(local, fabricui.ControllerEvent{Type: fabricui.EventNodeRemoved})
+	h.mu.Lock()
+	first := !h.gone[local]
+	h.gone[local] = true
+	h.mu.Unlock()
+	if first {
+		h.emit(local, fabricui.ControllerEvent{Type: fabricui.EventNodeRemoved})
+	}
 	h.mu.Lock()
 	delete(h.ids, local)
 	h.stop(local)
 	h.mu.Unlock()
+}
+
+// added emits node_added for a node the registry commissioned, which
+// may hold the local id of a node removed before.
+func (h *Hooks) added(local string) {
+	h.mu.Lock()
+	delete(h.gone, local)
+	h.mu.Unlock()
+	h.emit(local, fabricui.ControllerEvent{Type: fabricui.EventNodeAdded})
 }
 
 // source is the bound source, nil while unbound or closed.
@@ -211,8 +233,11 @@ func (h *Hooks) For(id string) client.Hooks {
 		SubscriptionStatusChanged: func(active bool) {
 			h.emit(id, fabricui.ControllerEvent{Type: fabricui.EventSubscription, Active: active})
 		},
-		Commissioned:   func() { h.emit(id, fabricui.ControllerEvent{Type: fabricui.EventNodeAdded}) },
+		Commissioned:   func() { h.added(id) },
 		Decommissioned: func() { h.removed(id) },
+		// Forget, Erase and a failed commissioning run Deleted only
+		// (UR-P4-adpt-201).
+		Deleted: func() { h.removed(id) },
 	}
 }
 
