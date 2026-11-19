@@ -190,3 +190,26 @@ describe("the Operation page waits for the probes", () => {
     expect(fetchImpl.mock.calls.filter(([u]) => String(u).includes("/operation/log"))).toEqual([]);
   });
 });
+
+describe("UR-P4-ui-233: a refused stream is shown", () => {
+  const refused = () =>
+    new Response(JSON.stringify({ code: "forbidden", title: "Admin rights required", status: 403, type: "x" }), {
+      status: 403,
+      headers: { "Content-Type": "application/problem+json" },
+    });
+
+  it("the node family says its live updates stopped", async () => {
+    serve(["node-status.200", "nodes.200"], (url) => (url.endsWith("/stream") ? refused() : undefined));
+    render(App);
+    expect(await screen.findByTestId("node-status")).toBeInTheDocument();
+    expect(await screen.findByTestId("stream-denied")).toHaveTextContent("Live updates stopped");
+  });
+
+  it("the controller family says its live updates stopped while the status still grants admin rights", async () => {
+    serve(["controller-status.200", "controller-nodes.200"], (url) => (url.endsWith("/stream") ? refused() : undefined));
+    location.hash = "#/controller/nodes";
+    render(App);
+    expect(await screen.findByTestId("stream-denied")).toHaveTextContent("Live updates stopped");
+    expect(screen.getByRole("link", { name: "Nodes" })).toBeInTheDocument();
+  });
+});

@@ -20,6 +20,7 @@
   "common.saving": "Wird gespeichert…",
   "common.search": "Suchen…",
   "common.seconds_short": "{n} s",
+  "common.stream_denied": "Live-Aktualisierung beendet: Der Server hat den Ereignisstrom abgelehnt. Lade die Seite neu, um es erneut zu versuchen.",
   "controller.acl.add": "Eintrag hinzufügen",
   "controller.acl.add_entry": "Hinzufügen",
   "controller.acl.any_subject": "jedes Subjekt",

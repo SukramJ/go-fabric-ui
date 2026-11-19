@@ -93,7 +93,9 @@
   onMount(() => {
     // The stream first: a record logged while the ring is read is kept,
     // and mergeRecords drops the one both deliver.
-    closeLog = subscribeLog(append);
+    // A stream refused later (a session that lost its rights) ends; the
+    // log section says why (UR-P4-ui-233).
+    closeLog = subscribeLog(append, (code) => (logDenied = code));
     const close = () => closeLog?.();
     void load();
     // A host page that mounts the operation alone has read no status: the

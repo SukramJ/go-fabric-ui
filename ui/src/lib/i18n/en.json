@@ -20,6 +20,7 @@
   "common.saving": "Saving…",
   "common.search": "Search…",
   "common.seconds_short": "{n} s",
+  "common.stream_denied": "Live updates stopped: the server refused the event stream. Reload the page to try again.",
   "controller.acl.add": "Add an entry",
   "controller.acl.add_entry": "Add",
   "controller.acl.any_subject": "every subject",

@@ -96,9 +96,16 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     try {
       const s = await client.controllerStatus();
       if (mine !== statusGen) return;
+      const wasAdmin = isAdmin();
       status = s;
       present = true;
       statusDenied = null;
+      // A stream refused 403 ends for good; a status that grants the
+      // rights again opens it again (UR-P4-ui-233).
+      if (unsub && !deps.subscribe && streamDenied !== null && !wasAdmin && isAdmin()) {
+        disconnect();
+        connect();
+      }
     } catch (err) {
       if (mine !== statusGen) return;
       if (err instanceof ApiError && err.status === 404) {
@@ -275,7 +282,12 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
       unsub = subscribeControllerStream(client.controllerStreamUrl(), applyEvent, client.openStream, {
         onResync: resync,
         resyncOnFirstOpen: connectedBefore,
-        onDenied: (code) => (streamDenied = code ?? "forbidden"),
+        // The refusal reloads the status: a session that lost its rights
+        // turns to the denied notice (UR-P4-ui-233).
+        onDenied: (code) => {
+          streamDenied = code ?? "forbidden";
+          void loadStatus();
+        },
       });
     }
     connectedBefore = true;

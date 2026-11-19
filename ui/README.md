@@ -67,7 +67,8 @@ the prefix `controllerNode` link them. `ui.controller.loadStatus()` sets
 families (routes key `operation`); it answers its empty state when the host
 serves no operations port (503). It reads the log stream through the
 context's `subscribeLog` (default `subscribeLogStream` on
-`client.logStreamUrl()`). `NodeEcosystemHints` is the pairing hints card
+`client.logStreamUrl()`); its optional second argument, `onDenied(code)`,
+tells the page a refused stream ended (v0.12.0). `NodeEcosystemHints` is the pairing hints card
 `NodePair` renders below its flow.
 
 Several device nodes (v0.5.0): `client.nodes()` lists them, the default

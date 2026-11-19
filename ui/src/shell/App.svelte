@@ -334,6 +334,12 @@
       <!-- Every controller page but the status is an admin's (0.10.0). -->
       <DeniedState code={controller.streamDenied ?? "forbidden"} />
     {:else}
+      {#if controller.streamDenied}
+        <!-- A refused stream ends for good: no event reaches the pages until a status grants the rights again (UR-P4-ui-233). -->
+        <p class="mb-3 rounded border border-[var(--ha-warning-color)] p-3 text-sm text-[var(--ha-primary-text-color)]" role="status" data-testid="stream-denied">
+          {t("common.stream_denied")}
+        </p>
+      {/if}
       <Tabs items={controllerTabs} active={route.nodeId ? "nodes" : controllerPage} />
       <div class="mt-4">
         {#if route.nodeId}

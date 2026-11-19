@@ -165,10 +165,12 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       const s = await client.status();
       if (mine > statusApplied) {
         statusApplied = mine;
+        const wasAdmin = isAdminStatus(status);
         setStatus(s);
         statusError = null;
         statusDenied = null;
         reopenOnNewToken(s);
+        reopenOnRightBack(wasAdmin, s);
       }
       return s;
     } catch (err) {
@@ -558,6 +560,19 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     connect();
   }
 
+  // A stream refused 403 ends for good; the refusal reloads the status,
+  // which turns a page that lost its rights to its notice. A later status
+  // that grants them again opens the stream again (UR-P4-ui-233).
+  function onStreamDenied(code: string | undefined) {
+    streamDenied = code ?? "forbidden";
+    void loadStatus();
+  }
+  function reopenOnRightBack(wasAdmin: boolean, s: Status) {
+    if (!unsub || deps.subscribe || streamDenied === null || wasAdmin || !isAdminStatus(s)) return;
+    disconnect();
+    connect();
+  }
+
   function connect() {
     if (unsub) return;
     if (deps.subscribe) {
@@ -577,7 +592,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       unsub = subscribeStream(client.streamUrl(), applyEvent, client.openStream, {
         onResync: resync,
         resyncOnFirstOpen: connectedBefore,
-        onDenied: (code) => (streamDenied = code ?? "forbidden"),
+        onDenied: onStreamDenied,
       });
     }
     connectedBefore = true;
@@ -606,7 +621,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     get statusAt() { return statusAt; },
     /** The 403 problem code of the last status read (forbidden, host_not_allowed, origin_not_allowed), or null (0.10.0). */
     get statusDenied() { return statusDenied; },
-    /** The 403 problem code the stream was refused with, or null; the stream is not reopened then (0.10.0). */
+    /** The 403 problem code the stream was refused with, or null; the stream is reopened by a later status that grants admin rights again (UR-P4-ui-233). */
     get streamDenied() { return streamDenied; },
     /** True after an apply whose selection was stored but not rebuilt (Applied.reassembled false, 0.10.0). */
     get exposureNotInEffect() { return exposureNotInEffect; },
