@@ -2,7 +2,7 @@
 // what the e2e server's doubles serve (the fixtures' data), and the
 // browser logs no error on the way. Full flows stay with the vitest page
 // tests and the Go end-to-end tests (concept U5 E, "Playwright nur Smoke").
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Request } from "@playwright/test";
 
 type Smoke = { name: string; hash: string; shows: (page: Page) => ReturnType<Page["getByTestId"]> };
 
@@ -55,17 +55,38 @@ async function collectViolations(page: Page): Promise<() => Promise<string[]>> {
   return () => page.evaluate(() => (window as unknown as { __cspViolations: string[] }).__cspViolations);
 }
 
+// QUIET_MS is how long no request but the streams may be pending before
+// settled() takes the page as loaded.
+const QUIET_MS = 500;
+
 // watch collects what every test asserts at its end: console errors, page
 // errors and policy violations (UR-P3-test-36). clean() asserts none came.
-async function watch(page: Page): Promise<{ errors: string[]; clean: () => Promise<void> }> {
+// settled() waits until no request but the event streams is pending and
+// none started for QUIET_MS: the streams are long-lived fetch requests
+// (decision 45), so the network itself never goes idle.
+async function watch(page: Page): Promise<{ errors: string[]; settled: () => Promise<void>; clean: () => Promise<void> }> {
   const errors: string[] = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") errors.push(msg.text());
   });
   page.on("pageerror", (err) => errors.push(err.message));
+  const pending = new Set<Request>();
+  let last = Date.now();
+  const isStream = (r: Request) => new URL(r.url()).pathname.endsWith("/stream");
+  page.on("request", (r) => {
+    if (isStream(r)) return;
+    pending.add(r);
+    last = Date.now();
+  });
+  const done = (r: Request) => {
+    if (pending.delete(r)) last = Date.now();
+  };
+  page.on("requestfinished", done);
+  page.on("requestfailed", done);
   const violations = await collectViolations(page);
   return {
     errors,
+    settled: () => expect.poll(() => pending.size === 0 && Date.now() - last >= QUIET_MS, { timeout: 15_000 }).toBe(true),
     clean: async () => {
       expect(await violations()).toEqual([]);
       expect(errors).toEqual([]);
@@ -79,7 +100,7 @@ for (const s of SMOKES) {
     const resp = await page.goto("/" + s.hash);
     expect(resp?.headers()["content-security-policy"]).toContain("frame-ancestors 'self'");
     await expect(s.shows(page)).toBeVisible();
-    await page.waitForLoadState("networkidle");
+    await w.settled();
     await w.clean();
   });
 }
