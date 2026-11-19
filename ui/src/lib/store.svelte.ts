@@ -264,6 +264,13 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     return (await client.previewExposure(updates)).items;
   }
 
+  // Rebuilds the node from the stored selection: a success puts a stored
+  // selection the last apply could not rebuild into effect (UR-P4-ui-61).
+  async function reassemble() {
+    await client.reassemble();
+    exposureNotInEffect = false;
+  }
+
   async function saveBulk(): Promise<number> {
     const updates = Array.from(pending.values());
     if (updates.length === 0) return 0;
@@ -607,6 +614,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     discardDirty,
     preview,
     saveBulk,
+    reassemble,
     openWindow,
     hydrateCommissioning,
     closeWindow,

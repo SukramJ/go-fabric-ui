@@ -208,3 +208,42 @@ describe("Fabrics — Remove busy state (UR-P1-ui-145)", () => {
     expect(ui.confirmSpy).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("UR-P4-ui-61: the not-in-effect notice after a reassemble", () => {
+  it("goes when the node is reassembled from the Fabrics page", async () => {
+    const ui = testUI({
+      fixtures: ["node-status.200", "node-exposure-schema.200", "node-exposure.200", "node-fabrics.200", "node-maintenance-reassemble.204"],
+      answers: { "PUT /node/exposure": { status: 200, body: { applied: 1, reassembled: false } } },
+    });
+    await ui.node.loadStatus();
+    await ui.node.loadExposure();
+    const item = ui.node.items[0];
+    ui.node.markDirty(item, { enabled: !item.enabled });
+    await ui.node.saveBulk();
+    expect(ui.node.exposureNotInEffect).toBe(true);
+    render(Harness, { ui, page: Fabrics });
+    await fireEvent.click(await screen.findByText("node.maint.reassemble"));
+    await waitFor(() => expect(ui.toastSpy.success).toHaveBeenCalledWith("node.maint.reassemble_done"));
+    // The rebuild succeeded: the stored selection is in effect now.
+    expect(ui.node.exposureNotInEffect).toBe(false);
+  });
+
+  it("stays when the reassemble fails", async () => {
+    const ui = testUI({
+      fixtures: ["node-status.200", "node-exposure-schema.200", "node-exposure.200", "node-fabrics.200"],
+      answers: {
+        "PUT /node/exposure": { status: 200, body: { applied: 1, reassembled: false } },
+        "POST /node/maintenance/reassemble": { status: 500, body: { code: "internal", title: "boom", status: 500, type: "x" } },
+      },
+    });
+    await ui.node.loadStatus();
+    await ui.node.loadExposure();
+    const item = ui.node.items[0];
+    ui.node.markDirty(item, { enabled: !item.enabled });
+    await ui.node.saveBulk();
+    render(Harness, { ui, page: Fabrics });
+    await fireEvent.click(await screen.findByText("node.maint.reassemble"));
+    await waitFor(() => expect(ui.toastSpy.error).toHaveBeenCalled());
+    expect(ui.node.exposureNotInEffect).toBe(true);
+  });
+});
