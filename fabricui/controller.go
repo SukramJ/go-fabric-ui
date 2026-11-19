@@ -184,7 +184,9 @@ type NetworkNode struct {
 	ID string
 	// Kind is one of the contract's TopologyNode kinds: node, peer,
 	// thread_router, thread_end_device, wifi_ap, ethernet (the go-fabric
-	// adapter makes an Ethernet node a peer with role ethernet).
+	// adapter makes an Ethernet node a peer with role ethernet), and
+	// border_router (contract 0.8.0): a Thread border router, labelled by
+	// its mDNS host name, ok while seen within 24 hours.
 	Kind string
 	// Label names the node; State is ok, unreachable, idle or unknown.
 	Label, State string
