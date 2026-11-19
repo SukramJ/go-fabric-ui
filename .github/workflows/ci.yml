@@ -6,9 +6,8 @@
 # the byte-identical dist guard and the bundled-package notices), e2e-web
 # (a Playwright smoke per page in Chromium against the Go e2e server) and
 # contract (fixture use on both sides, no removal against the last
-# release). No fuzz-smoke job: the module has no decoder of its own; the
-# request bodies are encoding/json with DisallowUnknownFields and a size
-# bound.
+# release). The fuzz targets run on their seeds in every `go test`; their
+# fuzzing runs nightly (nightly.yml, make fuzz).
 name: ci
 
 on:

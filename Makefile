@@ -7,7 +7,14 @@ DIST_DIR := fabricui/dist
 # dist-check and notices-check build here, never into the committed bundle.
 CHECK_DIR := $(or $(TMPDIR),/tmp)/go-fabric-ui-check
 
-FUZZTIME ?= 10000x
+# FUZZTIME is how long make fuzz runs each target (a duration or Nx);
+# the nightly job sets 3m.
+FUZZTIME ?= 30s
+# FUZZ_TARGETS are the standing fuzz targets (decision 53), package:name.
+FUZZ_TARGETS := \
+	./fabricui:FuzzParseHex ./fabricui:FuzzQueryWindows ./fabricui:FuzzStrings \
+	./fabricui:FuzzDecodeBodies ./fabricui:FuzzControllerBodies ./fabricui:FuzzMux \
+	./fabricui/gofabric:FuzzThreadDatasetName ./fabricui/gofabric:FuzzDiscoveredAndCode
 
 GOFUMPT_VERSION       ?= v0.12.0
 GOLANGCI_LINT_VERSION ?= v2.14.0
@@ -46,6 +53,12 @@ race: ## go test -race (CGO_ENABLED=1 for this run only)
 
 e2e: ## the end-to-end tests alone: a fabrictest site commissioned through the handlers, node and controller family
 	CGO_ENABLED=0 $(GO) test -count=1 -run 'TestEndToEnd' -v ./fabricui/...
+
+fuzz: ## run each fuzz target for FUZZTIME (default 30s), one after another; `go test` runs their seeds
+	@set -e; for t in $(FUZZ_TARGETS); do \
+		pkg=$${t%%:*}; name=$${t#*:}; echo "fuzz: $$name ($$pkg, $(FUZZTIME))"; \
+		CGO_ENABLED=0 $(GO) test -run='^$$' -fuzz="^$$name\$$" -fuzztime=$(FUZZTIME) $$pkg; \
+	done
 
 fmt: ## gofumpt -w .
 	gofumpt -w .
@@ -158,9 +171,9 @@ version-check: ## internal/version, ui/package.json and the changelog's newest s
 		echo "version-check: internal/version=$(VERSION_GO) ui/package.json=$(VERSION_NPM) changelog=$(VERSION_LOG)"; exit 1; fi
 	@echo "version-check: $(VERSION_GO)"
 
-ci: build vet test lint generate-check web-check dist-check ## everything the pipeline's main jobs run
+ci: build vet test lint generate-check web-check dist-check ## the main Go and web checks; the pipeline also runs race, cover-check, vuln, licenses, secrets, pins-check, npm-audit, notices-check, version-check, contract-check, e2e-web and the 386 build
 
 clean: ## remove local build artefacts (never the committed bundle)
 	rm -rf coverage.out $(CHECK_DIR)
 
-.PHONY: help setup build vet test race e2e e2e-web fmt fmt-check lint tidy-check pins-check cover cover-check vuln licenses secrets web-install npm-audit npm-audit-all web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean
+.PHONY: help setup build vet test race e2e e2e-web fuzz fmt fmt-check lint tidy-check pins-check cover cover-check vuln licenses secrets web-install npm-audit npm-audit-all web web-check dist-check notices-check contract-check generate generate-check gen-types version-check ci clean

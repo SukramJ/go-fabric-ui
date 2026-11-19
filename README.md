@@ -88,11 +88,21 @@ table, the admin modes, the problem codes and the versioning rule.
 ## Building
 
 ```sh
-make ci          # build vet test lint web-check dist-check
+make ci          # the main checks: build vet test lint generate-check web-check dist-check
 make race        # the Go tests with the race detector
+make fuzz        # each fuzz target for FUZZTIME (default 30s); go test runs their seeds
+make help        # every target
 make web-install # npm ci in ui/
 make web         # rebuild fabricui/dist (committed; dist-check fails on any byte of difference)
 ```
+
+`make ci` is not the whole pipeline: CI also runs `make race`,
+`make cover-check`, `make vuln licenses secrets pins-check`,
+`GOARCH=386 make build`, and after `make web-install` `make npm-audit`,
+`make notices-check`, `make version-check`, `make contract-check` and
+`make e2e-web`; CodeQL runs for Go and TypeScript. The nightly workflow
+adds the macOS test leg, `make fuzz` at three minutes per target and a
+full `npm audit` that reports without failing.
 
 ## Consumers
 
