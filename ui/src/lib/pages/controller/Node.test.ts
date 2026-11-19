@@ -115,6 +115,25 @@ describe("Controller Node", () => {
     expect(win.querySelector("svg")).not.toBeNull();
   });
 
+  // UR-P4-ui-234: the QR encoder refuses an empty payload and one over its
+  // capacity; the tab shows the codes without the picture.
+  for (const [name, qr] of [
+    ["an empty", ""],
+    ["an over-long", "x".repeat(3000)],
+  ] as const) {
+    it(`shows the codes without a picture for ${name} QR payload`, async () => {
+      const answer = { ...body<Record<string, unknown>>("controller-node-window.200"), qr_code: qr };
+      renderNode(L, "window", ["controller-node-window.200"], {
+        answers: { [`POST /controller/nodes/${L}/window`]: { status: 200, body: answer } },
+      });
+      await screen.findByTestId("node-title");
+      await fireEvent.click(screen.getByText("controller.window.open"));
+      const win = await screen.findByTestId("node-window");
+      expect(win).toHaveTextContent("34970112332");
+      expect(win.querySelector("svg")).toBeNull();
+    });
+  }
+
   it("shows the ICD state of a sleepy node", async () => {
     renderNode(S, "icd", ["controller-node-icd.200"]);
     const card = await screen.findByTestId("node-icd");

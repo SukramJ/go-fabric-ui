@@ -13,7 +13,7 @@
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
   import { windowSecondsLeft } from "../../countdown";
-  import { renderQrSvg } from "../../qr";
+  import { qrSvgOrNull } from "../../qr";
   import Button from "../../kit/Button.svelte";
   import Card from "../../kit/Card.svelte";
   import Select from "../../kit/Select.svelte";
@@ -125,7 +125,7 @@
   const RING_R = 54;
   const RING_C = 2 * Math.PI * RING_R;
   const ringOffset = $derived(!remaining || !win || !win.duration_seconds ? 0 : RING_C * (1 - remaining / win.duration_seconds));
-  const qrSvg = $derived(win?.qr_code ? renderQrSvg(win.qr_code) : null);
+  const qrSvg = $derived(qrSvgOrNull(win?.qr_code));
 </script>
 
 <div class="max-w-lg">

@@ -8,7 +8,7 @@
   import { onDestroy } from "svelte";
   import { useFabricUI } from "../../../context";
   import { errorText } from "../../../store.svelte";
-  import { renderQrSvg } from "../../../qr";
+  import { qrSvgOrNull } from "../../../qr";
   import type { NodeWindow } from "../../../api/client";
   import Button from "../../../kit/Button.svelte";
   import Card from "../../../kit/Card.svelte";
@@ -46,7 +46,7 @@
   }
 
   const options = $derived(["180", "300", "600", "900"].map((s) => ({ value: s, label: t("controller.window.minutes", { minutes: Number(s) / 60 }) })));
-  const qrSvg = $derived(win ? renderQrSvg(win.qr_code) : null);
+  const qrSvg = $derived(qrSvgOrNull(win?.qr_code));
 
   async function open() {
     busy = true;
@@ -99,7 +99,9 @@
     <p class="mt-2 text-xs text-[var(--ha-secondary-text-color)]">{t("controller.window.close_hint")}</p>
   {:else}
     <div class="flex flex-wrap gap-6" data-testid="node-window">
-      <div class="w-48">{@html qrSvg}</div>
+      {#if qrSvg}
+        <div class="w-48">{@html qrSvg}</div>
+      {/if}
       <dl class="grid grid-cols-[auto_1fr] content-start gap-x-4 gap-y-1 text-sm">
         <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.window.manual_code")}</dt>
         <dd class="font-mono">{win.manual_code} <Button size="sm" variant="ghost" onclick={() => void copy(win!.manual_code)}>{t("common.copy")}</Button></dd>

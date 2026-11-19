@@ -56,3 +56,17 @@ export function renderQrSvg(payload: string, opts?: { size?: number }): string {
     `</svg>`
   );
 }
+
+/**
+ * renderQrSvg, or null when the encoder refuses the payload (an empty one,
+ * one over the code's capacity): the pages show the codes without the
+ * picture rather than fail (UR-P4-ui-234).
+ */
+export function qrSvgOrNull(payload: string | undefined, opts?: { size?: number }): string | null {
+  if (!payload) return null;
+  try {
+    return renderQrSvg(payload, opts);
+  } catch {
+    return null;
+  }
+}
