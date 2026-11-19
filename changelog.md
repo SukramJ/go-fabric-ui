@@ -5,6 +5,73 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). The Go module and the npm package
 `@sukramj/fabric-ui` share one version.
 
+## [0.12.0] - 2026-11-19
+
+The review, phase 4 run 2 (`notes/review/2026-11-17/`); contract 0.12.0,
+additive over 0.11.0 (no accepted break). `docs/contract.md`
+("Versioning") lists the contract's changes for the hosts.
+
+### Hosts
+
+- **A proxy that replaces `Host` with a name of its own** needs that name
+  in `AllowedHosts`; an unlisted name is refused on every request (403
+  `host_not_allowed`). 0.11.0's line above said such a proxy makes the
+  check pass every request; that holds for the upstream's address and a
+  listed name only (`docs/embedding.md`, "Behind an Ingress";
+  UR-P4-doc-202).
+- **`ErrNotImplemented` and `ErrNotRead`** from a host's own
+  `ControllerSource` are 501 and 503 only where the contract declares
+  them — `NetworkTopology` and `ControllerNode.ClusterDetail`; from any
+  other method they are 500 (decision 79).
+- **The ICD multi-admin refusal** is its own error,
+  `fabricui.ErrICDMultiAdmin`, which wraps `ErrConflict`; a host's own
+  `ControllerNode.RegisterICD` returns it for the refusal, and
+  `errors.Is(err, ErrConflict)` still holds (decision 76).
+
+### Added
+
+- Problem code `icd_multi_admin` (409 on
+  `POST /controller/nodes/{id}/icd/register`); the client's own refusals
+  stay `conflict` (decision 76, UR-P4-ui-291).
+- `window_kind` `other`: an open window of a kind the contract does not
+  name, which a later go-fabric may add; before, such a kind reached the
+  wire as go-fabric's own text (UR-P4-ctr-196).
+
+### Fixed
+
+- A discovery `value` at or above 2^31 (a vendor-specific device type)
+  is no longer refused with 400 on a 32-bit host: the query parameter is
+  `x-go-type: int64` (UR-P4-ctr-260).
+- A factory reset passes over a fabric its controller removed meanwhile,
+  as go-fabric's own reset does, instead of stopping as incomplete
+  (UR-P4-err-261).
+- A cluster whose every read failed lists a manufacturer-specific
+  attribute last on a 32-bit host too (UR-P4-ctr-262).
+- A status request abandoned by its client no longer logs a fabric
+  failure and its recovery (UR-P4-leak-200).
+- A node that leaves the controller's registry without a decommission
+  (`Registry.Forget`, `Erase`) raises `node_removed`; a decommission and
+  a peer's leave raise exactly one (UR-P4-adpt-201).
+- The update check's re-check groups nodes by the numeric
+  `SoftwareVersion`, as go-fabric does, not by the display string
+  (UR-P4-adpt-197).
+- An event epoch timestamp above the int64 range is left out
+  (`epoch_ms` absent) instead of reaching the page as a negative time
+  (UR-P4-ui-302).
+
+### Changed
+
+- The comma-separated `Fields[key]` form of a `Multi` column stays
+  accepted, deprecated, with no removal date; godoc and
+  `docs/provider.md` no longer say "until v0.2.0" (decision 78).
+- `NetworkNode.Kind`'s godoc names `border_router` (UR-P4-doc-264).
+- Tests: every hand-written route is an operation of the contract, and
+  the status guard fails on an answered path no operation names
+  (UR-P4-test-266); the node stream route's own admin test
+  (UR-P4-test-320); every member of the non-admin controller status
+  (UR-P4-test-321); the skipped-entry log exactly once and again on
+  return (UR-P4-test-265).
+
 ## [0.11.0] - 2026-11-19
 
 The review, phase 4 (`notes/review/2026-11-17/`); contract 0.11.0, additive

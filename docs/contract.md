@@ -743,7 +743,11 @@ does not name, which a later go-fabric may add (before, such a kind
 reached the wire as go-fabric's own text). The `value` query parameter of
 `GET /controller/discovery` is `x-go-type: int64`, so a generated server
 on a 32-bit platform takes a device type of 2^31 or more; the wire is
-unchanged.
+unchanged. `EventRecord.epoch_ms` is absent also for a node's epoch
+timestamp above the int64 range. A host's own `ControllerSource` that
+returns `fabricui.ErrNotImplemented` or `ErrNotRead` gets 501 or 503 only
+where the contract declares them (`NetworkTopology`,
+`ControllerNode.ClusterDetail`); from any other method they are 500.
 
 ## Controller routes (v0.2.0)
 
