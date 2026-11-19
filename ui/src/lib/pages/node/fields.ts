@@ -1,7 +1,8 @@
 // List-valued item fields (Column.multi, Filter.multi): the provider
 // carries the values in `lists[key]`, one entry per value, so a value may
 // contain a comma. The comma-separated `fields[key]` is the deprecated
-// fallback (until v0.2.0), read only when `lists` has no such key.
+// fallback (it stays accepted, deprecated, with no removal date: decision
+// 78), read only when `lists` has no such key.
 
 /** The part of an item the list helpers read. */
 export type ListSource = {
@@ -12,7 +13,7 @@ export type ListSource = {
 /**
  * The values of a comma-separated field, trimmed, without empty ones.
  *
- * @deprecated The comma form is accepted until v0.2.0; read
+ * @deprecated The comma form stays accepted (no removal date); read
  * {@link itemValues}, which prefers `lists`.
  */
 export function listValues(field: string | undefined): string[] {
