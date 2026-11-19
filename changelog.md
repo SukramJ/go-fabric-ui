@@ -63,6 +63,41 @@ additive over 0.11.0 (no accepted break). `docs/contract.md`
   (`epoch_ms` absent) instead of reaching the page as a negative time
   (UR-P4-ui-302).
 
+- Web: an overtaken status read no longer leaves the page loading or the
+  node stream on a stale token.
+- Web: the token reload no longer hangs when the status route is refused
+  as well.
+- Web: a refused event or log stream is now shown; the status is
+  reloaded and the stream reopens when admin rights return;
+  `subscribeLog` takes an optional `onDenied`.
+- Web: the Operation tab appears only when the daemon answers; an
+  undecided probe is retried.
+- Web: a QR payload the encoder refuses shows the codes without the
+  picture.
+- Web: `renameNode` and `deleteNode` check the node key.
+- Web: the ICD page asks the LIT question only on `icd_multi_admin`.
+- Web: a node row follows the host's route; the controller node page
+  follows a new tab for the same node.
+- Web: the controller's fabric removal is busy while one is in flight.
+- Web: node labels count characters, not UTF-16 units.
+- Web: the erase poll stops with its page.
+- Web: button labels reach 4.5:1 on their fill in every theme (new
+  `--fui-primary-fill`, `--fui-error-fill`, `--fui-on-primary`, `--fui-
+  on-error` tokens, each overridable with a `-color` suffix); empty-
+  state descriptions use the secondary text colour; the update-check
+  error is text-safe.
+- Web: diagnostics name the peers on first open; session peers link only
+  to known nodes.
+- Web: an event time outside the Date range, or absent, no longer breaks
+  the events list.
+- Web: the endpoint tree lists orphans and survives cycles.
+- Web: a repeated schema column is shown once.
+- Web: a failed topology reload keeps the graph.
+- Web: the not-in-effect notice clears after a rebuild seen on the
+  stream.
+- Web: the contract guard also catches new required request fields and
+  breaks inside inline objects.
+
 ### Changed
 
 - The comma-separated `Fields[key]` form of a `Multi` column stays
