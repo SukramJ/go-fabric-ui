@@ -128,6 +128,19 @@ describe("UR-P1-web-115: keys and ids are checked where the library takes them",
     expect(seen).toEqual(["/api/v1/controller/nodes/00ff"]);
   });
 
+  it("renameNode and deleteNode refuse a key outside the pattern, before sending (UR-P4-web-235)", async () => {
+    const seen: string[] = [];
+    const client = createClient("/api/v1", async (url, init) => {
+      seen.push(`${init?.method} ${url}`);
+      return new Response(null, { status: 204 });
+    });
+    await expect(client.deleteNode("..")).rejects.toThrow(RangeError);
+    await expect(client.renameNode("..", "x")).rejects.toThrow(RangeError);
+    await expect(client.deleteNode("a/b")).rejects.toThrow(RangeError);
+    await expect(client.deleteNode("kitchen-2")).resolves.toBeUndefined();
+    expect(seen).toEqual(["DELETE /api/v1/nodes/kitchen-2"]);
+  });
+
   it("refuses an endpoint number above 65534 in a path, before sending (0.10.0)", async () => {
     const seen: string[] = [];
     const client = createClient("/api/v1", async (url) => {
