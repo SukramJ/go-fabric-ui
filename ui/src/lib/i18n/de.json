@@ -229,6 +229,7 @@
   "controller.inventory.remove_confirm": "Den gespeicherten Code von {name} entfernen?",
   "controller.inventory.removed": "Der Code ist entfernt.",
   "controller.inventory.replace": "Ersetzen",
+  "controller.inventory.replace_paired_hint": "Der gespeicherte Code wurde beim Koppeln vom Gerät akzeptiert. Ein an seiner Stelle hinterlegter Code gilt als nachträglich hinterlegt und ungeprüft; der geprüfte Status geht verloren.",
   "controller.inventory.show": "Code anzeigen",
   "controller.inventory.source_attached": "Nachträglich hinterlegt, ungeprüft",
   "controller.inventory.source_attached_hint": "Ein gekoppeltes Gerät bietet keinen Weg, einen Passcode zu prüfen.",

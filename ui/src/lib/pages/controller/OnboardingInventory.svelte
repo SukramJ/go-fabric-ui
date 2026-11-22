@@ -10,7 +10,7 @@
      inventory (capabilities.onboarding_codes false, 501) shows an empty
      state; a refusal (403) says that admin rights are needed. -->
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { flushSync, onMount, tick } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
   import { ApiError, type OnboardingInventoryEntry } from "../../api/client";
@@ -39,8 +39,10 @@
   // The rows whose code is shown, by node id.
   let shown = $state<Set<string>>(new Set());
   let busy = $state<Set<string>>(new Set());
-  // The print block exists only while the browser prints.
+  // The print block exists only while the browser prints this page
+  // (beforeprint to afterprint, U12-R-02).
   let printing = $state(false);
+  let attachCard = $state<HTMLElement | null>(null);
 
   // The attach dialog: the node, the text field, a refusal under it.
   let attachFor = $state<Entry | null>(null);
@@ -78,9 +80,36 @@
     }
   }
 
+  // The browser's print of this page — the button's, or the browser's
+  // own menu — prints the labels: beforeprint draws them (synchronously,
+  // before the browser lays out the sheet) and scopes the print rule to
+  // this print; afterprint takes both away again.
+  function beforePrint() {
+    flushSync(() => (printing = true));
+    document.documentElement.classList.add("fui-print-labels");
+  }
+  function afterPrint() {
+    document.documentElement.classList.remove("fui-print-labels");
+    printing = false;
+  }
+
   onMount(() => {
     void load();
+    window.addEventListener("beforeprint", beforePrint);
+    window.addEventListener("afterprint", afterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", beforePrint);
+      window.removeEventListener("afterprint", afterPrint);
+      afterPrint();
+    };
   });
+
+  // Moves the label block to <body>, where the print rule finds it
+  // whatever the host's layout around the page.
+  function toBody(node: HTMLElement) {
+    document.body.appendChild(node);
+    return { destroy: () => node.remove() };
+  }
 
   // A node was commissioned or removed: reload in place. The first run
   // only records the epoch.
@@ -114,11 +143,17 @@
     }
   }
 
-  function openAttach(e: Entry) {
+  // The dialog opens above the table: the focus moves to its field
+  // (U12-R-08).
+  async function openAttach(e: Entry) {
     attachFor = e;
     code = "";
     refusal = null;
     photoNone = false;
+    await tick();
+    const input = attachCard?.querySelector("input[data-testid='attach-code']") as HTMLInputElement | null;
+    input?.focus();
+    attachCard?.scrollIntoView?.({ block: "nearest" });
   }
 
   function closeAttach() {
@@ -210,16 +245,10 @@
 
   const printable = $derived(entries.filter((e) => e.has_code));
 
-  // The labels are drawn only for the print: no code is in the page while
-  // nobody asked for it.
-  async function print() {
-    printing = true;
-    await tick();
-    try {
-      window.print();
-    } finally {
-      printing = false;
-    }
+  // The button only starts the browser's print; beforeprint draws the
+  // labels.
+  function print() {
+    window.print();
   }
 
   const columns: DataColumn<Entry>[] = $derived([
@@ -291,10 +320,10 @@
   {:else if col.key === "action"}
     <div class="flex flex-wrap justify-end gap-1">
       {#if e.has_code}
-        <Button type="button" variant="outline" size="sm" disabled={busy.has(e.node_id_hex)} onclick={() => openAttach(e)}>{t("controller.inventory.replace")}</Button>
+        <Button type="button" variant="outline" size="sm" disabled={busy.has(e.node_id_hex)} onclick={() => void openAttach(e)}>{t("controller.inventory.replace")}</Button>
         <Button type="button" variant="outline-destructive" size="sm" disabled={busy.has(e.node_id_hex)} onclick={() => void remove(e)}>{t("controller.inventory.remove")}</Button>
       {:else}
-        <Button type="button" variant="outline" size="sm" disabled={busy.has(e.node_id_hex)} onclick={() => openAttach(e)}>{t("controller.inventory.attach")}</Button>
+        <Button type="button" variant="outline" size="sm" disabled={busy.has(e.node_id_hex)} onclick={() => void openAttach(e)}>{t("controller.inventory.attach")}</Button>
       {/if}
     </div>
   {/if}
@@ -306,7 +335,7 @@
     {#if served && !notServed && !notAdmin && !denied && !loading && !error}
       <div class="flex items-center gap-2">
         {#if printable.length > 0}
-          <Button variant="outline" onclick={() => void print()}>{t("controller.inventory.print")}</Button>
+          <Button variant="outline" onclick={print}>{t("controller.inventory.print")}</Button>
         {:else}
           <span class="text-xs text-[var(--ha-secondary-text-color)]">{t("controller.inventory.print_empty")}</span>
         {/if}
@@ -330,9 +359,13 @@
 
     {#if attachFor}
       <Card class="space-y-3 p-4">
-        <div role="group" aria-label={t("controller.inventory.attach_title", { name: name(attachFor) })} class="space-y-3" data-testid="attach-dialog">
+        <div role="group" aria-label={t("controller.inventory.attach_title", { name: name(attachFor) })} class="space-y-3" data-testid="attach-dialog" bind:this={attachCard}>
           <h3 class="font-medium text-[var(--ha-primary-text-color)]">{t("controller.inventory.attach_title", { name: name(attachFor) })}</h3>
           <p class="text-xs text-[var(--ha-secondary-text-color)]">{t("controller.inventory.attach_hint")}</p>
+          {#if attachFor.has_code && attachFor.source === "paired"}
+            <!-- U12-F-02: the device accepted this code; its replacement is unproven. -->
+            <p class="text-xs text-[var(--fui-warning-text)]" data-testid="replace-paired">{t("controller.inventory.replace_paired_hint")}</p>
+          {/if}
           <form
             class="space-y-3"
             onsubmit={(ev) => {
@@ -382,7 +415,7 @@
 </div>
 
 {#if printing}
-  <div class="print-labels" data-testid="print-labels">
+  <div class="print-labels" data-testid="print-labels" use:toBody>
     <!-- Keyed by position: a server may list a node id twice. -->
     {#each printable as e, i (i)}
       {@const svg = e.qr_code ? qrSvgOrNull(e.qr_code, { size: 140 }) : null}

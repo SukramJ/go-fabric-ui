@@ -184,24 +184,64 @@ describe("Controller onboarding inventory", () => {
     expect(invCalls(ui)).toHaveLength(2);
   });
 
-  it("prints one label per node with a code, drawn only for the print", async () => {
+  it("prints one label per node with a code, drawn from beforeprint to afterprint only (U12-R-01, R-02)", async () => {
     const ui = testUI({ fixtures: ["controller-inventory.200"] });
-    let labels: string[] = [];
-    let images = 0;
-    vi.stubGlobal("print", () => {
-      const block = screen.getByTestId("print-labels");
-      labels = [...block.querySelectorAll(".print-label")].map((l) => l.textContent ?? "");
-      images = block.querySelectorAll("svg").length;
-    });
+    const print = vi.fn();
+    vi.stubGlobal("print", print);
     render(Harness, { ui, page: OnboardingInventory });
     await screen.findByText("Kitchen");
     expect(screen.queryByTestId("print-labels")).toBeNull();
+    // The button only asks the browser to print.
     await fireEvent.click(screen.getByText("controller.inventory.print"));
-    await waitFor(() => expect(labels).toHaveLength(2));
+    expect(print).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("print-labels")).toBeNull();
+    // The browser's beforeprint draws the labels synchronously, as a
+    // child of <body>, and scopes the print rule to this print.
+    window.dispatchEvent(new Event("beforeprint"));
+    const block = screen.getByTestId("print-labels");
+    expect(block.parentElement).toBe(document.body);
+    expect(document.documentElement.classList.contains("fui-print-labels")).toBe(true);
+    const labels = [...block.querySelectorAll(".print-label")].map((l) => l.textContent ?? "");
+    expect(labels).toHaveLength(2);
     expect(labels[0]).toContain(MANUAL);
     expect(labels[1]).toContain("Plug");
-    expect(images).toBe(1);
+    expect(block.querySelectorAll("svg")).toHaveLength(1);
+    window.dispatchEvent(new Event("afterprint"));
     await waitFor(() => expect(screen.queryByTestId("print-labels")).toBeNull());
+    expect(document.documentElement.classList.contains("fui-print-labels")).toBe(false);
+  });
+
+  it("leaves no print class behind when the page goes while printing", async () => {
+    const ui = testUI({ fixtures: ["controller-inventory.200"] });
+    render(Harness, { ui, page: OnboardingInventory });
+    await screen.findByText("Kitchen");
+    window.dispatchEvent(new Event("beforeprint"));
+    cleanup();
+    expect(document.documentElement.classList.contains("fui-print-labels")).toBe(false);
+    expect(document.querySelector(".print-labels")).toBeNull();
+    // A print after the page is gone draws nothing.
+    window.dispatchEvent(new Event("beforeprint"));
+    expect(document.documentElement.classList.contains("fui-print-labels")).toBe(false);
+  });
+
+  it("moves the focus to the attach dialog's field (U12-R-08)", async () => {
+    const ui = testUI({ fixtures: ["controller-inventory.200"] });
+    render(Harness, { ui, page: OnboardingInventory });
+    await screen.findByText("Kitchen");
+    await fireEvent.click(screen.getAllByText("controller.inventory.attach")[0]);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("attach-code")));
+  });
+
+  it("says that replacing a paired code loses its proven status, and only there (U12-F-02)", async () => {
+    const ui = testUI({ fixtures: ["controller-inventory.200"] });
+    render(Harness, { ui, page: OnboardingInventory });
+    await screen.findByText("Kitchen");
+    const replace = screen.getAllByText("controller.inventory.replace");
+    // The server's order: 0x12 attached, 0x13 paired.
+    await fireEvent.click(replace[0]);
+    expect(screen.queryByTestId("replace-paired")).toBeNull();
+    await fireEvent.click(replace[1]);
+    expect(screen.getByTestId("replace-paired")).toHaveTextContent("controller.inventory.replace_paired_hint");
   });
 
   it("reloads on node_added", async () => {

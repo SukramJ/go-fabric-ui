@@ -229,6 +229,7 @@
   "controller.inventory.remove_confirm": "Remove the stored code of {name}?",
   "controller.inventory.removed": "The code is removed.",
   "controller.inventory.replace": "Replace",
+  "controller.inventory.replace_paired_hint": "The stored code was accepted by the device at pairing. A code attached in its place is stored as attached and unproven; the proven status is lost.",
   "controller.inventory.show": "Show code",
   "controller.inventory.source_attached": "Attached, unproven",
   "controller.inventory.source_attached_hint": "A commissioned device offers no way to test a passcode.",
