@@ -1057,6 +1057,10 @@ anyone can commission the device. The port is
   (`PairOptions.Address`), and not when `PairOptions.Edit` replaced the
   passcode. A device commissioned from the discovery list by its passcode
   has none. Such a row shows "No code" and offers "Attach code".
+- **Printing.** Only the page's "Print labels" button prints labels
+  (owner, 2026-11-22): one label per node with a code — name, QR image
+  when there is one, manual code. A print from the browser's own menu
+  prints the page as it is, without codes.
 - **No file export.** Printing the labels and the per-row copy are the
   export of this version; a file would put every passcode outside the
   database's protection.

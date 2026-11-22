@@ -464,6 +464,10 @@ What a host must do before it serves the inventory:
 5. Serve the UI over HTTPS (or localhost) for the live camera scan; typing
    the code and choosing a photograph, which the page decodes in the
    browser and uploads nowhere, work without.
+6. A host that mounts the Inventory page from the npm package includes
+   `@sukramj/fabric-ui/theme/tokens.css`: the label print's rule
+   (`html.fui-print-labels`, set only for the Print button's print) is
+   there; without it the button prints the page as it is.
 
 ## Mounting the API alone
 

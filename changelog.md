@@ -39,12 +39,14 @@ read from a photograph in the browser). Contract 0.13.0, additive over
   `Cache-Control: no-store`), the problem codes `onboarding_code_invalid`
   (400) and `onboarding_code_mismatch` (409, with `field`, `code_value`
   and `node_value`), `capabilities.onboarding_codes` and
-  `ControllerNodeSummary.has_onboarding_code`.
+  `ControllerNodeSummary.has_onboarding_code`. A `code` longer than 512
+  characters (the contract's `maxLength`) is 400 `bad_request`.
 - The Inventory tab (`#/controller/inventory`, exported as
   `ControllerInventory`): one row per node with how its code came to be
   stored and the identity checks an attached code passed; the code (QR
   image and manual code, with copy) behind "Show code"; "Print labels",
-  one label per node with a code; "Attach code" by typing, the camera
+  one label per node with a code (only the button prints labels; a
+  browser-menu print prints the page without codes); "Attach code" by typing, the camera
   scan or a photograph (`decodeImage` in the scan chunk, no new
   dependency); "Remove code". The Nodes page's decommission confirmation
   says that a stored code is deleted with the node.
