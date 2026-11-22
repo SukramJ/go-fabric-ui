@@ -270,14 +270,10 @@ func TestEndToEnd_FabricLabelLastWriteWins(t *testing.T) {
 		if err := s.src.SetFabricLabel(t.Context(), b); err != nil {
 			t.Fatal(err)
 		}
-		// The pushes settle within a few milliseconds on the site; the
-		// label then stays.
-		time.Sleep(2 * time.Millisecond)
-		deadline := time.Now().Add(time.Second)
-		for s.src.Fabric().Label != b && time.Now().Before(deadline) {
-			time.Sleep(time.Millisecond)
-		}
-		time.Sleep(2 * time.Millisecond)
+		// Once the worker is idle the last round has pushed b; a push of a
+		// that was still under way may set a for a moment before that,
+		// which is why the test waits for the worker, not for a time.
+		gofabric.WaitLabelPush(s.src)
 		if got := s.src.Fabric().Label; got != b {
 			t.Fatalf("round %d: label %q, want %q", i, got, b)
 		}
