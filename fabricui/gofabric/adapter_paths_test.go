@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/SukramJ/go-fabric/controller/client"
 
@@ -74,3 +75,19 @@ func TestEpochMS_LeavesOutAValueOutsideInt64(t *testing.T) {
 }
 
 func ptrTo[T any](v T) *T { return &v }
+
+// The commissioning's bound after the search: the smaller positive of
+// the port's and the host template's (UR-P4-bound-400).
+func TestCommissionBound(t *testing.T) {
+	for _, c := range []struct{ port, template, want time.Duration }{
+		{0, 0, 0},
+		{600 * time.Second, 0, 600 * time.Second},
+		{0, 30 * time.Second, 30 * time.Second},
+		{600 * time.Second, 30 * time.Second, 30 * time.Second},
+		{30 * time.Second, 600 * time.Second, 30 * time.Second},
+	} {
+		if got := commissionBound(c.port, c.template); got != c.want {
+			t.Errorf("commissionBound(%v, %v) = %v, want %v", c.port, c.template, got, c.want)
+		}
+	}
+}

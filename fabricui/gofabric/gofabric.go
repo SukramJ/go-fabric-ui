@@ -339,9 +339,7 @@ func (s *source) Pair(ctx context.Context, code string, o fabricui.PairOptions) 
 	d := bleFor(s.opts.Pair.BLE != nil, pc, o.NetworkOnly, wifi != nil || th != nil)
 	opts := s.opts.Pair
 	opts.BLE, opts.WiFi, opts.Thread = nil, wifi, th
-	if o.CommissionTimeout > 0 {
-		opts.CommissionTimeout = o.CommissionTimeout
-	}
+	opts.CommissionTimeout = commissionBound(o.CommissionTimeout, opts.CommissionTimeout)
 	if d.Used {
 		opts.BLE = s.opts.Pair.BLE
 	}
@@ -363,6 +361,17 @@ func (s *source) Pair(ctx context.Context, code string, o fabricui.PairOptions) 
 		return nil, fmt.Errorf("%w: the commissioned node has no peer address", fabricui.ErrNodeFailed)
 	}
 	return w, nil
+}
+
+// commissionBound is the commissioning's bound after the search: the
+// smaller of the port's and the host template's when both are set, else
+// the one that is; zero for none. The handler's 600 s never lengthens a
+// host's shorter bound (UR-P4-bound-400).
+func commissionBound(port, template time.Duration) time.Duration {
+	if port > 0 && (template <= 0 || port < template) {
+		return port
+	}
+	return template
 }
 
 // progressFor is the commissioning's progress hook: the template's, then
@@ -593,9 +602,7 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 	}
 	opts := s.opts.Pair
 	opts.BLE, opts.Address, opts.WiFi, opts.Thread = nil, nil, wifi, th
-	if o.CommissionTimeout > 0 {
-		opts.CommissionTimeout = o.CommissionTimeout
-	}
+	opts.CommissionTimeout = commissionBound(o.CommissionTimeout, opts.CommissionTimeout)
 	var started atomic.Bool
 	opts.Progress = markSubscribe(progressFor(opts.Progress, o.Progress), &started)
 	opts.TermsAndConditions = termsOf(o.TermsAndConditions, opts.TermsAndConditions)

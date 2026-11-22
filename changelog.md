@@ -24,7 +24,9 @@ the hosts.
   to 600 s for a code without `timeout_seconds`. A host's own
   `ControllerSource.Pair` that ignores it leaves the commissioning after
   the search unbounded, as before; the adapter hands it to go-fabric's
-  `PairOptions.CommissionTimeout` on both paths.
+  `PairOptions.CommissionTimeout` on both paths, the smaller of it and a
+  positive `ControllerOptions.Pair.CommissionTimeout` of the host's, so a
+  shorter bound of the host's stays (UR-P4-bound-400).
 
 - **A proxy that replaces `Host` with a name of its own** needs that name
   in `AllowedHosts`; an unlisted name is refused on every request (403
@@ -65,7 +67,10 @@ the hosts.
 - A commissioning from a code without `timeout_seconds` is bounded at
   600 s once the device is found, after go-fabric's one-minute search
   (go-fabric#554's `PairOptions.CommissionTimeout`; decision 71's intent,
-  decision 80).
+  decision 80), or by the host template's own bound when that is shorter
+  (UR-P4-bound-400).
+- A consent for a node removed meanwhile (go-fabric v0.24.0's
+  `softwareupdate.ErrNoNode`) is 404, not 500 (UR-P4-err-406).
 - The update check names the nodes of each failed product from
   go-fabric's per-product errors (go-fabric#555) and no longer checks one
   node per product again: one check, one `check_finished` event
@@ -129,7 +134,11 @@ the hosts.
   its tests use is deprecated there, so nothing was migrated (decision
   62). The consent route keeps answering 204 for a version at or below
   the one the node runs, which go-fabric v0.24.0's update manager no
-  longer keeps; its description says so.
+  longer keeps while it knows the running version; its description says
+  so (UR-P4-doc-407).
+- Controller hooks of a node that failed to load raise no event: since
+  go-fabric v0.24.0 such a node answers its stored address, but it is not
+  commissioned and no route lists it (UR-P4-adpt-405).
 - The comma-separated `Fields[key]` form of a `Multi` column stays
   accepted, deprecated, with no removal date; godoc and
   `docs/provider.md` no longer say "until v0.2.0" (decision 78).

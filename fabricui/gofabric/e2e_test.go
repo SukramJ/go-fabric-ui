@@ -71,6 +71,8 @@ type ctrlSiteOptions struct {
 	unsetPolicy bool
 	// metrics receives the controller's counters (controller.Config.Metrics).
 	metrics contract.Metrics
+	// pair edits the source's Pair template last.
+	pair func(*controller.PairOptions)
 }
 
 func newCtrlSite(t *testing.T) *ctrlSite {
@@ -135,6 +137,9 @@ func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
 		if err := creds.SetWiFi(context.Background(), "lab", "lab", "secret12"); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if o.pair != nil {
+		o.pair(&pair)
 	}
 	src := gofabric.ControllerOf(ctrl, gofabric.ControllerOptions{
 		Hooks:       hooks,

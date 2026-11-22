@@ -713,7 +713,9 @@ type PairOptions struct {
 	// controller.PairOptions.CommissionTimeout, controller/controller.go:
 	// 1135-1149 at v0.24.1): the search keeps its own bound. The handler
 	// sets it to 600 s for a code without timeout_seconds (decision 71);
-	// zero leaves the source's own default.
+	// zero leaves the source's own default. The go-fabric adapter takes
+	// the smaller of it and a positive ControllerOptions.Pair.
+	// CommissionTimeout of the host, so a host's shorter bound stays.
 	CommissionTimeout time.Duration
 }
 

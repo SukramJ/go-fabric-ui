@@ -150,7 +150,11 @@ func (h *Hooks) source() *source {
 
 // nodeID resolves a local id to the node id, remembering it; false while
 // unbound, closed, without a registry, or before the node is
-// commissioned and known.
+// commissioned and known. A node that failed to load answers its stored
+// address since go-fabric v0.24.0 but is not commissioned
+// (client.Node.IsCommissioned, controller/client/record.go:714-754 at
+// v0.24.1), so it resolves to no id here, as the routes list none for it
+// (UR-P4-adpt-405); an id remembered before stays.
 func (h *Hooks) nodeID(local string) (uint64, bool) {
 	s := h.source()
 	if s == nil {
@@ -163,7 +167,7 @@ func (h *Hooks) nodeID(local string) (uint64, bool) {
 	if reg == nil {
 		return 0, false
 	}
-	if n := reg.Get(local); n != nil {
+	if n := reg.Get(local); n != nil && n.IsCommissioned() {
 		if addr, ok := n.PeerAddress(); ok {
 			h.mu.Lock()
 			h.ids[local] = addr.NodeID

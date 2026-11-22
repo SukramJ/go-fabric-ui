@@ -756,8 +756,9 @@ device is now bounded at 600 s, after go-fabric's one-minute search (go-fabric v
 the shape is unchanged. A discovered device's commissioning now records
 its pairing in `GET /controller/events`, as a code's does. The 204 of
 `POST /controller/updates/consent` says that go-fabric v0.24.0 keeps no
-consent to a version at or below the one the node runs; the route still
-answers 204 for it.
+consent to a version at or below the one the node runs, while it knows
+that version; the route still answers 204 for it. A node removed between
+the route's lookup and the consent is 404, as an unknown node is.
 
 ## Controller routes (v0.2.0)
 

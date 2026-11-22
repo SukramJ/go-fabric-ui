@@ -6,6 +6,7 @@ package gofabric
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/SukramJ/go-fabric/controller/softwareupdate"
@@ -49,9 +50,11 @@ func TestUpdates_CheckNamesTheNodesOfEachFailedProduct(t *testing.T) {
 		id    uint64
 		cause error
 	}{{2, download}, {4, download}, {3, checksum}}
+	// Each node carries its own product's cause, not the joined error
+	// with every product's (UR-P4-test-402).
 	for i, w := range want {
-		if failures[i].NodeID != w.id || !errors.Is(failures[i].Err, w.cause) {
-			t.Errorf("failure %d: %+v, want node %d with %v", i, failures[i], w.id, w.cause)
+		if failures[i].NodeID != w.id || failures[i].Err != w.cause { //nolint:errorlint // the cause itself, not one it wraps
+			t.Errorf("failure %d: %+v, want node %d with exactly %v", i, failures[i], w.id, w.cause)
 		}
 	}
 	if len(found) != 1 || found[0].NodeID != 1 {
@@ -71,6 +74,42 @@ func TestUpdates_CheckAnErrorWithoutAProduct(t *testing.T) {
 	found, err := u.Check(context.Background())
 	if _, partial := errors.AsType[fabricui.UpdateCheckFailures](err); err == nil || partial || found != nil {
 		t.Errorf("found %v, err %v; want the whole check failed", found, err)
+	}
+}
+
+// Products that name no node leave nothing to attribute: the check
+// failed as a whole, not a partial result with no errors (UR-P4-doc-407).
+func TestUpdates_CheckProductsWithoutNodes(t *testing.T) {
+	u := &updates{query: func(context.Context) ([]softwareupdate.PeerUpdate, error) {
+		return []softwareupdate.PeerUpdate{peerUpdate(1, 2)}, errors.Join(productFailed(errors.New("refused")))
+	}}
+	found, err := u.Check(context.Background())
+	if _, partial := errors.AsType[fabricui.UpdateCheckFailures](err); err == nil || partial || found != nil {
+		t.Errorf("found %v, err %v; want the whole check failed", found, err)
+	}
+}
+
+// AddUpdateConsent's refusals as the port's: a mismatch is the request's,
+// a node removed meanwhile is no such node (404, UR-P4-err-406), any
+// other the manager's.
+func TestConsentError(t *testing.T) {
+	other := errors.New("manager closed")
+	for _, c := range []struct {
+		err  error
+		want error
+	}{
+		{nil, nil},
+		{fmt.Errorf("%w: vendor", softwareupdate.ErrMismatch), fabricui.ErrInvalidArgument},
+		{fmt.Errorf("%w: peer 1/0000000000000011", softwareupdate.ErrNoNode), fabricui.ErrNodeNotFound},
+		{other, other},
+	} {
+		got := consentError(c.err)
+		if (c.want == nil) != (got == nil) || (c.want != nil && !errors.Is(got, c.want)) {
+			t.Errorf("consentError(%v) = %v, want %v", c.err, got, c.want)
+		}
+	}
+	if err := consentError(other); errors.Is(err, fabricui.ErrNodeNotFound) || errors.Is(err, fabricui.ErrInvalidArgument) {
+		t.Errorf("the manager's refusal became %v", err)
 	}
 }
 

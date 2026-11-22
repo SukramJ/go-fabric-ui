@@ -6072,7 +6072,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The consent is handed to the controller's update manager. A version at or below the one the node runs is not kept there (go-fabric v0.24.0): no update follows from it. */
+            /** @description The consent is handed to the controller's update manager. While the manager knows the version the node runs, a version at or below it is not kept there (go-fabric v0.24.0): no update follows from it. */
             204: {
                 headers: {
                     [name: string]: unknown;

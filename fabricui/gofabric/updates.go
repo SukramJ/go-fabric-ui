@@ -77,6 +77,12 @@ func (u *updates) Check(ctx context.Context) ([]fabricui.AvailableUpdate, error)
 			failed = append(failed, fabricui.UpdateCheckFailure{NodeID: peer.NodeID, Err: p.Err})
 		}
 	}
+	if len(failed) == 0 {
+		// No product names a node (go-fabric builds none without one at
+		// v0.24.1): nothing to attribute, so the check failed as a whole
+		// (UR-P4-doc-407).
+		return nil, err
+	}
 	return availableOf(found), failed
 }
 
@@ -123,13 +129,11 @@ func updateEvent(e *softwareupdate.UpdateEvent) fabricui.ControllerEvent {
 
 // Consent records the consent (softwareupdate.Manager.AddUpdateConsent).
 // Since go-fabric v0.24.0 the manager keeps no consent to a version at or
-// below the one the node runs and answers false, as it does for a consent
-// it keeps for a node not applicable for updates
-// (controller/softwareupdate/manager.go:2345-2354 at v0.24.1); the two are
-// not told apart, so neither is an error here.
-// A vendor or product that differs from the node's
-// (softwareupdate.ErrMismatch) is the request's error, decided before
-// any node is asked: an invalid argument, not the node's failure.
+// below the one the node runs, while it knows that version, and answers
+// false, as it does for a consent it keeps for a node not applicable for
+// updates (controller/softwareupdate/manager.go:2345-2354 at v0.24.1); the
+// two are not told apart, so neither is an error here. Errors: see
+// consentError.
 func (u *updates) Consent(ctx context.Context, nodeID uint64, vendorID, productID uint16, version uint32) error {
 	n, ok := u.s.lookup(nodeID)
 	if !ok {
@@ -137,10 +141,24 @@ func (u *updates) Consent(ctx context.Context, nodeID uint64, vendorID, productI
 	}
 	addr, _ := n.n.PeerAddress()
 	_, err := u.m.AddUpdateConsent(ctx, addr, softwareupdate.Target{VendorID: vendorID, ProductID: productID, TargetSoftwareVersion: version})
-	if errors.Is(err, softwareupdate.ErrMismatch) {
+	return consentError(err)
+}
+
+// consentError is AddUpdateConsent's error as the port's. A vendor or
+// product that differs from the node's (softwareupdate.ErrMismatch) is the
+// request's error, decided before any node is asked: an invalid argument,
+// not the node's failure. softwareupdate.ErrNoNode (go-fabric v0.24.0) is
+// a node removed between the lookup and the consent: no such node, 404
+// (UR-P4-err-406). Any other refusal is the manager's (500, as the route
+// declares), never a node's 502 or 409 (UR-P4-test-33).
+func consentError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, softwareupdate.ErrMismatch):
 		return fmt.Errorf("%w: %w", fabricui.ErrInvalidArgument, err)
+	case errors.Is(err, softwareupdate.ErrNoNode):
+		return fmt.Errorf("%w: %w", fabricui.ErrNodeNotFound, err)
 	}
-	// Any other refusal is the manager's (500, as the route declares),
-	// never a node's 502 or 409 (UR-P4-test-33).
 	return err
 }
