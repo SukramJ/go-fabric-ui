@@ -3326,7 +3326,7 @@ export interface components {
             thread_id?: string;
             /** @description Never commission over Bluetooth LE, and the `commissioning_progress` event's `ble` reason is `network_only` (0.7.1). */
             network_only?: boolean;
-            /** @description The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device then has no bound of this route's. */
+            /** @description The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device is bounded at 600 s after it (0.12.0; before, it had no bound of this route's). */
             timeout_seconds?: number;
             terms_and_conditions?: components["schemas"]["TermsAcknowledgement"];
             /** @description The client's id for this commissioning, echoed as `commissioning_id` on its `commissioning_progress` events (0.10.0); absent: the server draws one. */

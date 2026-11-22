@@ -749,7 +749,12 @@ returns `fabricui.ErrNotImplemented` or `ErrNotRead` gets 501 or 503 only
 where the contract declares them (`NetworkTopology`,
 `ControllerNode.ClusterDetail`); from any other method they are 500,
 which every controller operation now declares (a shared 500 response;
-29 of the 40 declared none before).
+29 of the 40 declared none before). Without
+`CommissionRequest.timeout_seconds`, a `code`'s commissioning of the found
+device is now bounded at 600 s, after go-fabric's one-minute search (go-fabric v0.24.0's
+`PairOptions.CommissionTimeout`; decision 80); the description says so,
+the shape is unchanged. A discovered device's commissioning now records
+its pairing in `GET /controller/events`, as a code's does.
 
 ## Controller routes (v0.2.0)
 
@@ -874,7 +879,9 @@ Details the fixtures pin:
   `timeout_seconds` (1–600) bounds the whole commissioning; without it
   (0.11.0) a discovered device's commissioning is bounded at 600 s, and a
   code keeps go-fabric's one-minute bound on the search for the device,
-  with no bound of this route's on the commissioning of a found device.
+  and the commissioning of a found device is bounded at 600 s after it
+  (0.12.0, go-fabric's `PairOptions.CommissionTimeout`; before, this route
+  set no bound there).
   `terms_and_conditions` `{version, acknowledgements}` (0.7.0, each
   0–65535, else 400) is the Terms and Conditions acknowledgement the
   commissioning sends with SetTCAcknowledgements, chip-tool's

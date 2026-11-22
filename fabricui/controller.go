@@ -708,6 +708,13 @@ type PairOptions struct {
 	// (the device came from a DNS-SD discovery). The handler sets it to
 	// report commissioning_progress with ble (contract 0.7.1).
 	Transport func(BLEDecision)
+	// CommissionTimeout, when positive, bounds the commissioning of a
+	// device once it is reached, apart from the search for it (go-fabric
+	// controller.PairOptions.CommissionTimeout, controller/controller.go:
+	// 1135-1149 at v0.24.1): the search keeps its own bound. The handler
+	// sets it to 600 s for a code without timeout_seconds (decision 71);
+	// zero leaves the source's own default.
+	CommissionTimeout time.Duration
 }
 
 // BLEDecision is whether a commissioning from a code searches over

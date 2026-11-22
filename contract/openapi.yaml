@@ -3585,7 +3585,7 @@ components:
           type: integer
           minimum: 1
           maximum: 600
-          description: "The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device then has no bound of this route's."
+          description: "The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device is bounded at 600 s after it (0.12.0; before, it had no bound of this route's)."
 
         terms_and_conditions: { $ref: "#/components/schemas/TermsAcknowledgement" }
         commissioning_id: { type: string, pattern: "^[A-Za-z0-9_-]{1,64}$", description: "The client's id for this commissioning, echoed as `commissioning_id` on its `commissioning_progress` events (0.10.0); absent: the server draws one." }

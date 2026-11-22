@@ -1420,8 +1420,9 @@ const nocInvalidFabricIndex = 11
 
 // --- commissioning, discovery ---
 
-// defaultCommissionTimeout bounds a discovered device's commissioning
-// without timeout_seconds (contract 0.11.0).
+// defaultCommissionTimeout bounds a commissioning without timeout_seconds:
+// a discovered device's whole commissioning (contract 0.11.0), a code's
+// commissioning after the search for the device (0.12.0).
 const defaultCommissionTimeout = 600 * time.Second
 
 func pairOptionsOf(b *api.CommissionRequest) PairOptions {
@@ -1479,14 +1480,19 @@ func (s *controllerServer) CommissionNode(ctx context.Context, req api.Commissio
 	case !hasCode:
 		// A discovered device's commissioning is bounded at 600 s, the
 		// contract's maximum: go-fabric bounds it by ctx and the device's
-		// own budgets only. A code's is not: go-fabric's Pair bounds its
-		// search for the device at one minute only while ctx has no
-		// deadline (decision 71, UR-P4-bound-02).
+		// own budgets only. A code's ctx is not: go-fabric's Pair bounds
+		// its search for the device at one minute only while ctx has no
+		// deadline; its commissioning gets the 600 s as
+		// PairOptions.CommissionTimeout below (decision 71, UR-P4-bound-02;
+		// decision 80, go-fabric#554).
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, defaultCommissionTimeout)
 		defer cancel()
 	}
 	opts := pairOptionsOf(b)
+	if hasCode && b.TimeoutSeconds == nil {
+		opts.CommissionTimeout = defaultCommissionTimeout
+	}
 	// Every progress event carries the commissioning's id: the client's,
 	// or one drawn here (contract 0.10.0, UR-P1-api-18).
 	cid := newCommissioningID()

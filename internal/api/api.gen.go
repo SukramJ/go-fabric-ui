@@ -919,7 +919,7 @@ type CommissionRequest struct {
 	// ThreadID The stored Thread dataset to put the device on.
 	ThreadID *string `json:"thread_id,omitempty"`
 
-	// TimeoutSeconds The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device then has no bound of this route's.
+	// TimeoutSeconds The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device is bounded at 600 s after it (0.12.0; before, it had no bound of this route's).
 	TimeoutSeconds *int `json:"timeout_seconds,omitempty"`
 
 	// WifiID The stored Wi-Fi credential to put the device on.

@@ -339,6 +339,9 @@ func (s *source) Pair(ctx context.Context, code string, o fabricui.PairOptions) 
 	d := bleFor(s.opts.Pair.BLE != nil, pc, o.NetworkOnly, wifi != nil || th != nil)
 	opts := s.opts.Pair
 	opts.BLE, opts.WiFi, opts.Thread = nil, wifi, th
+	if o.CommissionTimeout > 0 {
+		opts.CommissionTimeout = o.CommissionTimeout
+	}
 	if d.Used {
 		opts.BLE = s.opts.Pair.BLE
 	}
@@ -590,6 +593,9 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 	}
 	opts := s.opts.Pair
 	opts.BLE, opts.Address, opts.WiFi, opts.Thread = nil, nil, wifi, th
+	if o.CommissionTimeout > 0 {
+		opts.CommissionTimeout = o.CommissionTimeout
+	}
 	var started atomic.Bool
 	opts.Progress = markSubscribe(progressFor(opts.Progress, o.Progress), &started)
 	opts.TermsAndConditions = termsOf(o.TermsAndConditions, opts.TermsAndConditions)
