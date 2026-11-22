@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/SukramJ/go-fabric/contract"
-	"github.com/SukramJ/go-fabric/node"
-	"github.com/SukramJ/go-fabric/schema"
+	"thingfabric.dev/go-fabric/contract"
+	"thingfabric.dev/go-fabric/node"
+	"thingfabric.dev/go-fabric/schema"
 )
 
 // The Matter 1.6.1 ids the node's endpoint detail reads: Descriptor

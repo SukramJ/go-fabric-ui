@@ -5,6 +5,29 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). The Go module and the npm package
 `@sukramj/fabric-ui` share one version.
 
+## [0.12.1] - 2026-11-22
+
+go-fabric v0.25.0: the module moved to `thingfabric.dev/go-fabric`
+(repository `github.com/thingfabric/go-fabric`). No behaviour, route or
+contract change; contract stays 0.12.0.
+
+### Hosts
+
+- **go-fabric's import path is `thingfabric.dev/go-fabric`.** A host that
+  embeds this version imports go-fabric under the new path as well:
+  `fabricui/gofabric` takes go-fabric's types (`*controller.Controller`,
+  `client.Hooks`, …), and a type from `github.com/SukramJ/go-fabric` is a
+  different type. Migrate with the one-liner in go-fabric's changelog
+  (0.25.0), then `go get thingfabric.dev/go-fabric@v0.25.0`. The minimum
+  go-fabric is v0.25.0.
+
+### Changed
+
+- go-fabric `v0.24.1` → `v0.25.0`, imports rewritten to
+  `thingfabric.dev/go-fabric`; no identifier changed. Dependabot's
+  go-fabric exclusion, the third-party notices and the links to
+  go-fabric's repository follow.
+
 ## [0.12.0] - 2026-11-19
 
 The review, phase 4 run 2 (`notes/review/2026-11-17/`), with go-fabric

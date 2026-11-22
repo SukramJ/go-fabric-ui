@@ -23,7 +23,7 @@ import (
 
 const (
 	module   = "github.com/SukramJ/go-fabric-ui"
-	goFabric = "github.com/SukramJ/go-fabric"
+	goFabric = "thingfabric.dev/go-fabric"
 )
 
 // facade is what production code may import from go-fabric.

@@ -4,7 +4,7 @@
 package gofabric
 
 import (
-	"github.com/SukramJ/go-fabric/diag"
+	"thingfabric.dev/go-fabric/diag"
 
 	"github.com/SukramJ/go-fabric-ui/fabricui"
 )

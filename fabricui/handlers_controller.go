@@ -23,7 +23,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/SukramJ/go-fabric/eligibility"
+	"thingfabric.dev/go-fabric/eligibility"
 
 	"github.com/SukramJ/go-fabric-ui/internal/api"
 )

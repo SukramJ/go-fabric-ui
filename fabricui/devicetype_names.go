@@ -6,7 +6,7 @@ package fabricui
 import (
 	"fmt"
 
-	"github.com/SukramJ/go-fabric/schema"
+	"thingfabric.dev/go-fabric/schema"
 )
 
 // deviceTypeLabels are the operator-facing names of the contract's

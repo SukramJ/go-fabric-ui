@@ -3,8 +3,8 @@ module github.com/SukramJ/go-fabric-ui
 go 1.27.4
 
 require (
-	github.com/SukramJ/go-fabric v0.24.1
 	github.com/oapi-codegen/runtime v1.9.0
+	thingfabric.dev/go-fabric v0.25.0
 )
 
 require (
