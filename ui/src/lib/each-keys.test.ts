@@ -24,7 +24,7 @@ const UNIQUE: Record<string, string> = {
   "lib/pages/node/EcosystemHints.svelte :: #each hint.links as link (link.key)": "ECOSYSTEM_HINTS, a constant of the page",
   'lib/pages/node/Surface.svelte :: #each [["col_attributes", c.attributes], ["col_accepted", c.accepted], ["col_generated", c.generated], ["col_events", c.events]] as [label, ids] (label)':
     "the four list names the page writes out",
-  'lib/pages/controller/Settings.svelte :: #each (["ota", "credentials", "ble", "diagnostics"] as const).filter((k) => s.capabilities[k]) as k (k)':
+  'lib/pages/controller/Settings.svelte :: #each (["ota", "credentials", "ble", "diagnostics", "onboarding_codes"] as const).filter((k) => s.capabilities[k]) as k (k)':
     "a constant list of the page",
   "lib/pages/controller/node/Overview.svelte :: #each flags as f (f)": "a constant list of the page, filtered",
   "lib/pages/controller/Network.svelte :: #each kinds as k (k)": "TOPOLOGY_KINDS, filtered",

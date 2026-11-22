@@ -252,3 +252,22 @@ describe("UR-P4-ui-232: the Operation tab only when GET /operation/info answered
     expect(calls).toBe(2);
   });
 });
+
+describe("the onboarding inventory's tab (0.13.0)", () => {
+  it("shows while the host serves the inventory, and its route opens the page", async () => {
+    serve(["controller-status.200-onboarding", "controller-nodes.200-onboarding", "controller-inventory.200"], streamAnswer);
+    location.hash = "#/controller/inventory";
+    render(App);
+    const tab = await screen.findByRole("link", { name: "Inventory" });
+    expect(tab.getAttribute("href")).toBe("#/controller/inventory");
+    expect(await screen.findByText("Onboarding codes")).toBeInTheDocument();
+  });
+
+  it("is hidden in token mode, where the host serves no code", async () => {
+    serve(["controller-status.200", "controller-nodes.200"], streamAnswer);
+    location.hash = "#/controller/nodes";
+    render(App);
+    await screen.findByRole("heading", { name: "Controller" });
+    expect(screen.queryByRole("link", { name: "Inventory" })).toBeNull();
+  });
+});

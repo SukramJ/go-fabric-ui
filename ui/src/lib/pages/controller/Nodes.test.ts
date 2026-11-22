@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
 import { testUI } from "../../../test/support";
 import Nodes from "./Nodes.svelte";
@@ -35,6 +35,28 @@ describe("Controller Nodes", () => {
     await waitFor(() => expect(ui.toastSpy.success).toHaveBeenCalledWith("controller.nodes.removed"));
     expect(ui.confirmSpy).toHaveBeenCalled();
     expect(ui.sent.some((s) => s.method === "DELETE" && s.path.endsWith("/controller/nodes/0000000000000012"))).toBe(true);
+  });
+
+  // A stored onboarding code goes with the node (0.13.0): the confirmation
+  // says so only for a node that has one.
+  it("warns of the stored onboarding code only for a node that has one", async () => {
+    const ui = testUI({ fixtures: ["controller-nodes.200-onboarding"], confirm: false });
+    render(Harness, { ui, page: Nodes });
+    await screen.findByText("Kitchen");
+    const bodies = async (row: string) => {
+      ui.confirmSpy.mockClear();
+      const tr = screen.getByText(row).closest("tr")!;
+      await fireEvent.click(within(tr).getByText("common.remove"));
+      return (ui.confirmSpy.mock.calls[0] as unknown as [{ body: string }])[0].body;
+    };
+    expect(await bodies("Contact Sensor")).toContain("controller.nodes.remove_confirm_code");
+    expect(await bodies("Kitchen")).not.toContain("controller.nodes.remove_confirm_code");
+    cleanup();
+    const plain = testUI({ fixtures: ["controller-nodes.200"], confirm: false });
+    render(Harness, { ui: plain, page: Nodes });
+    await screen.findByText("Contact Sensor");
+    await fireEvent.click(within(screen.getByText("Contact Sensor").closest("tr")!).getByText("common.remove"));
+    expect((plain.confirmSpy.mock.calls[0] as unknown as [{ body: string }])[0].body).not.toContain("remove_confirm_code");
   });
 
   it("interviews a node", async () => {

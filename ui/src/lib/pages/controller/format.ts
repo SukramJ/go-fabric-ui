@@ -4,7 +4,7 @@ import type { ConnectionState, ControllerNodeSummary } from "../../api/client";
 import type { Translate } from "../../i18n";
 
 /** A node's name: its label, else its product, else its id. */
-export function nodeName(n: ControllerNodeSummary): string {
+export function nodeName(n: Pick<ControllerNodeSummary, "node_label" | "product_name" | "node_id_hex">): string {
   return n.node_label || n.product_name || `0x${n.node_id_hex}`;
 }
 

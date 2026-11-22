@@ -24,6 +24,9 @@ export { default as ControllerSettings } from "./controller/Settings.svelte";
 // "Page" because ControllerDiagnostics is the API type the package root
 // re-exports as well (UR-P1-api-171).
 export { default as ControllerDiagnosticsPage } from "./controller/Diagnostics.svelte";
+// The controller's onboarding inventory (contract 0.13.0). Its codes are
+// secrets: a host shows it only to an administrator.
+export { default as ControllerInventory } from "./controller/OnboardingInventory.svelte";
 // The daemon's operation, beside both families (wave U5a): log level, log
 // view and version.
 export { default as Operation } from "./operation/Operation.svelte";

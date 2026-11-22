@@ -124,6 +124,11 @@ export type ControllerEvent = S["ControllerEvent"];
 export type ControllerDiagnostics = S["ControllerDiagnostics"];
 export type ControllerPeer = S["ControllerPeer"];
 export type ControllerMdns = S["ControllerMdns"];
+// The onboarding inventory (contract 0.13.0). Its codes are secrets.
+export type OnboardingInventory = S["OnboardingInventory"];
+export type OnboardingInventoryEntry = S["OnboardingInventoryEntry"];
+export type OnboardingSource = S["OnboardingSource"];
+export type OnboardingChecks = S["OnboardingChecks"];
 // Operation, the node selector, ping and the stream's health and trace events (contract 0.5.0).
 export type NodeSummary = S["NodeSummary"];
 export type NodeSummaryList = S["NodeSummaryList"];
@@ -353,6 +358,17 @@ export interface FabricClient {
   controllerMdns(): Promise<ControllerMdns>;
   /** The controller's diagnostic trace, newest first (0.9.0); 501 as above. */
   controllerEvents(): Promise<DiagnosticEventList>;
+  /**
+   * Every commissioned node with its kept onboarding code (admin; 0.13.0). The
+   * codes are secrets: the answer is fetched with `cache: "no-store"` and
+   * kept by the caller only while it shows it. 501 when the host does not
+   * serve the inventory.
+   */
+  onboardingInventory(): Promise<OnboardingInventory>;
+  /** Attaches the code printed on the device to the node (admin; 0.13.0); the node's entry back. */
+  setOnboardingCode(id: string, code: string): Promise<OnboardingInventoryEntry>;
+  /** Removes the node's stored code (admin; 0.13.0). */
+  clearOnboardingCode(id: string): Promise<void>;
   /** The URL of the controller's event stream. */
   controllerStreamUrl(): string;
 }
@@ -454,7 +470,8 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
 
   // keep names the members whose integers beyond 2^53 are kept exact
   // (json.ts): the generic values of attributes, events and commands.
-  type CallOpts = { body?: unknown; keep?: readonly string[]; retried?: boolean };
+  // cache is the fetch's cache mode: "no-store" for an answer with secrets.
+  type CallOpts = { body?: unknown; keep?: readonly string[]; retried?: boolean; cache?: RequestCache };
   async function call<T>(method: string, path: string, opts: CallOpts = {}): Promise<T> {
     // A controller node id outside the contract's NodeID pattern (a dot
     // segment the browser resolves to another route among them) is
@@ -479,6 +496,7 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       headers,
       body,
       credentials: "same-origin",
+      ...(opts.cache ? { cache: opts.cache } : {}),
     });
     if (res.status === 204) return undefined as T;
     const text = await res.text();
@@ -650,6 +668,9 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
       controllerDiagnostics: () => call("GET", "/controller/diagnostics"),
       controllerMdns: () => call("GET", "/controller/mdns"),
       controllerEvents: () => call("GET", "/controller/events"),
+      onboardingInventory: () => call("GET", "/controller/inventory", { cache: "no-store" }),
+      setOnboardingCode: (id, code) => call("PUT", node(id) + "/onboarding-code", { body: { code }, cache: "no-store" }),
+      clearOnboardingCode: (id) => call("DELETE", node(id) + "/onboarding-code", { cache: "no-store" }),
       controllerStreamUrl: () => base + "/controller/stream",
     };
   }

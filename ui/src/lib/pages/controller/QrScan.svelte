@@ -3,14 +3,15 @@
      (lib/scan), loaded on the first click. A page outside a secure context
      (plain HTTP on a LAN address, an Ingress without TLS) has no camera:
      it explains that instead of offering the button, as the clipboard
-     refusal on the pairing page does. -->
+     refusal on the pairing page does; a page that offers another way
+     (the inventory's photograph, 0.13.0) words it with insecureMessage. -->
 <script lang="ts">
   import { onDestroy, tick } from "svelte";
   import { useFabricUI } from "../../context";
   import { errorText } from "../../store.svelte";
   import Button from "../../kit/Button.svelte";
 
-  let { onCode, disabled = false }: { onCode: (payload: string) => void; disabled?: boolean } = $props();
+  let { onCode, disabled = false, insecureMessage }: { onCode: (payload: string) => void; disabled?: boolean; insecureMessage?: string } = $props();
   const { t, toast } = useFabricUI();
 
   const canScan = typeof window !== "undefined" && window.isSecureContext === true && !!navigator.mediaDevices?.getUserMedia;
@@ -76,7 +77,7 @@
 </script>
 
 {#if !canScan}
-  <p class="text-xs text-[var(--ha-secondary-text-color)]" data-testid="scan-insecure">{t("controller.commission.scan_insecure")}</p>
+  <p class="text-xs text-[var(--ha-secondary-text-color)]" data-testid="scan-insecure">{insecureMessage ?? t("controller.commission.scan_insecure")}</p>
 {:else if open}
   <div class="w-full space-y-2" data-testid="scan-view">
     <!-- svelte-ignore a11y_media_has_caption -->

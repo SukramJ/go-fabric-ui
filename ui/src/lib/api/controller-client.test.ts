@@ -80,6 +80,17 @@ const cases: [string, Call][] = [
   ["controller-diagnostics.501", (c) => c.controllerDiagnostics()],
   ["controller-mdns.200", (c) => c.controllerMdns()],
   ["controller-events.200", (c) => c.controllerEvents()],
+  // The onboarding inventory (0.13.0), in host mode.
+  ["controller-status.200-onboarding", (c) => c.controllerStatus()],
+  ["controller-nodes.200-onboarding", (c) => c.controllerNodes()],
+  ["controller-inventory.200", (c) => c.onboardingInventory()],
+  ["controller-inventory.403", (c) => c.onboardingInventory()],
+  ["controller-inventory.501", (c) => c.onboardingInventory()],
+  ["controller-node-onboarding-code-set.200", (c, x) => c.setOnboardingCode(S, b(x).code)],
+  ["controller-node-onboarding-code-set.400-invalid", (c, x) => c.setOnboardingCode(S, b(x).code)],
+  ["controller-node-onboarding-code-set.409-mismatch", (c, x) => c.setOnboardingCode(L, b(x).code)],
+  ["controller-node-onboarding-code-set.404", (c, x) => c.setOnboardingCode("00000000000000AA", b(x).code)],
+  ["controller-node-onboarding-code-clear.204", (c) => c.clearOnboardingCode(S)],
 ];
 
 /** The fixtures whose request the client refuses unsent (RangeError). */

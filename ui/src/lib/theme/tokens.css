@@ -386,3 +386,42 @@ html[data-skin="ha"],
     display: none !important;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────
+ * Printing (contract 0.13.0): the onboarding inventory's labels. On the
+ * screen `.print-labels` is not shown; on paper it is the only thing
+ * shown — the shell, the tabs, the table and the toasts are hidden by
+ * visibility, so the rule needs no knowledge of the host's layout — one
+ * label per node in a wrapping grid on the browser's paper size, each
+ * kept whole, black on white whatever the theme.
+ * ────────────────────────────────────────────────────────────────── */
+.print-labels {
+  display: none;
+}
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-labels,
+  .print-labels * {
+    visibility: visible;
+  }
+  .print-labels {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(6cm, 1fr));
+    gap: 0.5cm;
+    color: #000;
+    background: #fff;
+  }
+  .print-labels .print-label {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border: 1px solid #000;
+    padding: 0.3cm;
+    color: #000;
+    background: #fff;
+  }
+}

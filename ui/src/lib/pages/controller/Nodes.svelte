@@ -99,7 +99,10 @@
   async function decommission(n: ControllerNodeSummary) {
     const ok = await confirm({
       title: t("controller.nodes.remove_confirm"),
-      body: t("controller.nodes.remove_confirm_body", { name: nodeName(n) }),
+      // A stored onboarding code goes with the node (0.13.0).
+      body: n.has_onboarding_code
+        ? `${t("controller.nodes.remove_confirm_body", { name: nodeName(n) })} ${t("controller.nodes.remove_confirm_code")}`
+        : t("controller.nodes.remove_confirm_body", { name: nodeName(n) }),
       destructive: true,
       confirmLabel: t("common.remove"),
     });
