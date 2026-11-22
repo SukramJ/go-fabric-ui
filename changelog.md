@@ -5,6 +5,52 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). The Go module and the npm package
 `@sukramj/fabric-ui` share one version.
 
+## [0.13.0] - 2026-11-22
+
+Wave U12 (issue #68): the controller family's Inventory tab — a
+commissioned device's onboarding code kept with the node, shown on
+request, printed as a label and attached afterwards (typed, scanned, or
+read from a photograph in the browser). Contract 0.13.0, additive over
+0.12.0 (no accepted break). go-fabric v0.25.0 (`thingfabric.dev/go-fabric`) stays the minimum.
+
+### Hosts
+
+- **`ControllerSource` grows by three methods**: `OnboardingInventory`,
+  `SetOnboardingCode` and `ClearOnboardingCode`, with the port's own
+  types (`OnboardingEntry`, `SecretText`, `OnboardingSource`,
+  `OnboardingChecks`) and refusals (`*OnboardingInvalid`,
+  `*OnboardingMismatch`). A host's own source implements them, or reports
+  `ControllerCapabilities.OnboardingCodes` false and returns
+  `ErrNotImplemented`; any error other than the refusals,
+  `ErrNodeNotFound` and (on the attach) `ErrConflict` is 500.
+- **`gofabric.ControllerOptions.OnboardingCodes`** serves the inventory;
+  off by default, so an upgrade hands out no passcode. Set it only behind
+  an access control fit for an export of the fabric's keys, and set
+  go-fabric's `controller.Config.KeepOnboardingCodes` to keep the codes of
+  newly paired devices (`docs/embedding.md`, "The onboarding inventory").
+- **Token mode serves no code**: the three routes answer 501 and
+  `capabilities.onboarding_codes` is false without `Options.Admin`,
+  whatever the source says (owner decision Q2).
+
+### Added
+
+- `GET /controller/inventory`, `PUT` and `DELETE
+  /controller/nodes/{id}/onboarding-code` (admin; every answer
+  `Cache-Control: no-store`), the problem codes `onboarding_code_invalid`
+  (400) and `onboarding_code_mismatch` (409, with `field`, `code_value`
+  and `node_value`), `capabilities.onboarding_codes` and
+  `ControllerNodeSummary.has_onboarding_code`.
+- The Inventory tab (`#/controller/inventory`, exported as
+  `ControllerInventory`): one row per node with how its code came to be
+  stored and the identity checks an attached code passed; the code (QR
+  image and manual code, with copy) behind "Show code"; "Print labels",
+  one label per node with a code; "Attach code" by typing, the camera
+  scan or a photograph (`decodeImage` in the scan chunk, no new
+  dependency); "Remove code". The Nodes page's decommission confirmation
+  says that a stored code is deleted with the node.
+- `MemoryController` keeps the code a commissioning by code used, serves
+  the inventory (`NoOnboardingCodes` turns it off) and answers a set
+  `OnboardingMismatch` once.
 ## [0.12.1] - 2026-11-22
 
 go-fabric v0.25.0: the module moved to `thingfabric.dev/go-fabric`

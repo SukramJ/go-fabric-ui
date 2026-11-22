@@ -406,7 +406,8 @@ every writing route, `GET /node/pairing`, and from 0.10.0 the reading
 routes of both families (the node's fabrics, endpoints, surface,
 sessions, topology, mDNS, compatibility, events and selection; the log;
 the controller's nodes, credentials, updates, topology, diagnostics,
-mDNS and events) and the controller and log streams. A request without
+mDNS and events; from 0.13.0 its onboarding inventory) and the controller
+and log streams. A request without
 admin rights answers `403 forbidden` before its parameters or body are
 read.
 
@@ -606,8 +607,31 @@ The host does not serve the route (501): `GET /controller/topology`
 from a host without a topology service, and `POST
 /node/maintenance/erase` from a host that wires no `Erase` (0.7.0), and
 `GET /controller/diagnostics`, `/controller/mdns` and `/controller/events`
-from a source that serves no diagnostics (0.9.0). Its detail is a fixed
-sentence, never an error's text.
+from a source that serves no diagnostics (0.9.0), and `GET
+/controller/inventory` and `PUT`/`DELETE
+/controller/nodes/{id}/onboarding-code` from a host that does not serve
+the onboarding inventory or has no admin check (0.13.0). Its detail is a
+fixed sentence, never an error's text.
+
+### problem-onboarding_code_invalid
+`PUT /controller/nodes/{id}/onboarding-code`: the text is no onboarding
+code — neither a QR code (`MT:…`) nor a manual pairing code, or one whose
+checksum or passcode is invalid (400, 0.13.0). `detail` is the reason as
+go-fabric's decoder words it (English; it names the rule, never the
+passcode). A malformed body or an empty `code` is `bad_request`. The
+port's error is `*fabricui.OnboardingInvalid`.
+
+### problem-onboarding_code_mismatch
+`PUT /controller/nodes/{id}/onboarding-code`: the code is readable and
+names another device; nothing was stored (409, 0.13.0). Besides the
+problem's members it carries `field` (`vendor`, `product` or
+`discriminator`, the first identity field that differs), `code_value`
+(the code's value of it) and `node_value` (the node's: its vendor or
+product id, or the discriminator it advertised). For the discriminator of
+a manual pairing code both values are its 4-bit form, as compared. None
+of them is a secret. `detail` is the handler's English sentence from the
+three, not go-fabric's text. The port's error is
+`*fabricui.OnboardingMismatch` (go-fabric `client.OnboardingMismatchError`).
 
 ## Versioning
 
@@ -759,6 +783,19 @@ its pairing in `GET /controller/events`, as a code's does. The 204 of
 consent to a version at or below the one the node runs, while it knows
 that version; the route still answers 204 for it. A node removed between
 the route's lookup and the consent is 404, as an unknown node is.
+
+Contract 0.13.0 (wave U12, issue #68) is additive over 0.12.0, which
+`contract/previous/` holds as release 0.12.0 shipped it; no break is
+accepted. Three admin routes serve the onboarding inventory —
+`GET /controller/inventory` and `PUT`/`DELETE
+/controller/nodes/{id}/onboarding-code` — with the schemas
+`OnboardingInventory`, `OnboardingInventoryEntry`, `OnboardingSource`,
+`OnboardingChecks` and `OnboardingCodeRequest` (section "Onboarding
+inventory"). New: the problem codes `onboarding_code_invalid` (400) and
+`onboarding_code_mismatch` (409) with the `Problem` members `field`,
+`code_value` and `node_value`, the required
+`ControllerCapabilities.onboarding_codes` and the optional
+`ControllerNodeSummary.has_onboarding_code`.
 
 ## Controller routes (v0.2.0)
 
@@ -964,12 +1001,71 @@ The port is `ControllerSource.Diagnostics`, `DiagnoseMDNS`,
   one `DiagnosticEvent` in the node family's `diagnostic_event` shape; the
   page reloads once per burst (the controller store's `diagnosticEpoch`).
 
+## Onboarding inventory (v0.13.0)
+
+The controller family's Inventory tab (issue #68) keeps a commissioned
+device's onboarding code — its QR code or manual pairing code — with the
+node, so that it survives the paper it came on, over go-fabric v0.23.0's
+`controller.Controller.Inventory` and `client.Node.SetOnboardingCode` /
+`ClearOnboardingCode`. A code is a secret: with it and a factory reset
+anyone can commission the device. The port is
+`ControllerSource.OnboardingInventory`, `SetOnboardingCode` and
+`ClearOnboardingCode` with types of `fabricui` (`docs/embedding.md`).
+
+- **`capabilities.onboarding_codes`** on `GET /controller/status` is true
+  when the source serves the inventory (`ControllerCapabilities.
+  OnboardingCodes`; the go-fabric adapter only with
+  `ControllerOptions.OnboardingCodes`, off by default) **and** the host
+  decides admin rights (`Options.Admin`). Token mode never serves a code:
+  its token is handed to whoever reaches `GET /controller/status`. False:
+  the three routes answer `501 not_implemented`, `has_onboarding_code` is
+  absent, and the shell hides the tab (the page, opened by its route,
+  shows an empty state and asks no route). The boolean itself is no
+  secret and readable without admin rights.
+- **`GET /controller/inventory`** (`OnboardingInventory`): one entry per
+  commissioned node, by node id as `GET /controller/nodes` — `node_id_hex`,
+  `node_label`, `vendor_id`, `vendor_name`, `product_id`, `product_name`,
+  `serial_number`, `has_code`, and with a code `qr_code` (absent for a
+  stored manual code, from which no QR code is made up), `manual_code` (11
+  or 21 digits), `source` (`paired`: the device accepted the passcode at
+  commissioning; `attached`: added afterwards, its passcode unproven),
+  `checks` (the identity checks an attached code passed — vendor, product,
+  discriminator; all false for a paired code; no check proves the passcode
+  or the unit) and `stored_at`.
+- **`PUT /controller/nodes/{id}/onboarding-code`** (`OnboardingCodeRequest`
+  `{code}`, strict): attaches the code printed on the device and replaces a
+  stored one; 200 with the node's entry. Refusals: 400
+  `onboarding_code_invalid`, 409 `onboarding_code_mismatch` (with `field`,
+  `code_value`, `node_value`), 409 `conflict` when the node is no longer
+  commissioned, 404 for an unknown node, 400 `bad_request` for a malformed
+  body or an empty code.
+- **`DELETE /controller/nodes/{id}/onboarding-code`**: removes the stored
+  code; 204 also when the node had none.
+- **The three map errors themselves, closed**: any other error of a
+  source — also `ErrNodeFailed`, or `ErrConflict` on the `DELETE` — is 500,
+  logged; no 502 and no undeclared status.
+- **`ControllerNodeSummary.has_onboarding_code`**: whether a code is
+  stored, existence only; absent while the inventory is not served.
+  Decommissioning a node deletes its code (the page's confirmation says
+  so).
+- **Kept codes.** go-fabric keeps a code only with
+  `controller.Config.KeepOnboardingCodes` (off by default), for a device
+  commissioned by its code in Basic commissioning mode; a device
+  commissioned from the discovery list by its passcode has none — its row
+  shows "No code" and offers "Attach code".
+- **No file export.** Printing the labels and the per-row copy are the
+  export of this version; a file would put every passcode outside the
+  database's protection.
+
 ## Identifiers, secrets and events of the controller family
 
-- **Secrets**: a commissioning's code and passcode, a window's passcode
-  and a credential's passphrase or dataset appear only in admin requests
-  and the window's answer; no event and no log line carries them (the
-  tests assert it).
+- **Secrets**: a commissioning's code and passcode, a window's passcode,
+  a credential's passphrase or dataset, and the onboarding codes of
+  `GET /controller/inventory` and `PUT
+  /controller/nodes/{id}/onboarding-code` (0.13.0) appear only in admin
+  requests and the window's and the inventory's answers; no event and no
+  log line carries them (the tests assert it), and every answer of the
+  API is `Cache-Control: no-store`.
 - **Stream** (`GET /controller/stream`): `event:` is `node_added`,
   `node_updated`, `node_removed`, `connection`, `subscription`,
   `commissioning_progress` or `update`; `data:` is a `ControllerEvent`

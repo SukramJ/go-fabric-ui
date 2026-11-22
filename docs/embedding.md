@@ -352,6 +352,7 @@ mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Controller: src}))
 | `Hooks` | Turns the nodes' `client.Hooks` into the controller stream's events (`node_added`, `node_removed`, `connection`, `subscription`, `node_updated`, coalesced — a structure change, a report or an event the node delivered). `Wrap` chains them after the host's own `HooksFor`, its `Event` hook included; `Close` (before the controller's) stops the pending timers; events after it, or while the controller has no registry, are dropped. Nil leaves the stream with the handler's own events. |
 | `Credentials` | The host's credential store: `fabricui.CredentialStore` (list names, set write-only, remove) plus `WiFi(id)` and `Thread(id)` for a commissioning that names one. `Credential.Default` (0.7.1) is the host's statement of its default entry — the one its own interfaces use without a choice; the pages preselect it. The lookup stays by the id a request names: an empty id names none. `fabricui.NewMemoryCredentials(gofabric.ThreadDatasetName)` is an in-memory one that checks a dataset with go-fabric's decoder. Nil answers 503 on the credential routes. |
 | `Pair` | The template of every commissioning: the attestation policy, the default subscription, the BLE central (`Capabilities().BLE`). The network a request names is set on a copy; the request's step reports run after the template's `Progress`, and its Terms and Conditions acknowledgement is set on `PairOptions.TermsAndConditions` before the template's `Edit` runs, as go-fabric runs it — the template's acknowledgement applies when the request sends none (0.8.0; 0.7.x set it through `Edit`, after the template's). A device that requires terms the request does not acknowledge fails with go-fabric's `commissioner.TermsRequiredError`, which the adapter reports as `*fabricui.ErrTermsRequired` (409 `terms_required`). The central is used when the code allows BLE, `network_only` is off and the request names a credential (0.7.1); the decision reaches `PairOptions.Transport` on every pairing from a code. go-fabric's network steps provision by the device's NetworkCommissioning features: a Wi-Fi credential is skipped on a device without the Wi-Fi feature, a Thread dataset on one without Thread (`controller/commissioner/network.go:217-235`, `:308-325` at v0.18.0). |
+| `OnboardingCodes` | Serves the onboarding inventory (0.13.0): `GET /controller/inventory` hands out the onboarding codes go-fabric keeps or a user attached, `PUT`/`DELETE /controller/nodes/{id}/onboarding-code` attach and remove one. Off by default — a host that upgrades does not start handing out passcodes. See "The onboarding inventory" below for what a host must do before it sets it. |
 | `Logger` | The adapter's logger; nothing it logs carries a passcode or a credential. `fabricui.pair.ble_skipped` (Info, `reason` `network_only`, `code_without_ble` or `no_network`, 0.7.1) says why a commissioning did not use the central. |
 
 What each route calls on the facade:
@@ -373,6 +374,7 @@ What each route calls on the facade:
 | `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates` over every node, its failed products' nodes (`softwareupdate.ProductCheckErrors`, go-fabric v0.24.0) the check's `errors` (0.12.0; 0.11.0 checked one node per product again), `AddUpdateConsent`; the stream's `update` events from `Observe`, subscribed in `ControllerOf` and released by `Hooks.Close` (0.7.0) |
 | `GET /controller/topology` | `ControllerOptions.Topology`, the host's `*topology.Service`: `Topology()`, or `Refresh` with `refresh=true`; its `OnChanged` becomes `topology_changed`. The host wires it: `topology.Changes.Install(&cfg)` before `controller.New`, `topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})`, `ControllerOf(…, ControllerOptions{Topology: svc})`, and `svc.Close()` on shutdown (the subscription goes with `Hooks.Close`). The border routers (0.8.0) need nothing more: with `topology.Config.BorderRouters` nil the service builds on the controller's own registry, `Controller.BorderRouters` (go-fabric `controller/topology/service.go:57-60`, `:163-165` at v0.19.1). Without it `NetworkTopology` answers `fabricui.ErrNotImplemented` (501) |
 | `GET /controller/diagnostics`, `/mdns`, `/events`; `controller_diagnostic_event` | `Controller.SessionDiagnostics`, `DiagnoseMDNS`, `DiagnosticEvents` and `OnDiagnosticEvent` (go-fabric `controller/diagnostics.go:46`, `:547`, `:140`, `:154` at v0.21.0), mapped one to one onto the port's types; nothing to wire. `DiagnoseMDNS` waits for the DNS-SD cache and is called from the request only; `OnDiagnosticEvent` runs on the goroutine that recorded the event, and the handler only queues it (0.9.0) |
+| `GET /controller/inventory`, `PUT`/`DELETE /controller/nodes/{id}/onboarding-code` | `Controller.Inventory`, sorted by node id as the node list is; `client.Node.SetOnboardingCode`, then the node's entry from a fresh inventory; `client.Node.ClearOnboardingCode` (go-fabric v0.23.0). `*client.OnboardingMismatchError` becomes `*fabricui.OnboardingMismatch` (its field bit named), `client.ErrOnboardingCode` `*fabricui.OnboardingInvalid` with the wrapped decoder's text, `ErrNotCommissioned` and `ErrClosed` `ErrConflict`; a store error stays as it is (500). Only with `ControllerOptions.OnboardingCodes` (0.13.0) |
 
 A host without go-fabric's controller — a test, a demonstration —
 implements `fabricui.ControllerSource` itself; `fabricui.NewMemoryController()`
@@ -406,6 +408,57 @@ unsubscribe function, or nil when the source serves no diagnostics; fn
 must not block. A source of its own that has no diagnostics leaves the
 flag false and may return `false`, nil, nil and nil;
 `MemoryController.NoDiagnostics` stands for one.
+
+### The onboarding inventory (0.13.0)
+
+The port change of 0.13.0: `ControllerSource` gains three methods, with
+types of `fabricui`:
+
+- `OnboardingInventory() []OnboardingEntry` — every commissioned node by
+  node id; `OnboardingEntry` carries the codes as `SecretText`, redacted
+  under every fmt verb, slog, encoding/json and
+  `encoding.TextMarshaler`; `Reveal()` is the one way to the text, and the
+  handler calls it only where it fills the response.
+- `SetOnboardingCode(ctx, id, code string) (OnboardingEntry, error)` —
+  refusals are `*fabricui.OnboardingInvalid` (`Reason`, never the code;
+  400 `onboarding_code_invalid`), `*fabricui.OnboardingMismatch` (`Field`
+  `vendor`, `product` or `discriminator`, `Code` and `Node`; 409
+  `onboarding_code_mismatch`), `ErrNodeNotFound` (404) and `ErrConflict`
+  (409, the node is no longer commissioned). Any other error is 500.
+- `ClearOnboardingCode(ctx, id) error` — nil also without a code;
+  `ErrNodeNotFound` is 404, any other error 500.
+
+A source states that it serves them with
+`ControllerCapabilities.OnboardingCodes`; a source of its own that keeps
+no codes leaves it false and returns nil and `ErrNotImplemented`.
+`MemoryController.NoOnboardingCodes` stands for one; the memory
+controller keeps the code a commissioning by code used, and its
+`OnboardingMismatch` makes the next attach a mismatch.
+
+What a host must do before it serves the inventory:
+
+1. Set `gofabric.ControllerOptions.OnboardingCodes = true`, and only
+   behind an access control fit for an export of the fabric's keys: an
+   API that serves the inventory hands out setup passcodes. In host mode
+   `Options.Admin` decides who reads them. **Token mode is no access
+   control** — its token is served by `GET /controller/status` to
+   whoever reaches the handler — so the handler serves the inventory only
+   with `Options.Admin` and answers 501 in token mode, whatever the source
+   says.
+2. Set `controller.Config.KeepOnboardingCodes` if the codes of newly
+   paired devices are to be kept; without it the inventory holds only
+   attached codes. A device commissioned from the discovery list by its
+   passcode has no code to keep; its code is attached afterwards.
+   Configure a `Sealer` if the store's secrets are to be sealed at rest.
+3. Not log request or response bodies of the three routes in its own
+   middleware or proxy, and not cache them; the handler sends
+   `Cache-Control: no-store` on every answer, a proxy has to honour it.
+4. A host with its own `ControllerSource` implements the three methods
+   (or reports `OnboardingCodes: false` and returns `ErrNotImplemented`);
+   the interface grows, as it did in 0.9.0.
+5. Serve the UI over HTTPS (or localhost) for the live camera scan; typing
+   the code and choosing a photograph, which the page decodes in the
+   browser and uploads nowhere, work without.
 
 ## Mounting the API alone
 
