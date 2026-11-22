@@ -211,11 +211,45 @@ describe("Controller onboarding inventory", () => {
     expect(document.documentElement.classList.contains("fui-print-labels")).toBe(false);
   });
 
-  it("leaves no print class behind when the page goes while printing", async () => {
+  it("prints the page as it is, without labels, when the print is not the button's (owner 2026-11-22)", async () => {
     const ui = testUI({ fixtures: ["controller-inventory.200"] });
     render(Harness, { ui, page: OnboardingInventory });
     await screen.findByText("Kitchen");
     window.dispatchEvent(new Event("beforeprint"));
+    expect(screen.queryByTestId("print-labels")).toBeNull();
+    expect(document.documentElement.classList.contains("fui-print-labels")).toBe(false);
+    window.dispatchEvent(new Event("afterprint"));
+    // An armed print is disarmed by its afterprint: the next menu print is plain again.
+    vi.stubGlobal("print", vi.fn());
+    await fireEvent.click(screen.getByText("controller.inventory.print"));
+    window.dispatchEvent(new Event("beforeprint"));
+    expect(screen.getByTestId("print-labels")).toBeInTheDocument();
+    window.dispatchEvent(new Event("afterprint"));
+    await waitFor(() => expect(screen.queryByTestId("print-labels")).toBeNull());
+    window.dispatchEvent(new Event("beforeprint"));
+    expect(screen.queryByTestId("print-labels")).toBeNull();
+    expect(document.documentElement.classList.contains("fui-print-labels")).toBe(false);
+  });
+
+  it("arms nothing when no node has a code to print (U12-R2-01)", async () => {
+    const entries = body<{ entries: { has_code: boolean }[] }>("controller-inventory.200").entries.filter((e) => !e.has_code);
+    const ui = testUI({ answers: { "GET /controller/inventory": { status: 200, body: { entries } } } });
+    render(Harness, { ui, page: OnboardingInventory });
+    await screen.findByText("Kitchen");
+    expect(screen.getByText("controller.inventory.print_empty")).toBeInTheDocument();
+    window.dispatchEvent(new Event("beforeprint"));
+    expect(screen.queryByTestId("print-labels")).toBeNull();
+    expect(document.documentElement.classList.contains("fui-print-labels")).toBe(false);
+  });
+
+  it("leaves no print class behind when the page goes while printing", async () => {
+    const ui = testUI({ fixtures: ["controller-inventory.200"] });
+    render(Harness, { ui, page: OnboardingInventory });
+    await screen.findByText("Kitchen");
+    vi.stubGlobal("print", vi.fn());
+    await fireEvent.click(screen.getByText("controller.inventory.print"));
+    window.dispatchEvent(new Event("beforeprint"));
+    expect(document.documentElement.classList.contains("fui-print-labels")).toBe(true);
     cleanup();
     expect(document.documentElement.classList.contains("fui-print-labels")).toBe(false);
     expect(document.querySelector(".print-labels")).toBeNull();

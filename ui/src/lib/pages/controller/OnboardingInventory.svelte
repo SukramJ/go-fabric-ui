@@ -80,15 +80,20 @@
     }
   }
 
-  // The browser's print of this page — the button's, or the browser's
-  // own menu — prints the labels: beforeprint draws them (synchronously,
-  // before the browser lays out the sheet) and scopes the print rule to
-  // this print; afterprint takes both away again.
+  // Only the Print button prints labels (owner, 2026-11-22): it arms the
+  // print, and beforeprint draws them (synchronously, before the browser
+  // lays out the sheet) and scopes the print rule to this print only when
+  // armed and there is something to print. A print from the browser's
+  // menu prints the page as it is, without codes. afterprint (and the
+  // page's end) disarms and takes labels and class away.
+  let armed = false;
   function beforePrint() {
+    if (!armed || printable.length === 0) return;
     flushSync(() => (printing = true));
     document.documentElement.classList.add("fui-print-labels");
   }
   function afterPrint() {
+    armed = false;
     document.documentElement.classList.remove("fui-print-labels");
     printing = false;
   }
@@ -245,9 +250,10 @@
 
   const printable = $derived(entries.filter((e) => e.has_code));
 
-  // The button only starts the browser's print; beforeprint draws the
-  // labels.
+  // The button arms the print and starts the browser's; beforeprint draws
+  // the labels.
   function print() {
+    armed = true;
     window.print();
   }
 
