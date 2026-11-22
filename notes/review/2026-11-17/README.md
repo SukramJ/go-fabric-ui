@@ -266,6 +266,12 @@ convergence run over the then-current HEAD — with go-fabric's
 post-Review-II tag pinned — yields no new high or medium; the held-back
 rows are published with the pull request or release that carries their fix.
 
+**Status (2026-11-22):** phase 4's run 2 (`phase-4r2-register.md`,
+release `v0.12.0`, go-fabric `v0.24.1`) found no new high or medium; the
+review ends with its pull request. Four notes stay open and are carried
+(UR-P4-api-391, -ui-396, -test-403, -err-404; where each goes is in the
+register).
+
 ## Open questions for the owner
 
 None open. Questions 1–10 of the plan and the verification of lows were
