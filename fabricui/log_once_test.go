@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -58,7 +59,8 @@ func TestStatus_AFabricReadFailureIsLoggedOnce(t *testing.T) {
 }
 
 // The same through the registry: an entry the handler skips is logged
-// once, not on every GET /nodes (UR-P4-leak-91).
+// once, not on every GET /nodes (UR-P4-leak-91), and once more when it
+// is listed again after it left the list (UR-P4-test-265).
 func TestRegistry_ASkippedEntryIsLoggedOnce(t *testing.T) {
 	var log bytes.Buffer
 	reg := newMemoryRegistry(0)
@@ -69,8 +71,8 @@ func TestRegistry_ASkippedEntryIsLoggedOnce(t *testing.T) {
 	reg.nodes = append(reg.nodes, NodeEntry{Key: "status", Label: "a page name"})
 	reg.mu.Unlock()
 	_, mux := newTestHandler(t, testOptions{registry: reg, log: &log, admin: func(*http.Request) bool { return false }})
-	const calls = 50
-	for range calls {
+	list := func() {
+		t.Helper()
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, DefaultPrefix+"/nodes", http.NoBody)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -78,7 +80,49 @@ func TestRegistry_ASkippedEntryIsLoggedOnce(t *testing.T) {
 			t.Fatalf("nodes %d %s", rec.Code, rec.Body)
 		}
 	}
-	if got := strings.Count(log.String(), "fabricui.registry.entry_skipped"); got > 1 {
-		t.Errorf("%d GET /nodes without admin rights wrote %d warnings (fabricui.registry.entry_skipped); want one per entry, not one per request", calls, got)
+	count := func() int { return strings.Count(log.String(), "fabricui.registry.entry_skipped") }
+	const calls = 50
+	for range calls {
+		list()
+	}
+	if got := count(); got != 1 {
+		t.Errorf("%d GET /nodes without admin rights wrote %d warnings (fabricui.registry.entry_skipped); want exactly one per entry, not one per request", calls, got)
+	}
+	// The entry leaves the list, is listed without it, and returns: it
+	// is logged again, once.
+	reg.mu.Lock()
+	skipped := reg.nodes[len(reg.nodes)-1]
+	reg.nodes = reg.nodes[:len(reg.nodes)-1]
+	reg.mu.Unlock()
+	list()
+	reg.mu.Lock()
+	reg.nodes = append(reg.nodes, skipped)
+	reg.mu.Unlock()
+	list()
+	list()
+	if got := count(); got != 2 {
+		t.Errorf("after the entry left and returned: %d warnings, want 2", got)
+	}
+}
+
+// A fabric read that ends in a context error of its own (a store's
+// deadline) under a live request is a failure of the node, not an
+// abandoned request: it is logged (UR-P4-leak-200, UR-P4-test-392).
+func TestStatus_AContextErrorUnderALiveRequestIsLogged(t *testing.T) {
+	for _, cause := range []error{context.DeadlineExceeded, context.Canceled} {
+		t.Run(cause.Error(), func(t *testing.T) {
+			var log bytes.Buffer
+			n := sampleNode()
+			n.fabricsErr = fmt.Errorf("store: read fabrics: %w", cause)
+			_, mux := newTestHandler(t, testOptions{node: n, log: &log, admin: func(*http.Request) bool { return false }, second: secondNode()})
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, DefaultPrefix+"/node/status", http.NoBody))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status %d %s", rec.Code, rec.Body)
+			}
+			if got := strings.Count(log.String(), "fabricui.status.fabrics_failed"); got != 1 {
+				t.Errorf("a fabric read failing with %v under a live request wrote %d fabrics_failed lines, want 1", cause, got)
+			}
+		})
 	}
 }

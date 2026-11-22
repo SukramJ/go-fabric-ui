@@ -223,3 +223,39 @@ func TestDeviceTypeNames_OneNameAcrossTheNodeFamily(t *testing.T) {
 		t.Errorf("a manufacturer-specific type named %q", got)
 	}
 }
+
+// Every hand-written route the handler serves is an operation of the
+// contract, the open ones too (the admin guards compare admin routes
+// only): the route table of the node, registry and operation families,
+// from routes(), against the contract's operations. The controller family
+// is generated from the contract and served under one pattern
+// (UR-P4-test-266). The status guard also fails on an answered path that
+// no operation names.
+func TestEveryHandWrittenRouteIsInTheContract(t *testing.T) {
+	param := strings.NewReplacer("{node}", "{}", "{id}", "{}", "{ep}", "{}", "{index}", "{}", "{cluster_hex}", "{}")
+	have := map[string]bool{}
+	for _, op := range contractOps(t) {
+		have[op.method+" "+param.Replace(op.path)] = true
+	}
+	h, _ := newTestHandler(t, testOptions{registry: newMemoryRegistry(0), controller: NewMemoryController()})
+	_, patterns := h.routes()
+	checked := 0
+	for _, p := range patterns {
+		method, path, ok := strings.Cut(p, " ")
+		if !ok {
+			continue // the controller family's and the catch-all's prefix patterns
+		}
+		rel, ok := strings.CutPrefix(path, DefaultPrefix)
+		if !ok {
+			t.Errorf("pattern %q is not under the prefix", p)
+			continue
+		}
+		checked++
+		if !have[method+" "+param.Replace(rel)] {
+			t.Errorf("served, not in the contract: %s %s", method, rel)
+		}
+	}
+	if checked < 50 {
+		t.Fatalf("checked %d patterns; routes() is not giving the route table", checked)
+	}
+}

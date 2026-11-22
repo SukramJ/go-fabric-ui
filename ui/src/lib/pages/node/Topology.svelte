@@ -21,7 +21,7 @@
   type Props = { follow?: (href: string) => void };
   let { follow }: Props = $props();
 
-  const { t, client, node, routes } = useFabricUI();
+  const { t, toast, client, node, routes } = useFabricUI();
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -39,7 +39,11 @@
       const g = await client.topology();
       if (mine === seq) graph = g;
     } catch (err) {
-      if (mine === seq) error = errorText(err);
+      // With a graph drawn, a failed reload keeps it: the failure is a
+      // toast, as on the controller's network (UR-P4-ui-305).
+      if (mine !== seq) return;
+      if (graph) toast.error(errorText(err));
+      else error = errorText(err);
     } finally {
       if (mine === seq) loading = false;
     }

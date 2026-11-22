@@ -118,3 +118,17 @@ describe("Topology — overlapping loads (UR-P1-ui-137)", () => {
     expect(nodeIds()).toHaveLength(small.nodes.length);
   });
 });
+
+describe("UR-P4-ui-305: a failed reload keeps the drawn graph", () => {
+  it("keeps the graph and says the failure in a toast, as the controller's network does", async () => {
+    const ui = testUI({ fixtures: ["node-status.200", "node-topology.200"] });
+    render(Harness, { ui, page: Topology });
+    await screen.findByTestId("graph");
+    ui.client.topology = async () => {
+      throw new Error("boom");
+    };
+    await fireEvent.click(await screen.findByText("common.refresh"));
+    await waitFor(() => expect(ui.toastSpy.error).toHaveBeenCalledWith("boom"));
+    expect(screen.queryByTestId("graph")).not.toBeNull();
+  });
+});

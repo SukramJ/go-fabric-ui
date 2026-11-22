@@ -145,26 +145,51 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
   let fabricsGen = 0;
   let exposureGen = 0;
 
-  async function loadStatus() {
+  // The status has three readers (loadStatus, hydrateCommissioning,
+  // openWindow). They share one count: the answer of the newest read
+  // stands, an older one arriving after it is dropped; statusLoading is
+  // true while any read is in flight, so a dropped answer cannot leave it
+  // set; and every answer that stands reopens the stream on a new token
+  // (UR-P4-conc-230).
+  let statusApplied = 0;
+  let statusReads = 0;
+
+  // Reads the status. ownsError: a failure is the store's to show (null
+  // status, the message, the 403 code); the other readers throw it to
+  // their caller and leave the status as it was.
+  async function readStatus(ownsError: boolean): Promise<Status> {
     const mine = ++statusGen;
+    statusReads++;
     statusLoading = true;
-    statusError = null;
     try {
       const s = await client.status();
-      if (mine === statusGen) {
+      if (mine > statusApplied) {
+        statusApplied = mine;
+        const wasAdmin = isAdminStatus(status);
         setStatus(s);
+        statusError = null;
         statusDenied = null;
         reopenOnNewToken(s);
+        reopenOnRightBack(wasAdmin, s);
       }
+      return s;
     } catch (err) {
-      if (mine === statusGen) {
+      if (ownsError && mine > statusApplied) {
+        statusApplied = mine;
         status = null;
         statusError = message(err);
         statusDenied = deniedCode(err) ?? null;
       }
+      throw err;
     } finally {
-      if (mine === statusGen) statusLoading = false;
+      statusReads--;
+      statusLoading = statusReads > 0;
     }
+  }
+
+  async function loadStatus() {
+    statusError = null;
+    await readStatus(true).catch(() => undefined);
   }
 
   async function loadFabrics() {
@@ -315,14 +340,12 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     startCountdown(win.duration_seconds);
     // Read it now, so a later status is judged against it. A failed read
     // leaves the adoption to the next status.
-    const g = statusGen;
     let st: Status;
     try {
-      st = await client.status();
+      st = await readStatus(false);
     } catch {
       return;
     }
-    if (g === statusGen) setStatus(st);
     if (mine === flowGen && commissioning.phase === "open") otherWindow(st);
   }
 
@@ -361,9 +384,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     const mine = ++flowGen;
     // The status is read fresh: the pairing's answer is judged against
     // the window it names now (UR-P1-err-04, correction 2).
-    const sMine = ++statusGen;
-    const st = await client.status();
-    if (sMine === statusGen) setStatus(st);
+    const st = await readStatus(false);
     if (mine !== flowGen || commissioning.phase !== "idle") return;
     if (!st.enabled || !st.commissioning_window_open || !isAdminStatus(st)) return;
     const p = await client.pairing();
@@ -458,6 +479,12 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         break;
       case "endpoints_changed":
       case "surface_changed":
+        // An assembly ran: the node was rebuilt (another tab's apply, a
+        // reassemble, the host), so the stored selection is in effect and
+        // the last apply's notice is stale (UR-P4-ui-61, its other-tab
+        // path). A rebuild that changes no endpoint's surface sends
+        // neither; the notice then stays until a rebuild here.
+        exposureNotInEffect = false;
         void loadStatus();
         topologyEpoch++;
         break;
@@ -539,6 +566,19 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     connect();
   }
 
+  // A stream refused 403 ends for good; the refusal reloads the status,
+  // which turns a page that lost its rights to its notice. A later status
+  // that grants them again opens the stream again (UR-P4-ui-233).
+  function onStreamDenied(code: string | undefined) {
+    streamDenied = code ?? "forbidden";
+    void loadStatus();
+  }
+  function reopenOnRightBack(wasAdmin: boolean, s: Status) {
+    if (!unsub || deps.subscribe || streamDenied === null || wasAdmin || !isAdminStatus(s)) return;
+    disconnect();
+    connect();
+  }
+
   function connect() {
     if (unsub) return;
     if (deps.subscribe) {
@@ -558,7 +598,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       unsub = subscribeStream(client.streamUrl(), applyEvent, client.openStream, {
         onResync: resync,
         resyncOnFirstOpen: connectedBefore,
-        onDenied: (code) => (streamDenied = code ?? "forbidden"),
+        onDenied: onStreamDenied,
       });
     }
     connectedBefore = true;
@@ -587,7 +627,7 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
     get statusAt() { return statusAt; },
     /** The 403 problem code of the last status read (forbidden, host_not_allowed, origin_not_allowed), or null (0.10.0). */
     get statusDenied() { return statusDenied; },
-    /** The 403 problem code the stream was refused with, or null; the stream is not reopened then (0.10.0). */
+    /** The 403 problem code the stream was refused with, or null; the stream is reopened by a later status that grants admin rights again (UR-P4-ui-233). */
     get streamDenied() { return streamDenied; },
     /** True after an apply whose selection was stored but not rebuilt (Applied.reassembled false, 0.10.0). */
     get exposureNotInEffect() { return exposureNotInEffect; },

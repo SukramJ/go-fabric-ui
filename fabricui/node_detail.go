@@ -4,6 +4,7 @@
 package fabricui
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -234,7 +235,7 @@ func failedAttributes(cluster uint32, vals []node.AttributeValue) []ClusterAttri
 			out = append(out, e)
 		}
 	}
-	slices.SortFunc(out, func(a, b ClusterAttribute) int { return int(a.ID) - int(b.ID) })
+	slices.SortFunc(out, func(a, b ClusterAttribute) int { return cmp.Compare(a.ID, b.ID) })
 	return out
 }
 

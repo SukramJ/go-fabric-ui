@@ -4,7 +4,7 @@
   import { onMount } from "svelte";
   import { useFabricUI } from "../../../context";
   import { errorText } from "../../../store.svelte";
-  import type { IcdState } from "../../../api/client";
+  import { ApiError, type IcdState } from "../../../api/client";
   import Badge from "../../../kit/Badge.svelte";
   import Button from "../../../kit/Button.svelte";
   import Card from "../../../kit/Card.svelte";
@@ -36,8 +36,10 @@
       icd = await client.registerNodeIcd(nodeId, allowMultiAdmin);
       toast.success(t("controller.icd.registered_done"));
     } catch (err) {
-      // Other administrators' vendors may not support LIT: ask, then retry.
-      if (!allowMultiAdmin && (err as { status?: number }).status === 409) {
+      // Other administrators' vendors may not support LIT: ask, then
+      // retry. Only that refusal asks (icd_multi_admin, 0.12.0); any other
+      // 409 is the client's own state (UR-P4-ui-291, decision 76).
+      if (!allowMultiAdmin && err instanceof ApiError && err.problem?.code === "icd_multi_admin") {
         busy = false;
         const ok = await confirm({ title: t("controller.icd.multi_admin"), body: errorText(err), confirmLabel: t("controller.icd.register") });
         if (ok) await register(true);

@@ -190,3 +190,65 @@ describe("the Operation page waits for the probes", () => {
     expect(fetchImpl.mock.calls.filter(([u]) => String(u).includes("/operation/log"))).toEqual([]);
   });
 });
+
+describe("UR-P4-ui-233: a refused stream is shown", () => {
+  const refused = () =>
+    new Response(JSON.stringify({ code: "forbidden", title: "Admin rights required", status: 403, type: "x" }), {
+      status: 403,
+      headers: { "Content-Type": "application/problem+json" },
+    });
+
+  it("the node family says its live updates stopped", async () => {
+    serve(["node-status.200", "nodes.200"], (url) => (url.endsWith("/stream") ? refused() : undefined));
+    render(App);
+    expect(await screen.findByTestId("node-status")).toBeInTheDocument();
+    expect(await screen.findByTestId("stream-denied")).toHaveTextContent("Live updates stopped");
+  });
+
+  it("the controller family says its live updates stopped while the status still grants admin rights", async () => {
+    serve(["controller-status.200", "controller-nodes.200"], (url) => (url.endsWith("/stream") ? refused() : undefined));
+    location.hash = "#/controller/nodes";
+    render(App);
+    expect(await screen.findByTestId("stream-denied")).toHaveTextContent("Live updates stopped");
+    expect(screen.getByRole("link", { name: "Nodes" })).toBeInTheDocument();
+  });
+});
+
+describe("UR-P4-ui-232: the Operation tab only when GET /operation/info answered", () => {
+  const stream = () => new Response(new ReadableStream(), { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  for (const [name, answer] of [
+    ["a network error", () => Promise.reject(new TypeError("Failed to fetch"))],
+    ["a proxy's 502", () => Promise.resolve(new Response("<html>502</html>", { status: 502 }))],
+  ] as const) {
+    it(`${name} shows no Operation tab`, async () => {
+      serve(["node-status.200", "nodes.200"]);
+      const inner = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+      const base = inner.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+      inner.mockImplementation(async (url: string, init?: RequestInit) => {
+        if (url.endsWith("/operation/info")) return answer();
+        if (url.endsWith("/stream")) return stream();
+        return base(url, init);
+      });
+      render(App);
+      expect(await screen.findByRole("heading", { name: "Node" })).toBeInTheDocument();
+      await new Promise((r) => setTimeout(r, 100));
+      expect(screen.queryAllByText("Operation")).toEqual([]);
+    });
+  }
+
+  it("an undecided answer is asked again, and the tab shows once it answers", async () => {
+    let calls = 0;
+    serve(["node-status.200", "nodes.200", "operation-info.200"]);
+    const inner = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    const base = inner.getMockImplementation() as (url: string, init?: RequestInit) => Promise<Response>;
+    inner.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/operation/info") && calls++ === 0) return new Response("<html>502</html>", { status: 502 });
+      if (url.endsWith("/stream")) return stream();
+      return base(url, init);
+    });
+    render(App);
+    expect(await screen.findByRole("heading", { name: "Node" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Operation" }, { timeout: 3000 })).toBeInTheDocument();
+    expect(calls).toBe(2);
+  });
+});

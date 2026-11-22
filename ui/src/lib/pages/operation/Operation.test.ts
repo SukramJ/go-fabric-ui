@@ -17,17 +17,19 @@ function rec(seq: number, level: LogRecord["level"], msg: string, attrs: Record<
 
 function renderOperation(fixtures = ALL) {
   let push: (r: LogRecord) => void = () => {};
+  let deny: (code: string) => void = () => {};
   const ui = testUI({
     fixtures,
     // The page reads the ring with the route's maximum; the fixture's request reads since=2.
     answers: fixtures.includes("operation-log.200") ? { "GET /operation/log?limit=2000": { status: 200, body: body("operation-log.200") } } : {},
-    subscribeLog: (fn) => {
+    subscribeLog: (fn, onDenied) => {
       push = fn;
+      deny = onDenied ?? (() => {});
       return () => {};
     },
   });
   render(Harness, { ui, page: Operation });
-  return { ui, push: (r: LogRecord) => push(r) };
+  return { ui, push: (r: LogRecord) => push(r), deny: (code: string) => deny(code) };
 }
 
 describe("Operation", () => {
@@ -146,5 +148,14 @@ describe("Operation — mounted alone on a controller-only host (UR-P1-ui-196)",
     render(Harness, { ui, page: Operation });
     expect(await screen.findByLabelText("operation.level_label")).toBeInTheDocument();
     expect(ui.sent.some((s) => s.path === "/api/v1/controller/status")).toBe(true);
+  });
+});
+
+describe("UR-P4-ui-233: a refused log stream is shown", () => {
+  it("the log section turns to the notice when the stream is refused after the ring was read", async () => {
+    const { deny } = renderOperation();
+    await screen.findAllByTestId("log-record");
+    deny("forbidden");
+    expect(await screen.findByTestId("denied")).toHaveAttribute("data-code", "forbidden");
   });
 });

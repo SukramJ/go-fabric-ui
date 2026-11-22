@@ -106,8 +106,12 @@ export interface FabricUI {
   nodes: NodesStore;
   controller: ControllerStore;
   routes: Routes;
-  /** Subscribes to the log stream (GET /operation/log/stream); returns the close function. */
-  subscribeLog: (onRecord: (rec: LogRecord) => void) => () => void;
+  /**
+   * Subscribes to the log stream (GET /operation/log/stream); returns the
+   * close function. onDenied is called with the 403 problem code when the
+   * stream is refused, which ends it (UR-P4-ui-233).
+   */
+  subscribeLog: (onRecord: (rec: LogRecord) => void, onDenied?: (code: string) => void) => () => void;
 }
 
 export interface FabricUIOptions {
@@ -144,7 +148,7 @@ export function createFabricUI(opts: FabricUIOptions): FabricUI {
     nodes,
     controller: createControllerStore(opts.client, { t, toast, subscribe: opts.subscribeController }),
     routes: { ...defaultRoutes, ...opts.routes },
-    subscribeLog: opts.subscribeLog ?? ((fn) => logSubscription(opts.client, fn)),
+    subscribeLog: opts.subscribeLog ?? ((fn, onDenied) => logSubscription(opts.client, fn, onDenied)),
   };
 }
 
@@ -158,11 +162,11 @@ const LOG_RESYNC_LIMIT = 500;
  * gap before any streamed record, or a daemon restart that numbers from 1
  * again, would read nothing (UR-P1-conc-191). The page merges by seq.
  */
-function logSubscription(client: FabricClient, onRecord: (rec: LogRecord) => void): () => void {
+function logSubscription(client: FabricClient, onRecord: (rec: LogRecord) => void, onDenied?: (code: string) => void): () => void {
   // Read through fetch with the client's request headers (0.10.0); a
-  // refused stream (403) ends without a retry, and the page reads the
-  // refusal from the ring's answer.
+  // refused stream (403) ends without a retry and says so (UR-P4-ui-233).
   return subscribeLogStream(client.logStreamUrl(), onRecord, client.openStream, {
+    onDenied: (code) => onDenied?.(code ?? "forbidden"),
     onResync: () => {
       client
         .logRecords({ limit: LOG_RESYNC_LIMIT })

@@ -73,6 +73,11 @@
 
   const schema = $derived(node.schema);
 
+  // The host's columns, a repeated key dropped (the first stands): the
+  // contract does not say the keys are unique, and the table keys its
+  // columns by them (UR-P4-ui-304).
+  const schemaColumns = $derived((schema?.columns ?? []).filter((c, i, all) => all.findIndex((x) => x.key === c.key) === i));
+
   // The value filters: the host's fixed filters, then one per filterable
   // column with the distinct values the items carry — for a list-valued
   // column the individual values, not their combinations.
@@ -88,7 +93,7 @@
     return out;
   });
   const multiField = $derived(new Set(valueFilters.filter((f) => f.multi).map((f) => f.field)));
-  const multiColumn = $derived(new Set((schema?.columns ?? []).filter((c) => c.multi).map((c) => "field:" + c.key)));
+  const multiColumn = $derived(new Set(schemaColumns.filter((c) => c.multi).map((c) => "field:" + c.key)));
 
   // The item as the page shows it: with its pending change applied.
   function current(item: Item): Item {
@@ -248,7 +253,7 @@
     ...(isAdmin ? [{ key: "select", label: t("node.selection.col_select") }] : []),
     { key: "state", label: t("node.selection.col_state"), align: "center", get: (i) => stateInfo(i).label },
     { key: "name", label: t("node.selection.col_name"), sortable: true, title: true, get: (i) => current(i).name },
-    ...(schema?.columns ?? []).map((c) => ({
+    ...schemaColumns.map((c) => ({
       key: "field:" + c.key,
       label: c.label,
       sortable: true,

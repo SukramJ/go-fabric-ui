@@ -1,7 +1,8 @@
 // List-valued item fields (Column.multi, Filter.multi): the provider
 // carries the values in `lists[key]`, one entry per value, so a value may
 // contain a comma. The comma-separated `fields[key]` is the deprecated
-// fallback (until v0.2.0), read only when `lists` has no such key.
+// fallback (it stays accepted, deprecated, with no removal date: decision
+// 78), read only when `lists` has no such key.
 
 /** The part of an item the list helpers read. */
 export type ListSource = {
@@ -12,7 +13,7 @@ export type ListSource = {
 /**
  * The values of a comma-separated field, trimmed, without empty ones.
  *
- * @deprecated The comma form is accepted until v0.2.0; read
+ * @deprecated The comma form stays accepted (no removal date); read
  * {@link itemValues}, which prefers `lists`.
  */
 export function listValues(field: string | undefined): string[] {
@@ -64,4 +65,19 @@ export function distinctValues(
   return [...values].sort((a, b) =>
     a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }),
   );
+}
+
+/** The longest node label, in characters (Unicode code points) as the server counts them (registry.go, MaxNodeLabel). */
+export const NODE_LABEL_MAX = 64;
+
+/**
+ * The input's maxlength for a node label: maxlength counts UTF-16 units,
+ * and a character outside the BMP is two (UR-P4-ui-297).
+ */
+export const NODE_LABEL_INPUT_MAX = NODE_LABEL_MAX * 2;
+
+/** Whether a trimmed label is 1 to 64 characters, counted as the server counts them, not in UTF-16 units (UR-P4-ui-297). */
+export function nodeLabelFits(trimmed: string): boolean {
+  const n = [...trimmed].length;
+  return n > 0 && n <= NODE_LABEL_MAX;
 }

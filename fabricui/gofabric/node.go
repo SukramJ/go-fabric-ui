@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/netip"
 	"slices"
 	"sync"
@@ -428,10 +429,7 @@ func (w *node) Events(since uint64, limit int) []fabricui.EventRecord {
 			Endpoint: p.Endpoint, Cluster: p.Cluster, Event: p.Event,
 		}
 		r.Name, _ = schema.EventName(p.Cluster, p.Event)
-		if e.EpochTimestamp != nil {
-			ms := int64(*e.EpochTimestamp) //nolint:gosec // an epoch in milliseconds fits int64
-			r.EpochMS = &ms
-		}
+		r.EpochMS = epochMS(e.EpochTimestamp)
 		if e.HasValue {
 			if raw, err := client.DecodeJSON(client.EventField(p.Cluster, p.Event), e.Value, client.NameBased); err == nil {
 				r.Data = raw
@@ -864,4 +862,16 @@ func (w *node) UnregisterICD(ctx context.Context, force bool) error {
 		return nodeError(c.Forget(ctx))
 	}
 	return nodeError(c.Unregister(ctx))
+}
+
+// epochMS is an event's epoch timestamp as the port carries it; nil
+// without one, and nil for a value above the int64 range, which the node
+// sent but no time is (go-fabric hands the wire value over unchecked; a
+// cast would make it negative, UR-P4-ui-302).
+func epochMS(ts *uint64) *int64 {
+	if ts == nil || *ts > math.MaxInt64 {
+		return nil
+	}
+	ms := int64(*ts)
+	return &ms
 }

@@ -367,10 +367,10 @@ What each route calls on the facade:
 | `GET`/`PUT …/acl`, `…/bindings` | `Node.Read` and one `Node.Write` of the whole list, built from `cluster/spec/accesscontrol` and `binding` with our fabric index |
 | `…/icd`, `/icd/register`, `/icd/unregister` | `Node.ICD()` (`Register`, `Unregister`, `Forget`) |
 | `GET …/fabrics`, `DELETE …/fabrics/{index}` | `Node.Read` of OperationalCredentials `Fabrics` and `CurrentFabricIndex`, `Node.Invoke` RemoveFabric |
-| `POST /controller/commission` | `Controller.Pair`, or `Registry().ForDevice` and `Commission` for a discovered device; `PairOptions.Progress` (commissioner `Options.Progress`) for the steps, `PairOptions.TermsAndConditions` (commissioner `Options.TermsAndConditions` for a discovered device; 0.8.0). A discovered device's commissioning applies the template's attestation policy, an unset one rejecting a failed attestation (0.10.0), but does not go through `Controller.Pair`: it adds no pairing entry to the trace `GET /controller/events` serves, counts no pairing metric and reports no Discovery step |
+| `POST /controller/commission` | `Controller.Pair`, or `Controller.PairDiscovered` for a discovered device (0.12.0, go-fabric v0.24.0; before, `Registry().ForDevice` and `Commission`); `PairOptions.Progress` for the steps, `PairOptions.TermsAndConditions` (0.8.0). Both run go-fabric's one pairing pipeline: the template's attestation policy, an unset one rejecting a failed attestation, the pairing entries in the trace `GET /controller/events` serves and the `pair.failures` metric; a discovered device's commissioning reports Discovery 2.1 as skipped. The template's `BLE` and `Address` are not handed to `PairDiscovered`, which reaches the device at its discovered addresses |
 | `GET /controller/discovery` | `Controller.Discover`, always with a timeout (1–60 s, default 3 s): the facade's 0 would search for 15 minutes (go-fabric `controller/code.go:92-99` at v0.22.2) |
 | `PUT /controller/fabric/label` | `Fabric().SetLabel`, then `Registry().SetFabricLabel` in the background |
-| `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates` (over every node, then one node per product among the nodes without an update found when the whole check failed, 0.11.0), `AddUpdateConsent`; the stream's `update` events from `Observe`, subscribed in `ControllerOf` and released by `Hooks.Close` (0.7.0) |
+| `/controller/updates…` | `SoftwareUpdates()`: `QueuedUpdates`, `QueryUpdates` over every node, its failed products' nodes (`softwareupdate.ProductCheckErrors`, go-fabric v0.24.0) the check's `errors` (0.12.0; 0.11.0 checked one node per product again), `AddUpdateConsent`; the stream's `update` events from `Observe`, subscribed in `ControllerOf` and released by `Hooks.Close` (0.7.0) |
 | `GET /controller/topology` | `ControllerOptions.Topology`, the host's `*topology.Service`: `Topology()`, or `Refresh` with `refresh=true`; its `OnChanged` becomes `topology_changed`. The host wires it: `topology.Changes.Install(&cfg)` before `controller.New`, `topology.New(ctrl, topology.Config{Changes: &changes, Clock: cfg.Clock})`, `ControllerOf(…, ControllerOptions{Topology: svc})`, and `svc.Close()` on shutdown (the subscription goes with `Hooks.Close`). The border routers (0.8.0) need nothing more: with `topology.Config.BorderRouters` nil the service builds on the controller's own registry, `Controller.BorderRouters` (go-fabric `controller/topology/service.go:57-60`, `:163-165` at v0.19.1). Without it `NetworkTopology` answers `fabricui.ErrNotImplemented` (501) |
 | `GET /controller/diagnostics`, `/mdns`, `/events`; `controller_diagnostic_event` | `Controller.SessionDiagnostics`, `DiagnoseMDNS`, `DiagnosticEvents` and `OnDiagnosticEvent` (go-fabric `controller/diagnostics.go:46`, `:547`, `:140`, `:154` at v0.21.0), mapped one to one onto the port's types; nothing to wire. `DiagnoseMDNS` waits for the DNS-SD cache and is called from the request only; `OnDiagnosticEvent` runs on the goroutine that recorded the event, and the handler only queues it (0.9.0) |
 
@@ -467,9 +467,10 @@ path prefix it chooses:
     equals its `Host`, so reads and writes pass under any name. The
     check is then the proxy's — its authentication of the user, its
     server names — as for the Ingress, whose proxy authenticates.
-  - It replaces `Host` — with a name of its own or with the upstream's
-    address: the check is constant, every request passes it whatever
-    name the browser used.
+  - It replaces `Host` — with a name of its own, which the host lists in
+    `AllowedHosts` (an unlisted one is refused on every request, 403
+    `host_not_allowed`), or with the upstream's address: the check is
+    constant, every request passes it whatever name the browser used.
 
   In the second and third case a page under a name that resolves to the
   proxy (DNS rebinding) reads what a page under the proxy's own name

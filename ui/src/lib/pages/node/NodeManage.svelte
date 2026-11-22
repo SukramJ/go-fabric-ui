@@ -16,6 +16,7 @@
   import Button from "../../kit/Button.svelte";
   import Card from "../../kit/Card.svelte";
   import Input from "../../kit/Input.svelte";
+  import { NODE_LABEL_INPUT_MAX, nodeLabelFits } from "./fields";
 
   const { t, client, node, nodes, toast, confirm } = useFabricUI();
 
@@ -34,7 +35,7 @@
     if (!edited && entry) label = entry.label;
   });
   const trimmed = $derived(label.trim());
-  const canRename = $derived(!!entry && trimmed.length > 0 && trimmed.length <= 64 && trimmed !== entry.label && !busy);
+  const canRename = $derived(!!entry && nodeLabelFits(trimmed) && trimmed !== entry.label && !busy);
 
   onMount(() => {
     if (!nodes.loaded) void nodes.load();
@@ -92,7 +93,7 @@
       <form class="flex flex-wrap items-end gap-2" onsubmit={rename}>
         <label class="min-w-[12rem] flex-1 text-sm text-[var(--ha-secondary-text-color)]">
           {t("node.manage.label")}
-          <Input class="mt-1" maxlength={64} bind:value={label} oninput={() => (edited = true)} data-testid="node-manage-label" />
+          <Input class="mt-1" maxlength={NODE_LABEL_INPUT_MAX} bind:value={label} oninput={() => (edited = true)} data-testid="node-manage-label" />
         </label>
         <Button type="submit" variant="outline" disabled={!canRename}>{t("node.manage.rename")}</Button>
         <Button type="button" variant="outline-destructive" disabled={busy} onclick={() => void remove()} data-testid="node-manage-delete">

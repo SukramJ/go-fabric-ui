@@ -1,4 +1,5 @@
-<!-- Ported from openccu-loom assets/ui/src/lib/components/ui//EmptyState.svelte:1-46 at b40b289a. -->
+<!-- Ported from openccu-loom assets/ui/src/lib/components/ui//EmptyState.svelte:1-46 at b40b289a; the description is
+     text to read, in the secondary text colour, not the disabled one (decision 77, UR-P4-ui-300). -->
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { cn } from "./utils";
@@ -15,7 +16,7 @@
   <div class="flex flex-col items-center gap-1">
     <p class="text-sm text-[var(--ha-secondary-text-color)]">{message}</p>
     {#if description}
-      <p class="max-w-sm text-balance text-xs text-[var(--ha-disabled-text-color)]">{description}</p>
+      <p class="max-w-sm text-balance text-xs text-[var(--ha-secondary-text-color)]">{description}</p>
     {/if}
   </div>
   {#if action}

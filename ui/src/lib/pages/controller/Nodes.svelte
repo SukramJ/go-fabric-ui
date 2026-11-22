@@ -73,8 +73,11 @@
     { value: "no", label: t("controller.nodes.icd_no") },
   ]);
 
+  // The host's route, through its follow as the graph does: a hash built
+  // from a router's path would be a URL the router does not know
+  // (UR-P4-ui-292).
   function open(n: ControllerNodeSummary) {
-    location.hash = routes.controllerNode + n.node_id_hex;
+    (follow ?? ((href: string) => location.assign(href)))(routes.controllerNode + n.node_id_hex);
   }
 
   async function act(n: ControllerNodeSummary, run: () => Promise<void>, done: string) {

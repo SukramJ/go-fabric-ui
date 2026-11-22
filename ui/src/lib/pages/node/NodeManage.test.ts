@@ -68,6 +68,18 @@ describe("a managed node", () => {
     expect(screen.getByTestId("node-manage-hint")).toHaveTextContent("node.manage.hint.alexa");
   });
 
+  it("counts the label's 64 in characters, as the server does, not in UTF-16 units (UR-P4-ui-297)", async () => {
+    const ui = testUI({ fixtures: ["nodes-status.200-registry", "nodes.200-registry", "nodes-label.204"] });
+    await kitchen(ui);
+    const field = (await screen.findByTestId("node-manage-label")) as HTMLInputElement;
+    expect(Number(field.getAttribute("maxlength"))).toBeGreaterThanOrEqual(128);
+    const emoji = "\u{1F3E0}".repeat(40); // 40 characters, 80 UTF-16 units
+    await fireEvent.input(field, { target: { value: emoji } });
+    expect(screen.getByText("node.manage.rename").closest("button")).not.toBeDisabled();
+    await fireEvent.input(field, { target: { value: "\u{1F3E0}".repeat(65) } });
+    expect(screen.getByText("node.manage.rename").closest("button")).toBeDisabled();
+  });
+
   it("deletes only after two confirmations that name the label and the fabric count", async () => {
     const ui = testUI({ fixtures: ["nodes-status.200-registry", "nodes.200-registry"], answers: { "DELETE /nodes/kitchen": { status: 204 } } });
     await kitchen(ui);

@@ -228,6 +228,26 @@ describe("UR-P4-ui-61: the not-in-effect notice after a reassemble", () => {
     expect(ui.node.exposureNotInEffect).toBe(false);
   });
 
+  // The other-tab path: another tab's apply (or the host) rebuilt the
+  // node; the stream's surface_changed or endpoints_changed is the sign of
+  // that rebuild, and exposure_changed alone is not.
+  for (const type of ["surface_changed", "endpoints_changed"] as const) {
+    it(`goes on the stream's ${type}, the sign of a rebuild elsewhere`, async () => {
+      const ui = testUI({
+        fixtures: ["node-status.200", "node-exposure-schema.200", "node-exposure.200"],
+        answers: { "PUT /node/exposure": { status: 200, body: { applied: 1, reassembled: false } } },
+      });
+      await ui.node.loadExposure();
+      const item = ui.node.items[0];
+      ui.node.markDirty(item, { enabled: !item.enabled });
+      await ui.node.saveBulk();
+      ui.node.applyEvent({ type: "exposure_changed", data: {} } as never);
+      expect(ui.node.exposureNotInEffect).toBe(true);
+      ui.node.applyEvent({ type, data: { endpoints: ["1"] } } as never);
+      expect(ui.node.exposureNotInEffect).toBe(false);
+    });
+  }
+
   it("stays when the reassemble fails", async () => {
     const ui = testUI({
       fixtures: ["node-status.200", "node-exposure-schema.200", "node-exposure.200", "node-fabrics.200"],
@@ -246,4 +266,25 @@ describe("UR-P4-ui-61: the not-in-effect notice after a reassemble", () => {
     await waitFor(() => expect(ui.toastSpy.error).toHaveBeenCalled());
     expect(ui.node.exposureNotInEffect).toBe(true);
   });
+});
+
+describe("UR-P4-ui-298: the erase poll ends with the page", () => {
+  it("a page destroyed while the poll's status read is in flight polls no more", async () => {
+    const ui = testUI({ fixtures: ["node-fabrics.200", "node-status.200-attestation", "node-maintenance-erase.204"] });
+    await ui.node.loadStatus();
+    const view = render(Harness, { ui, page: Fabrics });
+    await fireEvent.click(await screen.findByTestId("node-erase"));
+    expect(await screen.findByTestId("node-erased")).toBeInTheDocument();
+    let fail!: () => void;
+    let reads = 0;
+    ui.client.status = () => {
+      reads++;
+      return new Promise((_res, rej) => (fail = () => rej(new TypeError("Failed to fetch"))));
+    };
+    await waitFor(() => expect(reads).toBe(1), { timeout: 3000 });
+    view.unmount();
+    fail();
+    await new Promise((r) => setTimeout(r, 2300));
+    expect(reads).toBe(1);
+  }, 10_000);
 });

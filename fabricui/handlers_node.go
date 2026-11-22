@@ -42,7 +42,8 @@ type statusResponse struct {
 	WindowOpen     bool   `json:"commissioning_window_open"`
 	WindowDuration uint16 `json:"commissioning_window_duration_seconds,omitempty"`
 	// WindowKind is which window is open (node.WindowKind: none, own,
-	// basic, enhanced, administrator_basic); absent without a node.
+	// basic, enhanced, administrator_basic, other for a kind the contract
+	// does not name); absent without a node.
 	WindowKind string `json:"window_kind,omitempty"`
 	// WindowDeadline is when the open window's timer closes it, on the
 	// node's clock (node.Window); absent while none is open.
@@ -216,9 +217,7 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	res.Advertising = h.node.mdns().Advertising
 	win := h.node.window()
 	res.WindowOpen = win.Open
-	// go-fabric's names, its "administrator-basic" (v0.23.0) as the
-	// contract's administrator_basic (0.11.0, decision 30).
-	res.WindowKind = strings.ReplaceAll(win.Kind.String(), "-", "_")
+	res.WindowKind = windowKind(win.Kind)
 	if win.Open {
 		res.WindowDuration = durationSeconds(win.Timeout)
 		if !win.Deadline.IsZero() {
@@ -413,7 +412,14 @@ func (h *handler) factoryReset(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	removed := make([]uint8, 0, len(infos))
 	for _, f := range infos {
-		if err := h.node.removeFabric(ctx, f.FabricIndex); err != nil {
+		err := h.node.removeFabric(ctx, f.FabricIndex)
+		if errors.Is(err, node.ErrFabricNotFound) {
+			// Removed meanwhile by its controller: gone, as the reset
+			// wants; go-fabric's own FactoryReset passes over it too
+			// (node/factory_reset.go:78 at v0.23.0, UR-P4-err-261).
+			continue
+		}
+		if err != nil {
 			// Reported rather than skipped: a partial reset leaves the
 			// node paired to a controller the operator believes removed.
 			h.log.WarnContext(r.Context(), "fabricui.factory_reset.partial",
@@ -708,8 +714,15 @@ func detached(ctx context.Context) (context.Context, context.CancelFunc) {
 }
 
 // logFabricsState logs the status's fabric read when its outcome changes:
-// a failure, a failure with another text, its end.
+// a failure, a failure with another text, its end. ctx is the request's:
+// an abandoned request leaves the state alone.
 func (h *handler) logFabricsState(ctx context.Context, err error) {
+	if ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		// The request was abandoned, not the node's read failed: no
+		// state, no line, as serverError's abandoned rule (UR-P1-err-12,
+		// UR-P4-leak-200).
+		return
+	}
 	text := ""
 	if err != nil {
 		text = err.Error()
@@ -724,5 +737,19 @@ func (h *handler) logFabricsState(ctx context.Context, err error) {
 		h.log.WarnContext(ctx, "fabricui.status.fabrics_failed", slog.String("error", text))
 	default:
 		h.log.InfoContext(ctx, "fabricui.status.fabrics_recovered")
+	}
+}
+
+// windowKind is the contract's name of go-fabric's window kind: its
+// "administrator-basic" (v0.23.0) as administrator_basic (0.11.0, decision
+// 30), a kind the contract does not name — one a later go-fabric adds,
+// which its String gives as "WindowKind(n)" — as other (0.12.0,
+// UR-P4-ctr-196).
+func windowKind(k node.WindowKind) string {
+	switch k {
+	case node.WindowNone, node.WindowOwn, node.WindowBasic, node.WindowEnhanced, node.WindowAdministratorBasic:
+		return strings.ReplaceAll(k.String(), "-", "_")
+	default:
+		return "other"
 	}
 }

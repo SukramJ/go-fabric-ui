@@ -1,6 +1,6 @@
 <!-- Ported from openccu-loom assets/ui/src/lib/components/ui//Button.svelte:1-72 at b40b289a; the disabled fills use the
-     tokens instead of the slate ramp, and the label on the primary fill uses --ha-on-primary-color (Home Assistant's
-     --text-primary-color under the HA skin). -->
+     tokens instead of the slate ramp, and a filled variant reads its fill and label from the --fui-*-fill and
+     --fui-on-* tokens, which reach 4.5:1 in every palette (decision 77, UR-P4-ui-299). -->
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { HTMLButtonAttributes } from "svelte/elements";
@@ -19,13 +19,13 @@
     "disabled:bg-[var(--ha-secondary-background-color)] disabled:text-[var(--ha-disabled-text-color)] disabled:shadow-none";
   const disabledMuted = "disabled:opacity-50 disabled:text-[var(--ha-disabled-text-color)]";
   const variants: Record<Variant, string> = {
-    default: `bg-[var(--ha-primary-color)] text-[var(--ha-on-primary-color)] hover:bg-[var(--ha-primary-color-hover)] shadow-sm ${disabledFill}`,
+    default: `bg-[var(--fui-primary-fill)] text-[var(--fui-on-primary)] hover:bg-[var(--fui-primary-fill-hover)] shadow-sm ${disabledFill}`,
     outline: `border border-[var(--ha-divider-color)] bg-[var(--ha-card-background-color)] text-[var(--ha-primary-text-color)] hover:bg-[var(--ha-secondary-background-color)] ${disabledMuted}`,
     ghost: `text-[var(--ha-primary-text-color)] hover:bg-[var(--ha-secondary-background-color)] ${disabledMuted}`,
-    destructive: `bg-[var(--ha-error-color)] text-white hover:brightness-95 shadow-sm ${disabledFill}`,
+    destructive: `bg-[var(--fui-error-fill)] text-[var(--fui-on-error)] hover:bg-[var(--fui-error-fill-hover)] shadow-sm ${disabledFill}`,
     // Outline weight, red border and text; it fills red on hover, at the
     // point of commitment.
-    "outline-destructive": `border border-[color-mix(in_srgb,var(--ha-error-color)_40%,transparent)] bg-[var(--ha-card-background-color)] text-[var(--fui-error-text)] hover:border-[var(--ha-error-color)] hover:bg-[var(--ha-error-color)] hover:text-white ${disabledMuted}`,
+    "outline-destructive": `border border-[color-mix(in_srgb,var(--ha-error-color)_40%,transparent)] bg-[var(--ha-card-background-color)] text-[var(--fui-error-text)] hover:border-[var(--ha-error-color)] hover:bg-[var(--fui-error-fill)] hover:text-[var(--fui-on-error)] ${disabledMuted}`,
   };
   // Touch-first heights: even sm clears ~36px.
   const sizes: Record<Size, string> = {

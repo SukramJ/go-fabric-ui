@@ -143,8 +143,9 @@ type Update struct {
 // entries dropped; otherwise the comma split of Fields[key], each value
 // trimmed of spaces, empty ones dropped.
 //
-// Deprecated form: the comma-separated Fields[key] for a Multi column is
-// accepted until v0.2.0; a host fills Lists instead.
+// Deprecated form: the comma-separated Fields[key] for a Multi column
+// stays accepted, with no removal date (decision 78); a host fills Lists
+// instead.
 func (it *Item) ListValues(key string) []string {
 	if list, ok := it.Lists[key]; ok {
 		out := make([]string, 0, len(list))

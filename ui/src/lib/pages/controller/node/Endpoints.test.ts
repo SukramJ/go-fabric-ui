@@ -40,3 +40,26 @@ describe("Endpoints tab — ids a node repeats (UR-P2-ui-90)", () => {
     expect(await renderDetail(detail)).toEqual({ thrown: "", uncaught: [], shown: true });
   });
 });
+
+describe("Endpoints tab — a tree the node's parts do not close (UR-P4-ui-306)", () => {
+  it("lists an endpoint whose parent is not listed", async () => {
+    const d = body<ControllerNodeDetail>("controller-node.200");
+    d.endpoints.push({ ...d.endpoints[1], endpoint: 7, parent: 42 });
+    const r = await renderDetail(d);
+    expect(r).toEqual({ thrown: "", uncaught: [], shown: true });
+    expect(screen.getByTestId("endpoint-7")).toBeInTheDocument();
+  });
+
+  it("survives an endpoint that names itself as its parent, and a cycle", async () => {
+    const d = body<ControllerNodeDetail>("controller-node.200");
+    d.endpoints.push({ ...d.endpoints[1], endpoint: 1, parent: 1 }, { ...d.endpoints[1], endpoint: 8, parent: 9 }, { ...d.endpoints[1], endpoint: 9, parent: 8 });
+    const u = uncaught();
+    const ui = testUI({ answers: { [`GET /controller/nodes/${L}`]: { status: 200, body: d } } });
+    render(NodeHarness, { ui, nodeId: L, tab: "endpoints" });
+    expect(await screen.findByTestId("endpoint-8")).toBeInTheDocument();
+    u.stop();
+    expect(u.errors).toEqual([]);
+    expect(screen.getAllByTestId("endpoint-1")).toHaveLength(2);
+    expect(screen.getByTestId("endpoint-9")).toBeInTheDocument();
+  });
+});

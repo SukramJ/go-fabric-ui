@@ -360,6 +360,7 @@ const (
 	ProblemCodeConflict             ProblemCode = "conflict"
 	ProblemCodeForbidden            ProblemCode = "forbidden"
 	ProblemCodeHostNotAllowed       ProblemCode = "host_not_allowed"
+	ProblemCodeIcdMultiAdmin        ProblemCode = "icd_multi_admin"
 	ProblemCodeInternal             ProblemCode = "internal"
 	ProblemCodeMethodNotAllowed     ProblemCode = "method_not_allowed"
 	ProblemCodeNodeError            ProblemCode = "node_error"
@@ -385,6 +386,8 @@ func (e ProblemCode) Valid() bool {
 	case ProblemCodeForbidden:
 		return true
 	case ProblemCodeHostNotAllowed:
+		return true
+	case ProblemCodeIcdMultiAdmin:
 		return true
 	case ProblemCodeInternal:
 		return true
@@ -916,7 +919,7 @@ type CommissionRequest struct {
 	// ThreadID The stored Thread dataset to put the device on.
 	ThreadID *string `json:"thread_id,omitempty"`
 
-	// TimeoutSeconds The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device then has no bound of this route's.
+	// TimeoutSeconds The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device is bounded at 600 s after it (0.12.0; before, it had no bound of this route's).
 	TimeoutSeconds *int `json:"timeout_seconds,omitempty"`
 
 	// WifiID The stored Wi-Fi credential to put the device on.
@@ -1253,7 +1256,7 @@ type EventRecord struct {
 	Data     *json.RawMessage `json:"data,omitempty"`
 	Endpoint int              `json:"endpoint"`
 
-	// EpochMs The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only.
+	// EpochMs The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only, or (0.12.0) a value above the int64 range.
 	EpochMs  *int64 `json:"epoch_ms,omitempty"`
 	EventHex string `json:"event_hex"`
 
@@ -1820,8 +1823,8 @@ type DiscoverDevicesParams struct {
 	// Filter What `value` selects by; absent is `any`.
 	Filter *DiscoverDevicesParamsFilter `form:"filter,omitempty" json:"filter,omitempty"`
 
-	// Value The discriminator, vendor id or device type; required with every filter but `any`.
-	Value *int `form:"value,omitempty" json:"value,omitempty"`
+	// Value The discriminator, vendor id or device type; required with every filter but `any`. A device type ranges over 32 bits unsigned; a generated server holds the value in 64 bits (0.12.0).
+	Value *int64 `form:"value,omitempty" json:"value,omitempty"`
 
 	// Timeout How long to listen, in seconds; absent is 3.
 	Timeout *int `form:"timeout,omitempty" json:"timeout,omitempty"`
@@ -3325,6 +3328,20 @@ func (response CommissionNode415ApplicationProblemPlusJSONResponse) VisitCommiss
 	return err
 }
 
+type CommissionNode500ApplicationProblemPlusJSONResponse Problem
+
+func (response CommissionNode500ApplicationProblemPlusJSONResponse) VisitCommissionNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CommissionNode502ApplicationProblemPlusJSONResponse Problem
 
 func (response CommissionNode502ApplicationProblemPlusJSONResponse) VisitCommissionNodeResponse(w http.ResponseWriter) error {
@@ -3645,6 +3662,20 @@ func (response GetControllerDiagnostics403ApplicationProblemPlusJSONResponse) Vi
 	return err
 }
 
+type GetControllerDiagnostics500ApplicationProblemPlusJSONResponse Problem
+
+func (response GetControllerDiagnostics500ApplicationProblemPlusJSONResponse) VisitGetControllerDiagnosticsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetControllerDiagnostics501ApplicationProblemPlusJSONResponse Problem
 
 func (response GetControllerDiagnostics501ApplicationProblemPlusJSONResponse) VisitGetControllerDiagnosticsResponse(w http.ResponseWriter) error {
@@ -3772,6 +3803,20 @@ func (response ListControllerDiagnosticEvents403ApplicationProblemPlusJSONRespon
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListControllerDiagnosticEvents500ApplicationProblemPlusJSONResponse Problem
+
+func (response ListControllerDiagnosticEvents500ApplicationProblemPlusJSONResponse) VisitListControllerDiagnosticEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3915,6 +3960,20 @@ func (response GetControllerMdns403ApplicationProblemPlusJSONResponse) VisitGetC
 	return err
 }
 
+type GetControllerMdns500ApplicationProblemPlusJSONResponse Problem
+
+func (response GetControllerMdns500ApplicationProblemPlusJSONResponse) VisitGetControllerMdnsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetControllerMdns501ApplicationProblemPlusJSONResponse Problem
 
 func (response GetControllerMdns501ApplicationProblemPlusJSONResponse) VisitGetControllerMdnsResponse(w http.ResponseWriter) error {
@@ -3962,6 +4021,20 @@ func (response ListControllerNodes403ApplicationProblemPlusJSONResponse) VisitLi
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListControllerNodes500ApplicationProblemPlusJSONResponse Problem
+
+func (response ListControllerNodes500ApplicationProblemPlusJSONResponse) VisitListControllerNodesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4134,6 +4207,20 @@ func (response GetControllerNode404ApplicationProblemPlusJSONResponse) VisitGetC
 	return err
 }
 
+type GetControllerNode500ApplicationProblemPlusJSONResponse Problem
+
+func (response GetControllerNode500ApplicationProblemPlusJSONResponse) VisitGetControllerNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetNodeACLRequestObject struct {
 	ID NodeID `json:"id"`
 }
@@ -4210,6 +4297,20 @@ func (response GetNodeACL409ApplicationProblemPlusJSONResponse) VisitGetNodeACLR
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeACL500ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeACL500ApplicationProblemPlusJSONResponse) VisitGetNodeACLResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4337,6 +4438,20 @@ func (response SetNodeACL415ApplicationProblemPlusJSONResponse) VisitSetNodeACLR
 	return err
 }
 
+type SetNodeACL500ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeACL500ApplicationProblemPlusJSONResponse) VisitSetNodeACLResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetNodeACL502ApplicationProblemPlusJSONResponse Problem
 
 func (response SetNodeACL502ApplicationProblemPlusJSONResponse) VisitSetNodeACLResponse(w http.ResponseWriter) error {
@@ -4460,6 +4575,20 @@ func (response ReadNodeAttributes415ApplicationProblemPlusJSONResponse) VisitRea
 	return err
 }
 
+type ReadNodeAttributes500ApplicationProblemPlusJSONResponse Problem
+
+func (response ReadNodeAttributes500ApplicationProblemPlusJSONResponse) VisitReadNodeAttributesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ReadNodeAttributes502ApplicationProblemPlusJSONResponse Problem
 
 func (response ReadNodeAttributes502ApplicationProblemPlusJSONResponse) VisitReadNodeAttributesResponse(w http.ResponseWriter) error {
@@ -4579,6 +4708,20 @@ func (response WriteNodeAttribute415ApplicationProblemPlusJSONResponse) VisitWri
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WriteNodeAttribute500ApplicationProblemPlusJSONResponse Problem
+
+func (response WriteNodeAttribute500ApplicationProblemPlusJSONResponse) VisitWriteNodeAttributeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -4808,6 +4951,20 @@ func (response GetNodeBindings409ApplicationProblemPlusJSONResponse) VisitGetNod
 	return err
 }
 
+type GetNodeBindings500ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeBindings500ApplicationProblemPlusJSONResponse) VisitGetNodeBindingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetNodeBindings502ApplicationProblemPlusJSONResponse Problem
 
 func (response GetNodeBindings502ApplicationProblemPlusJSONResponse) VisitGetNodeBindingsResponse(w http.ResponseWriter) error {
@@ -4931,6 +5088,20 @@ func (response SetNodeBindings415ApplicationProblemPlusJSONResponse) VisitSetNod
 	return err
 }
 
+type SetNodeBindings500ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeBindings500ApplicationProblemPlusJSONResponse) VisitSetNodeBindingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetNodeBindings502ApplicationProblemPlusJSONResponse Problem
 
 func (response SetNodeBindings502ApplicationProblemPlusJSONResponse) VisitSetNodeBindingsResponse(w http.ResponseWriter) error {
@@ -5050,6 +5221,20 @@ func (response InvokeNodeCommand415ApplicationProblemPlusJSONResponse) VisitInvo
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InvokeNodeCommand500ApplicationProblemPlusJSONResponse Problem
+
+func (response InvokeNodeCommand500ApplicationProblemPlusJSONResponse) VisitInvokeNodeCommandResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5339,6 +5524,20 @@ func (response GetNodeEndpoint404ApplicationProblemPlusJSONResponse) VisitGetNod
 	return err
 }
 
+type GetNodeEndpoint500ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeEndpoint500ApplicationProblemPlusJSONResponse) VisitGetNodeEndpointResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetNodeClusterRequestObject struct {
 	ID         NodeID         `json:"id"`
 	Ep         EndpointNumber `json:"ep"`
@@ -5403,6 +5602,20 @@ func (response GetNodeCluster404ApplicationProblemPlusJSONResponse) VisitGetNode
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeCluster500ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeCluster500ApplicationProblemPlusJSONResponse) VisitGetNodeClusterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5488,6 +5701,20 @@ func (response ListNodeEvents404ApplicationProblemPlusJSONResponse) VisitListNod
 	return err
 }
 
+type ListNodeEvents500ApplicationProblemPlusJSONResponse Problem
+
+func (response ListNodeEvents500ApplicationProblemPlusJSONResponse) VisitListNodeEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListNodeFabricsRequestObject struct {
 	ID NodeID `json:"id"`
 }
@@ -5564,6 +5791,20 @@ func (response ListNodeFabrics409ApplicationProblemPlusJSONResponse) VisitListNo
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNodeFabrics500ApplicationProblemPlusJSONResponse Problem
+
+func (response ListNodeFabrics500ApplicationProblemPlusJSONResponse) VisitListNodeFabricsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5657,6 +5898,20 @@ func (response RemoveNodeFabric409ApplicationProblemPlusJSONResponse) VisitRemov
 	return err
 }
 
+type RemoveNodeFabric500ApplicationProblemPlusJSONResponse Problem
+
+func (response RemoveNodeFabric500ApplicationProblemPlusJSONResponse) VisitRemoveNodeFabricResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RemoveNodeFabric502ApplicationProblemPlusJSONResponse Problem
 
 func (response RemoveNodeFabric502ApplicationProblemPlusJSONResponse) VisitRemoveNodeFabricResponse(w http.ResponseWriter) error {
@@ -5733,6 +5988,20 @@ func (response GetNodeIcd404ApplicationProblemPlusJSONResponse) VisitGetNodeIcdR
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNodeIcd500ApplicationProblemPlusJSONResponse Problem
+
+func (response GetNodeIcd500ApplicationProblemPlusJSONResponse) VisitGetNodeIcdResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5842,6 +6111,20 @@ func (response RegisterNodeIcd415ApplicationProblemPlusJSONResponse) VisitRegist
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterNodeIcd500ApplicationProblemPlusJSONResponse Problem
+
+func (response RegisterNodeIcd500ApplicationProblemPlusJSONResponse) VisitRegisterNodeIcdResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5969,6 +6252,20 @@ func (response UnregisterNodeIcd415ApplicationProblemPlusJSONResponse) VisitUnre
 	return err
 }
 
+type UnregisterNodeIcd500ApplicationProblemPlusJSONResponse Problem
+
+func (response UnregisterNodeIcd500ApplicationProblemPlusJSONResponse) VisitUnregisterNodeIcdResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type UnregisterNodeIcd502ApplicationProblemPlusJSONResponse Problem
 
 func (response UnregisterNodeIcd502ApplicationProblemPlusJSONResponse) VisitUnregisterNodeIcdResponse(w http.ResponseWriter) error {
@@ -6057,6 +6354,20 @@ func (response InterviewNode409ApplicationProblemPlusJSONResponse) VisitIntervie
 	return err
 }
 
+type InterviewNode500ApplicationProblemPlusJSONResponse Problem
+
+func (response InterviewNode500ApplicationProblemPlusJSONResponse) VisitInterviewNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type InterviewNode502ApplicationProblemPlusJSONResponse Problem
 
 func (response InterviewNode502ApplicationProblemPlusJSONResponse) VisitInterviewNodeResponse(w http.ResponseWriter) error {
@@ -6133,6 +6444,20 @@ func (response PingNode404ApplicationProblemPlusJSONResponse) VisitPingNodeRespo
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PingNode500ApplicationProblemPlusJSONResponse Problem
+
+func (response PingNode500ApplicationProblemPlusJSONResponse) VisitPingNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6246,6 +6571,20 @@ func (response OpenNodeWindow415ApplicationProblemPlusJSONResponse) VisitOpenNod
 	return err
 }
 
+type OpenNodeWindow500ApplicationProblemPlusJSONResponse Problem
+
+func (response OpenNodeWindow500ApplicationProblemPlusJSONResponse) VisitOpenNodeWindowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type OpenNodeWindow502ApplicationProblemPlusJSONResponse Problem
 
 func (response OpenNodeWindow502ApplicationProblemPlusJSONResponse) VisitOpenNodeWindowResponse(w http.ResponseWriter) error {
@@ -6334,6 +6673,20 @@ func (response CloseNodeWindow409ApplicationProblemPlusJSONResponse) VisitCloseN
 	return err
 }
 
+type CloseNodeWindow500ApplicationProblemPlusJSONResponse Problem
+
+func (response CloseNodeWindow500ApplicationProblemPlusJSONResponse) VisitCloseNodeWindowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CloseNodeWindow502ApplicationProblemPlusJSONResponse Problem
 
 func (response CloseNodeWindow502ApplicationProblemPlusJSONResponse) VisitCloseNodeWindowResponse(w http.ResponseWriter) error {
@@ -6381,6 +6734,20 @@ func (response GetControllerStatus403ApplicationProblemPlusJSONResponse) VisitGe
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetControllerStatus500ApplicationProblemPlusJSONResponse Problem
+
+func (response GetControllerStatus500ApplicationProblemPlusJSONResponse) VisitGetControllerStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6447,6 +6814,20 @@ func (response ControllerStream403ApplicationProblemPlusJSONResponse) VisitContr
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ControllerStream500ApplicationProblemPlusJSONResponse Problem
+
+func (response ControllerStream500ApplicationProblemPlusJSONResponse) VisitControllerStreamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6522,6 +6903,20 @@ func (response GetControllerTopology403ApplicationProblemPlusJSONResponse) Visit
 	return err
 }
 
+type GetControllerTopology500ApplicationProblemPlusJSONResponse Problem
+
+func (response GetControllerTopology500ApplicationProblemPlusJSONResponse) VisitGetControllerTopologyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetControllerTopology501ApplicationProblemPlusJSONResponse Problem
 
 func (response GetControllerTopology501ApplicationProblemPlusJSONResponse) VisitGetControllerTopologyResponse(w http.ResponseWriter) error {
@@ -6583,6 +6978,20 @@ func (response ListUpdates403ApplicationProblemPlusJSONResponse) VisitListUpdate
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListUpdates500ApplicationProblemPlusJSONResponse Problem
+
+func (response ListUpdates500ApplicationProblemPlusJSONResponse) VisitListUpdatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }

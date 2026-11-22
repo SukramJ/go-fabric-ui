@@ -339,6 +339,7 @@ func (s *source) Pair(ctx context.Context, code string, o fabricui.PairOptions) 
 	d := bleFor(s.opts.Pair.BLE != nil, pc, o.NetworkOnly, wifi != nil || th != nil)
 	opts := s.opts.Pair
 	opts.BLE, opts.WiFi, opts.Thread = nil, wifi, th
+	opts.CommissionTimeout = commissionBound(o.CommissionTimeout, opts.CommissionTimeout)
 	if d.Used {
 		opts.BLE = s.opts.Pair.BLE
 	}
@@ -360,6 +361,17 @@ func (s *source) Pair(ctx context.Context, code string, o fabricui.PairOptions) 
 		return nil, fmt.Errorf("%w: the commissioned node has no peer address", fabricui.ErrNodeFailed)
 	}
 	return w, nil
+}
+
+// commissionBound is the commissioning's bound after the search: the
+// smaller of the port's and the host template's when both are set, else
+// the one that is; zero for none. The handler's 600 s never lengthens a
+// host's shorter bound (UR-P4-bound-400).
+func commissionBound(port, template time.Duration) time.Duration {
+	if port > 0 && (template <= 0 || port < template) {
+		return port
+	}
+	return template
 }
 
 // progressFor is the commissioning's progress hook: the template's, then
@@ -560,11 +572,14 @@ func (s *source) forget(instance string) {
 }
 
 // CommissionDiscovered commissions a discovered device with its passcode
-// through the registry (client.Registry.ForDevice and Commission), as
-// go-fabric-server's commission_on_network does
-// (controllerapi/cmd_commission.go:159-232 at v0.3.2). The BLE decision does not
-// apply — the device came from a DNS-SD discovery — so it reports no
-// PairOptions.Transport.
+// through controller.Controller.PairDiscovered, Pair's pipeline for a
+// device a discovery found (go-fabric#553, controller/controller.go:
+// 1243-1285 at v0.24.1): the template's attestation policy, its zero value
+// rejecting, the pairing trace in DiagnosticEvents and pair.failures
+// (go-fabric-ui#81). The BLE decision does not apply — the device came
+// from a DNS-SD discovery and is reached at its addresses — so it reports
+// no PairOptions.Transport, and the template's BLE and Address are not
+// handed on.
 func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered, passcode uint32, o fabricui.PairOptions) (fabricui.ControllerNode, error) {
 	dev, ok := s.cached(d.InstanceName)
 	if !ok {
@@ -585,37 +600,14 @@ func (s *source) CommissionDiscovered(ctx context.Context, d fabricui.Discovered
 	if err != nil {
 		return nil, err
 	}
-	reg := s.ctrl.Registry()
-	if reg == nil {
-		return nil, fmt.Errorf("%w: the controller is closed", fabricui.ErrNodeFailed)
-	}
-	n, err := reg.ForDevice(ctx, dev, "")
-	if err != nil {
-		return nil, commissionError(err)
-	}
-	po := s.opts.Pair
-	copts := client.CommissionOptions{
-		Options: commissioner.Options{
-			Passcode: passcode, OnAttestationFailure: po.OnAttestationFailure,
-			WiFiNetwork: wifi, ThreadNetwork: th,
-			TermsAndConditions: termsOf(o.TermsAndConditions, po.TermsAndConditions),
-			Progress:           progressFor(po.Progress, o.Progress),
-		},
-		AutoSubscribe: po.AutoSubscribe,
-	}
-	// The template's unset policy rejects, as the controller facade
-	// applies it before Edit (go-fabric controller/controller.go:845-847
-	// at v0.22.2).
-	if p := copts.OnAttestationFailure; p.Decide == nil && p.OnFailure == nil {
-		reject := false
-		copts.OnAttestationFailure.OnFailure = &reject
-	}
-	if po.Edit != nil {
-		po.Edit(&copts.Options)
-	}
+	opts := s.opts.Pair
+	opts.BLE, opts.Address, opts.WiFi, opts.Thread = nil, nil, wifi, th
+	opts.CommissionTimeout = commissionBound(o.CommissionTimeout, opts.CommissionTimeout)
 	var started atomic.Bool
-	copts.Progress = markSubscribe(copts.Progress, &started)
-	if err := reg.Commission(ctx, n, copts); err != nil && !s.commissionedDespite(n, err, &started) {
+	opts.Progress = markSubscribe(progressFor(opts.Progress, o.Progress), &started)
+	opts.TermsAndConditions = termsOf(o.TermsAndConditions, opts.TermsAndConditions)
+	n, err := s.ctrl.PairDiscovered(ctx, dev, passcode, opts)
+	if err != nil && !s.commissionedDespite(n, err, &started) {
 		return nil, commissionError(err)
 	}
 	s.forget(d.InstanceName)
@@ -769,8 +761,14 @@ func (s *source) Observe(fn func(fabricui.ControllerEvent)) (unsubscribe func())
 
 // nodeError maps an interaction's error to the port's kinds: a value
 // that does not fit its type is an invalid argument, an ICD refusal over
-// other administrators a conflict, anything else the node's failure.
+// other administrators its own conflict (fabricui.ErrICDMultiAdmin), the
+// client's other refusals a conflict, anything else the node's failure.
 func nodeError(err error) error {
+	if _, ok := errors.AsType[*client.ICDMultiAdminError](err); ok {
+		// Before ErrICDOperation, which go-fabric's error also matches
+		// (decision 76).
+		return fmt.Errorf("%w: %w", fabricui.ErrICDMultiAdmin, err)
+	}
 	switch {
 	case err == nil:
 		return nil
@@ -784,9 +782,6 @@ func nodeError(err error) error {
 	case errors.Is(err, client.ErrICDOperation), errors.Is(err, client.ErrDisabled), errors.Is(err, client.ErrFabricOperationInProgress):
 		// The client's own state refuses the call before the node is
 		// asked: a conflict, not the node's failure (UR-P3-adpt-91).
-		return fmt.Errorf("%w: %w", fabricui.ErrConflict, err)
-	}
-	if _, ok := errors.AsType[*client.ICDMultiAdminError](err); ok {
 		return fmt.Errorf("%w: %w", fabricui.ErrConflict, err)
 	}
 	return fmt.Errorf("%w: %w", fabricui.ErrNodeFailed, err)

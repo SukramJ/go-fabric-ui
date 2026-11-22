@@ -30,6 +30,12 @@
   const Current = $derived(pages[page]);
 </script>
 
+{#if node.streamDenied}
+  <!-- A refused stream ends for good: no event reaches the pages until a status grants the rights again (UR-P4-ui-233). -->
+  <p class="mb-3 rounded border border-[var(--ha-warning-color)] p-3 text-sm text-[var(--ha-primary-text-color)]" role="status" data-testid="stream-denied">
+    {t("common.stream_denied")}
+  </p>
+{/if}
 <Tabs items={tabs} active={page} />
 <div class="mt-4">
   {#if route.endpoint !== undefined && page === "endpoints"}

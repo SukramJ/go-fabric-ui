@@ -461,6 +461,11 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
     // refused before anything is sent.
     const id = /^\/controller\/nodes\/([^/?]*)/.exec(path)?.[1];
     if (id !== undefined && !NODE_ID_PATTERN.test(id)) throw new RangeError(`not a controller node id: "${id}"`);
+    // A node key in a path matches the contract's pattern, as forNode
+    // checks it: renameNode and deleteNode take theirs directly, and a dot
+    // segment would resolve to another route (UR-P4-web-235).
+    const key = /^\/nodes\/([^/?]*)/.exec(path)?.[1];
+    if (key !== undefined && !NODE_KEY_PATTERN.test(key)) throw new RangeError(`not a node key: "${key}"`);
     // An endpoint in a path is 0 to ENDPOINT_MAX, as the contract's EndpointNumber.
     const ep = /\/endpoints\/([^/?]*)/.exec(path)?.[1];
     if (ep !== undefined && !(/^\d{1,5}$/.test(ep) && Number(ep) <= ENDPOINT_MAX)) throw new RangeError(`not an endpoint number: "${ep}"`);
@@ -507,10 +512,12 @@ export function createClient(baseUrl: string, fetchImpl: Fetch = (i, init) => fe
   function refreshToken(stale: string): Promise<boolean> {
     refreshing ??= (async () => {
       // The token is the process's: the default node's status carries it,
-      // or the controller's on a host without the node family.
+      // or the controller's on a host without the node family. Its reads
+      // are not repeated themselves: refused 403 forbidden as well, they
+      // would wait on this very reload (UR-P4-err-231).
       for (const p of ["/node/status", "/controller/status"]) {
         try {
-          const s = await call<{ csrf_token?: string }>("GET", p);
+          const s = await call<{ csrf_token?: string }>("GET", p, { retried: true });
           if (s.csrf_token) auth.token = s.csrf_token;
           break;
         } catch {

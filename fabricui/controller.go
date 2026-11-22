@@ -184,7 +184,9 @@ type NetworkNode struct {
 	ID string
 	// Kind is one of the contract's TopologyNode kinds: node, peer,
 	// thread_router, thread_end_device, wifi_ap, ethernet (the go-fabric
-	// adapter makes an Ethernet node a peer with role ethernet).
+	// adapter makes an Ethernet node a peer with role ethernet), and
+	// border_router (contract 0.8.0): a Thread border router, labelled by
+	// its mDNS host name, ok while seen within 24 hours.
 	Kind string
 	// Label names the node; State is ok, unreachable, idle or unknown.
 	Label, State string
@@ -241,8 +243,8 @@ type ControllerNode interface {
 	// ClusterDetail is one server cluster of an endpoint of the image
 	// with the attribute values the controller holds; nothing is read
 	// from the node. ErrEndpointNotFound or ErrClusterNotFound when the
-	// image lacks it, ErrNotRead while the endpoint's ServerList names
-	// the cluster but the controller has not read it yet.
+	// image lacks it, ErrNotRead (503) while the endpoint's ServerList
+	// names the cluster but the controller has not read it yet.
 	ClusterDetail(ep uint16, cluster uint32) (ClusterDetail, error)
 	// Events are the events the controller received from the node, those
 	// numbered since or later, oldest first; with limit > 0 only the
@@ -279,6 +281,9 @@ type ControllerNode interface {
 	// ICD is the node's ICD state; false for a node without ICD
 	// Management.
 	ICD() (ICDState, bool)
+	// RegisterICD registers this controller as the node's check-in
+	// client; without allowMultiAdmin a node whose other administrators'
+	// vendors may not support LIT is [ErrICDMultiAdmin].
 	RegisterICD(ctx context.Context, allowMultiAdmin bool) error
 	UnregisterICD(ctx context.Context, force bool) error
 }
@@ -532,7 +537,7 @@ type EventRecord struct {
 	// Name is the event's name; empty where the schema names none.
 	Name string
 	// EpochMS is the epoch timestamp in milliseconds; nil when the event
-	// carries none.
+	// carries none or one above the int64 range.
 	EpochMS *int64
 	// Data is the event's data as JSON by field name; nil without data or
 	// when it does not render.
@@ -703,6 +708,15 @@ type PairOptions struct {
 	// (the device came from a DNS-SD discovery). The handler sets it to
 	// report commissioning_progress with ble (contract 0.7.1).
 	Transport func(BLEDecision)
+	// CommissionTimeout, when positive, bounds the commissioning of a
+	// device once it is reached, apart from the search for it (go-fabric
+	// controller.PairOptions.CommissionTimeout, controller/controller.go:
+	// 1135-1149 at v0.24.1): the search keeps its own bound. The handler
+	// sets it to 600 s for a code without timeout_seconds (decision 71);
+	// zero leaves the source's own default. The go-fabric adapter takes
+	// the smaller of it and a positive ControllerOptions.Pair.
+	// CommissionTimeout of the host, so a host's shorter bound stays.
+	CommissionTimeout time.Duration
 }
 
 // BLEDecision is whether a commissioning from a code searches over
@@ -928,9 +942,14 @@ var (
 	ErrInvalidArgument = errors.New("fabricui: invalid argument")
 	// ErrNoDevice: no device answered a commissioning's discovery (404).
 	ErrNoDevice = errors.New("fabricui: no device answered")
-	// ErrConflict: the node refuses the action in its state (409), an
-	// ICD registration other administrators' vendors may not support.
+	// ErrConflict: the node or the controller's client refuses the action
+	// in its state (409, problem conflict).
 	ErrConflict = errors.New("fabricui: conflict")
+	// ErrICDMultiAdmin: an ICD registration without allowMultiAdmin on a
+	// node whose other administrators' vendors may not support LIT (409,
+	// problem icd_multi_admin, contract 0.12.0). It wraps [ErrConflict],
+	// so errors.Is(err, ErrConflict) holds for it too.
+	ErrICDMultiAdmin = fmt.Errorf("%w: other administrators' vendors may not support LIT", ErrConflict)
 	// ErrNodeFailed: the interaction with the node failed (502); its
 	// text is the problem's detail.
 	ErrNodeFailed = errors.New("fabricui: the node failed")
@@ -939,13 +958,21 @@ var (
 	// ErrUnknownCredential: no stored credential with the kind and id
 	// (404).
 	ErrUnknownCredential = errors.New("fabricui: no such credential")
-	// ErrNotImplemented: the source does not serve the route yet (501).
+	// ErrNotImplemented: the source does not serve the route yet. 501
+	// from NetworkTopology (GET /controller/topology), the one port method
+	// whose operation declares it (the diagnostics reads answer 501 from
+	// Capabilities); from any other method it is 500, as an error of no
+	// kind (decision 79).
 	ErrNotImplemented = errors.New("fabricui: not implemented")
 	// ErrEndpointNotFound: the node's image holds no such endpoint (404).
 	ErrEndpointNotFound = errors.New("fabricui: no such endpoint")
 	// ErrClusterNotFound: the endpoint holds no such server cluster (404).
 	ErrClusterNotFound = errors.New("fabricui: no such cluster")
-	// ErrNotRead: the controller has not read the element yet (503).
+	// ErrNotRead: the controller has not read the element yet. 503 from
+	// ControllerNode.ClusterDetail (GET
+	// /controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}), the
+	// one operation that declares it; from any other method it is 500
+	// (decision 79).
 	ErrNotRead = errors.New("fabricui: not read yet")
 )
 

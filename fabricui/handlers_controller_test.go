@@ -363,6 +363,10 @@ func TestControllerError_Kinds(t *testing.T) {
 		{ErrInvalidArgument, 400, codeBadRequest},
 		{ErrInvalidCredential, 400, codeBadRequest},
 		{ErrConflict, 409, codeConflict},
+		// The multi-admin refusal has its own code (0.12.0, decision 76),
+		// tested before the conflict it wraps.
+		{ErrICDMultiAdmin, 409, codeICDMultiAdmin},
+		{fmt.Errorf("register: %w", ErrICDMultiAdmin), 409, codeICDMultiAdmin},
 		{ErrNodeFailed, 502, codeNodeError},
 		{context.DeadlineExceeded, 502, codeNodeError},
 		{os.ErrPermission, 500, codeInternal},

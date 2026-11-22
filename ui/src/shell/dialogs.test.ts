@@ -67,6 +67,18 @@ describe("UR-P1-ui-117: the shell's dialogs take the focus", () => {
   });
 });
 
+describe("UR-P4-ui-297: the create dialog counts the label in characters", () => {
+  it("takes 40 characters outside the BMP and refuses 65", async () => {
+    render(Harness, { ui: testUI(), page: NodeCreateDialog, pageProps: { onCreate: async () => {}, onClose: () => {} } });
+    const field = screen.getByLabelText("shell.node_create.label") as HTMLInputElement;
+    expect(Number(field.getAttribute("maxlength"))).toBeGreaterThanOrEqual(128);
+    await fireEvent.input(field, { target: { value: "\u{1F3E0}".repeat(40) } });
+    expect(screen.getByText("shell.node_create.submit").closest("button")).not.toBeDisabled();
+    await fireEvent.input(field, { target: { value: "\u{1F3E0}".repeat(65) } });
+    expect(screen.getByText("shell.node_create.submit").closest("button")).toBeDisabled();
+  });
+});
+
 describe("UR-P1-ui-104: the confirm button is armed after the guard", () => {
   it("is disabled while the question is new", async () => {
     vi.useFakeTimers();

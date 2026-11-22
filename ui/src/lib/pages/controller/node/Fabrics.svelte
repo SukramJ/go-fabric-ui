@@ -19,6 +19,9 @@
 
   let fabrics = $state<NodeFabric[] | null>(null);
   let error = $state<string | null>(null);
+  // A removal in flight, from the question on: a second click sends no
+  // second DELETE (UR-P4-ui-294, as the node page's UR-P1-ui-145).
+  let busy = $state(false);
 
   async function load() {
     error = null;
@@ -31,6 +34,16 @@
   onMount(() => void load());
 
   async function remove(f: NodeFabric) {
+    if (busy) return;
+    busy = true;
+    try {
+      await removeAsked(f);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function removeAsked(f: NodeFabric) {
     const ok = await confirm({
       title: t("controller.fabrics.remove_confirm"),
       body: f.label || vendorLabel(f.vendor_name, f.vendor_id),
@@ -74,7 +87,7 @@
           <span class="font-mono text-xs">0x{f.fabric_id_hex}</span>
         {:else if col.key === "action"}
           {#if !f.own}
-            <Button size="sm" variant="ghost" class="text-[var(--fui-error-text)]" onclick={() => void remove(f)}>{t("common.remove")}</Button>
+            <Button size="sm" variant="ghost" class="text-[var(--fui-error-text)]" disabled={busy} onclick={() => void remove(f)}>{t("common.remove")}</Button>
           {/if}
         {/if}
       {/snippet}

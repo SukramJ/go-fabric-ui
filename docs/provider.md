@@ -38,9 +38,9 @@ still carry a display string for the same key; for a `Multi` column or
 filter `Lists` wins whenever it has the key. `Item.ListValues(key)`
 returns the list as the page reads it.
 
-Deprecated, accepted until v0.2.0: a host that leaves `Lists` without the
-key carries the values in `Item.Fields[key]` as one comma-separated
-string (`"Kitchen, Evening"`); the page splits it on commas and trims
+Deprecated, and accepted with no removal date: a host that leaves
+`Lists` without the key carries the values in `Item.Fields[key]` as one
+comma-separated string (`"Kitchen, Evening"`); the page splits it on commas and trims
 each value of spaces, so a value with a comma splits into two. Without
 `Multi` a comma is an ordinary character and the filter compares the
 whole string.

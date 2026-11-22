@@ -2026,7 +2026,7 @@ export interface components {
             detail?: string;
             instance?: string;
             /** @enum {string} */
-            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default" | "terms_required" | "method_not_allowed" | "too_many_streams" | "unsupported_media_type" | "host_not_allowed" | "origin_not_allowed";
+            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default" | "terms_required" | "method_not_allowed" | "too_many_streams" | "unsupported_media_type" | "host_not_allowed" | "origin_not_allowed" | "icd_multi_admin";
             /** @description terms_required (0.8.0): the device's TCMinRequiredVersion, the lowest version an acknowledgement has to name (go-fabric commissioner.TermsRequiredError.Version). */
             version?: number;
             /** @description terms_required (0.8.0): the acknowledgement bits the device requires; null, since no device attribute names them — the terms the user accepts set them. */
@@ -2053,10 +2053,10 @@ export interface components {
             commissioning_window_open: boolean;
             commissioning_window_duration_seconds?: number;
             /**
-             * @description Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one, or (0.11.0) an administrator's basic one (OpenBasicCommissioningWindow, on the node's own passcode); absent without a node.
+             * @description Which window is open — the node's own on its configured credentials, a basic one on fresh credentials, an administrator's enhanced one, (0.11.0) an administrator's basic one (OpenBasicCommissioningWindow, on the node's own passcode), or (0.12.0) `other`, an open window of a kind this contract does not name (one a later go-fabric adds); absent without a node.
              * @enum {string}
              */
-            window_kind?: "none" | "own" | "basic" | "enhanced" | "administrator_basic";
+            window_kind?: "none" | "own" | "basic" | "enhanced" | "administrator_basic" | "other";
             /**
              * Format: date-time
              * @description When the open window's timer closes it
@@ -2566,7 +2566,7 @@ export interface components {
             label: string;
             /** @description Offer a value filter built from the listed values. */
             filter: boolean;
-            /** @description Default false. The field is list-valued: its values are the item's lists entry for the key (or, deprecated until v0.2.0, the comma split of its fields entry when lists has no such key); shown as chips, filtered by membership, the filter's options built from the individual values. */
+            /** @description Default false. The field is list-valued: its values are the item's lists entry for the key (or, deprecated and still accepted, the comma split of its fields entry when lists has no such key); shown as chips, filtered by membership, the filter's options built from the individual values. */
             multi?: boolean;
         };
         FilterOption: {
@@ -2577,7 +2577,7 @@ export interface components {
             field: string;
             label: string;
             options: components["schemas"]["FilterOption"][];
-            /** @description Default false. Match by membership in the item's list for the field (its lists entry, or, deprecated until v0.2.0, the comma split of its fields entry, values trimmed; an empty value never matches) instead of equality. */
+            /** @description Default false. Match by membership in the item's list for the field (its lists entry, or, deprecated and still accepted, the comma split of its fields entry, values trimmed; an empty value never matches) instead of equality. */
             multi?: boolean;
         };
         ExposureSchema: {
@@ -3116,7 +3116,7 @@ export interface components {
             name?: string;
             /**
              * Format: int64
-             * @description The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only.
+             * @description The event's epoch timestamp in milliseconds; absent when the event carries a system timestamp only, or (0.12.0) a value above the int64 range.
              */
             epoch_ms?: number;
             /** @description The event's data as JSON by field name; absent without data or when it cannot be rendered. */
@@ -3326,7 +3326,7 @@ export interface components {
             thread_id?: string;
             /** @description Never commission over Bluetooth LE, and the `commissioning_progress` event's `ble` reason is `network_only` (0.7.1). */
             network_only?: boolean;
-            /** @description The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device then has no bound of this route's. */
+            /** @description The whole commissioning's bound, a device search included. Absent (0.11.0): a `discovered` device's commissioning is bounded at 600 s; a `code` keeps go-fabric's one-minute bound on the search for the device, and the commissioning of a found device is bounded at 600 s after it (0.12.0; before, it had no bound of this route's). */
             timeout_seconds?: number;
             terms_and_conditions?: components["schemas"]["TermsAcknowledgement"];
             /** @description The client's id for this commissioning, echoed as `commissioning_id` on its `commissioning_progress` events (0.10.0); absent: the server draws one. */
@@ -5089,6 +5089,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     listControllerNodes: {
@@ -5110,6 +5111,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     getControllerNode: {
@@ -5136,6 +5138,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     decommissionNode: {
@@ -5191,6 +5194,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     getNodeCluster: {
@@ -5221,6 +5225,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
     };
@@ -5255,6 +5260,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     interviewNode: {
@@ -5280,6 +5286,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5307,6 +5314,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     enableNode: {
@@ -5427,6 +5435,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5453,6 +5462,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5487,6 +5497,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5521,6 +5532,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5555,6 +5567,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5583,6 +5596,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5617,6 +5631,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5645,6 +5660,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5679,6 +5695,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5706,6 +5723,7 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     registerNodeIcd: {
@@ -5736,9 +5754,18 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
-            409: components["responses"]["Problem"];
+            /** @description icd_multi_admin (0.12.0): other administrators' vendors may not support LIT and the request did not set `allow_multi_admin`; a second request with it registers. `conflict`: the controller's client refuses the call itself (an ICD operation its state does not allow, the node disabled, a fabric operation in progress). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5773,6 +5800,7 @@ export interface operations {
             409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5801,6 +5829,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5828,6 +5857,7 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
     };
@@ -5867,6 +5897,7 @@ export interface operations {
             };
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
         };
@@ -5876,7 +5907,7 @@ export interface operations {
             query?: {
                 /** @description What `value` selects by; absent is `any`. */
                 filter?: "any" | "long_discriminator" | "short_discriminator" | "vendor" | "device_type";
-                /** @description The discriminator, vendor id or device type; required with every filter but `any`. */
+                /** @description The discriminator, vendor id or device type; required with every filter but `any`. A device type ranges over 32 bits unsigned; a generated server holds the value in 64 bits (0.12.0). */
                 value?: number;
                 /** @description How long to listen, in seconds; absent is 3. */
                 timeout?: number;
@@ -6025,6 +6056,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
         };
     };
     consentUpdate: {
@@ -6040,7 +6072,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The consent is recorded. */
+            /** @description The consent is handed to the controller's update manager. While the manager knows the version the node runs, a version at or below it is not kept there (go-fabric v0.24.0): no update follows from it. */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -6102,6 +6134,7 @@ export interface operations {
             };
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
@@ -6125,6 +6158,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
         };
     };
@@ -6147,6 +6181,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
         };
     };
@@ -6169,6 +6204,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             501: components["responses"]["Problem"];
         };
     };
@@ -6191,6 +6227,7 @@ export interface operations {
                 };
             };
             403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
             503: components["responses"]["StreamUnavailable"];
         };
     };

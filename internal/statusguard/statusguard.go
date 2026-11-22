@@ -121,6 +121,10 @@ func (r *recorder) undeclared(doc string, prefixes []string) []string {
 			}
 		}
 		if best == nil {
+			// A path no operation names: a hand-written route served
+			// without its contract operation (UR-P4-test-266). The
+			// path-level 404 and 405 are not recorded.
+			bad = append(bad, fmt.Sprintf("%s %s answered %s, and no contract operation names it", method, path, status))
 			continue
 		}
 		if !best.statuses[status] {

@@ -144,3 +144,56 @@ describe("the status text tokens (UR-P1-ui-172, decision 31)", () => {
     });
   }
 });
+
+// The labels on a fill (decision 77, UR-P4-ui-299): a filled button's label
+// reaches 4.5:1 on its fill, at rest and hovered, in all four palettes;
+// Button.svelte reads these tokens and no other colour for its fills.
+const button = fs.readFileSync(path.resolve(process.cwd(), "src/lib/kit/Button.svelte"), "utf8");
+
+describe("the labels on a fill (decision 77, UR-P4-ui-299)", () => {
+  for (const [name, sels] of [
+    ["standalone light", [ROOT]],
+    ["standalone dark", [ROOT, DARK]],
+    ["HA skin light", [ROOT, HA]],
+    ["HA skin dark", [ROOT, DARK, HA, HA_DARK]],
+  ] as const) {
+    it(`reach 4.5:1 on the primary and the error fill, ${name}`, () => {
+      const env: Record<string, string> = Object.assign({}, ...sels.map(block));
+      const low: string[] = [];
+      for (const [label, fill] of [
+        ["--fui-on-primary", "--fui-primary-fill"],
+        ["--fui-on-primary", "--fui-primary-fill-hover"],
+        ["--fui-on-error", "--fui-error-fill"],
+        ["--fui-on-error", "--fui-error-fill-hover"],
+      ]) {
+        const r = ratio(evalColor(`var(${label})`, env), evalColor(`var(${fill})`, env));
+        if (r < 4.5) low.push(`${label} on ${fill}: ${r.toFixed(2)}`);
+      }
+      expect(low).toEqual([]);
+    });
+  }
+
+  it("the filled button variants read the fill and label tokens", () => {
+    for (const cls of [
+      "bg-[var(--fui-primary-fill)] text-[var(--fui-on-primary)] hover:bg-[var(--fui-primary-fill-hover)]",
+      "bg-[var(--fui-error-fill)] text-[var(--fui-on-error)] hover:bg-[var(--fui-error-fill-hover)]",
+      "hover:bg-[var(--fui-error-fill)] hover:text-[var(--fui-on-error)]",
+    ])
+      expect(button).toContain(cls);
+    expect(button).not.toMatch(/text-white|bg-\[var\(--ha-(primary|error)-color\)\]/);
+  });
+});
+
+describe("secondary text, the empty state's description (decision 77, UR-P4-ui-300)", () => {
+  for (const [name, sels] of [
+    ["standalone light", [ROOT]],
+    ["standalone dark", [ROOT, DARK]],
+    ["HA skin light", [ROOT, HA]],
+    ["HA skin dark", [ROOT, DARK, HA, HA_DARK]],
+  ] as const) {
+    it(`reaches 4.5:1 on the card, ${name}`, () => {
+      const env: Record<string, string> = Object.assign({}, ...sels.map(block));
+      expect(ratio(evalColor("var(--ha-secondary-text-color)", env), evalColor("var(--ha-card-background-color)", env))).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+});

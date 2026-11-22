@@ -77,6 +77,17 @@
   --fui-warning-text: var(--fui-warning-text-color, color-mix(in srgb, var(--ha-warning-color) 80%, #000000));
   --fui-success-text: var(--fui-success-text-color, color-mix(in srgb, var(--ha-success-color) 80%, #000000));
   --fui-info-text: var(--fui-info-text-color, color-mix(in srgb, var(--ha-info-color) 80%, #000000));
+  /* Labels on a FILL (owner decision 77, UR-P4-ui-299): a filled button
+   * reads its fill and its label from these, never --ha-*-color and white;
+   * label on fill reaches WCAG AA (4.5:1) at rest and hovered in every
+   * palette (tokens.test.ts). The HA colours stay for areas, borders and
+   * icons. Each takes a host's exact value first: --fui-<name>-color. */
+  --fui-primary-fill: var(--fui-primary-fill-color, var(--ha-primary-color));
+  --fui-primary-fill-hover: var(--fui-primary-fill-hover-color, var(--ha-primary-color-hover));
+  --fui-on-primary: var(--fui-on-primary-color, var(--ha-on-primary-color));
+  --fui-error-fill: var(--fui-error-fill-color, var(--ha-error-color));
+  --fui-error-fill-hover: var(--fui-error-fill-hover-color, color-mix(in srgb, var(--fui-error-fill) 90%, #000000));
+  --fui-on-error: var(--fui-on-error-color, #ffffff);
 }
 
 html.dark,
@@ -106,6 +117,12 @@ html.dark,
   --fui-warning-text: var(--fui-warning-text-color, var(--ha-warning-color));
   --fui-success-text: var(--fui-success-text-color, var(--ha-success-color));
   --fui-info-text: var(--fui-info-text-color, var(--ha-info-color));
+  /* The dark fills are light (teal-400, red-400): their label is the dark
+   * ground's colour, as white on them stays below AA (1.87, 2.77); hover
+   * lightens. */
+  --fui-on-primary: var(--fui-on-primary-color, #0f172a);
+  --fui-error-fill-hover: var(--fui-error-fill-hover-color, color-mix(in srgb, var(--fui-error-fill) 90%, #ffffff));
+  --fui-on-error: var(--fui-on-error-color, #0f172a);
 }
 
 /* Home-Assistant skin. When data-skin="ha" the --ha-* consumption tokens
@@ -149,6 +166,18 @@ html[data-skin="ha"],
   --fui-warning-text: var(--fui-warning-text-color, color-mix(in srgb, var(--ha-warning-color) 50%, #000000));
   --fui-success-text: var(--fui-success-text-color, color-mix(in srgb, var(--ha-success-color) 70%, #000000));
   --fui-info-text: var(--fui-info-text-color, color-mix(in srgb, var(--ha-info-color) 65%, #000000));
+  /* Fills under the HA skin, light and dark (decision 77): Home
+   * Assistant's primary and error colours carry white below AA (3.26,
+   * 4.29), so the fill is the host's colour mixed towards black — it keeps
+   * a custom theme's hue — under the host's own label colour; hover is a
+   * step darker. A host whose colours the mix does not carry sets the
+   * exact values through --fui-<name>-color. */
+  --fui-primary-fill: var(--fui-primary-fill-color, color-mix(in srgb, var(--ha-primary-color) 80%, #000000));
+  --fui-primary-fill-hover: var(--fui-primary-fill-hover-color, color-mix(in srgb, var(--fui-primary-fill) 88%, #000000));
+  --fui-on-primary: var(--fui-on-primary-color, var(--ha-on-primary-color));
+  --fui-error-fill: var(--fui-error-fill-color, color-mix(in srgb, var(--ha-error-color) 90%, #000000));
+  --fui-error-fill-hover: var(--fui-error-fill-hover-color, color-mix(in srgb, var(--fui-error-fill) 90%, #000000));
+  --fui-on-error: var(--fui-on-error-color, #ffffff);
 }
 
 html[data-skin="ha"].dark,

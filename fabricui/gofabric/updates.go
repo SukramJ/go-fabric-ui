@@ -21,41 +21,14 @@ import (
 type updates struct {
 	s *source
 	m *softwareupdate.Manager
-	// query is the manager's QueryUpdates over every node (all) or one;
-	// nodes the commissioned nodes with their product. Test seams.
-	query func(ctx context.Context, only uint64, all bool) ([]softwareupdate.PeerUpdate, error)
-	nodes func() []productNode
-}
-
-// productNode is a node and its product as the update manager groups
-// nodes for a check: vendor, product and software version.
-type productNode struct {
-	id      uint64
-	product string
+	// query is the manager's QueryUpdates over every node. A test seam.
+	query func(ctx context.Context) ([]softwareupdate.PeerUpdate, error)
 }
 
 func newUpdates(s *source, m *softwareupdate.Manager) *updates {
-	u := &updates{s: s, m: m}
-	u.query = func(ctx context.Context, only uint64, all bool) ([]softwareupdate.PeerUpdate, error) {
-		if all {
-			return m.QueryUpdates(ctx, nil, true)
-		}
-		n, ok := s.lookup(only)
-		if !ok {
-			return nil, nil
-		}
-		return m.QueryUpdates(ctx, n.n, true)
-	}
-	u.nodes = func() []productNode {
-		nodes := s.Nodes()
-		out := make([]productNode, 0, len(nodes))
-		for _, n := range nodes {
-			b := n.Basic()
-			out = append(out, productNode{id: n.ID(), product: fmt.Sprintf("%04X/%04X/%s", b.VendorID, b.ProductID, b.SoftwareVersion)})
-		}
-		return out
-	}
-	return u
+	return &updates{s: s, m: m, query: func(ctx context.Context) ([]softwareupdate.PeerUpdate, error) {
+		return m.QueryUpdates(ctx, nil, true)
+	}}
 }
 
 func (u *updates) Queue() []fabricui.PendingUpdate {
@@ -78,74 +51,37 @@ func (u *updates) Queue() []fabricui.PendingUpdate {
 }
 
 // Check is QueryUpdates over every node. go-fabric passes over a
-// product whose check failed and returns the updates of the others with
-// the joined error, which names no node (softwareupdate.Manager.
-// QueryUpdates; go-fabric#555 asks for an error per product). So on an
-// error one node per product among the nodes without an update found is
-// checked again on its own, as the manager groups a check by vendor,
-// product and software version: when that check fails, every node of the
-// product is one of the fabricui.UpdateCheckFailures; when it finds an
-// update, the product's other nodes are checked too. The updates found
-// are returned with the failures (contract 0.11.0, decision 70). Each
-// check of one node ends with its own check_finished event.
+// product whose check failed, returns the updates of the others and joins
+// one *softwareupdate.ProductCheckError per failed product, naming the
+// product's nodes (go-fabric#555; controller/softwareupdate/
+// check_error.go:8-59 and manager.go:1829-1843 at v0.24.1). Each of those
+// nodes is one of the fabricui.UpdateCheckFailures, with its product's
+// cause, beside the updates found (contract 0.11.0, decision 70); no node
+// is checked again (UR-P4-adpt-192, decision 80). An error that names no
+// product fails the whole check.
 func (u *updates) Check(ctx context.Context) ([]fabricui.AvailableUpdate, error) {
-	found, err := u.query(ctx, 0, true)
+	found, err := u.query(ctx)
 	if err == nil {
 		return availableOf(found), nil
 	}
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
-	have := map[uint64]bool{}
-	for _, f := range found {
-		have[f.Peer.NodeID] = true
-	}
-	// The nodes without an update found, by product, in the registry's
-	// order.
-	var order []string
-	groups := map[string][]uint64{}
-	for _, n := range u.nodes() {
-		if have[n.id] {
-			continue
-		}
-		if _, ok := groups[n.product]; !ok {
-			order = append(order, n.product)
-		}
-		groups[n.product] = append(groups[n.product], n.id)
+	products := softwareupdate.ProductCheckErrors(err)
+	if len(products) == 0 {
+		return nil, err
 	}
 	var failed fabricui.UpdateCheckFailures
-	for _, product := range order {
-		ids := groups[product]
-		one, err := u.query(ctx, ids[0], false)
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		if err != nil {
-			for _, id := range ids {
-				failed = append(failed, fabricui.UpdateCheckFailure{NodeID: id, Err: err})
-			}
-			continue
-		}
-		found = append(found, one...)
-		if len(one) == 0 {
-			// No update for the product: its other nodes have none either.
-			continue
-		}
-		for _, id := range ids[1:] {
-			more, err := u.query(ctx, id, false)
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
-			if err != nil {
-				failed = append(failed, fabricui.UpdateCheckFailure{NodeID: id, Err: err})
-				continue
-			}
-			found = append(found, more...)
+	for _, p := range products {
+		for _, peer := range p.Peers {
+			failed = append(failed, fabricui.UpdateCheckFailure{NodeID: peer.NodeID, Err: p.Err})
 		}
 	}
 	if len(failed) == 0 {
-		// Every failure was passing: each node's own check succeeded.
-		return availableOf(found), nil
+		// No product names a node (go-fabric builds none without one at
+		// v0.24.1): nothing to attribute, so the check failed as a whole
+		// (UR-P4-doc-407).
+		return nil, err
 	}
 	return availableOf(found), failed
 }
@@ -192,9 +128,12 @@ func updateEvent(e *softwareupdate.UpdateEvent) fabricui.ControllerEvent {
 }
 
 // Consent records the consent (softwareupdate.Manager.AddUpdateConsent).
-// A vendor or product that differs from the node's
-// (softwareupdate.ErrMismatch) is the request's error, decided before
-// any node is asked: an invalid argument, not the node's failure.
+// Since go-fabric v0.24.0 the manager keeps no consent to a version at or
+// below the one the node runs, while it knows that version, and answers
+// false, as it does for a consent it keeps for a node not applicable for
+// updates (controller/softwareupdate/manager.go:2345-2354 at v0.24.1); the
+// two are not told apart, so neither is an error here. Errors: see
+// consentError.
 func (u *updates) Consent(ctx context.Context, nodeID uint64, vendorID, productID uint16, version uint32) error {
 	n, ok := u.s.lookup(nodeID)
 	if !ok {
@@ -202,10 +141,24 @@ func (u *updates) Consent(ctx context.Context, nodeID uint64, vendorID, productI
 	}
 	addr, _ := n.n.PeerAddress()
 	_, err := u.m.AddUpdateConsent(ctx, addr, softwareupdate.Target{VendorID: vendorID, ProductID: productID, TargetSoftwareVersion: version})
-	if errors.Is(err, softwareupdate.ErrMismatch) {
+	return consentError(err)
+}
+
+// consentError is AddUpdateConsent's error as the port's. A vendor or
+// product that differs from the node's (softwareupdate.ErrMismatch) is the
+// request's error, decided before any node is asked: an invalid argument,
+// not the node's failure. softwareupdate.ErrNoNode (go-fabric v0.24.0) is
+// a node removed between the lookup and the consent: no such node, 404
+// (UR-P4-err-406). Any other refusal is the manager's (500, as the route
+// declares), never a node's 502 or 409 (UR-P4-test-33).
+func consentError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, softwareupdate.ErrMismatch):
 		return fmt.Errorf("%w: %w", fabricui.ErrInvalidArgument, err)
+	case errors.Is(err, softwareupdate.ErrNoNode):
+		return fmt.Errorf("%w: %w", fabricui.ErrNodeNotFound, err)
 	}
-	// Any other refusal is the manager's (500, as the route declares),
-	// never a node's 502 or 409 (UR-P4-test-33).
 	return err
 }

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
 import { testUI } from "../../../test/support";
@@ -64,5 +64,25 @@ describe("Controller Nodes — busy per node (UR-P1-ui-169)", () => {
     await fireEvent.click(buttons()[0]);
     expect(calls).toHaveLength(2);
     expect(new Set(calls).size).toBe(2);
+  });
+});
+
+describe("UR-P4-ui-292: a node row opens the node through the host's routes", () => {
+  it("follows the host's controllerNode route, not a hash built from it", async () => {
+    const ui = testUI({ fixtures: ["controller-nodes.200"] });
+    ui.routes = { ...ui.routes, controllerNode: "/app/controller/node/" };
+    const follow = vi.fn();
+    location.hash = "";
+    render(Harness, { ui, page: Nodes, pageProps: { follow } });
+    await fireEvent.click(await screen.findByText("Kitchen"));
+    expect(location.hash).toBe("");
+    expect(follow).toHaveBeenCalledWith("/app/controller/node/0000000000000011");
+  });
+
+  it("without a follow, the default routes still lead to the node's hash", async () => {
+    location.hash = "";
+    render(Harness, { ui: testUI({ fixtures: ["controller-nodes.200"] }), page: Nodes });
+    await fireEvent.click(await screen.findByText("Kitchen"));
+    await waitFor(() => expect(location.hash).toBe("#/controller/node/0000000000000011"));
   });
 });

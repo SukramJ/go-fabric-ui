@@ -19,8 +19,9 @@ const updateDelay = 500 * time.Millisecond
 
 // Hooks turn the controller's node hooks (client.Hooks) into the
 // controller stream's events: node_added on Commissioned, node_removed
-// on Decommissioned, connection, subscription, and node_updated for a
-// structure change, a report or an event the node delivered (coalesced;
+// once per node on decommission, leave or forget, connection,
+// subscription, and node_updated for a structure change, a report or an
+// event the node delivered (coalesced;
 // the event is in client.Node.EventHistory when its hook runs, go-fabric
 // controller/client/config.go Hooks.Event at 894adbcd). The host builds them before
 // controller.New, wires [Hooks.For] or [Hooks.Wrap] into
@@ -33,10 +34,16 @@ type Hooks struct {
 	mu     sync.Mutex
 	src    *source
 	closed bool
-	// ids are the node ids by local id, kept so a Decommissioned hook,
-	// which runs once the peer address is gone, still names its node; the
-	// entry goes with that hook.
+	// ids are the node ids by local id, kept so a Decommissioned or
+	// Deleted hook, which runs once the peer address is gone, still names
+	// its node; the entry goes with that hook.
 	ids map[string]uint64
+	// gone marks a local id whose node_removed was emitted: a decommission
+	// and a peer's leave run Decommissioned and then Deleted, and a hook
+	// between them can learn the id again, so the second hook emits
+	// nothing (UR-P4-adpt-201). Commissioned clears it, for a node that
+	// receives the local id later.
+	gone map[string]bool
 	// pending are the coalescing timers of node_updated, by local id. A
 	// timer's function emits only while it is still the one in pending.
 	pending map[string]*time.Timer
@@ -53,7 +60,7 @@ type Hooks struct {
 
 // NewHooks returns hooks bound to no controller yet.
 func NewHooks() *Hooks {
-	return &Hooks{ids: map[string]uint64{}, pending: map[string]*time.Timer{}, delay: updateDelay}
+	return &Hooks{ids: map[string]uint64{}, gone: map[string]bool{}, pending: map[string]*time.Timer{}, delay: updateDelay}
 }
 
 // bind sets the source the hooks publish to; from then on hooks fire
@@ -105,14 +112,30 @@ func (h *Hooks) stop(local string) {
 	}
 }
 
-// removed emits node_removed and forgets the node: its id and its pending
-// node_updated, which would otherwise follow the removal.
+// removed emits node_removed, once per node, and forgets the node: its
+// id and its pending node_updated, which would otherwise follow the
+// removal.
 func (h *Hooks) removed(local string) {
-	h.emit(local, fabricui.ControllerEvent{Type: fabricui.EventNodeRemoved})
+	h.mu.Lock()
+	first := !h.gone[local]
+	h.gone[local] = true
+	h.mu.Unlock()
+	if first {
+		h.emit(local, fabricui.ControllerEvent{Type: fabricui.EventNodeRemoved})
+	}
 	h.mu.Lock()
 	delete(h.ids, local)
 	h.stop(local)
 	h.mu.Unlock()
+}
+
+// added emits node_added for a node the registry commissioned, which
+// may hold the local id of a node removed before.
+func (h *Hooks) added(local string) {
+	h.mu.Lock()
+	delete(h.gone, local)
+	h.mu.Unlock()
+	h.emit(local, fabricui.ControllerEvent{Type: fabricui.EventNodeAdded})
 }
 
 // source is the bound source, nil while unbound or closed.
@@ -127,7 +150,11 @@ func (h *Hooks) source() *source {
 
 // nodeID resolves a local id to the node id, remembering it; false while
 // unbound, closed, without a registry, or before the node is
-// commissioned and known.
+// commissioned and known. A node that failed to load answers its stored
+// address since go-fabric v0.24.0 but is not commissioned
+// (client.Node.IsCommissioned, controller/client/record.go:714-754 at
+// v0.24.1), so it resolves to no id here, as the routes list none for it
+// (UR-P4-adpt-405); an id remembered before stays.
 func (h *Hooks) nodeID(local string) (uint64, bool) {
 	s := h.source()
 	if s == nil {
@@ -140,7 +167,7 @@ func (h *Hooks) nodeID(local string) (uint64, bool) {
 	if reg == nil {
 		return 0, false
 	}
-	if n := reg.Get(local); n != nil {
+	if n := reg.Get(local); n != nil && n.IsCommissioned() {
 		if addr, ok := n.PeerAddress(); ok {
 			h.mu.Lock()
 			h.ids[local] = addr.NodeID
@@ -211,8 +238,11 @@ func (h *Hooks) For(id string) client.Hooks {
 		SubscriptionStatusChanged: func(active bool) {
 			h.emit(id, fabricui.ControllerEvent{Type: fabricui.EventSubscription, Active: active})
 		},
-		Commissioned:   func() { h.emit(id, fabricui.ControllerEvent{Type: fabricui.EventNodeAdded}) },
+		Commissioned:   func() { h.added(id) },
 		Decommissioned: func() { h.removed(id) },
+		// Forget, Erase and a failed commissioning run Deleted only
+		// (UR-P4-adpt-201).
+		Deleted: func() { h.removed(id) },
 	}
 }
 

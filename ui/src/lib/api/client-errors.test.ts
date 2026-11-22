@@ -85,6 +85,25 @@ describe("UR-P1-err-108: a rotated token", () => {
   });
 });
 
+describe("UR-P4-err-231: the token reload when the status routes are refused as well", () => {
+  it("a call refused 403 forbidden settles when the status is refused 403 forbidden too", async () => {
+    // Something in front of the handler (a host's own gate, a proxy)
+    // answers every route with the contract's 403 problem.
+    const client = createClient("/api/v1", async () =>
+      new Response(JSON.stringify({ code: "forbidden", title: "Admin rights required", status: 403, type: "x" }), { status: 403 }),
+    );
+    client.setToken("t1");
+    const settled = await Promise.race([
+      client.fabrics().then(
+        () => "resolved",
+        (e: unknown) => (e instanceof ApiError ? `ApiError ${e.status}` : String(e)),
+      ),
+      new Promise<string>((r) => setTimeout(() => r("never settled"), 500)),
+    ]);
+    expect(settled).toBe("ApiError 403");
+  });
+});
+
 describe("UR-P1-web-115: keys and ids are checked where the library takes them", () => {
   it("refuses a node key outside the contract's pattern", () => {
     const client = createClient("/api/v1", async () => new Response(null, { status: 204 }));
@@ -107,6 +126,19 @@ describe("UR-P1-web-115: keys and ids are checked where the library takes them",
     await expect(client.controllerNode("12345678901234567")).rejects.toThrow(RangeError);
     await expect(client.controllerNode("00ff")).resolves.toEqual({});
     expect(seen).toEqual(["/api/v1/controller/nodes/00ff"]);
+  });
+
+  it("renameNode and deleteNode refuse a key outside the pattern, before sending (UR-P4-web-235)", async () => {
+    const seen: string[] = [];
+    const client = createClient("/api/v1", async (url, init) => {
+      seen.push(`${init?.method} ${url}`);
+      return new Response(null, { status: 204 });
+    });
+    await expect(client.deleteNode("..")).rejects.toThrow(RangeError);
+    await expect(client.renameNode("..", "x")).rejects.toThrow(RangeError);
+    await expect(client.deleteNode("a/b")).rejects.toThrow(RangeError);
+    await expect(client.deleteNode("kitchen-2")).resolves.toBeUndefined();
+    expect(seen).toEqual(["DELETE /api/v1/nodes/kitchen-2"]);
   });
 
   it("refuses an endpoint number above 65534 in a path, before sending (0.10.0)", async () => {

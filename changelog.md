@@ -5,6 +5,151 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). The Go module and the npm package
 `@sukramj/fabric-ui` share one version.
 
+## [0.12.0] - 2026-11-19
+
+The review, phase 4 run 2 (`notes/review/2026-11-17/`), with go-fabric
+v0.24.1 (decision 80); contract 0.12.0, additive over 0.11.0 (no accepted
+break). `docs/contract.md` ("Versioning") lists the contract's changes for
+the hosts.
+
+### Hosts
+
+- **go-fabric v0.24.1** is the minimum a host builds with. It is the last
+  version under `github.com/SukramJ/go-fabric`: `go get` and
+  `go list -m -u` report the module deprecated (moved to
+  `thingfabric.dev/go-fabric` from v0.25.0). go-fabric v0.24.0's own
+  breaks and migrations (its changelog; among them the store's schema
+  `v12`) are the host's when it lifts its own pin to meet this one.
+- **`fabricui.PairOptions.CommissionTimeout`** (new): the handler sets it
+  to 600 s for a code without `timeout_seconds`. A host's own
+  `ControllerSource.Pair` that ignores it leaves the commissioning after
+  the search unbounded, as before; the adapter hands it to go-fabric's
+  `PairOptions.CommissionTimeout` on both paths, the smaller of it and a
+  positive `ControllerOptions.Pair.CommissionTimeout` of the host's, so a
+  shorter bound of the host's stays (UR-P4-bound-400).
+
+- **A proxy that replaces `Host` with a name of its own** needs that name
+  in `AllowedHosts`; an unlisted name is refused on every request (403
+  `host_not_allowed`). 0.11.0's line below said such a proxy makes the
+  check pass every request; that holds for the upstream's address and a
+  listed name only (`docs/embedding.md`, "Behind an Ingress";
+  UR-P4-doc-202).
+- **`ErrNotImplemented` and `ErrNotRead`** from a host's own
+  `ControllerSource` are 501 and 503 only where the contract declares
+  them — `NetworkTopology` and `ControllerNode.ClusterDetail`; from any
+  other method they are 500 (decision 79), which every controller
+  operation declares (decision 82).
+- **The ICD multi-admin refusal** is its own error,
+  `fabricui.ErrICDMultiAdmin`, which wraps `ErrConflict`; a host's own
+  `ControllerNode.RegisterICD` returns it for the refusal, and
+  `errors.Is(err, ErrConflict)` still holds (decision 76).
+
+### Added
+
+- Problem code `icd_multi_admin` (409 on
+  `POST /controller/nodes/{id}/icd/register`); the client's own refusals
+  stay `conflict` (decision 76, UR-P4-ui-291).
+- `window_kind` `other`: an open window of a kind the contract does not
+  name, which a later go-fabric may add; before, such a kind reached the
+  wire as go-fabric's own text (UR-P4-ctr-196).
+- A 500 response (the shared `Problem`) on every controller operation;
+  29 of the 40 declared none, though an error of no kind answered 500
+  there (decision 82).
+
+### Fixed
+
+- A discovered device is commissioned through go-fabric's
+  `Controller.PairDiscovered` (go-fabric#553), `Pair`'s own pipeline: its
+  pairing is in the trace `GET /controller/events` serves and in
+  `pair.failures`, and the adapter no longer restates the attestation
+  policy, whose unset value still rejects (#81, UR-P1-adpt-60,
+  UR-P3-adpt-92).
+- A commissioning from a code without `timeout_seconds` is bounded at
+  600 s once the device is found, after go-fabric's one-minute search
+  (go-fabric#554's `PairOptions.CommissionTimeout`; decision 71's intent,
+  decision 80), or by the host template's own bound when that is shorter
+  (UR-P4-bound-400).
+- A consent for a node removed meanwhile (go-fabric v0.24.0's
+  `softwareupdate.ErrNoNode`) is 404, not 500 (UR-P4-err-406).
+- The update check names the nodes of each failed product from
+  go-fabric's per-product errors (go-fabric#555) and no longer checks one
+  node per product again: one check, one `check_finished` event
+  (UR-P4-adpt-192, decision 80).
+- A discovery `value` at or above 2^31 (a vendor-specific device type)
+  is no longer refused with 400 on a 32-bit host: the query parameter is
+  `x-go-type: int64` (UR-P4-ctr-260).
+- A factory reset passes over a fabric its controller removed meanwhile,
+  as go-fabric's own reset does, instead of stopping as incomplete
+  (UR-P4-err-261).
+- A cluster whose every read failed lists a manufacturer-specific
+  attribute last on a 32-bit host too (UR-P4-ctr-262).
+- A status request abandoned by its client no longer logs a fabric
+  failure and its recovery (UR-P4-leak-200).
+- A node that leaves the controller's registry without a decommission
+  (`Registry.Forget`, `Erase`) raises `node_removed`; a decommission and
+  a peer's leave raise exactly one (UR-P4-adpt-201).
+- An event epoch timestamp above the int64 range is left out
+  (`epoch_ms` absent) instead of reaching the page as a negative time
+  (UR-P4-ui-302).
+
+- Web: an overtaken status read no longer leaves the page loading or the
+  node stream on a stale token.
+- Web: the token reload no longer hangs when the status route is refused
+  as well.
+- Web: a refused event or log stream is now shown; for the event
+  stream the status is reloaded and the stream reopens when admin
+  rights return (the log stream is only shown as refused);
+  `subscribeLog` takes an optional `onDenied`.
+- Web: the Operation tab appears only when the daemon answers; an
+  undecided probe is retried.
+- Web: a QR payload the encoder refuses shows the codes without the
+  picture.
+- Web: `renameNode` and `deleteNode` check the node key.
+- Web: the ICD page asks the LIT question only on `icd_multi_admin`.
+- Web: a node row follows the host's route; the controller node page
+  follows a new tab for the same node.
+- Web: the controller's fabric removal is busy while one is in flight.
+- Web: node labels count characters, not UTF-16 units.
+- Web: the erase poll stops with its page.
+- Web: button labels reach 4.5:1 on their fill in each of the four
+  built-in palettes (new `--fui-primary-fill`, `--fui-error-fill`,
+  `--fui-on-primary`, `--fui-on-error` tokens, each overridable with a
+  `-color` suffix); empty-state descriptions use the secondary text
+  colour; the update-check error is text-safe.
+- Web: diagnostics name the peers on first open; session peers link only
+  to known nodes.
+- Web: an event time outside the Date range, or absent, no longer breaks
+  the events list.
+- Web: the endpoint tree lists orphans and survives cycles.
+- Web: a repeated schema column is shown once.
+- Web: a failed topology reload keeps the graph.
+- Web: the not-in-effect notice clears after a rebuild seen on the
+  stream.
+- Web: the contract guard also catches new required request fields and
+  breaks inside inline objects.
+
+### Changed
+
+- go-fabric v0.24.1 (from v0.23.0). No go-fabric identifier the module or
+  its tests use is deprecated there, so nothing was migrated (decision
+  62). The consent route keeps answering 204 for a version at or below
+  the one the node runs, which go-fabric v0.24.0's update manager no
+  longer keeps while it knows the running version; its description says
+  so (UR-P4-doc-407).
+- Controller hooks of a node that failed to load raise no event: since
+  go-fabric v0.24.0 such a node answers its stored address, but it is not
+  commissioned and no route lists it (UR-P4-adpt-405).
+- The comma-separated `Fields[key]` form of a `Multi` column stays
+  accepted, deprecated, with no removal date; godoc and
+  `docs/provider.md` no longer say "until v0.2.0" (decision 78).
+- `NetworkNode.Kind`'s godoc names `border_router` (UR-P4-doc-264).
+- Tests: every hand-written route is an operation of the contract, and
+  the status guard fails on an answered path no operation names
+  (UR-P4-test-266); the node stream route's own admin test
+  (UR-P4-test-320); every member of the non-admin controller status
+  (UR-P4-test-321); the skipped-entry log exactly once and again on
+  return (UR-P4-test-265).
+
 ## [0.11.0] - 2026-11-19
 
 The review, phase 4 (`notes/review/2026-11-17/`); contract 0.11.0, additive

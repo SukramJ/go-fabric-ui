@@ -5,7 +5,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/svelte";
 import Harness from "../../../test/Harness.svelte";
-import { body, testUI } from "../../../test/support";
+import { body, testUI, uncaught } from "../../../test/support";
 import type { ExposureSchema, ItemList } from "../../api/client";
 import Selection from "./Selection.svelte";
 import { createNodeStore } from "../../store.svelte";
@@ -269,5 +269,19 @@ describe("Selection — preview and drawer", () => {
     await fireEvent.keyDown(name, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(opener));
+  });
+});
+
+describe("UR-P4-ui-304: a host schema naming one column twice", () => {
+  it("does not take the selection page down; the first column of the key stands", async () => {
+    const schema = body<{ columns: Record<string, unknown>[] }>("node-exposure-schema.200");
+    schema.columns.push({ ...schema.columns[0], label: "Second" });
+    const ui = testUI({ fixtures: ["node-status.200", "node-exposure.200"], answers: { "GET /node/exposure/schema": { status: 200, body: schema } } });
+    const u = uncaught();
+    render(Harness, { ui, page: Selection });
+    await new Promise((r) => setTimeout(r, 300));
+    u.stop();
+    expect(u.errors).toEqual([]);
+    expect(screen.queryAllByText("Second")).toEqual([]);
   });
 });

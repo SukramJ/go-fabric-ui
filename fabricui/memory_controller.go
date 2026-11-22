@@ -1192,7 +1192,7 @@ func (n *memoryNode) RegisterICD(_ context.Context, allowMultiAdmin bool) error 
 		return fmt.Errorf("%w: the node has no ICD Management", ErrInvalidArgument)
 	}
 	if !allowMultiAdmin {
-		return fmt.Errorf("%w: the node has administrators from other vendors that may not support LIT", ErrConflict)
+		return ErrICDMultiAdmin
 	}
 	n.spec.icd.Registered = true
 	return nil

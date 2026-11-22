@@ -555,6 +555,13 @@ a route under `/controller/nodes/{id}` (0.10.0), the controller's client
 refuses the call itself — an ICD operation it does not allow, the node
 disabled, or a fabric operation in progress.
 
+### problem-icd_multi_admin
+`POST /controller/nodes/{id}/icd/register`: other administrators of the
+node may not support LIT and the request did not set `allow_multi_admin`
+(409, 0.12.0); a second request with it registers. Before 0.12.0 this
+refusal was `conflict`, like the client's own refusals above. The port's
+error is `fabricui.ErrICDMultiAdmin`, which wraps `fabricui.ErrConflict`.
+
 ### problem-not_found
 No such route under the API prefix, or no such resource on the route (a
 node key, an endpoint, a fabric index, a commissioned node).
@@ -725,6 +732,34 @@ that range over 32 bits unsigned or wider are `format: int64` and
 generated server holds them in 64 bits on a 32-bit platform; the wire is
 unchanged. No problem code is new.
 
+Contract 0.12.0 (review phase 4, run 2) is additive over 0.11.0, which
+`contract/previous/` holds as release 0.11.0 shipped it; no break is
+accepted. The problem code `icd_multi_admin` (409 on
+`POST /controller/nodes/{id}/icd/register`) tells the multi-admin refusal
+from the client's own refusals, which stay `conflict`; a client that asks
+the user before resending with `allow_multi_admin` asks on that code only.
+`Status.window_kind` gains `other`: an open window of a kind the contract
+does not name, which a later go-fabric may add (before, such a kind
+reached the wire as go-fabric's own text). The `value` query parameter of
+`GET /controller/discovery` is `x-go-type: int64`, so a generated server
+on a 32-bit platform takes a device type of 2^31 or more; the wire is
+unchanged. `EventRecord.epoch_ms` is absent also for a node's epoch
+timestamp above the int64 range. A host's own `ControllerSource` that
+returns `fabricui.ErrNotImplemented` or `ErrNotRead` gets 501 or 503 only
+where the contract declares them (`NetworkTopology`,
+`ControllerNode.ClusterDetail`); from any other method they are 500,
+which every controller operation now declares (a shared 500 response;
+29 of the 40 declared none before). Without
+`CommissionRequest.timeout_seconds`, a `code`'s commissioning of the found
+device is now bounded at 600 s, after go-fabric's one-minute search (go-fabric v0.24.0's
+`PairOptions.CommissionTimeout`; decision 80); the description says so,
+the shape is unchanged. A discovered device's commissioning now records
+its pairing in `GET /controller/events`, as a code's does. The 204 of
+`POST /controller/updates/consent` says that go-fabric v0.24.0 keeps no
+consent to a version at or below the one the node runs, while it knows
+that version; the route still answers 204 for it. A node removed between
+the route's lookup and the consent is 404, as an unknown node is.
+
 ## Controller routes (v0.2.0)
 
 Served only when the host passes `Options.Controller`; without it every
@@ -737,40 +772,40 @@ hand-written.
 
 | Route | Method | Admin | Answers |
 | --- | --- | --- | --- |
-| `/controller/status` | GET | – | 200, 403 |
-| `/controller/nodes` | GET | yes | 200, 403 |
-| `/controller/nodes/{id}` | GET | yes | 200, 400, 403, 404 |
-| `/controller/nodes/{id}/endpoints/{ep}` | GET | yes | 200, 400, 403, 404 — served from 0.4.0 |
-| `/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}` | GET | yes | 200, 400, 403, 404, 503 — served from 0.4.0 |
-| `/controller/nodes/{id}/events` | GET | yes | 200, 400, 403, 404 — served from 0.4.1 |
+| `/controller/status` | GET | – | 200, 403, 500 |
+| `/controller/nodes` | GET | yes | 200, 403, 500 |
+| `/controller/nodes/{id}` | GET | yes | 200, 400, 403, 404, 500 |
+| `/controller/nodes/{id}/endpoints/{ep}` | GET | yes | 200, 400, 403, 404, 500 — served from 0.4.0 |
+| `/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}` | GET | yes | 200, 400, 403, 404, 500, 503 — served from 0.4.0 |
+| `/controller/nodes/{id}/events` | GET | yes | 200, 400, 403, 404, 500 — served from 0.4.1 |
 | `/controller/nodes/{id}` | DELETE | yes | 204, 400, 403, 404, 409, 500, 502 |
-| `/controller/nodes/{id}/interview` | POST | yes | 204, 400, 403, 404, 409, 502 |
-| `/controller/nodes/{id}/ping` | POST | yes | 200, 400, 403, 404 — served from 0.5.0 |
+| `/controller/nodes/{id}/interview` | POST | yes | 204, 400, 403, 404, 409, 500, 502 |
+| `/controller/nodes/{id}/ping` | POST | yes | 200, 400, 403, 404, 500 — served from 0.5.0 |
 | `/controller/nodes/{id}/enable`, `/disable` | POST | yes | 204, 400, 403, 404, 409, 500, 502 |
 | `/controller/nodes/{id}/auto-subscribe` | POST | yes | 204, 400, 403, 404, 409, 413, 415, 500, 502 |
-| `/controller/nodes/{id}/window` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
-| `/controller/nodes/{id}/window/close` | POST | yes | 204, 400, 403, 404, 409, 502 |
-| `/controller/nodes/{id}/attributes` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
-| `/controller/nodes/{id}/attributes` | PUT | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
-| `/controller/nodes/{id}/commands` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
-| `/controller/nodes/{id}/acl` | GET / PUT | yes | 200, 400, 403, 404, 409, 413 and 415 (PUT), 502 |
-| `/controller/nodes/{id}/bindings` | GET / PUT | yes | 200, 400, 403, 404, 409, 413 and 415 (PUT), 502 |
-| `/controller/nodes/{id}/icd` | GET | yes | 200, 400, 403, 404 |
-| `/controller/nodes/{id}/icd/register`, `/unregister` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 502 |
-| `/controller/nodes/{id}/fabrics` | GET | yes | 200, 400, 403, 404, 409, 502 |
-| `/controller/nodes/{id}/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 409, 502 |
-| `/controller/commission` | POST | yes | 200, 400, 403, 404, 409 (0.8.0), 413, 415, 502, 503 |
+| `/controller/nodes/{id}/window` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 500, 502 |
+| `/controller/nodes/{id}/window/close` | POST | yes | 204, 400, 403, 404, 409, 500, 502 |
+| `/controller/nodes/{id}/attributes` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 500, 502 |
+| `/controller/nodes/{id}/attributes` | PUT | yes | 200, 400, 403, 404, 409, 413, 415, 500, 502 |
+| `/controller/nodes/{id}/commands` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 500, 502 |
+| `/controller/nodes/{id}/acl` | GET / PUT | yes | 200, 400, 403, 404, 409, 413 and 415 (PUT), 500, 502 |
+| `/controller/nodes/{id}/bindings` | GET / PUT | yes | 200, 400, 403, 404, 409, 413 and 415 (PUT), 500, 502 |
+| `/controller/nodes/{id}/icd` | GET | yes | 200, 400, 403, 404, 500 |
+| `/controller/nodes/{id}/icd/register`, `/unregister` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 500, 502 |
+| `/controller/nodes/{id}/fabrics` | GET | yes | 200, 400, 403, 404, 409, 500, 502 |
+| `/controller/nodes/{id}/fabrics/{index}` | DELETE | yes | 204, 400, 403, 404, 409, 500, 502 |
+| `/controller/commission` | POST | yes | 200, 400, 403, 404, 409 (0.8.0), 413, 415, 500, 502, 503 |
 | `/controller/discovery` | GET | yes | 200, 400, 403, 500, 502 |
 | `/controller/credentials` | GET | yes | 200, 403, 500, 503 |
 | `/controller/credentials` | PUT / DELETE | yes | 204, 400, 403, 404 (DELETE), 413 and 415 (PUT), 500, 503 |
 | `/controller/fabric/label` | PUT | yes | 204, 400, 403, 413, 415, 500 |
-| `/controller/updates` | GET | yes | 200, 403 |
+| `/controller/updates` | GET | yes | 200, 403, 500 |
 | `/controller/updates/consent`, `/check` | POST | yes | 200/204, 400, 403, 404, 413 and 415 (`consent`), 500, 503; `check` answers 200 with `errors` for the nodes whose check failed (0.11.0) |
-| `/controller/topology` | GET | yes | 200, 400, 403, 501, 502 — served from 0.3.1; 501 `not_implemented` from a host without a topology service |
-| `/controller/diagnostics` | GET | yes | 200, 403, 501 — served from 0.9.0 |
-| `/controller/mdns` | GET | yes | 200, 403, 501 — served from 0.9.0 |
-| `/controller/events` | GET | yes | 200, 403, 501 — served from 0.9.0 |
-| `/controller/stream` | GET | yes | 200 (`text/event-stream`), 403, 503 |
+| `/controller/topology` | GET | yes | 200, 400, 403, 500, 501, 502 — served from 0.3.1; 501 `not_implemented` from a host without a topology service |
+| `/controller/diagnostics` | GET | yes | 200, 403, 500, 501 — served from 0.9.0 |
+| `/controller/mdns` | GET | yes | 200, 403, 500, 501 — served from 0.9.0 |
+| `/controller/events` | GET | yes | 200, 403, 500, 501 — served from 0.9.0 |
+| `/controller/stream` | GET | yes | 200 (`text/event-stream`), 403, 500, 503 |
 
 Details the fixtures pin:
 
@@ -832,11 +867,12 @@ Details the fixtures pin:
 - **Updates** (0.11.0): `POST /controller/updates/check` answers the
   updates found and, in `errors` (`UpdateCheckError`: `node_id_hex`,
   `error`), every node whose check failed; such a node is not in
-  `updates`. A check that fails as a whole is 500. go-fabric reports one
-  joined error that names no node, so the adapter asks again one node per
-  product (vendor, product, software version) among the nodes without an
-  update found, and gives a failure to every node of that product; each
-  such check ends with its own `check_finished` event.
+  `updates`. A check that fails as a whole is 500. go-fabric (v0.24.0)
+  names in its error each product whose check failed, with the product's
+  nodes and the cause; the adapter gives that cause to every node of the
+  product and asks no node again (0.12.0), so the check ends with one
+  `check_finished` event. In 0.11.0 the adapter asked one node per product
+  again, each such check with its own `check_finished`.
 - **Commissioning**: `{code}` or `{discovered, passcode}`, not both; a
   passcode the specification excludes is 400 (0.10.0). The optional
   `commissioning_id` (0.10.0) is echoed on every
@@ -847,7 +883,9 @@ Details the fixtures pin:
   `timeout_seconds` (1–600) bounds the whole commissioning; without it
   (0.11.0) a discovered device's commissioning is bounded at 600 s, and a
   code keeps go-fabric's one-minute bound on the search for the device,
-  with no bound of this route's on the commissioning of a found device.
+  and the commissioning of a found device is bounded at 600 s after it
+  (0.12.0, go-fabric's `PairOptions.CommissionTimeout`; before, this route
+  set no bound there).
   `terms_and_conditions` `{version, acknowledgements}` (0.7.0, each
   0–65535, else 400) is the Terms and Conditions acknowledgement the
   commissioning sends with SetTCAcknowledgements, chip-tool's

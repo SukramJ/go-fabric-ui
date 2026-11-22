@@ -120,6 +120,22 @@ describe("window_kind administrator_basic (0.11.0)", () => {
   });
 });
 
+// Contract 0.12.0: `other`, an open window of a kind the contract does not
+// name (one a later go-fabric adds). The store treats it as any kind: a
+// change of kind under an open flow is another window, judged afresh.
+describe("window_kind other (0.12.0)", () => {
+  it("replaces the page's own window under an open flow and is judged by window_match", async () => {
+    const h = harness({ pairing: () => new Response(JSON.stringify({ ...body<Record<string, unknown>>("node-pairing.200"), source: "configured", window_open: true, window_match: false }), { status: 200 }) });
+    h.set(basic());
+    await h.store.openWindow(300);
+    h.set({ window_kind: "other", window_deadline: new Date(Date.now() + 900_000).toISOString() });
+    h.store.resync();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(h.reads()).toBe(1);
+    expect(h.store.commissioning).toMatchObject({ phase: "open", foreignWindow: true });
+  });
+});
+
 describe("UR-P2-conc-04: an erase under an open Pair flow", () => {
   // The erase ends the node; the new node opens its own window on the
   // configured credentials. The page resyncs once the node answers.

@@ -67,7 +67,8 @@ the prefix `controllerNode` link them. `ui.controller.loadStatus()` sets
 families (routes key `operation`); it answers its empty state when the host
 serves no operations port (503). It reads the log stream through the
 context's `subscribeLog` (default `subscribeLogStream` on
-`client.logStreamUrl()`). `NodeEcosystemHints` is the pairing hints card
+`client.logStreamUrl()`); its optional second argument, `onDenied(code)`,
+tells the page a refused stream ended (v0.12.0). `NodeEcosystemHints` is the pairing hints card
 `NodePair` renders below its flow.
 
 Several device nodes (v0.5.0): `client.nodes()` lists them, the default
@@ -112,7 +113,11 @@ Ingress frame and are inert elsewhere. A host on a skin of its own (any
 other `data-skin`, or none) keeps the standalone tokens; the HA skin's
 extras (`accent-color` and `color-scheme` on native controls,
 `--ha-on-primary-color` from Home Assistant's `--text-primary-color`) apply
-only under `data-skin="ha"`. The standalone shell sets the HA skin and the
+only under `data-skin="ha"`. Status text reads `--fui-<status>-text` and a
+filled button `--fui-primary-fill`, `--fui-error-fill` (and their
+`-hover`) under `--fui-on-primary`, `--fui-on-error` (v0.12.0): each
+reaches 4.5:1 in every palette, and a host sets an exact value through the
+same name with `-color` appended (`--fui-primary-fill-color`, …). The standalone shell sets the HA skin and the
 mode in a pre-paint script (`src/shell/index.html`) so the first frame
 already wears them; a host that wants the same does it in its own
 `index.html`.
