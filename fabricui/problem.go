@@ -37,6 +37,10 @@ const (
 	// (contract 0.10.0).
 	codeOriginNotAllowed     = "origin_not_allowed"
 	codeUnsupportedMediaType = "unsupported_media_type"
+	// codeOnboardingInvalid is 400 and codeOnboardingMismatch 409 on
+	// PUT /controller/nodes/{id}/onboarding-code (contract 0.13.0).
+	codeOnboardingInvalid  = "onboarding_code_invalid"
+	codeOnboardingMismatch = "onboarding_code_mismatch"
 )
 
 // problemTypeBase is the base of every problem's type URI: the contract
@@ -109,6 +113,29 @@ func writeTermsRequired(w http.ResponseWriter, r *http.Request, e *ErrTermsRequi
 		Deadline: e.Deadline,
 	}
 	writeProblemBody(w, http.StatusConflict, codeTermsRequired, p)
+}
+
+// mismatchBody is onboarding_code_mismatch (contract 0.13.0): the problem
+// and the differing field with both values as its extension members.
+// None of them is a secret (U12 decision 3).
+type mismatchBody struct {
+	problem
+	Field     string `json:"field"`
+	CodeValue uint16 `json:"code_value"`
+	NodeValue uint16 `json:"node_value"`
+}
+
+// writeOnboardingMismatch answers 409 onboarding_code_mismatch; its detail
+// is the handler's own sentence from the three members, not the source's
+// error text.
+func writeOnboardingMismatch(w http.ResponseWriter, r *http.Request, m *OnboardingMismatch) {
+	p := mismatchBody{
+		problem:   newProblem(r, http.StatusConflict, codeOnboardingMismatch, "The code names another device", m.Sentence()),
+		Field:     m.Field,
+		CodeValue: m.Code,
+		NodeValue: m.Node,
+	}
+	writeProblemBody(w, http.StatusConflict, codeOnboardingMismatch, p)
 }
 
 // detachedError is serverError for work that ran detached from its

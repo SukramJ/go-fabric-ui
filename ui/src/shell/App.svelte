@@ -49,6 +49,7 @@
   import ControllerNode from "../lib/pages/controller/Node.svelte";
   import ControllerSettings from "../lib/pages/controller/Settings.svelte";
   import ControllerDiagnostics from "../lib/pages/controller/Diagnostics.svelte";
+  import ControllerInventory from "../lib/pages/controller/OnboardingInventory.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import NodeCreateDialog from "./NodeCreateDialog.svelte";
   import Toaster from "./Toaster.svelte";
@@ -65,7 +66,7 @@
   const controller = ui.controller;
 
   const nodePages = { status: NodeStatus, pair: NodePair, fabrics: NodeFabrics, selection: NodeSelection, endpoints: NodeEndpoints, surface: NodeSurface, diagnostics: NodeDiagnostics, topology: NodeTopology };
-  const controllerPages = { nodes: ControllerNodes, commission: ControllerCommission, settings: ControllerSettings, diagnostics: ControllerDiagnostics };
+  const controllerPages = { nodes: ControllerNodes, commission: ControllerCommission, settings: ControllerSettings, diagnostics: ControllerDiagnostics, inventory: ControllerInventory };
 
   // null until probed: whether GET /node/status answered (not 404).
   let nodeServed = $state<boolean | null>(null);
@@ -155,6 +156,11 @@
   });
   const controllerTabs = $derived([
     { key: "nodes", label: t("controller.tab.nodes"), href: ui.routes.controllerNodes },
+    // The onboarding inventory (0.13.0), while the host serves it; the
+    // page itself says so when its route is opened.
+    ...(ui.controller.status?.capabilities.onboarding_codes
+      ? [{ key: "inventory", label: t("controller.tab.inventory"), href: ui.routes.controllerInventory }]
+      : []),
     { key: "commission", label: t("controller.tab.commission"), href: ui.routes.controllerCommission },
     { key: "settings", label: t("controller.tab.settings"), href: ui.routes.controllerSettings },
     // Hidden while the source serves no diagnostics (0.9.0); the page

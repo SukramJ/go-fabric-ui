@@ -318,6 +318,24 @@ func (e MdnsFindingSeverity) Valid() bool {
 	}
 }
 
+// Defines values for OnboardingSource.
+const (
+	OnboardingSourceAttached OnboardingSource = "attached"
+	OnboardingSourcePaired   OnboardingSource = "paired"
+)
+
+// Valid indicates whether the value is a known member of the OnboardingSource enum.
+func (e OnboardingSource) Valid() bool {
+	switch e {
+	case OnboardingSourceAttached:
+		return true
+	case OnboardingSourcePaired:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PendingUpdateStatus.
 const (
 	PendingUpdateStatusInProgress PendingUpdateStatus = "in_progress"
@@ -356,24 +374,26 @@ func (e PingResultMethod) Valid() bool {
 
 // Defines values for ProblemCode.
 const (
-	ProblemCodeBadRequest           ProblemCode = "bad_request"
-	ProblemCodeConflict             ProblemCode = "conflict"
-	ProblemCodeForbidden            ProblemCode = "forbidden"
-	ProblemCodeHostNotAllowed       ProblemCode = "host_not_allowed"
-	ProblemCodeIcdMultiAdmin        ProblemCode = "icd_multi_admin"
-	ProblemCodeInternal             ProblemCode = "internal"
-	ProblemCodeMethodNotAllowed     ProblemCode = "method_not_allowed"
-	ProblemCodeNodeError            ProblemCode = "node_error"
-	ProblemCodeNodeIsDefault        ProblemCode = "node_is_default"
-	ProblemCodeNodeLimit            ProblemCode = "node_limit"
-	ProblemCodeNotFound             ProblemCode = "not_found"
-	ProblemCodeNotImplemented       ProblemCode = "not_implemented"
-	ProblemCodeOriginNotAllowed     ProblemCode = "origin_not_allowed"
-	ProblemCodePayloadTooLarge      ProblemCode = "payload_too_large"
-	ProblemCodeServiceUnready       ProblemCode = "service_unready"
-	ProblemCodeTermsRequired        ProblemCode = "terms_required"
-	ProblemCodeTooManyStreams       ProblemCode = "too_many_streams"
-	ProblemCodeUnsupportedMediaType ProblemCode = "unsupported_media_type"
+	ProblemCodeBadRequest             ProblemCode = "bad_request"
+	ProblemCodeConflict               ProblemCode = "conflict"
+	ProblemCodeForbidden              ProblemCode = "forbidden"
+	ProblemCodeHostNotAllowed         ProblemCode = "host_not_allowed"
+	ProblemCodeIcdMultiAdmin          ProblemCode = "icd_multi_admin"
+	ProblemCodeInternal               ProblemCode = "internal"
+	ProblemCodeMethodNotAllowed       ProblemCode = "method_not_allowed"
+	ProblemCodeNodeError              ProblemCode = "node_error"
+	ProblemCodeNodeIsDefault          ProblemCode = "node_is_default"
+	ProblemCodeNodeLimit              ProblemCode = "node_limit"
+	ProblemCodeNotFound               ProblemCode = "not_found"
+	ProblemCodeNotImplemented         ProblemCode = "not_implemented"
+	ProblemCodeOnboardingCodeInvalid  ProblemCode = "onboarding_code_invalid"
+	ProblemCodeOnboardingCodeMismatch ProblemCode = "onboarding_code_mismatch"
+	ProblemCodeOriginNotAllowed       ProblemCode = "origin_not_allowed"
+	ProblemCodePayloadTooLarge        ProblemCode = "payload_too_large"
+	ProblemCodeServiceUnready         ProblemCode = "service_unready"
+	ProblemCodeTermsRequired          ProblemCode = "terms_required"
+	ProblemCodeTooManyStreams         ProblemCode = "too_many_streams"
+	ProblemCodeUnsupportedMediaType   ProblemCode = "unsupported_media_type"
 )
 
 // Valid indicates whether the value is a known member of the ProblemCode enum.
@@ -403,6 +423,10 @@ func (e ProblemCode) Valid() bool {
 		return true
 	case ProblemCodeNotImplemented:
 		return true
+	case ProblemCodeOnboardingCodeInvalid:
+		return true
+	case ProblemCodeOnboardingCodeMismatch:
+		return true
 	case ProblemCodeOriginNotAllowed:
 		return true
 	case ProblemCodePayloadTooLarge:
@@ -414,6 +438,27 @@ func (e ProblemCode) Valid() bool {
 	case ProblemCodeTooManyStreams:
 		return true
 	case ProblemCodeUnsupportedMediaType:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProblemField.
+const (
+	ProblemFieldDiscriminator ProblemField = "discriminator"
+	ProblemFieldProduct       ProblemField = "product"
+	ProblemFieldVendor        ProblemField = "vendor"
+)
+
+// Valid indicates whether the value is a known member of the ProblemField enum.
+func (e ProblemField) Valid() bool {
+	switch e {
+	case ProblemFieldDiscriminator:
+		return true
+	case ProblemFieldProduct:
+		return true
+	case ProblemFieldVendor:
 		return true
 	default:
 		return false
@@ -963,6 +1008,9 @@ type ControllerCapabilities struct {
 	// Diagnostics The source serves the controller's diagnostics (0.9.0): `GET /controller/diagnostics`, `/controller/mdns` and `/controller/events` answer, the stream carries controller_diagnostic_event. False: the three routes answer 501.
 	Diagnostics bool `json:"diagnostics"`
 
+	// OnboardingCodes The source serves the onboarding inventory and the host has an admin check (0.13.0); false: `GET /controller/inventory` and `PUT`/`DELETE /controller/nodes/{id}/onboarding-code` answer 501.
+	OnboardingCodes bool `json:"onboarding_codes"`
+
 	// Ota The controller runs an OTA provider; the update routes answer.
 	Ota bool `json:"ota"`
 }
@@ -1007,6 +1055,9 @@ type ControllerNodeSummary struct {
 	CommissionedAt *time.Time      `json:"commissioned_at,omitempty"`
 	Connection     ConnectionState `json:"connection"`
 	Disabled       bool            `json:"disabled"`
+
+	// HasOnboardingCode An onboarding code is stored for the node (0.13.0); absent when the inventory is not served. Decommissioning the node deletes it.
+	HasOnboardingCode *bool `json:"has_onboarding_code,omitempty"`
 
 	// Icd The node has ICD Management.
 	Icd                bool    `json:"icd"`
@@ -1469,6 +1520,67 @@ type Occupancy struct {
 	Reserved int `json:"reserved"`
 }
 
+// OnboardingChecks The identity checks an attached code passed; a check runs only when the node's side of it is known. All false for a paired code. No check proves the passcode or the unit.
+type OnboardingChecks struct {
+	// Discriminator The code's discriminator equals the one the node advertised while commissionable.
+	Discriminator bool `json:"discriminator"`
+
+	// Product The code's product id equals the node's; compared only together with the vendor id.
+	Product bool `json:"product"`
+
+	// Vendor The code's vendor id equals the node's.
+	Vendor bool `json:"vendor"`
+}
+
+// OnboardingCodeRequest defines model for OnboardingCodeRequest.
+type OnboardingCodeRequest struct {
+	// Code Secret. A QR code's text (`MT:…`) or a manual pairing code; separators in a manual code are ignored.
+	Code string `json:"code"`
+}
+
+// OnboardingInventory The commissioned nodes with their kept onboarding codes (0.13.0, go-fabric `controller.Controller.Inventory`).
+type OnboardingInventory struct {
+	// Entries By node id, as `GET /controller/nodes`.
+	Entries []OnboardingInventoryEntry `json:"entries"`
+}
+
+// OnboardingInventoryEntry defines model for OnboardingInventoryEntry.
+type OnboardingInventoryEntry struct {
+	// Checks The identity checks an attached code passed; a check runs only when the node's side of it is known. All false for a paired code. No check proves the passcode or the unit.
+	Checks *OnboardingChecks `json:"checks,omitempty"`
+
+	// HasCode A code is stored; the fields below are absent without one.
+	HasCode bool `json:"has_code"`
+
+	// ManualCode Secret. The manual pairing code, 11 or 21 digits without separators.
+	ManualCode *string `json:"manual_code,omitempty"`
+
+	// NodeIDHex The node id
+	NodeIDHex string `json:"node_id_hex"`
+
+	// NodeLabel The node's NodeLabel; absent when unset or not read yet.
+	NodeLabel *string `json:"node_label,omitempty"`
+
+	// ProductID Absent when unknown.
+	ProductID   *int    `json:"product_id,omitempty"`
+	ProductName *string `json:"product_name,omitempty"`
+
+	// QrCode Secret. The QR code's text (`MT:…`), drawn by the page; absent when the stored code is a manual pairing code, from which no QR code is made up.
+	QrCode       *string `json:"qr_code,omitempty"`
+	SerialNumber *string `json:"serial_number,omitempty"`
+
+	// Source `paired`: the device accepted the code's passcode at commissioning. `attached`: added afterwards, its passcode unproven.
+	Source   *OnboardingSource `json:"source,omitempty"`
+	StoredAt *time.Time        `json:"stored_at,omitempty"`
+
+	// VendorID Absent when unknown.
+	VendorID   *int    `json:"vendor_id,omitempty"`
+	VendorName *string `json:"vendor_name,omitempty"`
+}
+
+// OnboardingSource `paired`: the device accepted the code's passcode at commissioning. `attached`: added afterwards, its passcode unproven.
+type OnboardingSource string
+
 // PendingUpdate defines model for PendingUpdate.
 type PendingUpdate struct {
 	Length     *int64     `json:"length,omitempty"`
@@ -1530,13 +1642,22 @@ type Problem struct {
 	Acknowledgements *int        `json:"acknowledgements,omitempty"`
 	Code             ProblemCode `json:"code"`
 
+	// CodeValue onboarding_code_mismatch (0.13.0): the code's value of the field. For the discriminator of a manual pairing code, its 4 bits.
+	CodeValue *int `json:"code_value,omitempty"`
+
 	// Deadline terms_required (0.8.0): the device's TCUpdateDeadline in Matter epoch seconds (from 2000-01-01T00:00:00Z), by which a commissioned device expects an updated acceptance; null when the attribute is null.
 	Deadline *int64  `json:"deadline,omitempty"`
 	Detail   *string `json:"detail,omitempty"`
-	Instance *string `json:"instance,omitempty"`
-	Status   int     `json:"status"`
-	Title    string  `json:"title"`
-	Type     string  `json:"type"`
+
+	// Field onboarding_code_mismatch (0.13.0): the identity field in which the code differs from the node (go-fabric client.OnboardingMismatchError.Field).
+	Field    *ProblemField `json:"field,omitempty"`
+	Instance *string       `json:"instance,omitempty"`
+
+	// NodeValue onboarding_code_mismatch (0.13.0): the node's value — its vendor or product id, or the discriminator it advertised, cut to its upper 4 bits when the code is a manual one.
+	NodeValue *int   `json:"node_value,omitempty"`
+	Status    int    `json:"status"`
+	Title     string `json:"title"`
+	Type      string `json:"type"`
 
 	// Version terms_required (0.8.0): the device's TCMinRequiredVersion, the lowest version an acknowledgement has to name (go-fabric commissioner.TermsRequiredError.Version).
 	Version *int `json:"version,omitempty"`
@@ -1544,6 +1665,9 @@ type Problem struct {
 
 // ProblemCode defines model for Problem.Code.
 type ProblemCode string
+
+// ProblemField onboarding_code_mismatch (0.13.0): the identity field in which the code differs from the node (go-fabric client.OnboardingMismatchError.Field).
+type ProblemField string
 
 // ReadRequest defines model for ReadRequest.
 type ReadRequest struct {
@@ -1884,6 +2008,9 @@ type RegisterNodeIcdJSONRequestBody = IcdRegisterRequest
 // UnregisterNodeIcdJSONRequestBody defines body for UnregisterNodeIcd for application/json ContentType.
 type UnregisterNodeIcdJSONRequestBody = IcdUnregisterRequest
 
+// SetNodeOnboardingCodeJSONRequestBody defines body for SetNodeOnboardingCode for application/json ContentType.
+type SetNodeOnboardingCodeJSONRequestBody = OnboardingCodeRequest
+
 // OpenNodeWindowJSONRequestBody defines body for OpenNodeWindow for application/json ContentType.
 type OpenNodeWindowJSONRequestBody = NodeWindowRequest
 
@@ -1916,6 +2043,9 @@ type ServerInterface interface {
 	// SetFabricLabel The controller's fabric label, pushed to every node.
 	// (PUT /controller/fabric/label)
 	SetFabricLabel(w http.ResponseWriter, r *http.Request)
+	// GetOnboardingInventory Every commissioned node with the onboarding code kept for it (0.13.0). The codes are secrets.
+	// (GET /controller/inventory)
+	GetOnboardingInventory(w http.ResponseWriter, r *http.Request)
 	// GetControllerMdns What keeps the controller's DNS-SD from working (0.9.0).
 	// (GET /controller/mdns)
 	GetControllerMdns(w http.ResponseWriter, r *http.Request)
@@ -1985,6 +2115,12 @@ type ServerInterface interface {
 	// InterviewNode Read the whole node again, without data version filters.
 	// (POST /controller/nodes/{id}/interview)
 	InterviewNode(w http.ResponseWriter, r *http.Request, id NodeID)
+	// ClearNodeOnboardingCode Remove the node's stored onboarding code (0.13.0); 204 also when it had none.
+	// (DELETE /controller/nodes/{id}/onboarding-code)
+	ClearNodeOnboardingCode(w http.ResponseWriter, r *http.Request, id NodeID)
+	// SetNodeOnboardingCode Attach the code printed on the device to a commissioned node (0.13.0); it replaces a stored one. The code is validated and compared with what the node is known to be; its passcode stays unproven.
+	// (PUT /controller/nodes/{id}/onboarding-code)
+	SetNodeOnboardingCode(w http.ResponseWriter, r *http.Request, id NodeID)
 	// PingNode Whether the node answers a Matter read, and how fast (0.5.0).
 	// (POST /controller/nodes/{id}/ping)
 	PingNode(w http.ResponseWriter, r *http.Request, id NodeID)
@@ -2203,6 +2339,20 @@ func (siw *ServerInterfaceWrapper) SetFabricLabel(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SetFabricLabel(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetOnboardingInventory operation middleware
+func (siw *ServerInterfaceWrapper) GetOnboardingInventory(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetOnboardingInventory(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2864,6 +3014,58 @@ func (siw *ServerInterfaceWrapper) InterviewNode(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// ClearNodeOnboardingCode operation middleware
+func (siw *ServerInterfaceWrapper) ClearNodeOnboardingCode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id NodeID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClearNodeOnboardingCode(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetNodeOnboardingCode operation middleware
+func (siw *ServerInterfaceWrapper) SetNodeOnboardingCode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id NodeID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetNodeOnboardingCode(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PingNode operation middleware
 func (siw *ServerInterfaceWrapper) PingNode(w http.ResponseWriter, r *http.Request) {
 
@@ -3167,8 +3369,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/status", wrapper.GetControllerStatus)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes", wrapper.ListControllerNodes)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/inventory", wrapper.GetOnboardingInventory)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/controller/nodes/{id}", wrapper.DecommissionNode)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}", wrapper.GetControllerNode)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/controller/nodes/{id}/onboarding-code", wrapper.ClearNodeOnboardingCode)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/controller/nodes/{id}/onboarding-code", wrapper.SetNodeOnboardingCode)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}/endpoints/{ep}", wrapper.GetNodeEndpoint)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}/endpoints/{ep}/clusters/{cluster_hex}", wrapper.GetNodeCluster)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/controller/nodes/{id}/events", wrapper.ListNodeEvents)
@@ -3919,6 +4124,71 @@ func (response SetFabricLabel500ApplicationProblemPlusJSONResponse) VisitSetFabr
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOnboardingInventoryRequestObject struct {
+}
+
+type GetOnboardingInventoryResponseObject interface {
+	VisitGetOnboardingInventoryResponse(w http.ResponseWriter) error
+}
+
+type GetOnboardingInventory200JSONResponse OnboardingInventory
+
+func (response GetOnboardingInventory200JSONResponse) VisitGetOnboardingInventoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOnboardingInventory403ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetOnboardingInventory403ApplicationProblemPlusJSONResponse) VisitGetOnboardingInventoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOnboardingInventory500ApplicationProblemPlusJSONResponse Problem
+
+func (response GetOnboardingInventory500ApplicationProblemPlusJSONResponse) VisitGetOnboardingInventoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOnboardingInventory501ApplicationProblemPlusJSONResponse Problem
+
+func (response GetOnboardingInventory501ApplicationProblemPlusJSONResponse) VisitGetOnboardingInventoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(501)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6382,6 +6652,231 @@ func (response InterviewNode502ApplicationProblemPlusJSONResponse) VisitIntervie
 	return err
 }
 
+type ClearNodeOnboardingCodeRequestObject struct {
+	ID NodeID `json:"id"`
+}
+
+type ClearNodeOnboardingCodeResponseObject interface {
+	VisitClearNodeOnboardingCodeResponse(w http.ResponseWriter) error
+}
+
+type ClearNodeOnboardingCode204Response struct {
+}
+
+func (response ClearNodeOnboardingCode204Response) VisitClearNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ClearNodeOnboardingCode400ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response ClearNodeOnboardingCode400ApplicationProblemPlusJSONResponse) VisitClearNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClearNodeOnboardingCode403ApplicationProblemPlusJSONResponse Problem
+
+func (response ClearNodeOnboardingCode403ApplicationProblemPlusJSONResponse) VisitClearNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClearNodeOnboardingCode404ApplicationProblemPlusJSONResponse Problem
+
+func (response ClearNodeOnboardingCode404ApplicationProblemPlusJSONResponse) VisitClearNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClearNodeOnboardingCode500ApplicationProblemPlusJSONResponse Problem
+
+func (response ClearNodeOnboardingCode500ApplicationProblemPlusJSONResponse) VisitClearNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClearNodeOnboardingCode501ApplicationProblemPlusJSONResponse Problem
+
+func (response ClearNodeOnboardingCode501ApplicationProblemPlusJSONResponse) VisitClearNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(501)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeOnboardingCodeRequestObject struct {
+	ID   NodeID `json:"id"`
+	Body *SetNodeOnboardingCodeJSONRequestBody
+}
+
+type SetNodeOnboardingCodeResponseObject interface {
+	VisitSetNodeOnboardingCodeResponse(w http.ResponseWriter) error
+}
+
+type SetNodeOnboardingCode200JSONResponse OnboardingInventoryEntry
+
+func (response SetNodeOnboardingCode200JSONResponse) VisitSetNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeOnboardingCode400ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response SetNodeOnboardingCode400ApplicationProblemPlusJSONResponse) VisitSetNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeOnboardingCode403ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeOnboardingCode403ApplicationProblemPlusJSONResponse) VisitSetNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeOnboardingCode404ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeOnboardingCode404ApplicationProblemPlusJSONResponse) VisitSetNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeOnboardingCode409ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeOnboardingCode409ApplicationProblemPlusJSONResponse) VisitSetNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeOnboardingCode413ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeOnboardingCode413ApplicationProblemPlusJSONResponse) VisitSetNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeOnboardingCode415ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeOnboardingCode415ApplicationProblemPlusJSONResponse) VisitSetNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(415)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeOnboardingCode500ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeOnboardingCode500ApplicationProblemPlusJSONResponse) VisitSetNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNodeOnboardingCode501ApplicationProblemPlusJSONResponse Problem
+
+func (response SetNodeOnboardingCode501ApplicationProblemPlusJSONResponse) VisitSetNodeOnboardingCodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(501)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PingNodeRequestObject struct {
 	ID NodeID `json:"id"`
 }
@@ -7203,6 +7698,9 @@ type StrictServerInterface interface {
 	// SetFabricLabel The controller's fabric label, pushed to every node.
 	// (PUT /controller/fabric/label)
 	SetFabricLabel(ctx context.Context, request SetFabricLabelRequestObject) (SetFabricLabelResponseObject, error)
+	// GetOnboardingInventory Every commissioned node with the onboarding code kept for it (0.13.0). The codes are secrets.
+	// (GET /controller/inventory)
+	GetOnboardingInventory(ctx context.Context, request GetOnboardingInventoryRequestObject) (GetOnboardingInventoryResponseObject, error)
 	// GetControllerMdns What keeps the controller's DNS-SD from working (0.9.0).
 	// (GET /controller/mdns)
 	GetControllerMdns(ctx context.Context, request GetControllerMdnsRequestObject) (GetControllerMdnsResponseObject, error)
@@ -7272,6 +7770,12 @@ type StrictServerInterface interface {
 	// InterviewNode Read the whole node again, without data version filters.
 	// (POST /controller/nodes/{id}/interview)
 	InterviewNode(ctx context.Context, request InterviewNodeRequestObject) (InterviewNodeResponseObject, error)
+	// ClearNodeOnboardingCode Remove the node's stored onboarding code (0.13.0); 204 also when it had none.
+	// (DELETE /controller/nodes/{id}/onboarding-code)
+	ClearNodeOnboardingCode(ctx context.Context, request ClearNodeOnboardingCodeRequestObject) (ClearNodeOnboardingCodeResponseObject, error)
+	// SetNodeOnboardingCode Attach the code printed on the device to a commissioned node (0.13.0); it replaces a stored one. The code is validated and compared with what the node is known to be; its passcode stays unproven.
+	// (PUT /controller/nodes/{id}/onboarding-code)
+	SetNodeOnboardingCode(ctx context.Context, request SetNodeOnboardingCodeRequestObject) (SetNodeOnboardingCodeResponseObject, error)
 	// PingNode Whether the node answers a Matter read, and how fast (0.5.0).
 	// (POST /controller/nodes/{id}/ping)
 	PingNode(ctx context.Context, request PingNodeRequestObject) (PingNodeResponseObject, error)
@@ -7550,6 +8054,30 @@ func (sh *strictHandler) SetFabricLabel(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SetFabricLabelResponseObject); ok {
 		if err := validResponse.VisitSetFabricLabelResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetOnboardingInventory operation middleware
+func (sh *strictHandler) GetOnboardingInventory(w http.ResponseWriter, r *http.Request) {
+	var request GetOnboardingInventoryRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetOnboardingInventory(ctx, request.(GetOnboardingInventoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetOnboardingInventory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetOnboardingInventoryResponseObject); ok {
+		if err := validResponse.VisitGetOnboardingInventoryResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -8211,6 +8739,65 @@ func (sh *strictHandler) InterviewNode(w http.ResponseWriter, r *http.Request, i
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(InterviewNodeResponseObject); ok {
 		if err := validResponse.VisitInterviewNodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ClearNodeOnboardingCode operation middleware
+func (sh *strictHandler) ClearNodeOnboardingCode(w http.ResponseWriter, r *http.Request, id NodeID) {
+	var request ClearNodeOnboardingCodeRequestObject
+
+	request.ID = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClearNodeOnboardingCode(ctx, request.(ClearNodeOnboardingCodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClearNodeOnboardingCode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClearNodeOnboardingCodeResponseObject); ok {
+		if err := validResponse.VisitClearNodeOnboardingCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetNodeOnboardingCode operation middleware
+func (sh *strictHandler) SetNodeOnboardingCode(w http.ResponseWriter, r *http.Request, id NodeID) {
+	var request SetNodeOnboardingCodeRequestObject
+
+	request.ID = id
+
+	var body SetNodeOnboardingCodeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetNodeOnboardingCode(ctx, request.(SetNodeOnboardingCodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetNodeOnboardingCode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetNodeOnboardingCodeResponseObject); ok {
+		if err := validResponse.VisitSetNodeOnboardingCodeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

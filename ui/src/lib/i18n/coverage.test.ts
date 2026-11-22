@@ -20,6 +20,7 @@ import {
   type MdnsFinding,
   type PairingStep,
   type PendingUpdate,
+  type Problem,
   type SurfaceDecision,
   type SurfaceElement,
 } from "../api/client";
@@ -55,7 +56,8 @@ const TEMPLATE_KEYS: Record<string, readonly (string | number)[]> = {
     "intermittently_connected",
     "thread_sleepy_end_device",
   ],
-  "controller.settings.cap.": of<keyof ControllerCapabilities>({ ota: true, credentials: true, ble: true, diagnostics: true }),
+  "controller.inventory.mismatch_": of<NonNullable<Problem["field"]>>({ vendor: true, product: true, discriminator: true }),
+  "controller.settings.cap.": of<keyof ControllerCapabilities>({ ota: true, credentials: true, ble: true, diagnostics: true, onboarding_codes: true }),
   "controller.updates.status.": of<PendingUpdate["status"]>({ queued: true, in_progress: true, stalled: true }),
   "events.priority.": of<EventRecord["priority"]>({ debug: true, info: true, critical: true }),
   "graph.kind.": TOPOLOGY_KINDS,
@@ -165,7 +167,7 @@ describe("catalogues", () => {
     const icdModes: Record<NonNullable<IcdState["operating_mode"]>, true> = { sit: true, lit: true };
     const updates: Record<PendingUpdate["status"], true> = { queued: true, in_progress: true, stalled: true };
     const credentials: Record<Credential["kind"], true> = { wifi: true, thread: true };
-    const caps: Record<keyof ControllerCapabilities, true> = { ota: true, credentials: true, ble: true, diagnostics: true };
+    const caps: Record<keyof ControllerCapabilities, true> = { ota: true, credentials: true, ble: true, diagnostics: true, onboarding_codes: true };
     const phases: Record<PairingStep["phase"], true> = { started: true, succeeded: true, failed: true, skipped: true };
     const keys = [
       ...Object.keys(kinds).map((v) => `node.diag.kind_${v}`),

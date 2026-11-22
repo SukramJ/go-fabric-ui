@@ -40,6 +40,8 @@ export interface Routes {
   controllerSettings: string;
   /** The controller's diagnostics (contract 0.9.0). */
   controllerDiagnostics: string;
+  /** The controller's onboarding inventory (contract 0.13.0). */
+  controllerInventory: string;
   /** The prefix of one node's page; the page appends the node's 16-digit hex id. */
   controllerNode: string;
   /** The Operation page (contract 0.5.0). */
@@ -61,6 +63,7 @@ export const defaultRoutes: Routes = {
   controllerCommission: "#/controller/commission",
   controllerSettings: "#/controller/settings",
   controllerDiagnostics: "#/controller/diagnostics",
+  controllerInventory: "#/controller/inventory",
   controllerNode: "#/controller/node/",
   operation: "#/operation",
 };

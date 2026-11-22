@@ -15,13 +15,13 @@ The terms the pages use — the node family and the controller family,
 Topology versus Network, the window kinds — and the Matter terms behind
 them are defined in go-fabric's [glossary](https://sukramj.github.io/go-fabric/reference/glossary/).
 
-> **Status: `v0.10.0`** (contract 0.10.0) of
+> **Status: `v0.13.0`** (contract 0.13.0) of
 > [concept v9](https://github.com/thingfabric/go-fabric/blob/main/docs/concept-v9-fabric-ui.md).
 > Both page families: the node family (status, pairing, fabrics,
 > selection, endpoints, surface, diagnostics, topology) and the controller
 > family (nodes, commissioning, a node's endpoints, attributes, ACL,
 > bindings, window, ICD, fabrics and updates, settings, network,
-> diagnostics). The releases, one line per wave:
+> diagnostics, the onboarding inventory). The releases, one line per wave:
 >
 > - `v0.1.0`–`v0.1.3` — U1: the node family.
 > - `v0.2.0`–`v0.3.0` — U2: the controller family; the patches carry the
@@ -53,6 +53,8 @@ them are defined in go-fabric's [glossary](https://sukramj.github.io/go-fabric/r
 >   v0.24.1 in `v0.12.0`.
 > - `v0.12.1` — go-fabric v0.25.0 under its new module path
 >   `thingfabric.dev/go-fabric`.
+> - `v0.13.0` — U12: the controller family's Inventory tab — onboarding
+>   codes kept, shown, printed and attached (issue #68).
 
 ## Two artefacts, one version
 

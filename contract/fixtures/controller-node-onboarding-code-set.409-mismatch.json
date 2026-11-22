@@ -1,0 +1,27 @@
+{
+  "route": "PUT /controller/nodes/{id}/onboarding-code",
+  "request": {
+    "method": "PUT",
+    "path": "/controller/nodes/0000000000000011/onboarding-code",
+    "headers": {
+      "X-Fabric-UI": "1"
+    },
+    "body": {
+      "code": "MT:Y.K9042C00KA0648G00"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "code": "onboarding_code_mismatch",
+      "code_value": 32768,
+      "detail": "the code's product id is 0x8000, the node's is 0x8001",
+      "field": "product",
+      "instance": "/api/v1/controller/nodes/0000000000000011/onboarding-code",
+      "node_value": 32769,
+      "status": 409,
+      "title": "The code names another device",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-onboarding_code_mismatch"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "route": "GET /controller/inventory",
+  "request": {
+    "method": "GET",
+    "path": "/controller/inventory",
+    "headers": {
+      "X-Fabric-UI": "1"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "entries": [
+        {
+          "has_code": false,
+          "node_id_hex": "0000000000000011",
+          "node_label": "Kitchen",
+          "product_id": 32769,
+          "product_name": "Light",
+          "serial_number": "L-0001",
+          "vendor_id": 65521,
+          "vendor_name": "Test Vendor"
+        },
+        {
+          "checks": {
+            "discriminator": true,
+            "product": false,
+            "vendor": false
+          },
+          "has_code": true,
+          "manual_code": "34970112332",
+          "node_id_hex": "0000000000000012",
+          "product_id": 32771,
+          "product_name": "Contact Sensor",
+          "source": "attached",
+          "stored_at": "2026-10-20T08:00:00Z",
+          "vendor_id": 65521,
+          "vendor_name": "Test Vendor"
+        },
+        {
+          "checks": {
+            "discriminator": false,
+            "product": false,
+            "vendor": false
+          },
+          "has_code": true,
+          "manual_code": "34970112332",
+          "node_id_hex": "0000000000000013",
+          "product_id": 32770,
+          "product_name": "Plug",
+          "qr_code": "MT:Y.K9042C00KA0648G00",
+          "source": "paired",
+          "stored_at": "2026-10-20T08:00:00Z",
+          "vendor_id": 65521,
+          "vendor_name": "Test Vendor"
+        }
+      ]
+    }
+  }
+}

@@ -27,6 +27,10 @@ const SMOKES: Smoke[] = [
   { name: "controller settings", hash: "#/controller/settings", shows: (p) => p.getByTestId("controller-info") },
   // The controller's diagnostics (contract 0.9.0).
   { name: "controller diagnostics", hash: "#/controller/diagnostics", shows: (p) => p.getByTestId("peer-link").first() },
+  // The onboarding inventory (contract 0.13.0): the e2e server runs in
+  // token mode, where the handler serves no code (owner decision Q2), so
+  // the route shows its not-served state and the tab is hidden.
+  { name: "controller inventory", hash: "#/controller/inventory", shows: (p) => p.getByText("This host does not serve the inventory.") },
   ...["overview", "endpoints", "inventory", "events", "attributes", "acl", "bindings", "window", "icd", "fabrics", "updates"].map((tab) => ({
     name: `controller node ${tab}`,
     hash: `#/controller/node/${L}?tab=${tab}`,

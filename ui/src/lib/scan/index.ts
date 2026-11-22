@@ -92,3 +92,48 @@ export async function startScan(video: HTMLVideoElement, onCode: (payload: strin
   void tick();
   return stop;
 }
+
+/** The longer side a photograph is scaled to before jsQR reads it. */
+const PHOTO_MAX_SIDE = 1600;
+
+/**
+ * Reads an onboarding payload from a photograph (the inventory's attach
+ * dialog, contract 0.13.0): the native detector when the browser has one,
+ * else jsQR on a canvas of the image scaled to at most 1600 px on its
+ * longer side, normal and inverted. The image is decoded in the browser
+ * and uploaded nowhere. It needs no secure context: where BarcodeDetector
+ * is absent (plain HTTP), jsQR reads it. null when the image holds no
+ * onboarding payload or cannot be decoded.
+ */
+export async function decodeImage(file: Blob): Promise<string | null> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return null;
+  }
+  try {
+    const detector = await nativeDetector();
+    if (detector) {
+      try {
+        const found = (await detector.detect(bitmap)).map((r) => r.rawValue).find((v) => isPayload(v));
+        if (found) return found.trim();
+      } catch {
+        // jsQR below
+      }
+    }
+    const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const text = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: "attemptBoth" })?.data ?? null;
+    return text && isPayload(text) ? text.trim() : null;
+  } finally {
+    bitmap.close?.();
+  }
+}

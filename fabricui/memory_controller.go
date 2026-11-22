@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -177,8 +178,20 @@ type MemoryController struct {
 	// routes answer 501 and capabilities.diagnostics is false. Set it
 	// before the handler serves.
 	NoDiagnostics bool
+	// NoOnboardingCodes stands for a source that serves no onboarding
+	// inventory (contract 0.13.0): capabilities.onboarding_codes is false
+	// and the three routes answer 501. Set it before the handler serves.
+	NoOnboardingCodes bool
+	// OnboardingMismatch, when set, is what the next SetOnboardingCode
+	// answers (once) instead of storing: a test seam for go-fabric's
+	// identity checks, which the in-memory controller does not run. Set it
+	// before the handler serves, or between requests — never while a
+	// request may run, since the field is not guarded (U12-N-2).
+	OnboardingMismatch *OnboardingMismatch
 
-	mu      sync.Mutex
+	mu sync.Mutex
+	// codes are the kept onboarding codes, by node id.
+	codes   map[uint64]memoryCode
 	fabric  ControllerFabric
 	nodes   map[uint64]*memoryNode
 	creds   *MemoryCredentials
@@ -203,6 +216,7 @@ func NewMemoryController() *MemoryController {
 			NodeID: 0x000000000001B669, VendorID: 0xFFF1, Label: "fabric-ui",
 		},
 		nodes: map[uint64]*memoryNode{},
+		codes: map[uint64]memoryCode{},
 		creds: NewMemoryCredentials(nil),
 		next:  0x13,
 		subs:  NewEvents(),
@@ -234,7 +248,7 @@ func (m *MemoryController) Fabric() ControllerFabric {
 
 // Capabilities implements [ControllerSource]: a central when BLE is set.
 func (m *MemoryController) Capabilities() ControllerCapabilities {
-	return ControllerCapabilities{BLE: m.BLE, Diagnostics: !m.NoDiagnostics}
+	return ControllerCapabilities{BLE: m.BLE, Diagnostics: !m.NoDiagnostics, OnboardingCodes: !m.NoOnboardingCodes}
 }
 
 // Nodes implements [ControllerSource].
@@ -276,7 +290,19 @@ func (m *MemoryController) Pair(_ context.Context, code string, o PairOptions) (
 		return nil, ErrNoDevice
 	}
 	report(memoryStepDiscovery, "succeeded")
-	return m.commission(o, report)
+	n, err := m.commission(o, report)
+	if err == nil {
+		// Kept as go-fabric's Config.KeepOnboardingCodes keeps it: the
+		// device accepted the code's passcode.
+		c := memoryCode{manual: memoryManualCode, source: OnboardingPaired, storedAt: memoryTime}
+		if code == memoryQRCode {
+			c.qr = memoryQRCode
+		}
+		m.mu.Lock()
+		m.codes[n.ID()] = c
+		m.mu.Unlock()
+	}
+	return n, err
 }
 
 // The steps a memory commissioning reports: go-fabric's own names before
@@ -425,8 +451,102 @@ func (m *MemoryController) Decommission(_ context.Context, id uint64) error {
 		return ErrNodeNotFound
 	}
 	delete(m.nodes, id)
+	delete(m.codes, id)
 	m.mu.Unlock()
 	m.publish(ControllerEvent{Type: EventNodeRemoved, Node: id})
+	return nil
+}
+
+// memoryCode is a node's kept onboarding code.
+type memoryCode struct {
+	qr, manual string
+	source     OnboardingSource
+	checks     OnboardingChecks
+	storedAt   time.Time
+}
+
+// memoryQRShape is the shape of a QR code's text, as the page's scan
+// module accepts it (ui/src/lib/scan/index.ts, isPayload).
+var memoryQRShape = regexp.MustCompile(`^MT:[0-9A-Z.-]+$`)
+
+// OnboardingInventory implements [ControllerSource]: every node by id,
+// with its kept code.
+func (m *MemoryController) OnboardingInventory() []OnboardingEntry {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]OnboardingEntry, 0, len(m.nodes))
+	for _, id := range slices.Sorted(maps.Keys(m.nodes)) {
+		out = append(out, m.entryLocked(id))
+	}
+	return out
+}
+
+// entryLocked is the node's inventory entry; m.mu is held.
+func (m *MemoryController) entryLocked(id uint64) OnboardingEntry {
+	b := m.nodes[id].Basic()
+	e := OnboardingEntry{
+		NodeID: id, Label: b.NodeLabel, VendorName: b.VendorName, ProductName: b.ProductName,
+		SerialNumber: b.SerialNumber, VendorID: b.VendorID, ProductID: b.ProductID,
+	}
+	if c, ok := m.codes[id]; ok {
+		e.HasCode, e.QRCode, e.ManualCode = true, NewSecretText(c.qr), NewSecretText(c.manual)
+		e.Source, e.Checks, e.StoredAt = c.source, c.checks, c.storedAt
+	}
+	return e
+}
+
+// SetOnboardingCode implements [ControllerSource]. It validates the shape
+// only — it is the test port, not a second decoder: a text of the QR
+// code's shape is a QR code (its manual form the fixed test code), 11 or
+// 21 digits after dropping every other character a manual code, anything
+// else invalid. A QR code passes all three identity checks, a manual
+// code the discriminator's, a 21-digit one also vendor and product.
+// OnboardingMismatch, when set, is answered once instead.
+func (m *MemoryController) SetOnboardingCode(_ context.Context, id uint64, code string) (OnboardingEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.nodes[id]; !ok {
+		return OnboardingEntry{}, ErrNodeNotFound
+	}
+	c := memoryCode{source: OnboardingAttached, storedAt: memoryTime}
+	text := strings.TrimSpace(code)
+	digits := strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, text)
+	switch {
+	case memoryQRShape.MatchString(text):
+		c.qr, c.manual = text, memoryManualCode
+		c.checks = OnboardingChecks{Vendor: true, Product: true, Discriminator: true}
+	case !strings.HasPrefix(text, "MT:") && (len(digits) == 11 || len(digits) == 21):
+		c.manual = digits
+		c.checks = OnboardingChecks{Discriminator: true, Vendor: len(digits) == 21, Product: len(digits) == 21}
+	default:
+		return OnboardingEntry{}, &OnboardingInvalid{Reason: "Invalid pairing code"}
+	}
+	if mm := m.OnboardingMismatch; mm != nil {
+		m.OnboardingMismatch = nil
+		e := *mm
+		return OnboardingEntry{}, &e
+	}
+	if have, ok := m.codes[id]; ok && have.source == OnboardingPaired && (have.qr == c.qr && c.qr != "" || have.qr == "" && have.manual == c.manual) {
+		// The very code the node was paired with stays paired.
+		return m.entryLocked(id), nil
+	}
+	m.codes[id] = c
+	return m.entryLocked(id), nil
+}
+
+// ClearOnboardingCode implements [ControllerSource].
+func (m *MemoryController) ClearOnboardingCode(_ context.Context, id uint64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.nodes[id]; !ok {
+		return ErrNodeNotFound
+	}
+	delete(m.codes, id)
 	return nil
 }
 

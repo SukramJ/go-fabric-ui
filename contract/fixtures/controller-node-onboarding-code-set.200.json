@@ -1,0 +1,32 @@
+{
+  "route": "PUT /controller/nodes/{id}/onboarding-code",
+  "request": {
+    "method": "PUT",
+    "path": "/controller/nodes/0000000000000012/onboarding-code",
+    "headers": {
+      "X-Fabric-UI": "1"
+    },
+    "body": {
+      "code": "3497-011-2332"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "checks": {
+        "discriminator": true,
+        "product": false,
+        "vendor": false
+      },
+      "has_code": true,
+      "manual_code": "34970112332",
+      "node_id_hex": "0000000000000012",
+      "product_id": 32771,
+      "product_name": "Contact Sensor",
+      "source": "attached",
+      "stored_at": "2026-10-20T08:00:00Z",
+      "vendor_id": 65521,
+      "vendor_name": "Test Vendor"
+    }
+  }
+}

@@ -71,6 +71,9 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
   // diagnosticEpoch moves, once per burst, on every
   // controller_diagnostic_event (0.9.0): the diagnostics page reloads.
   let diagnosticEpoch = $state(0);
+  // nodeSetEpoch moves on every node_added and node_removed: the onboarding
+  // inventory (0.13.0), which the store does not hold, reloads.
+  let nodeSetEpoch = $state(0);
 
   let unsub: (() => void) | null = null;
   // Whether the stream was connected before: connecting again resyncs.
@@ -232,6 +235,7 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
         scheduleDiagnosticReload();
         break;
       default:
+        if (ev.type === "node_added" || ev.type === "node_removed") nodeSetEpoch++;
         changed = ev.data.node_id_hex ?? null;
         revision++;
         scheduleReload();
@@ -335,6 +339,8 @@ export function createControllerStore(client: FabricClient, deps: ControllerStor
     get graphEpoch() { return graphEpoch; },
     /** Moves once per burst of controller_diagnostic_event (0.9.0); the diagnostics page reloads when it does. */
     get diagnosticEpoch() { return diagnosticEpoch; },
+    /** Moves on every node_added and node_removed; the onboarding inventory reloads when it does (0.13.0). */
+    get nodeSetEpoch() { return nodeSetEpoch; },
     loadStatus,
     loadNodes,
     loadCredentials,

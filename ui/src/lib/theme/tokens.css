@@ -386,3 +386,38 @@ html[data-skin="ha"],
     display: none !important;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────
+ * Printing (contract 0.13.0): the onboarding inventory's labels. Scoped
+ * to `html.fui-print-labels`, which the inventory page sets only while
+ * the browser prints it (beforeprint to afterprint), so no other page of
+ * this package or of a host prints differently (U12-R-01). The label
+ * block is a child of <body> (the page moves it there); under the class
+ * every other child of <body> is not displayed, so the labels start at
+ * the top of the sheet (U12-R-09). One label per node in a wrapping grid
+ * on the browser's paper size, each kept whole, black on white whatever
+ * the theme. On the screen the block is never shown.
+ * ────────────────────────────────────────────────────────────────── */
+.print-labels {
+  display: none;
+}
+@media print {
+  html.fui-print-labels body > :not(.print-labels) {
+    display: none !important;
+  }
+  html.fui-print-labels .print-labels {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(6cm, 1fr));
+    gap: 0.5cm;
+    color: #000;
+    background: #fff;
+  }
+  html.fui-print-labels .print-labels .print-label {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border: 1px solid #000;
+    padding: 0.3cm;
+    color: #000;
+    background: #fff;
+  }
+}

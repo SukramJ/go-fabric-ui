@@ -1265,6 +1265,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/controller/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every commissioned node with the onboarding code kept for it (0.13.0). The codes are secrets.
+         * @description go-fabric `controller.Controller.Inventory`: one entry per
+         *     commissioned node, by node id as `GET /controller/nodes`, with the
+         *     onboarding code kept for it. A code is a secret: with it and a
+         *     factory reset anyone can commission the device. 501
+         *     `not_implemented` when the source serves no inventory or the host
+         *     has no admin check (`capabilities.onboarding_codes` false).
+         */
+        get: operations["getOnboardingInventory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/controller/nodes/{id}": {
         parameters: {
             query?: never;
@@ -1281,6 +1306,35 @@ export interface paths {
         post?: never;
         /** Decommission the node — remove our fabric from it and forget it. */
         delete: operations["decommissionNode"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/controller/nodes/{id}/onboarding-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
+                id: components["parameters"]["NodeID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Attach the code printed on the device to a commissioned node (0.13.0); it replaces a stored one. The code is validated and compared with what the node is known to be; its passcode stays unproven.
+         * @description 400 `onboarding_code_invalid` when the text is no onboarding code
+         *     (`detail` says why and never holds the code); 409
+         *     `onboarding_code_mismatch` when the code names another device
+         *     (`field`, `code_value`, `node_value`; nothing was stored); 409
+         *     `conflict` when the node is no longer commissioned. 501
+         *     `not_implemented` as `GET /controller/inventory`.
+         */
+        put: operations["setNodeOnboardingCode"];
+        post?: never;
+        /** Remove the node's stored onboarding code (0.13.0); 204 also when it had none. */
+        delete: operations["clearNodeOnboardingCode"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2026,7 +2080,7 @@ export interface components {
             detail?: string;
             instance?: string;
             /** @enum {string} */
-            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default" | "terms_required" | "method_not_allowed" | "too_many_streams" | "unsupported_media_type" | "host_not_allowed" | "origin_not_allowed" | "icd_multi_admin";
+            code: "bad_request" | "forbidden" | "conflict" | "not_found" | "service_unready" | "internal" | "payload_too_large" | "node_error" | "not_implemented" | "node_limit" | "node_is_default" | "terms_required" | "method_not_allowed" | "too_many_streams" | "unsupported_media_type" | "host_not_allowed" | "origin_not_allowed" | "icd_multi_admin" | "onboarding_code_invalid" | "onboarding_code_mismatch";
             /** @description terms_required (0.8.0): the device's TCMinRequiredVersion, the lowest version an acknowledgement has to name (go-fabric commissioner.TermsRequiredError.Version). */
             version?: number;
             /** @description terms_required (0.8.0): the acknowledgement bits the device requires; null, since no device attribute names them — the terms the user accepts set them. */
@@ -2036,6 +2090,15 @@ export interface components {
              * @description terms_required (0.8.0): the device's TCUpdateDeadline in Matter epoch seconds (from 2000-01-01T00:00:00Z), by which a commissioned device expects an updated acceptance; null when the attribute is null.
              */
             deadline?: number | null;
+            /**
+             * @description onboarding_code_mismatch (0.13.0): the identity field in which the code differs from the node (go-fabric client.OnboardingMismatchError.Field).
+             * @enum {string}
+             */
+            field?: "vendor" | "product" | "discriminator";
+            /** @description onboarding_code_mismatch (0.13.0): the code's value of the field. For the discriminator of a manual pairing code, its 4 bits. */
+            code_value?: number;
+            /** @description onboarding_code_mismatch (0.13.0): the node's value — its vendor or product id, or the discriminator it advertised, cut to its upper 4 bits when the code is a manual one. */
+            node_value?: number;
         };
         Status: {
             enabled: boolean;
@@ -2825,6 +2888,8 @@ export interface components {
             admin?: boolean;
         };
         ControllerCapabilities: {
+            /** @description The source serves the onboarding inventory and the host has an admin check (0.13.0); false: `GET /controller/inventory` and `PUT`/`DELETE /controller/nodes/{id}/onboarding-code` answer 501. */
+            onboarding_codes: boolean;
             /** @description The source serves the controller's diagnostics (0.9.0): `GET /controller/diagnostics`, `/controller/mdns` and `/controller/events` answer, the stream carries controller_diagnostic_event. False: the three routes answer 501. */
             diagnostics: boolean;
             /** @description The controller runs an OTA provider; the update routes answer. */
@@ -2909,9 +2974,57 @@ export interface components {
             commissioned_at?: string;
             /** @description The auto-subscribe setting, not the live subscription (`subscription_active`) (0.10.0). */
             auto_subscribe?: boolean;
+            /** @description An onboarding code is stored for the node (0.13.0); absent when the inventory is not served. Decommissioning the node deletes it. */
+            has_onboarding_code?: boolean;
         };
         ControllerNodeList: {
             nodes: components["schemas"]["ControllerNodeSummary"][];
+        };
+        /** @description The commissioned nodes with their kept onboarding codes (0.13.0, go-fabric `controller.Controller.Inventory`). */
+        OnboardingInventory: {
+            /** @description By node id, as `GET /controller/nodes`. */
+            entries: components["schemas"]["OnboardingInventoryEntry"][];
+        };
+        OnboardingInventoryEntry: {
+            /** @description The node id */
+            node_id_hex: string;
+            /** @description The node's NodeLabel; absent when unset or not read yet. */
+            node_label?: string;
+            /** @description Absent when unknown. */
+            vendor_id?: number;
+            vendor_name?: string;
+            /** @description Absent when unknown. */
+            product_id?: number;
+            product_name?: string;
+            serial_number?: string;
+            /** @description A code is stored; the fields below are absent without one. */
+            has_code: boolean;
+            /** @description Secret. The QR code's text (`MT:…`), drawn by the page; absent when the stored code is a manual pairing code, from which no QR code is made up. */
+            qr_code?: string;
+            /** @description Secret. The manual pairing code, 11 or 21 digits without separators. */
+            manual_code?: string;
+            source?: components["schemas"]["OnboardingSource"];
+            checks?: components["schemas"]["OnboardingChecks"];
+            /** Format: date-time */
+            stored_at?: string;
+        };
+        /**
+         * @description `paired`: the device accepted the code's passcode at commissioning. `attached`: added afterwards, its passcode unproven.
+         * @enum {string}
+         */
+        OnboardingSource: "paired" | "attached";
+        /** @description The identity checks an attached code passed; a check runs only when the node's side of it is known. All false for a paired code. No check proves the passcode or the unit. */
+        OnboardingChecks: {
+            /** @description The code's vendor id equals the node's. */
+            vendor: boolean;
+            /** @description The code's product id equals the node's; compared only together with the vendor id. */
+            product: boolean;
+            /** @description The code's discriminator equals the one the node advertised while commissionable. */
+            discriminator: boolean;
+        };
+        OnboardingCodeRequest: {
+            /** @description Secret. A QR code's text (`MT:…`) or a manual pairing code; separators in a manual code are ignored. */
+            code: string;
         };
         NodeRecord: {
             /** @description Our fabric index. */
@@ -5114,6 +5227,29 @@ export interface operations {
             500: components["responses"]["Problem"];
         };
     };
+    getOnboardingInventory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The inventory, by node id as `GET /controller/nodes`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingInventory"];
+                };
+            };
+            403: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
+        };
+    };
     getControllerNode: {
         parameters: {
             query?: never;
@@ -5166,6 +5302,67 @@ export interface operations {
             409: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
+        };
+    };
+    setNodeOnboardingCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
+                id: components["parameters"]["NodeID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description The node's entry with the stored code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingInventoryEntry"];
+                };
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            413: components["responses"]["Problem"];
+            415: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
+        };
+    };
+    clearNodeOnboardingCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The node id as 16-digit hex (`node_id_hex`); case and leading zeros are free, 1 to 16 digits. */
+                id: components["parameters"]["NodeID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The node has no stored code. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["Problem"];
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            500: components["responses"]["Problem"];
+            501: components["responses"]["Problem"];
         };
     };
     getNodeEndpoint: {

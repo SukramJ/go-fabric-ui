@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import * as pages from "./index";
 import * as root from "../index";
 import ControllerDiagnostics from "./controller/Diagnostics.svelte";
+import OnboardingInventory from "./controller/OnboardingInventory.svelte";
 
 describe("page exports", () => {
   // The name ControllerDiagnostics is the API type of the same name, which
@@ -11,5 +12,10 @@ describe("page exports", () => {
   it("export the controller's Diagnostics page as ControllerDiagnosticsPage", () => {
     expect(pages.ControllerDiagnosticsPage).toBe(ControllerDiagnostics);
     expect(root.ControllerDiagnosticsPage).toBe(ControllerDiagnostics);
+  });
+
+  it("export the controller's onboarding inventory as ControllerInventory (0.13.0)", () => {
+    expect(pages.ControllerInventory).toBe(OnboardingInventory);
+    expect(root.ControllerInventory).toBe(OnboardingInventory);
   });
 });

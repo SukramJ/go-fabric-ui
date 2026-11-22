@@ -185,7 +185,7 @@
         <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.settings.nodes")}</dt><dd>{s.node_count}</dd>
         <dt class="text-[var(--ha-secondary-text-color)]">{t("controller.settings.capabilities")}</dt>
         <dd class="flex flex-wrap gap-1">
-          {#each (["ota", "credentials", "ble", "diagnostics"] as const).filter((k) => s.capabilities[k]) as k (k)}<Badge variant="muted">{t(`controller.settings.cap.${k}`)}</Badge>{/each}
+          {#each (["ota", "credentials", "ble", "diagnostics", "onboarding_codes"] as const).filter((k) => s.capabilities[k]) as k (k)}<Badge variant="muted">{t(`controller.settings.cap.${k}`)}</Badge>{/each}
         </dd>
       </dl>
     </Card>
