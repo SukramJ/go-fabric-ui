@@ -1019,8 +1019,10 @@ anyone can commission the device. The port is
   decides admin rights (`Options.Admin`). Token mode never serves a code:
   its token is handed to whoever reaches `GET /controller/status`. False:
   the three routes answer `501 not_implemented`, `has_onboarding_code` is
-  absent, and the shell hides the tab (the page, opened by its route,
-  shows an empty state and asks no route). The boolean itself is no
+  absent, and the shell hides the tab. The page, opened by its route,
+  shows an empty state without asking the inventory once the status it
+  reads says false; before a status is loaded (a host page that loads
+  none) it asks, and shows the same state on the 501. The boolean itself is no
   secret and readable without admin rights.
 - **`GET /controller/inventory`** (`OnboardingInventory`): one entry per
   commissioned node, by node id as `GET /controller/nodes` — `node_id_hex`,
@@ -1050,9 +1052,11 @@ anyone can commission the device. The port is
   so).
 - **Kept codes.** go-fabric keeps a code only with
   `controller.Config.KeepOnboardingCodes` (off by default), for a device
-  commissioned by its code in Basic commissioning mode; a device
-  commissioned from the discovery list by its passcode has none — its row
-  shows "No code" and offers "Attach code".
+  commissioned by its code in Basic commissioning mode — not for an
+  Enhanced Commissioning Window, not for a pairing by address
+  (`PairOptions.Address`), and not when `PairOptions.Edit` replaced the
+  passcode. A device commissioned from the discovery list by its passcode
+  has none. Such a row shows "No code" and offers "Attach code".
 - **No file export.** Printing the labels and the per-row copy are the
   export of this version; a file would put every passcode outside the
   database's protection.
@@ -1060,10 +1064,11 @@ anyone can commission the device. The port is
 ## Identifiers, secrets and events of the controller family
 
 - **Secrets**: a commissioning's code and passcode, a window's passcode,
-  a credential's passphrase or dataset, and the onboarding codes of
-  `GET /controller/inventory` and `PUT
-  /controller/nodes/{id}/onboarding-code` (0.13.0) appear only in admin
-  requests and the window's and the inventory's answers; no event and no
+  a credential's passphrase or dataset, and the onboarding codes (0.13.0)
+  appear only in admin requests and in the answers of the window, of
+  `GET /controller/inventory` and the 200 of `PUT
+  /controller/nodes/{id}/onboarding-code`, which carries the node's entry
+  with its code; no event and no
   log line carries them (the tests assert it), and every answer of the
   API is `Cache-Control: no-store`.
 - **Stream** (`GET /controller/stream`): `event:` is `node_added`,

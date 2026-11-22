@@ -428,12 +428,17 @@ types of `fabricui`:
 - `ClearOnboardingCode(ctx, id) error` — nil also without a code;
   `ErrNodeNotFound` is 404, any other error 500.
 
+A source never puts the code into an error — not into a refusal's
+`Reason`, not into a wrapped store error: the handler logs the text of
+every 500, and a refusal's `Reason` is the problem's `detail`.
+
 A source states that it serves them with
 `ControllerCapabilities.OnboardingCodes`; a source of its own that keeps
 no codes leaves it false and returns nil and `ErrNotImplemented`.
 `MemoryController.NoOnboardingCodes` stands for one; the memory
 controller keeps the code a commissioning by code used, and its
-`OnboardingMismatch` makes the next attach a mismatch.
+`OnboardingMismatch` makes the next attach a mismatch — set before the
+handler serves or between requests, since the field is not guarded.
 
 What a host must do before it serves the inventory:
 
