@@ -12,11 +12,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -67,6 +69,8 @@ type ctrlSiteOptions struct {
 	log *bytes.Buffer
 	// unsetPolicy leaves the Pair template's attestation policy unset.
 	unsetPolicy bool
+	// metrics receives the controller's counters (controller.Config.Metrics).
+	metrics contract.Metrics
 }
 
 func newCtrlSite(t *testing.T) *ctrlSite {
@@ -94,6 +98,7 @@ func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
 	hooks := gofabric.NewHooks()
 	cfg := site.ControllerConfig(fabrictest.ControllerOptions{Label: "e2e", OTA: o.ota})
 	cfg.HooksFor = hooks.Wrap(cfg.HooksFor)
+	cfg.Metrics = o.metrics
 	// The network graph is the host's service: its changes are installed
 	// before controller.New, the service built after it and closed first.
 	var changes topology.Changes
@@ -1212,11 +1217,16 @@ func TestPair_ACommissioningThatHappenedIsNoFailure(t *testing.T) {
 
 // A discovered device commissioned with the template's attestation policy
 // unset is refused when its attestation fails, as the facade's Pair
-// refuses it; with the policy set to accept it is commissioned.
+// refuses it; with the policy set to accept it is commissioned. Either
+// way the commissioning goes through go-fabric's pairing pipeline
+// (Controller.PairDiscovered, go-fabric-ui#81): its start and outcome are
+// in the diagnostic trace, and the refusal is one pair.failures
+// (UR-P3-adpt-92).
 func TestEndToEnd_CommissionDiscoveredRejectsFailedAttestationByDefault(t *testing.T) {
 	for name, unset := range map[string]bool{"unset": true, "accept": false} {
 		t.Run(name, func(t *testing.T) {
-			s := newCtrlSiteWith(t, ctrlSiteOptions{unsetPolicy: unset})
+			metrics := &countingMetrics{}
+			s := newCtrlSiteWith(t, ctrlSiteOptions{unsetPolicy: unset, metrics: metrics})
 			sp, err := s.dev.Node().SetupPayload()
 			if err != nil {
 				t.Fatal(err)
@@ -1238,17 +1248,62 @@ func TestEndToEnd_CommissionDiscoveredRejectsFailedAttestationByDefault(t *testi
 				t.Fatal(err)
 			}
 			committed := len(s.ctrl.Registry().Commissioned())
+			trace := map[string]bool{}
+			for _, e := range s.src.DiagnosticEvents() {
+				if e.Kind == "pairing" {
+					trace[e.Severity+" "+e.Message] = true
+				}
+			}
+			if !trace["info Pairing started."] {
+				t.Errorf("the pairing's start is not in the trace: %v", trace)
+			}
+			failures := metrics.counter(contract.MetricPairFailures)
 			if unset {
 				if !errors.Is(commissionErr, fabricui.ErrNodeFailed) || !strings.Contains(commissionErr.Error(), "attestation") || committed != 0 {
 					t.Fatalf("error %v, %d commissioned; want the attestation refused and none", commissionErr, committed)
+				}
+				if failures != 1 {
+					t.Errorf("pair.failures %d, want 1", failures)
+				}
+				if !slices.ContainsFunc(slices.Collect(maps.Keys(trace)), func(k string) bool { return strings.HasPrefix(k, "error Pairing failed") }) {
+					t.Errorf("the failed pairing is not in the trace: %v", trace)
 				}
 				return
 			}
 			if commissionErr != nil || committed != 1 {
 				t.Fatalf("error %v, %d commissioned", commissionErr, committed)
 			}
+			if failures != 0 {
+				t.Errorf("pair.failures %d, want 0", failures)
+			}
+			if !slices.ContainsFunc(slices.Collect(maps.Keys(trace)), func(k string) bool { return strings.HasSuffix(k, " was paired.") }) {
+				t.Errorf("the paired node is not in the trace: %v", trace)
+			}
 		})
 	}
+}
+
+// countingMetrics counts the controller's counters.
+type countingMetrics struct {
+	mu       sync.Mutex
+	counters map[string]int64
+}
+
+func (m *countingMetrics) Counter(name string, delta int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.counters == nil {
+		m.counters = map[string]int64{}
+	}
+	m.counters[name] += delta
+}
+
+func (*countingMetrics) Gauge(string, int64) {}
+
+func (m *countingMetrics) counter(name string) int64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.counters[name]
 }
 
 // A device already commissioned that is commissioned again through its
