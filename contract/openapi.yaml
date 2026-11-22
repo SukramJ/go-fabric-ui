@@ -2004,7 +2004,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/UpdateConsentRequest" }
       responses:
-        "204": { description: The consent is recorded. }
+        "204": { description: "The consent is handed to the controller's update manager. A version at or below the one the node runs is not kept there (go-fabric v0.24.0): no update follows from it." }
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "404": { $ref: "#/components/responses/Problem" }

@@ -122,6 +122,11 @@ func updateEvent(e *softwareupdate.UpdateEvent) fabricui.ControllerEvent {
 }
 
 // Consent records the consent (softwareupdate.Manager.AddUpdateConsent).
+// Since go-fabric v0.24.0 the manager keeps no consent to a version at or
+// below the one the node runs and answers false, as it does for a consent
+// it keeps for a node not applicable for updates
+// (controller/softwareupdate/manager.go:2345-2354 at v0.24.1); the two are
+// not told apart, so neither is an error here.
 // A vendor or product that differs from the node's
 // (softwareupdate.ErrMismatch) is the request's error, decided before
 // any node is asked: an invalid argument, not the node's failure.
