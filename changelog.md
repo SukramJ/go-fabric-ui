@@ -7,11 +7,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [0.12.0] - 2026-11-19
 
-The review, phase 4 run 2 (`notes/review/2026-11-17/`); contract 0.12.0,
-additive over 0.11.0 (no accepted break). `docs/contract.md`
-("Versioning") lists the contract's changes for the hosts.
+The review, phase 4 run 2 (`notes/review/2026-11-17/`), with go-fabric
+v0.24.1 (decision 80); contract 0.12.0, additive over 0.11.0 (no accepted
+break). `docs/contract.md` ("Versioning") lists the contract's changes for
+the hosts.
 
 ### Hosts
+
+- **go-fabric v0.24.1** is the minimum a host builds with. It is the last
+  version under `github.com/SukramJ/go-fabric`: `go get` and
+  `go list -m -u` report the module deprecated (moved to
+  `thingfabric.dev/go-fabric` from v0.25.0). go-fabric v0.24.0's own
+  breaks and migrations (its changelog; among them the store's schema
+  `v12`) are the host's when it lifts its own pin to meet this one.
+- **`fabricui.PairOptions.CommissionTimeout`** (new): the handler sets it
+  to 600 s for a code without `timeout_seconds`. A host's own
+  `ControllerSource.Pair` that ignores it leaves the commissioning after
+  the search unbounded, as before; the adapter hands it to go-fabric's
+  `PairOptions.CommissionTimeout` on both paths.
 
 - **A proxy that replaces `Host` with a name of its own** needs that name
   in `AllowedHosts`; an unlisted name is refused on every request (403
@@ -43,6 +56,20 @@ additive over 0.11.0 (no accepted break). `docs/contract.md`
 
 ### Fixed
 
+- A discovered device is commissioned through go-fabric's
+  `Controller.PairDiscovered` (go-fabric#553), `Pair`'s own pipeline: its
+  pairing is in the trace `GET /controller/events` serves and in
+  `pair.failures`, and the adapter no longer restates the attestation
+  policy, whose unset value still rejects (#81, UR-P1-adpt-60,
+  UR-P3-adpt-92).
+- A commissioning from a code without `timeout_seconds` is bounded at
+  600 s once the device is found, after go-fabric's one-minute search
+  (go-fabric#554's `PairOptions.CommissionTimeout`; decision 71's intent,
+  decision 80).
+- The update check names the nodes of each failed product from
+  go-fabric's per-product errors (go-fabric#555) and no longer checks one
+  node per product again: one check, one `check_finished` event
+  (UR-P4-adpt-192, decision 80).
 - A discovery `value` at or above 2^31 (a vendor-specific device type)
   is no longer refused with 400 on a 32-bit host: the query parameter is
   `x-go-type: int64` (UR-P4-ctr-260).
@@ -56,9 +83,6 @@ additive over 0.11.0 (no accepted break). `docs/contract.md`
 - A node that leaves the controller's registry without a decommission
   (`Registry.Forget`, `Erase`) raises `node_removed`; a decommission and
   a peer's leave raise exactly one (UR-P4-adpt-201).
-- The update check's re-check groups nodes by the numeric
-  `SoftwareVersion`, as go-fabric does, not by the display string
-  (UR-P4-adpt-197).
 - An event epoch timestamp above the int64 range is left out
   (`epoch_ms` absent) instead of reaching the page as a negative time
   (UR-P4-ui-302).
@@ -101,6 +125,11 @@ additive over 0.11.0 (no accepted break). `docs/contract.md`
 
 ### Changed
 
+- go-fabric v0.24.1 (from v0.23.0). No go-fabric identifier the module or
+  its tests use is deprecated there, so nothing was migrated (decision
+  62). The consent route keeps answering 204 for a version at or below
+  the one the node runs, which go-fabric v0.24.0's update manager no
+  longer keeps; its description says so.
 - The comma-separated `Fields[key]` form of a `Multi` column stays
   accepted, deprecated, with no removal date; godoc and
   `docs/provider.md` no longer say "until v0.2.0" (decision 78).

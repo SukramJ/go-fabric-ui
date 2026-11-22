@@ -47,6 +47,10 @@ them are defined in go-fabric's [glossary](https://sukramj.github.io/go-fabric/r
 >   and streams, a Host check on every route, strict request bodies,
 >   `NewHandler`, stream limits; go-fabric v0.23.0; see the
 >   [changelog](changelog.md).
+> - `v0.11.0`, `v0.12.0` — review phase 4: the update check's errors per
+>   node, a discovered device commissioned through go-fabric's pairing
+>   pipeline, a code's commissioning bounded after the search; go-fabric
+>   v0.24.1 in `v0.12.0`.
 
 ## Two artefacts, one version
 
