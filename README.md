@@ -5,7 +5,7 @@
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 
 One web interface for every daemon built on
-[go-fabric](https://github.com/SukramJ/go-fabric): health, pairing codes and
+[go-fabric](https://github.com/thingfabric/go-fabric): health, pairing codes and
 the commissioning window, fabrics, which host items are exposed, endpoints
 and diagnostics on the node side; commissioning, discovery and the
 commissioned nodes on the controller side. Maintained once, embedded by
@@ -16,7 +16,7 @@ Topology versus Network, the window kinds — and the Matter terms behind
 them are defined in go-fabric's [glossary](https://sukramj.github.io/go-fabric/reference/glossary/).
 
 > **Status: `v0.10.0`** (contract 0.10.0) of
-> [concept v9](https://github.com/SukramJ/go-fabric/blob/main/docs/concept-v9-fabric-ui.md).
+> [concept v9](https://github.com/thingfabric/go-fabric/blob/main/docs/concept-v9-fabric-ui.md).
 > Both page families: the node family (status, pairing, fabrics,
 > selection, endpoints, surface, diagnostics, topology) and the controller
 > family (nodes, commissioning, a node's endpoints, attributes, ACL,
@@ -51,6 +51,8 @@ them are defined in go-fabric's [glossary](https://sukramj.github.io/go-fabric/r
 >   node, a discovered device commissioned through go-fabric's pairing
 >   pipeline, a code's commissioning bounded after the search; go-fabric
 >   v0.24.1 in `v0.12.0`.
+> - `v0.12.1` — go-fabric v0.25.0 under its new module path
+>   `thingfabric.dev/go-fabric`.
 
 ## Two artefacts, one version
 
@@ -124,7 +126,7 @@ device, is reserved to Alliance members and certified products under the
 *Connectivity Standards Alliance Trademark and Logo Usage Guidelines and
 Terms* (<https://csa-iot.org/resources/governing-documents/>; the terms are
 restated in go-fabric's
-[`licenses/NOTICE-matter.js.txt`](https://github.com/SukramJ/go-fabric/blob/main/licenses/NOTICE-matter.js.txt):
+[`licenses/NOTICE-matter.js.txt`](https://github.com/thingfabric/go-fabric/blob/main/licenses/NOTICE-matter.js.txt):
 "Only the Alliance and its members may use Alliance trademarks and logos,
 including, without limitation, the Matter trademarks and logos"). This
 project is neither, so the mark is not part of its name; the word appears

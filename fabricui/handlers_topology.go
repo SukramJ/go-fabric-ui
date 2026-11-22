@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/SukramJ/go-fabric/eligibility"
-	"github.com/SukramJ/go-fabric/node"
+	"thingfabric.dev/go-fabric/eligibility"
+	"thingfabric.dev/go-fabric/node"
 )
 
 // The kinds, states and edge kinds of the node family's graph (the

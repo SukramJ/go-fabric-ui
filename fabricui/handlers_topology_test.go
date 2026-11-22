@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SukramJ/go-fabric/node"
+	"thingfabric.dev/go-fabric/node"
 )
 
 // topologyNode3 is the sample node with a third session: a controller on

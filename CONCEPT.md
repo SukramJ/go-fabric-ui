@@ -1,6 +1,6 @@
 # Concept
 
-The design is [concept v9](https://github.com/SukramJ/go-fabric/blob/main/docs/concept-v9-fabric-ui.md)
+The design is [concept v9](https://github.com/thingfabric/go-fabric/blob/main/docs/concept-v9-fabric-ui.md)
 in go-fabric (German working paper). In short:
 
 - **Role.** One web interface for the daemons of the go-fabric family,

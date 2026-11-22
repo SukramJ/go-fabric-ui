@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SukramJ/go-fabric/node"
+	"thingfabric.dev/go-fabric/node"
 )
 
 // Ports TestMatterSetupPayload_ValidConfig_Returns200: the configured codes

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/SukramJ/go-fabric/controller/softwareupdate"
+	"thingfabric.dev/go-fabric/controller/softwareupdate"
 
 	"github.com/SukramJ/go-fabric-ui/fabricui"
 )

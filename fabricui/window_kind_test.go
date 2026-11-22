@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/SukramJ/go-fabric/node"
+	"thingfabric.dev/go-fabric/node"
 )
 
 // window_kind carries the contract's names only: go-fabric's named kinds

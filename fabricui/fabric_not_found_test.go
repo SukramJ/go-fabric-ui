@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/SukramJ/go-fabric/node"
+	"thingfabric.dev/go-fabric/node"
 )
 
 // A fabric another admin removed between the list and the removal is

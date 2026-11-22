@@ -9,8 +9,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/SukramJ/go-fabric/node"
-	"github.com/SukramJ/go-fabric/surface"
+	"thingfabric.dev/go-fabric/node"
+	"thingfabric.dev/go-fabric/surface"
 )
 
 // The report travels in go-fabric's own encoding: the fixture is

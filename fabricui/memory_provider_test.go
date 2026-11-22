@@ -10,7 +10,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/SukramJ/go-fabric/contract"
+	"thingfabric.dev/go-fabric/contract"
 )
 
 // memoryProvider is the in-memory [ExposureProvider] docs/provider.md

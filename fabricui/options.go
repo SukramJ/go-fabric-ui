@@ -14,9 +14,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/SukramJ/go-fabric/clock"
-	"github.com/SukramJ/go-fabric/node"
-	"github.com/SukramJ/go-fabric/surface"
+	"thingfabric.dev/go-fabric/clock"
+	"thingfabric.dev/go-fabric/node"
+	"thingfabric.dev/go-fabric/surface"
 )
 
 // DefaultPrefix is the path the API is mounted under when

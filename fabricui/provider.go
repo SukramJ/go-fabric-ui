@@ -8,7 +8,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/SukramJ/go-fabric/eligibility"
+	"thingfabric.dev/go-fabric/eligibility"
 )
 
 // ExposureProvider is the host's side of the selection page: which items it

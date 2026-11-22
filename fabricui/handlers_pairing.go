@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SukramJ/go-fabric/node"
+	"thingfabric.dev/go-fabric/node"
 )
 
 // Window duration bounds, Matter §11.19.8.1: 180..900 s, 0 is the 15-minute

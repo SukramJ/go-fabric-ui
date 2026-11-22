@@ -45,7 +45,7 @@ fails on a forbidden, restricted, reciprocal or unclassified licence.
 
 | Module | Licence |
 | --- | --- |
-| `github.com/SukramJ/go-fabric` | Apache-2.0 |
+| `thingfabric.dev/go-fabric` | Apache-2.0 |
 | `github.com/oapi-codegen/runtime` | Apache-2.0 |
 | `github.com/apapsch/go-jsonmerge/v2` (through the runtime) | MIT |
 | `filippo.io/nistec` | BSD-3-Clause |

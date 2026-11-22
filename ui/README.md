@@ -1,6 +1,6 @@
 # @sukramj/fabric-ui
 
-The web interface of [go-fabric](https://github.com/SukramJ/go-fabric)
+The web interface of [go-fabric](https://github.com/thingfabric/go-fabric)
 nodes as a Svelte 5 library: the node pages, the UI kit they are built
 from, design tokens named after Home Assistant's CSS variables with a theme
 bridge for an Ingress panel, the API client generated from the contract,

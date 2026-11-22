@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SukramJ/go-fabric/node"
-	"github.com/SukramJ/go-fabric/surface"
+	"thingfabric.dev/go-fabric/node"
+	"thingfabric.dev/go-fabric/surface"
 )
 
 // update rewrites the response half of every fixture a test runs from the

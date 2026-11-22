@@ -11,9 +11,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/SukramJ/go-fabric/contract"
-	"github.com/SukramJ/go-fabric/node"
-	"github.com/SukramJ/go-fabric/schema"
+	"thingfabric.dev/go-fabric/contract"
+	"thingfabric.dev/go-fabric/node"
+	"thingfabric.dev/go-fabric/schema"
 )
 
 // The node's endpoint detail: the lamp's values, its scope and the surface

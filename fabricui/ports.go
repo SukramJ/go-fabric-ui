@@ -7,8 +7,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/SukramJ/go-fabric/node"
-	"github.com/SukramJ/go-fabric/surface"
+	"thingfabric.dev/go-fabric/node"
+	"thingfabric.dev/go-fabric/surface"
 )
 
 // nodePort is what the handlers read from the node, already in the shape

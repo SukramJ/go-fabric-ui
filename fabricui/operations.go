@@ -73,7 +73,7 @@ func GoFabricVersion() string {
 		return ""
 	}
 	for _, d := range bi.Deps {
-		if d.Path == "github.com/SukramJ/go-fabric" {
+		if d.Path == "thingfabric.dev/go-fabric" {
 			if d.Replace != nil {
 				return d.Replace.Version
 			}

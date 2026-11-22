@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/SukramJ/go-fabric/node"
+	"thingfabric.dev/go-fabric/node"
 )
 
 // secondNode is the second node of the two-node tests: one fabric, no
