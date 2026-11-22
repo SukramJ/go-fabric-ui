@@ -863,12 +863,12 @@ Details the fixtures pin:
 - **Updates** (0.11.0): `POST /controller/updates/check` answers the
   updates found and, in `errors` (`UpdateCheckError`: `node_id_hex`,
   `error`), every node whose check failed; such a node is not in
-  `updates`. A check that fails as a whole is 500. go-fabric reports one
-  joined error that names no node, so the adapter asks again one node per
-  product (vendor, product and the numeric `SoftwareVersion`, as
-  go-fabric groups them; not the display string) among the nodes without an
-  update found, and gives a failure to every node of that product; each
-  such check ends with its own `check_finished` event.
+  `updates`. A check that fails as a whole is 500. go-fabric (v0.24.0)
+  names in its error each product whose check failed, with the product's
+  nodes and the cause; the adapter gives that cause to every node of the
+  product and asks no node again (0.12.0), so the check ends with one
+  `check_finished` event. In 0.11.0 the adapter asked one node per product
+  again, each such check with its own `check_finished`.
 - **Commissioning**: `{code}` or `{discovered, passcode}`, not both; a
   passcode the specification excludes is 400 (0.10.0). The optional
   `commissioning_id` (0.10.0) is echoed on every
