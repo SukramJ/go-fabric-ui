@@ -2182,6 +2182,9 @@ func (s *controllerServer) diagnosticsServed() bool {
 
 // --- onboarding inventory (contract 0.13.0) ---
 
+// maxOnboardingCode is OnboardingCodeRequest.code's maxLength.
+const maxOnboardingCode = 512
+
 // onboardingServed is capabilities.onboarding_codes: the source's
 // statement, and a host that decides admin rights. Token mode never
 // serves a passcode (owner decision Q2): its token is handed to whoever
@@ -2290,6 +2293,11 @@ func (s *controllerServer) SetNodeOnboardingCode(ctx context.Context, req api.Se
 	}
 	if req.Body == nil || strings.TrimSpace(req.Body.Code) == "" {
 		return nil, badRequest("code: empty")
+	}
+	// The contract's maxLength (U12-R-04); the generated server does not
+	// check it. The detail names the rule, never the text.
+	if utf8.RuneCountInString(req.Body.Code) > maxOnboardingCode {
+		return nil, badRequest("code: longer than %d characters", maxOnboardingCode)
 	}
 	e, err := s.src.SetOnboardingCode(ctx, id, req.Body.Code)
 	if err != nil {

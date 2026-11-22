@@ -32,7 +32,14 @@ func (s *source) OnboardingInventory() []fabricui.OnboardingEntry {
 	for i := range inv {
 		out = append(out, onboardingEntryOf(&inv[i]))
 	}
-	slices.SortFunc(out, func(a, b fabricui.OnboardingEntry) int {
+	sortByNodeID(out)
+	return out
+}
+
+// sortByNodeID orders the entries by node id, the order of the adapter's
+// Nodes and so of GET /controller/nodes (R8 of brief U12).
+func sortByNodeID(entries []fabricui.OnboardingEntry) {
+	slices.SortFunc(entries, func(a, b fabricui.OnboardingEntry) int {
 		switch {
 		case a.NodeID < b.NodeID:
 			return -1
@@ -41,7 +48,6 @@ func (s *source) OnboardingInventory() []fabricui.OnboardingEntry {
 		}
 		return 0
 	})
-	return out
 }
 
 // onboardingEntryOf is the port's entry of go-fabric's; a revealed code
@@ -84,13 +90,23 @@ func (s *source) SetOnboardingCode(_ context.Context, id uint64, code string) (f
 	if _, err := n.n.SetOnboardingCode(code); err != nil {
 		return fabricui.OnboardingEntry{}, onboardingError(err)
 	}
-	inv := s.OnboardingInventory()
+	return entryOf(s.OnboardingInventory(), id)
+}
+
+// errStoredNodeGone is a code stored on a node that a fresh inventory no
+// longer lists (decommissioned, or left without a peer address, between
+// the attach and the read). The code is stored, so the attach is no
+// "no such node"; the error is of no kind (500).
+var errStoredNodeGone = errors.New("gofabric: the code is stored, but its node is not in the inventory")
+
+// entryOf is the node's entry of a fresh inventory, after an attach.
+func entryOf(inv []fabricui.OnboardingEntry, id uint64) (fabricui.OnboardingEntry, error) {
 	for i := range inv {
 		if inv[i].NodeID == id {
 			return inv[i], nil
 		}
 	}
-	return fabricui.OnboardingEntry{}, fabricui.ErrNodeNotFound
+	return fabricui.OnboardingEntry{}, errStoredNodeGone
 }
 
 // ClearOnboardingCode implements [fabricui.ControllerSource].

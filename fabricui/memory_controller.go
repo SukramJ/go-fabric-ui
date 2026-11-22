@@ -184,7 +184,9 @@ type MemoryController struct {
 	NoOnboardingCodes bool
 	// OnboardingMismatch, when set, is what the next SetOnboardingCode
 	// answers (once) instead of storing: a test seam for go-fabric's
-	// identity checks, which the in-memory controller does not run.
+	// identity checks, which the in-memory controller does not run. Set it
+	// before the handler serves, or between requests — never while a
+	// request may run, since the field is not guarded (U12-N-2).
 	OnboardingMismatch *OnboardingMismatch
 
 	mu sync.Mutex

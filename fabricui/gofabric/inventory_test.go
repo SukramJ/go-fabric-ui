@@ -73,3 +73,30 @@ func TestOnboarding_OffByDefault(t *testing.T) {
 		t.Fatalf("clear: %v", err)
 	}
 }
+
+// R8 of brief U12, deterministically (U12-R-03): the inventory is sorted
+// by node id whatever order go-fabric's registry lists it in.
+func TestSortByNodeID(t *testing.T) {
+	entries := []fabricui.OnboardingEntry{{NodeID: 0x30}, {NodeID: 0x05}, {NodeID: 0xFFFF_FFFF_0000_0001}, {NodeID: 0x11}}
+	sortByNodeID(entries)
+	got := make([]uint64, 0, len(entries))
+	for _, e := range entries {
+		got = append(got, e.NodeID)
+	}
+	if fmt.Sprint(got) != fmt.Sprint([]uint64{0x05, 0x11, 0x30, 0xFFFF_FFFF_0000_0001}) {
+		t.Fatalf("order %x", got)
+	}
+}
+
+// U12-R-07: a code stored on a node a fresh inventory no longer lists is
+// no ErrNodeNotFound (the attach happened) but an error of no kind, 500.
+func TestEntryOf(t *testing.T) {
+	inv := []fabricui.OnboardingEntry{{NodeID: 1}, {NodeID: 2, HasCode: true}}
+	if e, err := entryOf(inv, 2); err != nil || !e.HasCode {
+		t.Fatalf("entry %v, %v", e, err)
+	}
+	_, err := entryOf(inv, 3)
+	if err == nil || errors.Is(err, fabricui.ErrNodeNotFound) || errors.Is(err, fabricui.ErrConflict) {
+		t.Fatalf("a gone node: %v", err)
+	}
+}

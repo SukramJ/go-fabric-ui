@@ -128,9 +128,51 @@ func TestOnboarding_InventoryLifecycle(t *testing.T) {
 	if len(inv.Entries) != 2 || inv.Entries[1].HasCode {
 		t.Fatalf("after clear and decommission %+v", inv.Entries)
 	}
-	// The very code a node was paired with stays paired.
-	if e, err := m.SetOnboardingCode(context.Background(), 0x13, memoryManualCode); err == nil {
-		t.Fatalf("a decommissioned node took a code: %v", e)
+	// The decommission dropped the node's code in the port (U12-R-05),
+	// and the node takes none any more.
+	m.mu.Lock()
+	_, kept := m.codes[0x13]
+	m.mu.Unlock()
+	if kept {
+		t.Fatal("the memory port kept a decommissioned node's code")
+	}
+	if e, err := m.SetOnboardingCode(context.Background(), 0x13, memoryManualCode); !errors.Is(err, ErrNodeNotFound) {
+		t.Fatalf("a decommissioned node took a code: %v, %v", e, err)
+	}
+}
+
+// U12-R-06: the very code a node was paired with stays paired when it is
+// attached again; another code replaces it as attached.
+func TestOnboarding_PairedCodeStaysPaired(t *testing.T) {
+	mux, m := onboardingHandler(t)
+	withInventory(t, m)
+	var e struct {
+		Source string `json:"source"`
+	}
+	rec := do(t, mux, http.MethodPut, "/controller/nodes/0000000000000013/onboarding-code", `{"code":"`+memoryQRCode+`"}`)
+	if err := json.Unmarshal(rec.Body.Bytes(), &e); err != nil || rec.Code != http.StatusOK || e.Source != "paired" {
+		t.Fatalf("the paired code again: %d %s", rec.Code, rec.Body)
+	}
+	rec = do(t, mux, http.MethodPut, "/controller/nodes/0000000000000013/onboarding-code", `{"code":"1111-222-3333"}`)
+	if err := json.Unmarshal(rec.Body.Bytes(), &e); err != nil || rec.Code != http.StatusOK || e.Source != "attached" {
+		t.Fatalf("another code: %d %s", rec.Code, rec.Body)
+	}
+}
+
+// U12-R-04: the contract's maxLength 512 of OnboardingCodeRequest.code is
+// enforced: a longer code is 400 bad_request and reaches no source.
+func TestOnboarding_CodeMaxLength(t *testing.T) {
+	src := &failingOnboarding{MemoryController: NewMemoryController(), fail: true}
+	_, mux := newTestHandler(t, testOptions{noNode: true, controller: src, admin: func(*http.Request) bool { return true }})
+	const path = "/controller/nodes/0000000000000011/onboarding-code"
+	long := strings.Repeat("ä", 513)
+	rec := do(t, mux, http.MethodPut, path, `{"code":"`+long+`"}`)
+	if rec.Code != http.StatusBadRequest || problemOf(t, rec).Code != codeBadRequest || strings.Contains(rec.Body.String(), "ä") {
+		t.Fatalf("513 characters: %d %s", rec.Code, rec.Body)
+	}
+	// 512 characters reach the source (which fails: 500, not 400).
+	if rec := do(t, mux, http.MethodPut, path, `{"code":"`+strings.Repeat("ä", 512)+`"}`); rec.Code != http.StatusInternalServerError {
+		t.Fatalf("512 characters: %d %s", rec.Code, rec.Body)
 	}
 }
 
