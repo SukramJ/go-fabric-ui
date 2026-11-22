@@ -215,3 +215,14 @@ took both ("Behebe die offenen issues").
 | # | Subject | Decision |
 | --- | --- | --- |
 | 82 | Decision 79's 500: 29 of the 40 controller operations declare no 500 | **Declare it**: a shared 500 response on every controller operation (additive, contract 0.12.0); the test goes through the full handler so the status guard sees every answer |
+
+## 2026-11-22, after v0.12.0
+
+Put as one wizard of three questions, the recommendation first; the owner
+took every recommendation. Source: `phase-4r2-register.md`.
+
+| # | Subject | Decision |
+| --- | --- | --- |
+| 83 | The four notes run 2 left open (UR-P4-api-391, -ui-396, -test-403, -err-404) | **One collective go-fabric-ui issue**, #85, carries them; api-391 and test-403 also go into go-fabric-server's review plan. README "Done" holds with that |
+| 84 | go-fabric v0.24.0's `AddUpdateConsent` answers `false` for a version at or below the running one, as for a kept consent on an ineligible node | **The route keeps 204**; the contract's 204 description, the adapter godoc and `docs/contract.md` say so (`dbb51ab`); no own version check |
+| 85 | Next step after v0.12.0 | **Wave U12 (#68) as decision 81 says**, in a fresh session: the brief rebased onto contract 0.12.0, its re-check R1–R8 against go-fabric `v0.24.1` first; go-fabric-server's review after it |
