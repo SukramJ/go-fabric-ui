@@ -288,6 +288,52 @@ func TestController_SecretsStayOutOfLogsAndEvents(t *testing.T) {
 	if got := rec.types(); !slices.Contains(got, EventCommissioningProgress) || !slices.Contains(got, EventNodeAdded) {
 		t.Fatalf("events %v", got)
 	}
+	onboardingSecretsStayOut(t)
+}
+
+// onboardingSecretsStayOut is G1 of brief U12 (contract 0.13.0): after the
+// inventory, a successful attach, an invalid one, a mismatch and a store
+// failure, neither the log nor any stream event holds a code — the
+// inventory's QR text and manual code, or a request's code.
+func onboardingSecretsStayOut(t *testing.T) {
+	t.Helper()
+	var log bytes.Buffer
+	src := &failingOnboarding{MemoryController: NewMemoryController()}
+	h, mux := newTestHandler(t, testOptions{noNode: true, controller: src, log: &log, admin: func(*http.Request) bool { return true }})
+	rec := record(h)
+	h.subscribeController(rec.add)
+	if r := do(t, mux, http.MethodPost, "/controller/commission", `{"code":"MT:Y.K9042C00KA0648G00"}`); r.Code != http.StatusOK {
+		t.Fatalf("commission %d %s", r.Code, r.Body)
+	}
+	inv := do(t, mux, http.MethodGet, "/controller/inventory", "")
+	if inv.Code != http.StatusOK || !strings.Contains(inv.Body.String(), "MT:Y.K9042C00KA0648G00") || !strings.Contains(inv.Body.String(), "34970112332") {
+		t.Fatalf("inventory %d %s", inv.Code, inv.Body)
+	}
+	put := func(id, code string, want int) {
+		t.Helper()
+		if r := do(t, mux, http.MethodPut, "/controller/nodes/"+id+"/onboarding-code", `{"code":"`+code+`"}`); r.Code != want {
+			t.Fatalf("attach %s: %d %s", code, r.Code, r.Body)
+		}
+	}
+	put("0000000000000012", "1111-222-3333", http.StatusOK)
+	put("0000000000000012", "secret-not-a-code-77", http.StatusBadRequest)
+	src.OnboardingMismatch = &OnboardingMismatch{Field: OnboardingFieldVendor, Code: 0x1234, Node: 0xFFF1}
+	put("0000000000000011", "22223333444", http.StatusConflict)
+	src.fail = true
+	put("0000000000000011", "55556666777", http.StatusInternalServerError)
+	if !strings.Contains(log.String(), "store write failed") {
+		t.Fatalf("the store failure is not logged:\n%s", log.String())
+	}
+	for _, secret := range []string{"MT:Y.K9042C00KA0648G00", "34970112332", "1111-222-3333", "11112223333", "secret-not-a-code-77", "22223333444", "55556666777"} {
+		if strings.Contains(log.String(), secret) {
+			t.Fatalf("%q in the log:\n%s", secret, log.String())
+		}
+		for _, ev := range rec.events {
+			if strings.Contains(string(mustJSON(ev.Data)), secret) {
+				t.Fatalf("%q in event %s", secret, ev.Type)
+			}
+		}
+	}
 }
 
 // The controller stream carries the source's events and the handler's

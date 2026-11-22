@@ -1,0 +1,21 @@
+{
+  "route": "GET /controller/inventory",
+  "request": {
+    "method": "GET",
+    "path": "/controller/inventory",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 501,
+    "body": {
+      "code": "not_implemented",
+      "detail": "the host does not serve the onboarding inventory",
+      "instance": "/api/v1/controller/inventory",
+      "status": 501,
+      "title": "Not implemented",
+      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-not_implemented"
+    }
+  }
+}

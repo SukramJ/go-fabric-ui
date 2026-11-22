@@ -1,0 +1,70 @@
+{
+  "route": "GET /controller/nodes",
+  "request": {
+    "method": "GET",
+    "path": "/controller/nodes",
+    "headers": {
+      "X-Fabric-UI": "1"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "nodes": [
+        {
+          "addresses": [
+            "[fd00::11]:5540",
+            "192.168.1.11:5540"
+          ],
+          "auto_subscribe": true,
+          "commissioned_at": "2026-10-20T07:00:00Z",
+          "connection": "connected",
+          "disabled": false,
+          "has_onboarding_code": false,
+          "icd": false,
+          "node_id_hex": "0000000000000011",
+          "node_label": "Kitchen",
+          "product_id": 32769,
+          "product_name": "Light",
+          "subscription_active": true,
+          "vendor_id": 65521,
+          "vendor_name": "Test Vendor"
+        },
+        {
+          "addresses": [
+            "[fd00::12:1]:5540"
+          ],
+          "auto_subscribe": false,
+          "commissioned_at": "2026-10-20T06:00:00Z",
+          "connection": "waiting_for_discovery",
+          "disabled": false,
+          "has_onboarding_code": true,
+          "icd": true,
+          "node_id_hex": "0000000000000012",
+          "product_id": 32771,
+          "product_name": "Contact Sensor",
+          "subscription_active": false,
+          "vendor_id": 65521,
+          "vendor_name": "Test Vendor"
+        },
+        {
+          "addresses": [
+            "[fd00::12]:5540"
+          ],
+          "auto_subscribe": true,
+          "commissioned_at": "2026-10-20T08:00:00Z",
+          "connection": "connected",
+          "disabled": false,
+          "has_onboarding_code": true,
+          "icd": false,
+          "node_id_hex": "0000000000000013",
+          "product_id": 32770,
+          "product_name": "Plug",
+          "subscription_active": true,
+          "vendor_id": 65521,
+          "vendor_name": "Test Vendor"
+        }
+      ]
+    }
+  }
+}

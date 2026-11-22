@@ -73,6 +73,12 @@ type ctrlSiteOptions struct {
 	metrics contract.Metrics
 	// pair edits the source's Pair template last.
 	pair func(*controller.PairOptions)
+	// onboarding keeps the paired devices' codes
+	// (controller.Config.KeepOnboardingCodes), serves the onboarding
+	// inventory (ControllerOptions.OnboardingCodes) and runs the handler
+	// in host mode, whose admin check admits every request with the
+	// request header (contract 0.13.0: token mode serves no code).
+	onboarding bool
 }
 
 func newCtrlSite(t *testing.T) *ctrlSite {
@@ -101,6 +107,7 @@ func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
 	cfg := site.ControllerConfig(fabrictest.ControllerOptions{Label: "e2e", OTA: o.ota})
 	cfg.HooksFor = hooks.Wrap(cfg.HooksFor)
 	cfg.Metrics = o.metrics
+	cfg.KeepOnboardingCodes = o.onboarding
 	// The network graph is the host's service: its changes are installed
 	// before controller.New, the service built after it and closed first.
 	var changes topology.Changes
@@ -142,16 +149,21 @@ func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
 		o.pair(&pair)
 	}
 	src := gofabric.ControllerOf(ctrl, gofabric.ControllerOptions{
-		Hooks:       hooks,
-		Topology:    svc,
-		Credentials: creds,
-		Pair:        pair,
-		Logger:      logger,
+		Hooks:           hooks,
+		Topology:        svc,
+		Credentials:     creds,
+		Pair:            pair,
+		Logger:          logger,
+		OnboardingCodes: o.onboarding,
 	})
 	s := &ctrlSite{t: t, site: site, dev: dev, plug: plug, ctrl: ctrl, src: src, events: make(chan string, 256)}
 	// The node family beside the controller family: the device's node
 	// is the node the controller commissions.
-	s.srv = httptest.NewServer(fabricui.Handler(fabricui.Options{Controller: src, Node: dev.Node()}))
+	opts := fabricui.Options{Controller: src, Node: dev.Node()}
+	if o.onboarding {
+		opts.Admin = func(*http.Request) bool { return true }
+	}
+	s.srv = httptest.NewServer(fabricui.Handler(opts))
 	t.Cleanup(s.srv.Close)
 	src.Observe(func(e fabricui.ControllerEvent) {
 		select {
@@ -163,13 +175,14 @@ func newCtrlSiteWith(t *testing.T, o ctrlSiteOptions) *ctrlSite {
 		Enabled   bool   `json:"enabled"`
 		Label     string `json:"label"`
 		CSRFToken string `json:"csrf_token"`
+		Admin     bool   `json:"admin"`
 	}
 	// The token comes with every status; the fabric's members only with
 	// the token (contract 0.10.0).
 	s.json(http.MethodGet, "/controller/status", "", http.StatusOK, &st)
 	s.token = st.CSRFToken
 	s.json(http.MethodGet, "/controller/status", "", http.StatusOK, &st)
-	if !st.Enabled || st.Label != "e2e" || st.CSRFToken == "" {
+	if !st.Enabled || st.Label != "e2e" || (st.CSRFToken == "") != o.onboarding || st.Admin != o.onboarding {
 		t.Fatalf("status %+v", st)
 	}
 	return s
@@ -190,6 +203,7 @@ func (s *ctrlSite) call(method, path, body string) (status int, out []byte) {
 			return err
 		}
 		req.Header.Set(fabricui.TokenHeader, s.token)
+		req.Header.Set(fabricui.RequestHeader, "1")
 		if body != "" {
 			req.Header.Set("Content-Type", "application/json")
 		}

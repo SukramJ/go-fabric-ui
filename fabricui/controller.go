@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -79,6 +80,23 @@ type ControllerSource interface {
 	// the function that unregisters it; nil when the source serves no
 	// diagnostics. fn must not block.
 	OnDiagnosticEvent(fn func(DiagnosticEvent)) (unsubscribe func())
+	// OnboardingInventory is every commissioned node with the onboarding
+	// code kept for it, by node id (GET /controller/inventory, contract
+	// 0.13.0). The codes are secrets: [SecretText] keeps them out of
+	// every rendering. It is called only when
+	// Capabilities().OnboardingCodes is true.
+	OnboardingInventory() []OnboardingEntry
+	// SetOnboardingCode attaches the code printed on the device to the
+	// commissioned node and replaces a stored one; it answers the node's
+	// entry with what was stored. The code is a plain string, as Pair's,
+	// and never logged. Refusals: [*OnboardingInvalid],
+	// [*OnboardingMismatch], [ErrNodeNotFound], [ErrConflict] (the node
+	// is no longer commissioned); any other error answers 500.
+	SetOnboardingCode(ctx context.Context, id uint64, code string) (OnboardingEntry, error)
+	// ClearOnboardingCode removes the node's stored code; nil also when
+	// it had none. [ErrNodeNotFound] for an unknown node; any other
+	// error answers 500.
+	ClearOnboardingCode(ctx context.Context, id uint64) error
 }
 
 // ControllerDiagnostics is the controller's diagnostic snapshot as GET
@@ -310,7 +328,126 @@ type ControllerCapabilities struct {
 	// three diagnostic routes answer 501 without calling them, and the
 	// stream carries no controller_diagnostic_event.
 	Diagnostics bool
+	// OnboardingCodes: the source serves the onboarding inventory
+	// (contract 0.13.0, capabilities.onboarding_codes) —
+	// OnboardingInventory, SetOnboardingCode and ClearOnboardingCode.
+	// False, or a handler without Options.Admin: the three routes answer
+	// 501 without calling them.
+	OnboardingCodes bool
 }
+
+// SecretText is a text the port carries and nothing renders: an
+// onboarding code. It is redacted under every fmt verb, in a log record
+// of either slog handler, in encoding/json and every encoding that takes
+// an encoding.TextMarshaler — also as a field of a struct, exported or
+// not. [SecretText.Reveal] is the one way to the text. The zero value is
+// no text. It is not comparable; compare the revealed texts.
+type SecretText struct {
+	_ [0]func()
+	// text is behind a pointer because fmt prints a struct's unexported
+	// field without calling its methods: a pointer prints as an address.
+	text *string
+}
+
+// secretRedacted is what a SecretText renders as.
+const secretRedacted = "redacted"
+
+// NewSecretText wraps s; "" is the zero value.
+func NewSecretText(s string) SecretText {
+	if s == "" {
+		return SecretText{}
+	}
+	return SecretText{text: &s}
+}
+
+// Reveal is the text — the secret. Call it where the code is shown, and
+// nowhere a log or a serialiser can see the result.
+func (s SecretText) Reveal() string {
+	if s.text == nil {
+		return ""
+	}
+	return *s.text
+}
+
+// IsZero reports no text.
+func (s SecretText) IsZero() bool { return s.text == nil }
+
+// String keeps the text out of a formatted value.
+func (s SecretText) String() string {
+	if s.text == nil {
+		return ""
+	}
+	return secretRedacted
+}
+
+// GoString keeps the text out of a %#v.
+func (s SecretText) GoString() string { return "fabricui.SecretText(" + s.String() + ")" }
+
+// LogValue keeps the text out of a log record.
+func (s SecretText) LogValue() slog.Value { return slog.StringValue(s.String()) }
+
+// MarshalText keeps the text out of encoding/json and every encoding that
+// takes an encoding.TextMarshaler. There is no UnmarshalText.
+func (s SecretText) MarshalText() ([]byte, error) { return []byte(s.String()), nil }
+
+// OnboardingSource tells how a node's onboarding code came to be stored
+// (the contract's OnboardingSource).
+type OnboardingSource string
+
+// The two sources, as go-fabric's client.OnboardingSource names them.
+const (
+	// OnboardingPaired: the device accepted the code's passcode at
+	// commissioning.
+	OnboardingPaired OnboardingSource = "paired"
+	// OnboardingAttached: added afterwards; its passcode is unproven.
+	OnboardingAttached OnboardingSource = "attached"
+)
+
+// OnboardingChecks are the identity checks an attached code passed; a
+// check runs only when the node's side of it is known. All false for a
+// paired code. No check proves the passcode or the unit.
+type OnboardingChecks struct {
+	Vendor, Product, Discriminator bool
+}
+
+// OnboardingEntry is one commissioned node of the onboarding inventory
+// (the contract's OnboardingInventoryEntry, go-fabric
+// controller.InventoryEntry). It renders as its node id and whether it
+// has a code, never the code.
+type OnboardingEntry struct {
+	NodeID uint64
+	// Label is the node's NodeLabel; "" when unset or not read yet.
+	Label                                 string
+	VendorName, ProductName, SerialNumber string
+	// VendorID and ProductID are 0 when unknown.
+	VendorID, ProductID uint16
+	// HasCode reports a stored code; the fields below are zero without
+	// one.
+	HasCode bool
+	// QRCode is the QR code's text ("MT:…"); zero when the stored code is
+	// a manual pairing code, from which no QR code is made up.
+	QRCode SecretText
+	// ManualCode is the manual pairing code, 11 or 21 digits.
+	ManualCode SecretText
+	Source     OnboardingSource
+	Checks     OnboardingChecks
+	StoredAt   time.Time
+}
+
+// String keeps the codes out of a formatted entry.
+func (e OnboardingEntry) String() string {
+	code := "no code"
+	if e.HasCode {
+		code = "code redacted"
+	}
+	return fmt.Sprintf("OnboardingEntry(node %016X, %s)", e.NodeID, code)
+}
+
+// GoString keeps the codes out of a %#v.
+func (e OnboardingEntry) GoString() string { return e.String() }
+
+// LogValue keeps the codes out of a log record.
+func (e OnboardingEntry) LogValue() slog.Value { return slog.StringValue(e.String()) }
 
 // ConnectionState is a node's connection state.
 type ConnectionState string
@@ -974,7 +1111,70 @@ var (
 	// one operation that declares it; from any other method it is 500
 	// (decision 79).
 	ErrNotRead = errors.New("fabricui: not read yet")
+	// ErrOnboardingCode: a text that is no onboarding code (contract
+	// 0.13.0); a source reports it as an [*OnboardingInvalid].
+	ErrOnboardingCode = errors.New("fabricui: not an onboarding code")
+	// ErrOnboardingMismatch: a readable onboarding code that names
+	// another device (contract 0.13.0); a source reports it as an
+	// [*OnboardingMismatch].
+	ErrOnboardingMismatch = errors.New("fabricui: the onboarding code names another device")
 )
+
+// OnboardingInvalid is a text SetOnboardingCode cannot read as an
+// onboarding code (400 onboarding_code_invalid). Reason says why — the
+// problem's detail — and never holds the code. errors.Is(err,
+// ErrOnboardingCode) holds.
+type OnboardingInvalid struct {
+	Reason string
+}
+
+func (e *OnboardingInvalid) Error() string { return ErrOnboardingCode.Error() + ": " + e.Reason }
+
+// Is reports target as [ErrOnboardingCode].
+func (e *OnboardingInvalid) Is(target error) bool { return target == ErrOnboardingCode }
+
+// The identity fields of an [OnboardingMismatch], as the contract's
+// Problem.field names them.
+const (
+	OnboardingFieldVendor        = "vendor"
+	OnboardingFieldProduct       = "product"
+	OnboardingFieldDiscriminator = "discriminator"
+)
+
+// OnboardingMismatch is a readable onboarding code that names another
+// device (409 onboarding_code_mismatch); nothing was stored.
+// errors.Is(err, ErrOnboardingMismatch) holds. None of its values is a
+// secret: vendor and product ids are public, the discriminator is
+// advertised (go-fabric client.OnboardingMismatchError).
+type OnboardingMismatch struct {
+	// Field is OnboardingFieldVendor, OnboardingFieldProduct or
+	// OnboardingFieldDiscriminator.
+	Field string
+	// Code is the code's value of the field, Node the node's, as
+	// compared: for the discriminator of a manual pairing code both are
+	// the 4-bit form.
+	Code, Node uint16
+}
+
+func (e *OnboardingMismatch) Error() string {
+	return fmt.Sprintf("%v: %s", ErrOnboardingMismatch, e.Sentence())
+}
+
+// Sentence is the mismatch in English words: vendor and product ids as
+// 0x and four hex digits, the discriminator decimal.
+func (e *OnboardingMismatch) Sentence() string {
+	switch e.Field {
+	case OnboardingFieldVendor:
+		return fmt.Sprintf("the code's vendor id is 0x%04X, the node's is 0x%04X", e.Code, e.Node)
+	case OnboardingFieldProduct:
+		return fmt.Sprintf("the code's product id is 0x%04X, the node's is 0x%04X", e.Code, e.Node)
+	default:
+		return fmt.Sprintf("the code's discriminator is %d, the node advertised %d", e.Code, e.Node)
+	}
+}
+
+// Is reports target as [ErrOnboardingMismatch].
+func (e *OnboardingMismatch) Is(target error) bool { return target == ErrOnboardingMismatch }
 
 // ErrTermsRequired is a commissioning the device refused for want of an
 // accepted version of its terms and conditions (contract 0.8.0, problem

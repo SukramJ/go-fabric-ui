@@ -1,0 +1,13 @@
+{
+  "route": "DELETE /controller/nodes/{id}/onboarding-code",
+  "request": {
+    "method": "DELETE",
+    "path": "/controller/nodes/0000000000000012/onboarding-code",
+    "headers": {
+      "X-Fabric-UI": "1"
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

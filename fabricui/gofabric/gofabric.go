@@ -86,6 +86,15 @@ type ControllerOptions struct {
 	// installed on controller.Config before controller.New, and the host
 	// closes it on shutdown. Nil serves no graph (the route answers 501).
 	Topology *topology.Service
+	// OnboardingCodes serves the onboarding inventory (contract 0.13.0):
+	// GET /controller/inventory hands out the onboarding codes
+	// go-fabric keeps (controller.Config.KeepOnboardingCodes) or a user
+	// attached, and PUT and DELETE /controller/nodes/{id}/onboarding-code
+	// attach and remove one. A code is a setup passcode: set it only
+	// behind an access control fit for an export of the fabric's keys.
+	// The handler serves the routes only with fabricui.Options.Admin;
+	// false (the default) answers them 501.
+	OnboardingCodes bool
 }
 
 // ThreadDatasetName is a Thread operational dataset's network name, read
@@ -200,7 +209,7 @@ func beUint64(b []byte) uint64 {
 }
 
 func (s *source) Capabilities() fabricui.ControllerCapabilities {
-	return fabricui.ControllerCapabilities{BLE: s.opts.Pair.BLE != nil, Diagnostics: true}
+	return fabricui.ControllerCapabilities{BLE: s.opts.Pair.BLE != nil, Diagnostics: true, OnboardingCodes: s.opts.OnboardingCodes}
 }
 
 // nodeOf wraps a commissioned node; false while it has no peer address.

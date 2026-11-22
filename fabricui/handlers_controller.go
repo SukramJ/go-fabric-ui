@@ -96,6 +96,9 @@ var controllerAdmin = map[string]bool{
 	"GET /controller/mdns":                                             true,
 	"GET /controller/events":                                           true,
 	"GET /controller/stream":                                           true,
+	"GET /controller/inventory":                                        true,
+	"PUT /controller/nodes/{id}/onboarding-code":                       true,
+	"DELETE /controller/nodes/{id}/onboarding-code":                    true,
 }
 
 // controllerBodies are the request bodies of the controller routes by
@@ -115,6 +118,7 @@ var controllerBodies = map[string]any{
 	"POST /controller/nodes/{id}/icd/unregister": api.UnregisterNodeIcdJSONRequestBody{},
 	"POST /controller/nodes/{id}/window":         api.OpenNodeWindowJSONRequestBody{},
 	"POST /controller/updates/consent":           api.ConsentUpdateJSONRequestBody{},
+	"PUT /controller/nodes/{id}/onboarding-code": api.SetNodeOnboardingCodeJSONRequestBody{},
 }
 
 // controllerServer implements the generated strict server interface: the
@@ -214,6 +218,10 @@ func serviceUnready(title, detail string) error {
 func (h *handler) controllerError(w http.ResponseWriter, r *http.Request, err error) {
 	if p, ok := errors.AsType[*apiProblem](err); ok {
 		writeProblem(w, r, p.status, p.code, p.title, p.detail)
+		return
+	}
+	if p, ok := errors.AsType[*mismatchProblem](err); ok {
+		writeOnboardingMismatch(w, r, p.m)
 		return
 	}
 	var terms *ErrTermsRequired
@@ -384,10 +392,11 @@ func nonZero64[T ~uint32](v T) *int64 {
 func (s *controllerServer) GetControllerStatus(ctx context.Context, _ api.GetControllerStatusRequestObject) (api.GetControllerStatusResponseObject, error) {
 	admin := requestAdminOf(ctx)
 	caps := api.ControllerCapabilities{
-		Ota:         s.src.SoftwareUpdates() != nil,
-		Credentials: s.src.Credentials() != nil,
-		Ble:         s.src.Capabilities().BLE,
-		Diagnostics: s.diagnosticsServed(),
+		Ota:             s.src.SoftwareUpdates() != nil,
+		Credentials:     s.src.Credentials() != nil,
+		Ble:             s.src.Capabilities().BLE,
+		Diagnostics:     s.diagnosticsServed(),
+		OnboardingCodes: s.onboardingServed(),
 	}
 	if !admin {
 		// Without admin rights the identity members are empty or 0
@@ -435,8 +444,22 @@ func requestAdminOf(ctx context.Context) bool {
 
 func (s *controllerServer) ListControllerNodes(context.Context, api.ListControllerNodesRequestObject) (api.ListControllerNodesResponseObject, error) {
 	out := api.ListControllerNodes200JSONResponse{Nodes: []api.ControllerNodeSummary{}}
+	// has_onboarding_code (0.13.0): existence only, from the inventory,
+	// and only while it is served.
+	var codes map[uint64]bool
+	if s.onboardingServed() {
+		codes = map[uint64]bool{}
+		inv := s.src.OnboardingInventory()
+		for i := range inv {
+			codes[inv[i].NodeID] = inv[i].HasCode
+		}
+	}
 	for _, n := range s.src.Nodes() {
-		out.Nodes = append(out.Nodes, nodeSummary(n))
+		sum := nodeSummary(n)
+		if codes != nil {
+			sum.HasOnboardingCode = ptr(codes[n.ID()])
+		}
+		out.Nodes = append(out.Nodes, sum)
 	}
 	return out, nil
 }
@@ -2155,4 +2178,139 @@ func controllerTraceEvent(e DiagnosticEvent) Event {
 // statement, which costs no snapshot (GET /controller/status is polled).
 func (s *controllerServer) diagnosticsServed() bool {
 	return s.src.Capabilities().Diagnostics
+}
+
+// --- onboarding inventory (contract 0.13.0) ---
+
+// onboardingServed is capabilities.onboarding_codes: the source's
+// statement, and a host that decides admin rights. Token mode never
+// serves a passcode (owner decision Q2): its token is handed to whoever
+// reaches GET /controller/status.
+func (s *controllerServer) onboardingServed() bool {
+	return s.h.admin != nil && s.src.Capabilities().OnboardingCodes
+}
+
+// onboardingNotServed is the three routes' 501.
+func onboardingNotServed() error {
+	return &apiProblem{http.StatusNotImplemented, codeNotImplemented, "Not implemented", "the host does not serve the onboarding inventory"}
+}
+
+// mismatchProblem carries an onboarding mismatch to controllerError,
+// which writes it with its members.
+type mismatchProblem struct{ m *OnboardingMismatch }
+
+func (p *mismatchProblem) Error() string { return p.m.Error() }
+
+// opaqueError hides an error's kind from controllerError, which then
+// answers 500 and logs its text: the onboarding routes map their errors
+// themselves, closed (U12 decision 2), so a source's ErrNodeFailed or a
+// DELETE's ErrConflict answers no status the operation does not declare.
+type opaqueError struct{ err error }
+
+func (e opaqueError) Error() string { return e.err.Error() }
+
+// onboardingError maps a source's error on the onboarding routes:
+// ErrNodeNotFound 404, *OnboardingInvalid 400, *OnboardingMismatch 409,
+// ErrConflict 409 where conflict is declared, ErrNotImplemented 501,
+// everything else 500. A refusal's text is never logged; nor does any
+// carry the code (the source's contract).
+func onboardingError(err error, id uint64, conflict bool) error {
+	if inv, ok := errors.AsType[*OnboardingInvalid](err); ok {
+		return &apiProblem{http.StatusBadRequest, codeOnboardingInvalid, "Not an onboarding code", inv.Reason}
+	}
+	if mm, ok := errors.AsType[*OnboardingMismatch](err); ok {
+		switch mm.Field {
+		case OnboardingFieldVendor, OnboardingFieldProduct, OnboardingFieldDiscriminator:
+			return &mismatchProblem{m: mm}
+		}
+		// A field the contract does not name is a source's error.
+		return opaqueError{err}
+	}
+	switch {
+	case errors.Is(err, ErrNodeNotFound):
+		return &apiProblem{http.StatusNotFound, codeNotFound, "No such node", ErrNodeNotFound.Error() + ": " + hex16(id)}
+	case conflict && errors.Is(err, ErrConflict):
+		return &apiProblem{http.StatusConflict, codeConflict, "Refused by the node", "the node is no longer commissioned"}
+	case errors.Is(err, ErrNotImplemented):
+		return onboardingNotServed()
+	}
+	return opaqueError{err}
+}
+
+// onboardingEntryOf is the contract's entry. It is the one place outside
+// the adapter that reveals a code: where the response is filled.
+func onboardingEntryOf(e *OnboardingEntry) api.OnboardingInventoryEntry {
+	out := api.OnboardingInventoryEntry{
+		NodeIDHex:    hex16(e.NodeID),
+		NodeLabel:    optString(e.Label),
+		VendorID:     nonZero(e.VendorID),
+		VendorName:   optString(e.VendorName),
+		ProductID:    nonZero(e.ProductID),
+		ProductName:  optString(e.ProductName),
+		SerialNumber: optString(e.SerialNumber),
+		HasCode:      e.HasCode,
+	}
+	if !e.HasCode {
+		return out
+	}
+	out.QrCode = optString(e.QRCode.Reveal())
+	out.ManualCode = optString(e.ManualCode.Reveal())
+	if e.Source != "" {
+		out.Source = ptr(api.OnboardingSource(e.Source))
+	}
+	out.Checks = &api.OnboardingChecks{Vendor: e.Checks.Vendor, Product: e.Checks.Product, Discriminator: e.Checks.Discriminator}
+	out.StoredAt = optWireTime(e.StoredAt)
+	return out
+}
+
+// GetOnboardingInventory serves GET /controller/inventory: every
+// commissioned node with its kept code. The answer carries secrets; it is
+// admin, and no-store as every answer of the API (apiHeaders).
+func (s *controllerServer) GetOnboardingInventory(context.Context, api.GetOnboardingInventoryRequestObject) (api.GetOnboardingInventoryResponseObject, error) {
+	if !s.onboardingServed() {
+		return nil, onboardingNotServed()
+	}
+	inv := s.src.OnboardingInventory()
+	out := api.GetOnboardingInventory200JSONResponse{Entries: make([]api.OnboardingInventoryEntry, 0, len(inv))}
+	for i := range inv {
+		out.Entries = append(out.Entries, onboardingEntryOf(&inv[i]))
+	}
+	return out, nil
+}
+
+// SetNodeOnboardingCode serves PUT /controller/nodes/{id}/onboarding-code:
+// the code attached to the node, the node's entry back.
+func (s *controllerServer) SetNodeOnboardingCode(ctx context.Context, req api.SetNodeOnboardingCodeRequestObject) (api.SetNodeOnboardingCodeResponseObject, error) {
+	if !s.onboardingServed() {
+		return nil, onboardingNotServed()
+	}
+	id, err := parseNodeID("id", req.ID)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil || strings.TrimSpace(req.Body.Code) == "" {
+		return nil, badRequest("code: empty")
+	}
+	e, err := s.src.SetOnboardingCode(ctx, id, req.Body.Code)
+	if err != nil {
+		return nil, onboardingError(err, id, true)
+	}
+	return api.SetNodeOnboardingCode200JSONResponse(onboardingEntryOf(&e)), nil
+}
+
+// ClearNodeOnboardingCode serves DELETE
+// /controller/nodes/{id}/onboarding-code; 204 also when the node had no
+// code.
+func (s *controllerServer) ClearNodeOnboardingCode(ctx context.Context, req api.ClearNodeOnboardingCodeRequestObject) (api.ClearNodeOnboardingCodeResponseObject, error) {
+	if !s.onboardingServed() {
+		return nil, onboardingNotServed()
+	}
+	id, err := parseNodeID("id", req.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.src.ClearOnboardingCode(ctx, id); err != nil {
+		return nil, onboardingError(err, id, false)
+	}
+	return api.ClearNodeOnboardingCode204Response{}, nil
 }
