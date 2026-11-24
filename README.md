@@ -15,7 +15,7 @@ The terms the pages use — the node family and the controller family,
 Topology versus Network, the window kinds — and the Matter terms behind
 them are defined in go-fabric's [glossary](https://docs.thingfabric.dev/reference/glossary/).
 
-> **Status: `v0.14.0`** (contract 0.14.0) of
+> **Status: `v0.14.1`** (contract 0.14.0) of
 > [concept v9](https://github.com/thingfabric/go-fabric/blob/main/docs/concept-v9-fabric-ui.md).
 > Both page families: the node family (status, pairing, fabrics,
 > selection, endpoints, surface, diagnostics, topology) and the controller
@@ -58,6 +58,7 @@ them are defined in go-fabric's [glossary](https://docs.thingfabric.dev/referenc
 > - `v0.14.0` — M1: the move to `thingfabric.dev/go-fabric-ui`, the npm
 >   scope `@thingfabric/fabric-ui` and the problem `type` URIs on
 >   `thingfabric.dev` (contract 0.14.0).
+> - `v0.14.1` — go-fabric v0.26.0.
 
 ## Two artefacts, one version
 

@@ -5,6 +5,25 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). The Go module and the npm package
 `@thingfabric/fabric-ui` (before 0.14.0 `@sukramj/fabric-ui`) share one version.
 
+## [0.14.1] - 2026-11-24
+
+go-fabric v0.26.0. No behaviour, route or contract change; contract
+stays 0.14.0.
+
+### Hosts
+
+- **go-fabric v0.26.0** is the minimum a host builds with. Its own
+  changes (servers that now refuse input they accepted before, `node`'s
+  `Batch` judged at the commit, the ledger client's move from
+  `controller/dcl` to `dcl` with deprecated forwarders) are the host's
+  when it lifts its own pin to meet this one; see go-fabric's changelog
+  (0.26.0).
+
+### Changed
+
+- go-fabric `v0.25.0` → `v0.26.0`; no source change, no deprecated
+  identifier in use.
+
 ## [0.14.0] - 2026-11-24
 
 Brief M1: the repository moved to `github.com/thingfabric/go-fabric-ui`
