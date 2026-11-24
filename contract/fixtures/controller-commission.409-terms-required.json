@@ -20,7 +20,7 @@
       "instance": "/api/v1/controller/commission",
       "status": 409,
       "title": "Terms and conditions required",
-      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-terms_required",
+      "type": "https://thingfabric.dev/go-fabric-ui/problems#problem-terms_required",
       "version": 1
     }
   }

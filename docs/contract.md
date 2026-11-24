@@ -518,7 +518,12 @@ Statuses new in 0.10.0, beside 403, 405, 413 and 415 above:
 
 Errors are RFC 9457 `application/problem+json` with `type`, `title`,
 `status`, `detail`, `instance` and `code`; the code also travels in
-`X-Problem-Code`. A 500 problem carries no detail — the cause, which can
+`X-Problem-Code`. `type` is
+`https://thingfabric.dev/go-fabric-ui/problems#problem-<code>` (0.14.0;
+the anchors below, and the page at that address, carry the same names);
+before 0.14.0 it was
+`https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-<code>`.
+A client matches on `code`, never on `type`. A 500 problem carries no detail — the cause, which can
 name paths, goes to the log; a 501 or 503 carries a fixed sentence, and a
 502 the node's answer.
 
@@ -796,6 +801,16 @@ inventory"). New: the problem codes `onboarding_code_invalid` (400) and
 `code_value` and `node_value`, the required
 `ControllerCapabilities.onboarding_codes` and the optional
 `ControllerNodeSummary.has_onboarding_code`.
+
+Contract 0.14.0 (brief M1, the move to `thingfabric.dev`) changes no
+route, field, status or code; `contract/previous/` holds release 0.13.0.
+Every problem's `type` URI moves to the base
+`https://thingfabric.dev/go-fabric-ui/problems#problem-`, the anchor
+names unchanged. That is a break for a client that compares `type` as
+a string (the contract guard does not see it: the schema says
+`string`); the shipped page and the generated client match on `code`.
+The Go module is `thingfabric.dev/go-fabric-ui` and the npm package
+`@thingfabric/fabric-ui` from this version on.
 
 ## Controller routes (v0.2.0)
 

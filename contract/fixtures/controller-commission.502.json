@@ -21,7 +21,7 @@
       "instance": "/api/v1/controller/commission",
       "status": 502,
       "title": "The node failed",
-      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-node_error"
+      "type": "https://thingfabric.dev/go-fabric-ui/problems#problem-node_error"
     }
   }
 }

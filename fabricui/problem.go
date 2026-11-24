@@ -43,9 +43,10 @@ const (
 	codeOnboardingMismatch = "onboarding_code_mismatch"
 )
 
-// problemTypeBase is the base of every problem's type URI: the contract
+// problemTypeBase is the base of every problem's type URI (contract
+// 0.14.0; the anchor names are docs/contract.md's): the contract
 // page's anchor for the code.
-const problemTypeBase = "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-"
+const problemTypeBase = "https://thingfabric.dev/go-fabric-ui/problems#problem-"
 
 // maxBodyBytes bounds a request body; a selection of a few thousand items
 // fits well inside it.

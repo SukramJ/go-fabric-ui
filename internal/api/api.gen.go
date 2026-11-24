@@ -1657,7 +1657,9 @@ type Problem struct {
 	NodeValue *int   `json:"node_value,omitempty"`
 	Status    int    `json:"status"`
 	Title     string `json:"title"`
-	Type      string `json:"type"`
+
+	// Type The problem type URI: `https://thingfabric.dev/go-fabric-ui/problems#problem-` followed by `code` (0.14.0).
+	Type string `json:"type"`
 
 	// Version terms_required (0.8.0): the device's TCMinRequiredVersion, the lowest version an acknowledgement has to name (go-fabric commissioner.TermsRequiredError.Version).
 	Version *int `json:"version,omitempty"`

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.13.0
+  version: 0.14.0
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
@@ -18,7 +18,11 @@ info:
     optional (absent when the fabric read failed), the `NodeID` path
     parameter takes 1 to 16 hex digits only, and the `EndpointNumber` path
     parameter ends at 65534. Contracts 0.11.0, 0.12.0 and 0.13.0 are
-    additive over their predecessors.
+    additive over their predecessors. Contract 0.14.0 moves every
+    problem's `type` URI to the base
+    `https://thingfabric.dev/go-fabric-ui/problems#problem-` (the code
+    after it unchanged); no route, field or code changes, but a client
+    that compares `type` as a string sees a new value.
 
     Response integers that range over 32 bits unsigned or wider are
     `format: int64` (0.11.0), and the request field and query parameter
@@ -2310,7 +2314,7 @@ components:
       type: object
       required: [type, title, status, code]
       properties:
-        type: { type: string }
+        type: { type: string, description: "The problem type URI: `https://thingfabric.dev/go-fabric-ui/problems#problem-` followed by `code` (0.14.0)." }
         title: { type: string }
         status: { type: integer }
         detail: { type: string }

@@ -18,7 +18,7 @@
       "instance": "/api/v1/node/maintenance/factory-reset",
       "status": 400,
       "title": "Factory reset not confirmed",
-      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-bad_request"
+      "type": "https://thingfabric.dev/go-fabric-ui/problems#problem-bad_request"
     }
   }
 }
