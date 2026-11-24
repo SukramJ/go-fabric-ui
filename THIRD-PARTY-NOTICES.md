@@ -19,7 +19,7 @@ licence texts are under `licenses/npm/`.
 
 | Package | Version | Licence | Text |
 | --- | --- | --- | --- |
-| `@lucide/svelte` | 1.70.0 | ISC | [`licenses/npm/lucide-svelte.txt`](./licenses/npm/lucide-svelte.txt) |
+| `@lucide/svelte` | 1.74.0 | ISC | [`licenses/npm/lucide-svelte.txt`](./licenses/npm/lucide-svelte.txt) |
 | `clsx` | 2.1.1 | MIT | [`licenses/npm/clsx.txt`](./licenses/npm/clsx.txt) |
 | `dijkstrajs` | 1.0.3 | MIT | [`licenses/npm/dijkstrajs.txt`](./licenses/npm/dijkstrajs.txt) |
 | `jsqr` | 1.4.0 | Apache-2.0 | [`licenses/npm/jsqr.txt`](./licenses/npm/jsqr.txt) |
