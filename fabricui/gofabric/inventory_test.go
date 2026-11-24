@@ -11,7 +11,7 @@ import (
 
 	"thingfabric.dev/go-fabric/controller/client"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // SetOnboardingCode's refusals map by their go-fabric kind: the typed

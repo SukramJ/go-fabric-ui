@@ -129,7 +129,7 @@ export interface FabricUIOptions {
   subscribeLog?: FabricUI["subscribeLog"];
 }
 
-const KEY = Symbol.for("@sukramj/fabric-ui");
+const KEY = Symbol.for("@thingfabric/fabric-ui");
 
 const consoleToast: Toast = {
   info: (m) => console.info(m),

@@ -15,7 +15,7 @@
       "instance": "/api/v1/controller/nodes/0000000000000011/fabrics/1",
       "status": 400,
       "title": "Invalid request",
-      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-bad_request"
+      "type": "https://thingfabric.dev/go-fabric-ui/problems#problem-bad_request"
     }
   }
 }

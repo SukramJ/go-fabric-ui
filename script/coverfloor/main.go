@@ -24,7 +24,7 @@ import (
 	"strings"
 )
 
-const module = "github.com/SukramJ/go-fabric-ui/"
+const module = "thingfabric.dev/go-fabric-ui/"
 
 type block struct {
 	stmts   int

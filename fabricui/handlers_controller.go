@@ -25,7 +25,7 @@ import (
 
 	"thingfabric.dev/go-fabric/eligibility"
 
-	"github.com/SukramJ/go-fabric-ui/internal/api"
+	"thingfabric.dev/go-fabric-ui/internal/api"
 )
 
 // The cluster, attribute and command ids the typed controller routes

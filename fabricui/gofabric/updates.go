@@ -11,7 +11,7 @@ import (
 
 	"thingfabric.dev/go-fabric/controller/softwareupdate"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // updates is the controller's softwareupdate.Manager as a

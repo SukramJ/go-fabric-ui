@@ -12,7 +12,7 @@ import (
 	"thingfabric.dev/go-fabric/eligibility"
 	"thingfabric.dev/go-fabric/node"
 
-	"github.com/SukramJ/go-fabric-ui/internal/api"
+	"thingfabric.dev/go-fabric-ui/internal/api"
 )
 
 // sessionResponse is one session of GET /node/sessions. Mirrors loom's

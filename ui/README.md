@@ -1,4 +1,4 @@
-# @sukramj/fabric-ui
+# @thingfabric/fabric-ui
 
 The web interface of [go-fabric](https://github.com/thingfabric/go-fabric)
 nodes as a Svelte 5 library: the node pages, the UI kit they are built
@@ -8,7 +8,7 @@ and English and German catalogues. The Go module `fabricui` of the same
 repository serves the API; its standalone shell is built from `src/shell/`.
 
 ```sh
-npm install @sukramj/fabric-ui
+npm install @thingfabric/fabric-ui
 ```
 
 The package ships sources (`.svelte`, `.ts`), compiled by the host's Vite
@@ -21,7 +21,7 @@ toast and confirm:
 
 ```svelte
 <script lang="ts">
-  import { createClient, createFabricUI, createTranslator, provideFabricUI, NodePair, NodeFabrics } from "@sukramj/fabric-ui";
+  import { createClient, createFabricUI, createTranslator, provideFabricUI, NodePair, NodeFabrics } from "@thingfabric/fabric-ui";
 
   const ui = provideFabricUI(
     createFabricUI({
@@ -101,14 +101,14 @@ host's stylesheet, after Tailwind:
 
 ```css
 @import "tailwindcss";
-@import "@sukramj/fabric-ui/theme/tokens.css";
-@source "../node_modules/@sukramj/fabric-ui/src/lib";
+@import "@thingfabric/fabric-ui/theme/tokens.css";
+@source "../node_modules/@thingfabric/fabric-ui/src/lib";
 @custom-variant dark (&:where(.dark, .dark *));
 ```
 
 `.dark` on `<html>` switches the dark tokens; `data-skin="ha"` on `<html>`
 resolves the tokens from Home Assistant's variables. `applySkin("ha")` and
-`startHaBridge()` (from `@sukramj/fabric-ui/theme`) do both inside an
+`startHaBridge()` (from `@thingfabric/fabric-ui/theme`) do both inside an
 Ingress frame and are inert elsewhere. A host on a skin of its own (any
 other `data-skin`, or none) keeps the standalone tokens; the HA skin's
 extras (`accent-color` and `color-scheme` on native controls,
@@ -136,7 +136,7 @@ client's request headers (`client.openStream`, contract 0.10.0). A host
 with a hub of its own feeds it instead:
 
 ```ts
-import { subscribeStream } from "@sukramj/fabric-ui/client";
+import { subscribeStream } from "@thingfabric/fabric-ui/client";
 
 createFabricUI({ client, subscribe: (onEvent) => hub.on("fabric-ui", onEvent) });
 // or bridge the stream into the hub:

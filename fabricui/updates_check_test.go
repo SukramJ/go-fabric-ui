@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/SukramJ/go-fabric-ui/internal/api"
+	"thingfabric.dev/go-fabric-ui/internal/api"
 )
 
 // checkWith is the memory controller's update source with Check

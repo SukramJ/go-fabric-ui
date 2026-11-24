@@ -12,7 +12,7 @@
       "instance": "/api/v1/controller/nodes/0000000000000012",
       "status": 403,
       "title": "Admin rights required",
-      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-forbidden"
+      "type": "https://thingfabric.dev/go-fabric-ui/problems#problem-forbidden"
     }
   }
 }

@@ -16,7 +16,7 @@
       "instance": "/api/v1/controller/nodes/0000000000000012/icd/register",
       "status": 409,
       "title": "Other administrators may not support LIT",
-      "type": "https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-icd_multi_admin"
+      "type": "https://thingfabric.dev/go-fabric-ui/problems#problem-icd_multi_admin"
     }
   }
 }

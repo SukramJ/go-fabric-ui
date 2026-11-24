@@ -48,7 +48,7 @@ import (
 	"thingfabric.dev/go-fabric/controller/topology"
 	"thingfabric.dev/go-fabric/thread"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // Credentials is the host's credential store as a commissioning reads it:

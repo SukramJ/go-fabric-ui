@@ -1,4 +1,4 @@
-// @sukramj/fabric-ui — the pages, the context they read, the client, the
+// @thingfabric/fabric-ui — the pages, the context they read, the client, the
 // translator and the theme. Subpath exports: ./pages, ./kit, ./client,
 // ./i18n, ./theme, ./theme/tokens.css.
 export * from "./pages";

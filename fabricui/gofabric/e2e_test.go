@@ -32,8 +32,8 @@ import (
 	"thingfabric.dev/go-fabric/node"
 	"thingfabric.dev/go-fabric/surface"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
-	"github.com/SukramJ/go-fabric-ui/fabricui/gofabric"
+	"thingfabric.dev/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui/gofabric"
 )
 
 // ctrlSite is a go-fabric controller (controller.New on a fabrictest site)

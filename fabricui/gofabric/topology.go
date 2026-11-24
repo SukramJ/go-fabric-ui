@@ -12,7 +12,7 @@ import (
 
 	"thingfabric.dev/go-fabric/controller/topology"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // controllerID is the controller's node in the graph (the port's

@@ -2074,6 +2074,7 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         Problem: {
+            /** @description The problem type URI: `https://thingfabric.dev/go-fabric-ui/problems#problem-` followed by `code` (0.14.0). */
             type: string;
             title: string;
             status: number;

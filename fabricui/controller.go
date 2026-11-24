@@ -17,7 +17,7 @@ import (
 // go-fabric controller seen through types of this package, so the port
 // carries no go-fabric type and the module's controller half does not
 // move with go-fabric's facade. The adapter
-// [github.com/SukramJ/go-fabric-ui/fabricui/gofabric.ControllerOf] is the
+// [thingfabric.dev/go-fabric-ui/fabricui/gofabric.ControllerOf] is the
 // one implementation over *controller.Controller; [NewMemoryController] is
 // an in-memory one for tests and demonstrations.
 //

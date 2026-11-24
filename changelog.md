@@ -3,7 +3,52 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/). The Go module and the npm package
-`@sukramj/fabric-ui` share one version.
+`@thingfabric/fabric-ui` (before 0.14.0 `@sukramj/fabric-ui`) share one version.
+
+## [0.14.0] - 2026-11-24
+
+Brief M1: the repository moved to `github.com/thingfabric/go-fabric-ui`
+(the old URLs redirect). Contract 0.14.0: no route, field, status or
+code changes, but the problem `type` URIs move — a break for a client
+that compares `type` as a string. go-fabric v0.25.0
+(`thingfabric.dev/go-fabric`) stays the minimum.
+
+### What a consumer must do
+
+- **Go:** `go get thingfabric.dev/go-fabric-ui@v0.14.0`, replace every
+  import `github.com/SukramJ/go-fabric-ui/…` by
+  `thingfabric.dev/go-fabric-ui/…` (for example
+  `grep -rl github.com/SukramJ/go-fabric-ui --include=*.go . | xargs sed -i 's#github.com/SukramJ/go-fabric-ui#thingfabric.dev/go-fabric-ui#g'`),
+  then `go mod tidy`. The old path stays at v0.13.0; a type from it is
+  a different type.
+- **npm:** `npm uninstall @sukramj/fabric-ui && npm i @thingfabric/fabric-ui`,
+  and rewrite the imports (`@thingfabric/fabric-ui`,
+  `@thingfabric/fabric-ui/client`, `@thingfabric/fabric-ui/theme`,
+  `@thingfabric/fabric-ui/theme/tokens.css`) and a Tailwind `@source`
+  that names `node_modules/@sukramj/fabric-ui`.
+- **Problems:** a client that compares a problem's `type` matches
+  `https://thingfabric.dev/go-fabric-ui/problems#problem-<code>`
+  instead of
+  `https://github.com/SukramJ/go-fabric-ui/blob/main/docs/contract.md#problem-<code>`
+  — or, better, matches on `code` (or `X-Problem-Code`), which did not
+  change.
+
+### Changed
+
+- **Module path** `github.com/SukramJ/go-fabric-ui` →
+  `thingfabric.dev/go-fabric-ui` (`go.mod`, `tools/go.mod`, every import,
+  the import guard, the coverage floors, the linter's local prefix).
+- **npm scope** `@sukramj/fabric-ui` → `@thingfabric/fabric-ui`
+  (`ui/package.json`, its lock file, the release workflow, the docs);
+  the page context's `Symbol.for` key follows the package name.
+- **Problem `type` URIs** (breaking for a string compare, see above):
+  `problemTypeBase` is `https://thingfabric.dev/go-fabric-ui/problems#problem-`;
+  the fixtures are re-recorded. `contract/previous/` is release 0.13.0.
+- Links to the repository, go-fabric, go-fabric-server and go-ha2fabric
+  point at `github.com/thingfabric/…`; go-fabric's glossary at
+  `docs.thingfabric.dev`. The release workflow runs for the owner
+  `thingfabric`; npm's trusted publisher of `@thingfabric/fabric-ui` is
+  set to `thingfabric/go-fabric-ui` and `release-on-tag.yml`.
 
 ## [0.13.0] - 2026-11-22
 

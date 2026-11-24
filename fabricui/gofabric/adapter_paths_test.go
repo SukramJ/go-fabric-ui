@@ -13,7 +13,7 @@ import (
 
 	"thingfabric.dev/go-fabric/controller/client"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // nodeError maps an interaction's error to the port's kinds: a value that
