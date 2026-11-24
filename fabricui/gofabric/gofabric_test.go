@@ -18,7 +18,7 @@ import (
 	"thingfabric.dev/go-fabric/controller/softwareupdate"
 	"thingfabric.dev/go-fabric/diag"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // A dataset's network name comes from go-fabric's decoder; one that does

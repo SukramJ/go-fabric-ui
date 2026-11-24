@@ -20,7 +20,7 @@ import (
 	"thingfabric.dev/go-fabric/node"
 	"thingfabric.dev/go-fabric/surface"
 
-	"github.com/SukramJ/go-fabric-ui/internal/api"
+	"thingfabric.dev/go-fabric-ui/internal/api"
 )
 
 // statusResponse is the body of GET /node/status. Mirrors loom's

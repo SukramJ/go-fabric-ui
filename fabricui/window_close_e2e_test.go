@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // On a node without a fabric the close of a window on fresh credentials

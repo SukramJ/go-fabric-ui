@@ -24,7 +24,7 @@ import (
 	"thingfabric.dev/go-fabric/node"
 	"thingfabric.dev/go-fabric/surface"
 
-	"github.com/SukramJ/go-fabric-ui/internal/api"
+	"thingfabric.dev/go-fabric-ui/internal/api"
 )
 
 // *node.Node is a NodeSource: a facade change that breaks the subset fails

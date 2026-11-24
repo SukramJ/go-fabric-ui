@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // stubSource is a partial NodeSource: the embedded nil interface stands

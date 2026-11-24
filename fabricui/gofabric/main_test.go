@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
-	"github.com/SukramJ/go-fabric-ui/internal/statusguard"
+	"thingfabric.dev/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/internal/statusguard"
 )
 
 // TestMain runs the adapter's tests through the status guard (decision

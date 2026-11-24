@@ -28,7 +28,7 @@ licence texts are under `licenses/npm/`.
 | `tailwind-merge` | 3.7.0 | MIT | [`licenses/npm/tailwind-merge.txt`](./licenses/npm/tailwind-merge.txt) |
 | `tailwindcss` | 4.3.5 | MIT | [`licenses/npm/tailwindcss.txt`](./licenses/npm/tailwindcss.txt) |
 
-The npm package `@sukramj/fabric-ui` itself ships sources, not this bundle;
+The npm package `@thingfabric/fabric-ui` itself ships sources, not this bundle;
 its runtime dependencies (`@lucide/svelte`, `clsx`, `jsqr`, `qrcode`,
 `tailwind-merge`; `svelte` is a peer dependency) are installed by the
 consumer's package manager with their own licence files. The other

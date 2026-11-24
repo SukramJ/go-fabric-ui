@@ -14,7 +14,7 @@ import (
 	"thingfabric.dev/go-fabric/controller"
 	"thingfabric.dev/go-fabric/fabrictest"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // The port's CommissionTimeout reaches go-fabric's

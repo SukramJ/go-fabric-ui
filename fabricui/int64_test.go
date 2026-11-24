@@ -11,7 +11,7 @@ import (
 
 	"thingfabric.dev/go-fabric/node"
 
-	"github.com/SukramJ/go-fabric-ui/internal/api"
+	"thingfabric.dev/go-fabric-ui/internal/api"
 )
 
 // A uint32 at or above 2^31 stays a positive JSON number on a 32-bit

@@ -25,8 +25,8 @@ import (
 	"thingfabric.dev/go-fabric/fabrictest"
 	"thingfabric.dev/go-fabric/node"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
-	"github.com/SukramJ/go-fabric-ui/fabricui/gofabric"
+	"thingfabric.dev/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui/gofabric"
 )
 
 // commissionSiteDevice commissions the site's device and waits for its

@@ -1,7 +1,7 @@
 # go-fabric-ui
 
-[![ci](https://github.com/SukramJ/go-fabric-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/SukramJ/go-fabric-ui/actions/workflows/ci.yml)
-[![codeql](https://github.com/SukramJ/go-fabric-ui/actions/workflows/codeql.yml/badge.svg)](https://github.com/SukramJ/go-fabric-ui/actions/workflows/codeql.yml)
+[![ci](https://github.com/thingfabric/go-fabric-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/thingfabric/go-fabric-ui/actions/workflows/ci.yml)
+[![codeql](https://github.com/thingfabric/go-fabric-ui/actions/workflows/codeql.yml/badge.svg)](https://github.com/thingfabric/go-fabric-ui/actions/workflows/codeql.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 
 One web interface for every daemon built on
@@ -13,7 +13,7 @@ each project.
 
 The terms the pages use — the node family and the controller family,
 Topology versus Network, the window kinds — and the Matter terms behind
-them are defined in go-fabric's [glossary](https://sukramj.github.io/go-fabric/reference/glossary/).
+them are defined in go-fabric's [glossary](https://docs.thingfabric.dev/reference/glossary/).
 
 > **Status: `v0.13.0`** (contract 0.13.0) of
 > [concept v9](https://github.com/thingfabric/go-fabric/blob/main/docs/concept-v9-fabric-ui.md).
@@ -58,7 +58,7 @@ them are defined in go-fabric's [glossary](https://sukramj.github.io/go-fabric/r
 
 ## Two artefacts, one version
 
-- **Go module** `github.com/SukramJ/go-fabric-ui`, package `fabricui`:
+- **Go module** `thingfabric.dev/go-fabric-ui`, package `fabricui`:
   `Mount(mux, Options)` puts the HTTP API on a `*node.Node` and, through
   `fabricui/gofabric.ControllerOf`, on a `*controller.Controller`;
   `NewHandler(Options)` (or `Handler`, which panics on invalid options)
@@ -67,7 +67,7 @@ them are defined in go-fabric's [glossary](https://sukramj.github.io/go-fabric/r
   needs no Node.js toolchain. What a host exposes is its own business: it
   implements `ExposureProvider` (schema, list, preview, apply) and the
   selection page renders it.
-- **npm package** `@sukramj/fabric-ui`: the Svelte 5 pages, the UI kit,
+- **npm package** `@thingfabric/fabric-ui`: the Svelte 5 pages, the UI kit,
   the design tokens (Home Assistant's variable names, with a theme bridge
   that adopts the live theme inside an Ingress panel) and the generated
   TypeScript client, for a project with its own single-page app.
@@ -116,9 +116,9 @@ full `npm audit` that reports without failing.
 
 | Project | Uses |
 | --- | --- |
-| [go-ha2fabric](https://github.com/SukramJ/go-ha2fabric) | Go module with the bundle; Home Assistant exposure provider |
+| [go-ha2fabric](https://github.com/thingfabric/go-ha2fabric) | Go module with the bundle; Home Assistant exposure provider |
 | [openccu-loom](https://github.com/SukramJ/openccu-loom) | npm package in its own app; Go module for the handlers |
-| [go-fabric-server](https://github.com/SukramJ/go-fabric-server) | Go module with the bundle; both page families |
+| [go-fabric-server](https://github.com/thingfabric/go-fabric-server) | Go module with the bundle; both page families |
 
 ## Why "Matter" is not in the name
 

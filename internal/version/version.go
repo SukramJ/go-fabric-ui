@@ -2,7 +2,7 @@
 // Copyright (C) 2026 SukramJ.
 
 // Package version holds the release version of the module. The Go module
-// and the npm package @sukramj/fabric-ui share it; make version-check ties
+// and the npm package @thingfabric/fabric-ui share it; make version-check ties
 // it to ui/package.json and the changelog.
 package version
 

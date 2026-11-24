@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	module   = "github.com/SukramJ/go-fabric-ui"
+	module   = "thingfabric.dev/go-fabric-ui"
 	goFabric = "thingfabric.dev/go-fabric"
 )
 

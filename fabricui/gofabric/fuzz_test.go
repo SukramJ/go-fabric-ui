@@ -17,7 +17,7 @@ import (
 	"thingfabric.dev/go-fabric/controller"
 	"thingfabric.dev/go-fabric/controller/client"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // FuzzThreadDatasetName: a dataset that does not decode, or names no

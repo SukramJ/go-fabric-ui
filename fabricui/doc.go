@@ -13,7 +13,7 @@
 //	mux.Handle("/", fabricui.Handler(fabricui.Options{Node: n, Exposure: p}))
 //
 // A daemon with its own single-page app mounts only the API and embeds the
-// pages from the npm package @sukramj/fabric-ui:
+// pages from the npm package @thingfabric/fabric-ui:
 //
 //	err := fabricui.Mount(mux, fabricui.Options{Node: n, Admin: isAdmin})
 //

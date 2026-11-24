@@ -16,7 +16,7 @@ import (
 
 	"thingfabric.dev/go-fabric/controller/topology"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // topologyLiteral is go-fabric's snapshot behind the

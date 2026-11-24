@@ -17,7 +17,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/SukramJ/go-fabric-ui/internal/statusobs"
+	"thingfabric.dev/go-fabric-ui/internal/statusobs"
 )
 
 // Operation is one operation of contract/openapi.yaml.

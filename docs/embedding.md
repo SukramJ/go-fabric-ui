@@ -7,7 +7,7 @@ single-page app of its own.
 ## A daemon without a web app: the Go module
 
 ```go
-import "github.com/SukramJ/go-fabric-ui/fabricui"
+import "thingfabric.dev/go-fabric-ui/fabricui"
 
 n, err := node.New(cfg)
 // … n.Start(ctx) — before or after the handler is built
@@ -328,8 +328,8 @@ knows the controller facade:
 
 ```go
 import (
-    "github.com/SukramJ/go-fabric-ui/fabricui"
-    "github.com/SukramJ/go-fabric-ui/fabricui/gofabric"
+    "thingfabric.dev/go-fabric-ui/fabricui"
+    "thingfabric.dev/go-fabric-ui/fabricui/gofabric"
 )
 
 hooks := gofabric.NewHooks()
@@ -465,7 +465,7 @@ What a host must do before it serves the inventory:
    the code and choosing a photograph, which the page decodes in the
    browser and uploads nowhere, work without.
 6. A host that mounts the Inventory page from the npm package includes
-   `@sukramj/fabric-ui/theme/tokens.css`: the label print's rule
+   `@thingfabric/fabric-ui/theme/tokens.css`: the label print's rule
    (`html.fui-print-labels`, set only for the Print button's print) is
    there; without it the button prints the page as it is.
 
@@ -489,12 +489,12 @@ the prefix after `Mount` is more specific and shadows the API's.
 ## A host with its own single-page app: the npm package
 
 ```sh
-npm install @sukramj/fabric-ui
+npm install @thingfabric/fabric-ui
 ```
 
 The package ships Svelte 5 sources (pages, kit, client, translator, theme);
 the host's Vite build compiles them. See
-[`ui/README.md`](https://github.com/SukramJ/go-fabric-ui/blob/main/ui/README.md)
+[`ui/README.md`](https://github.com/thingfabric/go-fabric-ui/blob/main/ui/README.md)
 for the context the pages read (`provideFabricUI`), the stylesheet, and
 feeding the event stream into a host's own hub. The host serves the API
 with `fabricui.Mount`.

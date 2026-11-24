@@ -10,7 +10,7 @@ in go-fabric (German working paper). In short:
   multi-admin window, OTA, Thread).
 - **Shape.** A Go module (`fabricui`: handlers on the `node.Node` facade,
   no seam below it; the contract; the built bundle under `fabricui/dist/`
-  embedded with `go:embed`) and an npm package `@sukramj/fabric-ui` (Svelte 5,
+  embedded with `go:embed`) and an npm package `@thingfabric/fabric-ui` (Svelte 5,
   Vite, Tailwind 4; the pages, the kit, the tokens, the theme bridge, the
   generated client). One version for both, one tag releases both.
 - **Host-specific only through `ExposureProvider`** (`Schema`, `List`,

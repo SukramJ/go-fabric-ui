@@ -91,7 +91,7 @@ changes its selection elsewhere publishes the same event through its
 ## An in-memory provider
 
 The handler tests run on this provider
-([`fabricui/memory_provider_test.go`](https://github.com/SukramJ/go-fabric-ui/blob/main/fabricui/memory_provider_test.go));
+([`fabricui/memory_provider_test.go`](https://github.com/thingfabric/go-fabric-ui/blob/main/fabricui/memory_provider_test.go));
 a host's provider has the same shape over its own store:
 
 ```go

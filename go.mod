@@ -1,4 +1,4 @@
-module github.com/SukramJ/go-fabric-ui
+module thingfabric.dev/go-fabric-ui
 
 go 1.27.4
 

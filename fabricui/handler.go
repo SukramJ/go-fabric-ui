@@ -22,7 +22,7 @@ import (
 
 	"thingfabric.dev/go-fabric/node"
 
-	"github.com/SukramJ/go-fabric-ui/internal/statusobs"
+	"thingfabric.dev/go-fabric-ui/internal/statusobs"
 )
 
 // TokenHeader carries the admin token in token mode (a nil

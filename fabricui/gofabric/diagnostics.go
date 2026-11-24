@@ -6,7 +6,7 @@ package gofabric
 import (
 	"thingfabric.dev/go-fabric/diag"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // The controller's diagnostics (contract 0.9.0) map one to one from

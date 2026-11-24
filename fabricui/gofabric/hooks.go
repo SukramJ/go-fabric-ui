@@ -9,7 +9,7 @@ import (
 
 	"thingfabric.dev/go-fabric/controller/client"
 
-	"github.com/SukramJ/go-fabric-ui/fabricui"
+	"thingfabric.dev/go-fabric-ui/fabricui"
 )
 
 // updateDelay coalesces a node's reports into one node_updated: a

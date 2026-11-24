@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/SukramJ/go-fabric-ui/internal/statusguard"
+	"thingfabric.dev/go-fabric-ui/internal/statusguard"
 )
 
 // TestMain runs the package's tests through the status guard (decision
