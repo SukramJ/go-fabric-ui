@@ -4,7 +4,7 @@ go 1.27.4
 
 require (
 	github.com/oapi-codegen/runtime v1.9.0
-	thingfabric.dev/go-fabric v0.25.0
+	thingfabric.dev/go-fabric v0.26.0
 )
 
 require (
