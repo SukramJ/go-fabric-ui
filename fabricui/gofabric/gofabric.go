@@ -435,14 +435,29 @@ func termsOf(tc *fabricui.TermsAcknowledgement, template *commissioner.TermsAndC
 // *ErrTermsRequired with its version and deadline
 // (commissioner.TermsRequiredError, controller/commissioner/
 // errors.go:158-176 at v0.19.1).
+//
+// controller.ErrConfiguration is the host's state, not the request's
+// fault and no node's answer, so it keeps no port kind and answers 500
+// with the cause in the log (UR-P4-err-404). What can arrive at v0.28.0:
+// a closed controller on both paths (pair's c.open(),
+// controller/controller.go:1323-1326, and Discover's on the re-discovery,
+// controller/code.go:131-134) and, on the code path, the host's Pair
+// template — its Address beside a used BLE (controller.go:1213) or one
+// without IP or port (DeviceAt, :1416). PairDiscovered's own refusals
+// (:1268-1279) do not arrive: CommissionDiscovered clears BLE and
+// Address, Discover reports a device only once it has an address
+// (client/discovery/session.go:58-65), and the handler refuses an invalid
+// passcode first. discoverDevices answers the same closed controller 500.
 func commissionError(err error) error {
 	var terms *commissioner.TermsRequiredError
 	if errors.As(err, &terms) {
 		return &fabricui.ErrTermsRequired{Version: terms.Version, Deadline: terms.Deadline}
 	}
 	switch {
-	case errors.Is(err, controller.ErrPairingCode), errors.Is(err, controller.ErrConfiguration):
+	case errors.Is(err, controller.ErrPairingCode):
 		return fmt.Errorf("%w: %w", fabricui.ErrInvalidArgument, err)
+	case errors.Is(err, controller.ErrConfiguration):
+		return err
 	case errors.Is(err, controller.ErrNoDevice):
 		return fabricui.ErrNoDevice
 	case errors.Is(err, context.Canceled):
