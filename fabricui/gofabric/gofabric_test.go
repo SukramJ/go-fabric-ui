@@ -4,19 +4,23 @@
 package gofabric
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/netip"
 	"slices"
 	"testing"
 	"time"
 
+	"thingfabric.dev/go-fabric/client/discovery"
 	"thingfabric.dev/go-fabric/cluster/spec/accesscontrol"
 	"thingfabric.dev/go-fabric/controller"
 	"thingfabric.dev/go-fabric/controller/client"
 	"thingfabric.dev/go-fabric/controller/commissioner"
 	"thingfabric.dev/go-fabric/controller/softwareupdate"
 	"thingfabric.dev/go-fabric/diag"
+	"thingfabric.dev/go-fabric/fabrictest"
 
 	"thingfabric.dev/go-fabric-ui/fabricui"
 )
@@ -180,6 +184,64 @@ func TestCommissionErrorTermsRequired(t *testing.T) {
 	}
 	if errors.Is(err, fabricui.ErrNodeFailed) {
 		t.Fatal("a terms requirement is a node failure")
+	}
+}
+
+// controller.ErrConfiguration is the host's state — a closed controller,
+// the host's Pair template — so commissionError gives it no port kind:
+// neither the request's 400 nor the node's 502, but 500 with the cause
+// in the log (UR-P4-err-404). A pairing code's own fault stays 400.
+func TestCommissionError_ConfigurationIsTheHosts(t *testing.T) {
+	cfg := commissionError(fmt.Errorf("pair: %w", controller.ErrConfiguration))
+	if !errors.Is(cfg, controller.ErrConfiguration) || errors.Is(cfg, fabricui.ErrInvalidArgument) || errors.Is(cfg, fabricui.ErrNodeFailed) {
+		t.Fatalf("configuration: %v", cfg)
+	}
+	if code := commissionError(fmt.Errorf("parse: %w", controller.ErrPairingCode)); !errors.Is(code, fabricui.ErrInvalidArgument) {
+		t.Fatalf("pairing code: %v", code)
+	}
+}
+
+// A closed controller answers every commissioning path with go-fabric's
+// ErrConfiguration (controller/controller.go:1323-1326 and
+// controller/code.go:131-134 at v0.28.0), which reaches the handler
+// without a port kind: the code path, the discovered path with a cached
+// device and its re-discovery branch (UR-P4-err-404).
+func TestSource_ClosedControllerIsNoRequestFault(t *testing.T) {
+	site := fabrictest.NewSite(t, fabrictest.Options{})
+	cfg := site.ControllerConfig(fabrictest.ControllerOptions{Label: "closed"})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	var ctrl *controller.Controller
+	if err := site.Run(ctx, func(ctx context.Context) (err error) {
+		ctrl, err = controller.New(ctx, cfg)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := site.Run(ctx, ctrl.Close); err != nil {
+		t.Fatal(err)
+	}
+	s := ControllerOf(ctrl, ControllerOptions{}).(*source)
+	defer s.Close()
+	s.remember([]client.Device{{InstanceID: "CACHED", Addresses: []discovery.Address{{IP: netip.MustParseAddr("::1"), Port: 5540}}}})
+	for _, c := range []struct {
+		name string
+		run  func() error
+	}{
+		{"code", func() error { _, err := s.Pair(ctx, "34970112332", fabricui.PairOptions{}); return err }},
+		{"cached device", func() error {
+			_, err := s.CommissionDiscovered(ctx, fabricui.Discovered{InstanceName: "CACHED"}, 20202021, fabricui.PairOptions{})
+			return err
+		}},
+		{"re-discovery", func() error {
+			_, err := s.CommissionDiscovered(ctx, fabricui.Discovered{InstanceName: "GONE", LongDiscriminator: 3840, HasLongDiscriminator: true}, 20202021, fabricui.PairOptions{})
+			return err
+		}},
+	} {
+		err := c.run()
+		if !errors.Is(err, controller.ErrConfiguration) || errors.Is(err, fabricui.ErrInvalidArgument) || errors.Is(err, fabricui.ErrNodeFailed) {
+			t.Errorf("%s: %v", c.name, err)
+		}
 	}
 }
 

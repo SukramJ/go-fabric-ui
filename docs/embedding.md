@@ -145,6 +145,13 @@ attribute change of a cluster server (`attribute_changed`, from
 also registers `Node.OnHealthSample` and `Node.OnDiagnosticEvent`
 (`health_sample`, `diagnostic_event`), so the status and diagnostics pages
 update without a reload.
+A reassembly the host runs on its own reaches the stream at most as
+`surface_changed` (one per endpoint whose surface changed), never as
+`endpoints_changed`; the node page clears its "not in effect" notice
+on `endpoints_changed` alone (0.16.0), which the routes publish after
+`Options.Reassemble` returned nil. A host that rebuilds on its own
+publishes `endpoints_changed` through `Options.Events` after its rebuild
+returned nil, or the notice stays until a rebuild through the routes.
 `node.Config.Observers` stays the host's own. A host that carries these
 events over a channel of its own registers them with
 `fabricui.ObserveNode(n, push)` — `NodeObservers` through `Node.Observe`
@@ -379,6 +386,16 @@ What each route calls on the facade:
 A host without go-fabric's controller — a test, a demonstration —
 implements `fabricui.ControllerSource` itself; `fabricui.NewMemoryController()`
 is an in-memory one with two nodes, one ICD and a pending update.
+
+Such a source's error kinds (0.16.0): an operation answers a kind with
+its status only where the contract declares that status — 404 for the
+not-found kinds, 400 for `ErrInvalidArgument` and `ErrInvalidCredential`,
+409 for `ErrConflict` (and `ErrICDMultiAdmin`), 502 for `ErrNodeFailed`
+and `context.DeadlineExceeded` — and 500 with the cause in the log
+elsewhere; the port's godoc names the kinds per method. A host source
+that answered, say, `ErrNodeFailed` from `CredentialStore.List` got 502
+before 0.16.0 and gets 500 now. `POST /controller/nodes/{id}/ping`
+declares 409 and 502 from 0.16.0.
 
 Two port changes of 0.7.0 concern such a source. `PairOptions` gains
 `TermsAndConditions` (the request's acknowledgement) and `Progress`, which

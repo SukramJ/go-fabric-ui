@@ -5,6 +5,57 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). The Go module and the npm package
 `@thingfabric/fabric-ui` (before 0.14.0 `@sukramj/fabric-ui`) share one version.
 
+## [0.16.0] - 2026-11-27
+
+Contract 0.16.0, additive: `POST /controller/nodes/{id}/ping` declares 409
+and 502 — the #85 close-out (UR-P4-ui-396, UR-P4-err-404, UR-P4-api-391,
+UR-P4-test-403).
+
+### Added
+
+- `pingNode` declares 409 `conflict` and 502 `node_error`, as every other
+  acting route under `/controller/nodes/{id}`; the go-fabric adapter's
+  ping answers 502 when the request's deadline ends it, which was
+  undeclared before. Fixtures `controller-node-ping.409` and `.502`, used
+  on both sides.
+- `TestController_SourceKindsOnlyWhereDeclared`: every port kind against
+  every fallible controller route, the credential store and the update
+  source failing too, judged by the status guard.
+- An end-to-end test lets go-fabric's real update manager fail one
+  product (an offline image store, one stored image corrupted) and reads
+  the route's `errors` and the single `check_finished`.
+
+### Changed
+
+- A source's error answers its kind's status only where the operation
+  declares it; anything else is 500 with the cause in the log.
+  `getNodeEndpoint`, `getNodeCluster`, `discoverDevices`,
+  `setFabricLabel`, `getControllerTopology`, `listCredentials`,
+  `setCredential`, `removeCredential` and `consentUpdate` answered an
+  undeclared 404, 409 or 502 for such an error before.
+- **Status change 400 → 500** on `POST /controller/commission`: go-fabric's
+  `controller.ErrConfiguration` — a closed controller on both paths, a
+  wrong host `Pair` template on the code path — is the host's state, not
+  the request's fault; the progress detail is `failed`, not
+  `invalid_argument`. `discoverDevices` answers the same closed
+  controller 500 already. A pairing code's own fault stays 400.
+- The node page's "not in effect" notice clears on `endpoints_changed`
+  only; `surface_changed` refreshes the status and the topology but
+  leaves the notice.
+
+### Hosts
+
+- A host that rebuilds the node on its own publishes `endpoints_changed`
+  through its `fabricui.Events` once the rebuild returned nil; without it
+  an open page keeps the "not in effect" notice until a rebuild through
+  the routes.
+- A host with its own `ControllerSource`, `CredentialStore` or
+  `SoftwareUpdateSource`: a kind an operation does not declare is 500
+  now (the port's godoc names the kinds per method).
+- A host that sees 400 for a commissioning on a closed controller or a
+  `Pair` template the controller refuses sees 500 now, with the cause in
+  its log.
+
 ## [0.15.0] - 2026-11-27
 
 Contract 0.15.0, additive: `PUT /controller/fabric/label` declares 409

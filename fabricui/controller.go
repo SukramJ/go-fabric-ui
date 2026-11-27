@@ -37,7 +37,9 @@ type ControllerSource interface {
 	// names. The code carries the passcode; it is never logged.
 	Pair(ctx context.Context, code string, opts PairOptions) (ControllerNode, error)
 	// Discover lists the commissionable devices filter selects that
-	// answer within timeout.
+	// answer within timeout. Kinds answered as such: [ErrInvalidArgument]
+	// (400), [ErrNodeFailed] and context.DeadlineExceeded (502); any other
+	// kind is 500 with the cause in the log (contract 0.16.0).
 	Discover(ctx context.Context, filter DiscoverFilter, timeout time.Duration) ([]Discovered, error)
 	// CommissionDiscovered commissions a device a Discover answered with
 	// its passcode.
@@ -48,6 +50,8 @@ type ControllerSource interface {
 	// SetFabricLabel sets the fabric label; the nodes get it in the
 	// background. An error wrapping [ErrConflict] says the host refuses
 	// the change, a label it pins: 409 conflict (contract 0.15.0).
+	// [ErrInvalidArgument] is 400; any other kind is 500 with the cause in
+	// the log (contract 0.16.0).
 	SetFabricLabel(ctx context.Context, label string) error
 	// Credentials is the host's store of Wi-Fi and Thread credentials;
 	// nil when the host keeps none.
@@ -62,6 +66,9 @@ type ControllerSource interface {
 	// controller, its nodes and the links between them. refresh re-reads
 	// the nodes' network diagnostics first. [ErrNotImplemented] when the
 	// source serves no graph (GET /controller/topology answers 501).
+	// [ErrInvalidArgument] is 400, [ErrNodeFailed] and
+	// context.DeadlineExceeded 502; any other kind is 500 with the cause
+	// in the log (contract 0.16.0).
 	NetworkTopology(ctx context.Context, refresh bool) (NetworkTopology, error)
 	// Diagnostics is a snapshot of the controller's sessions and peers
 	// (GET /controller/diagnostics, contract 0.9.0). It is called only
@@ -258,12 +265,18 @@ type ControllerNode interface {
 	// EndpointDetail is one endpoint of the image with its inventory,
 	// its clusters without attribute values; nothing is read from the
 	// node. ErrEndpointNotFound when the image holds no such endpoint.
+	// The 404 kinds ([ErrNodeNotFound], [ErrEndpointNotFound],
+	// [ErrClusterNotFound], [ErrNoDevice], [ErrUnknownCredential]) and
+	// [ErrInvalidArgument] (400) are answered as such; any other kind is
+	// 500 with the cause in the log (contract 0.16.0).
 	EndpointDetail(ep uint16) (EndpointDetail, error)
 	// ClusterDetail is one server cluster of an endpoint of the image
 	// with the attribute values the controller holds; nothing is read
 	// from the node. ErrEndpointNotFound or ErrClusterNotFound when the
 	// image lacks it, ErrNotRead (503) while the endpoint's ServerList
-	// names the cluster but the controller has not read it yet.
+	// names the cluster but the controller has not read it yet. The 404
+	// kinds and [ErrInvalidArgument] (400) are answered as such; any other
+	// kind is 500 with the cause in the log (contract 0.16.0).
 	ClusterDetail(ep uint16, cluster uint32) (ClusterDetail, error)
 	// Events are the events the controller received from the node, those
 	// numbered since or later, oldest first; with limit > 0 only the
@@ -292,7 +305,10 @@ type ControllerNode interface {
 	// session (PerAddress true), otherwise one read of BasicInformation
 	// DataModelRevision through the session for every address. A silent
 	// address or a failed read is a result with Reachable false, not an
-	// error.
+	// error. The 404 kinds, [ErrInvalidArgument] (400), [ErrConflict]
+	// (409) and [ErrNodeFailed] or context.DeadlineExceeded (502) are
+	// answered as such (409 and 502 declared since contract 0.16.0); any
+	// other kind is 500 with the cause in the log.
 	Ping(ctx context.Context) (PingResult, error)
 	Enable(ctx context.Context) error
 	Disable(ctx context.Context) error
@@ -934,6 +950,12 @@ type Discovered struct {
 // commissioning: Wi-Fi SSIDs with their passphrase, Thread operational
 // datasets. The routes read names only; a secret goes in and never comes
 // back out.
+//
+// A method's error answers its status only where the route declares it
+// (contract 0.16.0): [ErrInvalidArgument] and [ErrInvalidCredential] 400
+// on SetWiFi, SetThread and Remove, the 404 kinds ([ErrUnknownCredential]
+// among them) on Remove; any other kind, and every error of List, is 500
+// with the cause in the log.
 type CredentialStore interface {
 	// List is every stored credential, by kind and id; Name is the SSID
 	// or the Thread network name.
@@ -979,7 +1001,10 @@ type SoftwareUpdateSource interface {
 	// 0.11.0, AvailableUpdateList.errors); any other error fails the
 	// whole check.
 	Check(ctx context.Context) ([]AvailableUpdate, error)
-	// Consent consents to node's update to the version.
+	// Consent consents to node's update to the version. The 404 kinds
+	// ([ErrNodeNotFound] among them) and [ErrInvalidArgument] (400) are
+	// answered as such; any other kind is 500 with the cause in the log
+	// (contract 0.16.0).
 	Consent(ctx context.Context, node uint64, vendorID, productID uint16, version uint32) error
 }
 

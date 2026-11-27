@@ -264,7 +264,10 @@ Details the fixtures pin:
   that endpoint's key (`""` for the root endpoint). It arrives for a
   reassembly this handler runs (`POST /node/maintenance/reassemble`,
   `PUT /node/exposure`) and for one the host runs on its own; the routes
-  publish `endpoints_changed` alone. The session events are go-fabric's
+  publish `endpoints_changed` alone, and only after `reassemble` returned
+  nil; a host that rebuilds on its own publishes it through
+  `Options.Events`. The node page clears its "not in effect" notice on
+  `endpoints_changed` only, never on `surface_changed` (0.16.0). The session events are go-fabric's
   `Observers.OnSessionOpened`, `OnSessionClosed` and
   `OnSubscriptionsChanged`: CASE sessions only (a commissioning's PASE
   session raises none), the payload the session as `/node/sessions` lists
@@ -817,6 +820,16 @@ a string (the contract guard does not see it: the schema says
 The Go module is `thingfabric.dev/go-fabric-ui` and the npm package
 `@thingfabric/fabric-ui` from this version on.
 
+Contract 0.16.0 (the #85 close-out, UR-P4-api-391) is additive over
+0.15.0, which `contract/previous/` holds as release 0.15.0 shipped it; no
+break is accepted. `POST /controller/nodes/{id}/ping` declares 409
+`conflict` and 502 `node_error`, as every other acting route under
+`/controller/nodes/{id}` does; the go-fabric adapter's ping answers 502
+when the request's deadline ends it. Every other controller operation
+answers a source's error with its status only where it declares that
+status, 500 with the cause in the log elsewhere (below, "A source's
+error kinds").
+
 ## Controller routes (v0.2.0)
 
 Served only when the host passes `Options.Controller`; without it every
@@ -837,7 +850,7 @@ hand-written.
 | `/controller/nodes/{id}/events` | GET | yes | 200, 400, 403, 404, 500 — served from 0.4.1 |
 | `/controller/nodes/{id}` | DELETE | yes | 204, 400, 403, 404, 409, 500, 502 |
 | `/controller/nodes/{id}/interview` | POST | yes | 204, 400, 403, 404, 409, 500, 502 |
-| `/controller/nodes/{id}/ping` | POST | yes | 200, 400, 403, 404, 500 — served from 0.5.0 |
+| `/controller/nodes/{id}/ping` | POST | yes | 200, 400, 403, 404, 409 (0.16.0), 500, 502 (0.16.0) — served from 0.5.0 |
 | `/controller/nodes/{id}/enable`, `/disable` | POST | yes | 204, 400, 403, 404, 409, 500, 502 |
 | `/controller/nodes/{id}/auto-subscribe` | POST | yes | 204, 400, 403, 404, 409, 413, 415, 500, 502 |
 | `/controller/nodes/{id}/window` | POST | yes | 200, 400, 403, 404, 409, 413, 415, 500, 502 |
@@ -863,6 +876,19 @@ hand-written.
 | `/controller/mdns` | GET | yes | 200, 403, 500, 501 — served from 0.9.0 |
 | `/controller/events` | GET | yes | 200, 403, 500, 501 — served from 0.9.0 |
 | `/controller/stream` | GET | yes | 200 (`text/event-stream`), 403, 500, 503 |
+
+A source's error kinds (0.16.0, UR-P4-api-391): a host's
+`ControllerSource`, `CredentialStore` or `SoftwareUpdateSource` error
+answers the status of its kind (404 for the not-found kinds, 400
+`ErrInvalidArgument`/`ErrInvalidCredential`, 409 `ErrConflict` and
+`ErrICDMultiAdmin`, 502 `ErrNodeFailed` and `context.DeadlineExceeded`)
+only on an operation that declares that status; any other kind is 500
+with the cause in the log, as 501 and 503 are since 0.12.0 (decision 79).
+Before 0.16.0 `getNodeEndpoint`, `getNodeCluster`, `pingNode`,
+`discoverDevices`, `setFabricLabel`, `getControllerTopology`,
+`listCredentials`, `setCredential`, `removeCredential` and
+`consentUpdate` could answer an undeclared 404, 409 or 502 for such an
+error. `TestController_SourceKindsOnlyWhereDeclared` holds it.
 
 Details the fixtures pin:
 

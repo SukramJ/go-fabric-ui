@@ -644,7 +644,7 @@ func (s *controllerServer) GetNodeEndpoint(_ context.Context, req api.GetNodeEnd
 	}
 	d, err := n.EndpointDetail(ep)
 	if err != nil {
-		return nil, err
+		return nil, declared(err, kinds400, kinds404)
 	}
 	return api.GetNodeEndpoint200JSONResponse(endpointDetail(d)), nil
 }
@@ -666,7 +666,7 @@ func (s *controllerServer) GetNodeCluster(_ context.Context, req api.GetNodeClus
 	}
 	d, err := n.ClusterDetail(ep, cluster)
 	if err != nil {
-		return nil, notRead(err)
+		return nil, declared(notRead(err), kinds400, kinds404)
 	}
 	return api.GetNodeCluster200JSONResponse(clusterDetail(d)), nil
 }
@@ -716,7 +716,8 @@ func (s *controllerServer) PingNode(ctx context.Context, req api.PingNodeRequest
 	}
 	res, err := n.Ping(ctx)
 	if err != nil {
-		return nil, err
+		// 409 and 502 declared since contract 0.16.0 (UR-P4-api-391).
+		return nil, declared(err, kinds400, kinds404, kinds409, kinds502)
 	}
 	return api.PingNode200JSONResponse(pingResult(&res)), nil
 }
@@ -1603,7 +1604,7 @@ func (s *controllerServer) DiscoverDevices(ctx context.Context, req api.Discover
 	}
 	found, err := s.src.Discover(ctx, f, timeout)
 	if err != nil {
-		return nil, err
+		return nil, declared(err, kinds400, kinds502)
 	}
 	out := api.DiscoverDevices200JSONResponse{Devices: []api.Discovered{}}
 	for _, d := range found {
@@ -1639,7 +1640,7 @@ func (s *controllerServer) ListCredentials(ctx context.Context, _ api.ListCreden
 	}
 	list, err := c.List(ctx)
 	if err != nil {
-		return nil, err
+		return nil, declared(err)
 	}
 	out := api.ListCredentials200JSONResponse{Credentials: []api.Credential{}}
 	for _, e := range list {
@@ -1689,7 +1690,7 @@ func (s *controllerServer) SetCredential(ctx context.Context, req api.SetCredent
 		return nil, badRequest("kind: %q is not wifi or thread", b.Kind)
 	}
 	if err != nil {
-		return nil, err
+		return nil, declared(err, kinds400)
 	}
 	return api.SetCredential204Response{}, nil
 }
@@ -1703,7 +1704,7 @@ func (s *controllerServer) RemoveCredential(ctx context.Context, req api.RemoveC
 		return nil, badRequest("kind: %q is not wifi or thread", req.Params.Kind)
 	}
 	if err := c.Remove(ctx, CredentialKind(req.Params.Kind), req.Params.ID); err != nil {
-		return nil, err
+		return nil, declared(err, kinds400, kinds404)
 	}
 	return api.RemoveCredential204Response{}, nil
 }
@@ -1729,7 +1730,7 @@ func (s *controllerServer) SetFabricLabel(ctx context.Context, req api.SetFabric
 			// The host refuses the change, not a node (contract 0.15.0).
 			return nil, &apiProblem{http.StatusConflict, codeConflict, "Refused by the host", err.Error()}
 		}
-		return nil, err
+		return nil, declared(err, kinds400)
 	}
 	return api.SetFabricLabel204Response{}, nil
 }
@@ -1788,7 +1789,7 @@ func (s *controllerServer) ConsentUpdate(ctx context.Context, req api.ConsentUpd
 	}
 	// The update event is the source's (ControllerEvent.UpdateKind).
 	if err := u.Consent(ctx, id, uint16(b.VendorID), uint16(b.ProductID), uint32(b.TargetSoftwareVersion)); err != nil { //nolint:gosec // bounded above
-		return nil, err
+		return nil, declared(err, kinds400, kinds404)
 	}
 	return api.ConsentUpdate204Response{}, nil
 }
@@ -1834,7 +1835,7 @@ func (s *controllerServer) GetControllerTopology(ctx context.Context, req api.Ge
 	refresh := req.Params.Refresh != nil && *req.Params.Refresh
 	topo, err := s.src.NetworkTopology(ctx, refresh)
 	if err != nil {
-		return nil, notImplemented(err)
+		return nil, declared(notImplemented(err), kinds400, kinds502)
 	}
 	return api.GetControllerTopology200JSONResponse(networkGraph(topo)), nil
 }
@@ -2215,6 +2216,35 @@ func (p *mismatchProblem) Error() string { return p.m.Error() }
 type opaqueError struct{ err error }
 
 func (e opaqueError) Error() string { return e.err.Error() }
+
+// The port's kinds by the status controllerError answers them with.
+// ErrICDMultiAdmin wraps ErrConflict (decision 76), so kinds409 holds it.
+var (
+	kinds400 = []error{ErrInvalidArgument, ErrInvalidCredential}
+	kinds404 = []error{ErrNodeNotFound, ErrEndpointNotFound, ErrClusterNotFound, ErrNoDevice, ErrUnknownCredential}
+	kinds409 = []error{ErrConflict}
+	kinds502 = []error{ErrNodeFailed, context.DeadlineExceeded}
+)
+
+// declared closes a source's error to the statuses its operation
+// declares (UR-P4-api-391, as decision 79 closed 501 and 503): a problem
+// the handler built and an error of one of kinds go to controllerError as
+// they are; any other kind is opaqueError, 500 with the cause in the log.
+// A cancellation stays itself, so a client that left is logged as
+// abandoned, not as a failure (serverError, UR-P1-err-12).
+func declared(err error, kinds ...[]error) error {
+	if _, ok := errors.AsType[*apiProblem](err); ok || errors.Is(err, context.Canceled) {
+		return err
+	}
+	for _, group := range kinds {
+		for _, k := range group {
+			if errors.Is(err, k) {
+				return err
+			}
+		}
+	}
+	return opaqueError{err}
+}
 
 // onboardingError maps a source's error on the onboarding routes:
 // ErrNodeNotFound 404, *OnboardingInvalid 400, *OnboardingMismatch 409,

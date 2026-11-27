@@ -1355,3 +1355,39 @@ func TestCommissionDiscovered_ACommissionedNodeAgainIsNoSuccess(t *testing.T) {
 		t.Fatal("a second commissioning of a node already commissioned answered success")
 	}
 }
+
+// A closed controller is the host's state, not the request's fault: the
+// commissioning answers 500 and the stream's progress fails with the
+// plain "failed", not invalid_argument (UR-P4-err-404; go-fabric's
+// ErrConfiguration for a closed controller, controller/controller.go:
+// 1323-1326 at v0.28.0).
+func TestEndToEnd_ClosedControllerCommissionIs500(t *testing.T) {
+	s := newCtrlSite(t)
+	progress := s.controllerStream(fabricui.EventCommissioningProgress)
+	sp, err := s.dev.Node().SetupPayload()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	if err := s.site.Run(ctx, s.ctrl.Close); err != nil {
+		t.Fatal(err)
+	}
+	if status, out := s.call(http.MethodPost, "/controller/commission", fmt.Sprintf(`{"code":%q}`, sp.Manual)); status != http.StatusInternalServerError {
+		t.Fatalf("closed controller: %d %s", status, out)
+	}
+	failed := time.After(10 * time.Second)
+	for {
+		select {
+		case d := <-progress:
+			if strings.Contains(d, `"phase":"failed"`) {
+				if !strings.Contains(d, `"detail":"failed"`) {
+					t.Fatalf("progress %s", d)
+				}
+				return
+			}
+		case <-failed:
+			t.Fatal("no commissioning_progress failed")
+		}
+	}
+}

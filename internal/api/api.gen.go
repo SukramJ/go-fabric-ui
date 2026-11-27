@@ -6959,6 +6959,20 @@ func (response PingNode404ApplicationProblemPlusJSONResponse) VisitPingNodeRespo
 	return err
 }
 
+type PingNode409ApplicationProblemPlusJSONResponse Problem
+
+func (response PingNode409ApplicationProblemPlusJSONResponse) VisitPingNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PingNode500ApplicationProblemPlusJSONResponse Problem
 
 func (response PingNode500ApplicationProblemPlusJSONResponse) VisitPingNodeResponse(w http.ResponseWriter) error {
@@ -6969,6 +6983,20 @@ func (response PingNode500ApplicationProblemPlusJSONResponse) VisitPingNodeRespo
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PingNode502ApplicationProblemPlusJSONResponse Problem
+
+func (response PingNode502ApplicationProblemPlusJSONResponse) VisitPingNodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
 	_, err := buf.WriteTo(w)
 	return err
 }
