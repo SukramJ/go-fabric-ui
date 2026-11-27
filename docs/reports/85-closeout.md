@@ -90,7 +90,9 @@ Bites: `Check` returning `nil` for the failures — `updates_e2e_test.go:103:
 errors [], want the node …`; a second `query` after the first —
 `updates_e2e_test.go:121: 2 check_finished, want 1`. (A second query
 before the first fails on `errors` instead: the first check removes the
-invalid stored image.)
+invalid stored image, go-fabric `controller/softwareupdate/images.go:1088-1095`
+at v0.28.0; that a flipped payload byte classifies as `storedInvalid`
+(`images.go:994-1005`) is established by this test, not by a read.)
 
 ### Release — `f880039`
 

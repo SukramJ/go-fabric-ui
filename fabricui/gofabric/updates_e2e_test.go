@@ -46,7 +46,8 @@ func TestEndToEnd_UpdateCheckFailsOneProduct(t *testing.T) {
 	s := newCtrlSiteWith(t, ctrlSiteOptions{
 		// The images are local ones: the manager asks the store for
 		// production images only without AllowTestImages
-		// (manager.go:1971-1975 at v0.28.0).
+		// (manager.go:1972-1975 at v0.28.0), and production
+		// drops stored local images (images.go:842-845).
 		ota:       &controller.OTAConfig{Images: images, AllowTestImages: true},
 		configure: product(0x8101),
 	})

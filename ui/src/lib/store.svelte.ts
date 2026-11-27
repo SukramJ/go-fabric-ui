@@ -491,8 +491,8 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
       case "surface_changed":
         // No sign that the selection is in effect (UR-P4-ui-396):
         // go-fabric raises it for any assembly whose surface drifted
-        // from the persisted one — Node.Start and a partition's own
-        // reassembly included — it can precede a rebuild's error (a
+        // from the persisted one — Node.Start and an Add or Remove
+        // outside the rebuild included — it can precede a rebuild's error (a
         // batch whose second reassembly fails), and a rebuild that
         // changes no persisted surface raises none. The notice stays.
         void loadStatus();
