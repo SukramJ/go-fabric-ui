@@ -96,12 +96,12 @@ The verifier resumed, over `792d15b..d7bc3f3` (before the rebase).
 | ID | sev | disposition | where |
 | --- | --- | --- | --- |
 | UR-P4-doc-390 | low | docs `0a4b7c1` | `docs/contract.md`'s controller route table lists the shared 500 |
-| UR-P4-api-391 | note | **open, note** | decision 79's rest: a host's own `ControllerSource` can still answer 409, 502 or 404 on an operation that does not declare it (13 answers by a temporary guard case); the shipped adapter only through `Ping` under a host's request deadline. Carried to the next review of the hosts (go-fabric-server's plan: a host source's error kinds), or a go-fabric-ui issue |
+| UR-P4-api-391 | note | fixed `e8dfda8` (v0.16.0, contract 0.16.0) | variant C (owner, 2026-11-27): `pingNode` declares 409 and 502; every other operation passes a source's error through `declared()`, undeclared kinds 500; `TestController_SourceKindsOnlyWhereDeclared` holds every kind on every fallible route, the credential and update sources included |
 | UR-P4-test-392 | note | fixed `bd3a294` | a case with a live request and a `DeadlineExceeded` from the fake node expects `fabrics_failed` |
 | UR-P4-adpt-393 | note | fixed `0a4b7c1` (godoc), `bd3a294` (test) | the `Hooks` godoc names leave and forget; removed → added → removed on one local id is tested; the growth of `gone` stays (a short string per removed node, the verifier's call) |
 | UR-P4-test-394 | note | fixed `bd3a294` | the status guard's unnamed-path branch has a test |
 | UR-P4-doc-395 | note | docs `0a4b7c1` | three changelog phrases match the code |
-| UR-P4-ui-396 | note | **open, note** | the not-in-effect notice is cleared by any `surface_changed`, possibly one of a failed rebuild (I: whether a failing assembly raises the observer at go-fabric's tag was not read). Carried as a go-fabric-ui issue (clear on `endpoints_changed` only, once the observer's behaviour is read) |
+| UR-P4-ui-396 | note | fixed `a0a85e6` (v0.16.0) | the notice clears on `endpoints_changed` only: a failed bridge reassembly raises no observer, but `surface_changed` is no sign the selection is in effect (fact note `notes/reads/read-85-closeout.md` a); a host that rebuilds on its own publishes `endpoints_changed` (docs/provider.md, docs/embedding.md) |
 
 ## Second look: go-fabric v0.24.1 and #81
 
@@ -112,8 +112,8 @@ The verifier resumed, over `f1d2321..5dcf396` (the lift's six commits).
 | UR-P4-bound-400 | low | fixed `dbb51ab` | the adapter takes the smaller of the port's `CommissionTimeout` and a positive one of the host's `Pair` template; godoc and changelog say so |
 | UR-P4-test-401 | low | fixed `dbb51ab` | a discovered commissioning with a template naming a BLE central and an address |
 | UR-P4-test-402 | note | fixed `dbb51ab` | each failed node carries exactly its own product's cause |
-| UR-P4-test-403 | note | **open, note** | no test lets go-fabric's real update manager fail one product and reads the route's `errors` and the single `check_finished`; the seam test stands. Carried to the next review of the hosts (an image source that refuses the download is a host's fixture), or a go-fabric-ui issue |
-| UR-P4-err-404 | note | **open, note** | `PairDiscovered`'s `ErrConfiguration` refusals (no address, a closed controller) answer 400 `invalid_argument` on the discovered path, where the registry path answered 502. Whether `Discover` can return a device without an address was not read (I). Carried as a go-fabric-ui issue (or a go-fabric question, if the error should be split) |
+| UR-P4-test-403 | note | fixed `8b05411` (v0.16.0) | `TestEndToEnd_UpdateCheckFailsOneProduct`: go-fabric's real update manager on an offline image store, one of two products' stored image corrupted; `errors` names that node, the other's update listed, one `check_finished`. No host fixture, the import guard unchanged |
+| UR-P4-err-404 | note | fixed `92c29a5` (v0.16.0) | `Discover` reports no device without an address; what arrives as `ErrConfiguration` is a closed controller (both paths) or a host template (code path): no port kind, 500, progress `failed` (fact note b, revised verdict). `ErrPairingCode` stays 400 |
 | UR-P4-adpt-405 | note | fixed `dbb51ab` | `Hooks.nodeID` resolves only a commissioned node |
 | UR-P4-err-406 | note | fixed `dbb51ab` | go-fabric's `softwareupdate.ErrNoNode` on a consent is `ErrNodeNotFound`, 404 |
 | UR-P4-doc-407 | note | fixed `dbb51ab` | the consent texts name the condition (the manager knows the running version); `Check` returns the whole error when no product names a node; contract: the 204's description only |
