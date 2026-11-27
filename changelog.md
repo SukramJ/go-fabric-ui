@@ -5,6 +5,33 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). The Go module and the npm package
 `@thingfabric/fabric-ui` (before 0.14.0 `@sukramj/fabric-ui`) share one version.
 
+## [0.14.2] - 2026-11-27
+
+go-fabric v0.28.0 and the other dependencies brought up to date. No
+behaviour, route or contract change; contract stays 0.14.0.
+
+### Hosts
+
+- **go-fabric v0.28.0** is the minimum a host builds with. Its own
+  changes across v0.27.0 and v0.28.0 (calls that now refuse input they
+  accepted before, five identifiers deprecated and removable in
+  `v0.29.0`, `Partition.Batch`'s `*BatchError` and its reassembly
+  redone by the next batch) are the host's when it lifts its own pin to
+  meet this one; see go-fabric's changelog (0.27.0, 0.28.0).
+
+### Changed
+
+- go-fabric `v0.26.0` → `v0.28.0`; no source change, no deprecated
+  identifier in use.
+- `github.com/oapi-codegen/runtime` `v1.9.0` → `v1.9.1`.
+- npm, bundled: `@lucide/svelte` `1.74.0` → `1.82.0`, `svelte` `5.57.3` →
+  `5.59.2`, `tailwind-merge` `3.7.0` → `3.7.1`; `THIRD-PARTY-NOTICES.md`
+  and `licenses/npm/svelte.txt` (copyright year) follow; the bundle
+  `fabricui/dist` is rebuilt.
+- npm, development only: `@sveltejs/vite-plugin-svelte` `7.3.2`,
+  `@testing-library/jest-dom` `8.0.0`, `@types/node` `26.6.11`, `vite`
+  `8.4.0`, `vitest` `5.1.2`.
+
 ## [0.14.1] - 2026-11-24
 
 go-fabric v0.26.0. No behaviour, route or contract change; contract
