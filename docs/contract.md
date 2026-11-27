@@ -511,6 +511,11 @@ Statuses new in 0.10.0, beside 403, 405, 413 and 415 above:
   progress); declared on enable, disable and auto-subscribe with 502.
 - **500** on `GET /node/compatibility` when the fabric read fails.
 - **502** on `GET /controller/discovery`.
+
+New in 0.15.0: **409** `conflict` on `PUT /controller/fabric/label` when
+the host's `ControllerSource.SetFabricLabel` refuses with an error
+wrapping `fabricui.ErrConflict` — a label the host pins. The shipped
+adapter never answers it.
 - **503** `too_many_streams` with `Retry-After: 5` on the four streams
   when the handler serves `Options.MaxStreams` streams already.
 
@@ -850,7 +855,7 @@ hand-written.
 | `/controller/discovery` | GET | yes | 200, 400, 403, 500, 502 |
 | `/controller/credentials` | GET | yes | 200, 403, 500, 503 |
 | `/controller/credentials` | PUT / DELETE | yes | 204, 400, 403, 404 (DELETE), 413 and 415 (PUT), 500, 503 |
-| `/controller/fabric/label` | PUT | yes | 204, 400, 403, 413, 415, 500 |
+| `/controller/fabric/label` | PUT | yes | 204, 400, 403, 409 (0.15.0), 413, 415, 500 |
 | `/controller/updates` | GET | yes | 200, 403, 500 |
 | `/controller/updates/consent`, `/check` | POST | yes | 200/204, 400, 403, 404, 413 and 415 (`consent`), 500, 503; `check` answers 200 with `errors` for the nodes whose check failed (0.11.0) |
 | `/controller/topology` | GET | yes | 200, 400, 403, 500, 501, 502 — served from 0.3.1; 501 `not_implemented` from a host without a topology service |

@@ -46,7 +46,8 @@ type ControllerSource interface {
 	// handler runs it detached from the request, bounded by two minutes.
 	Decommission(ctx context.Context, id uint64) error
 	// SetFabricLabel sets the fabric label; the nodes get it in the
-	// background.
+	// background. An error wrapping [ErrConflict] says the host refuses
+	// the change, a label it pins: 409 conflict (contract 0.15.0).
 	SetFabricLabel(ctx context.Context, label string) error
 	// Credentials is the host's store of Wi-Fi and Thread credentials;
 	// nil when the host keeps none.

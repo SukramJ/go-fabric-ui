@@ -1857,7 +1857,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** The controller's fabric label, pushed to every node. */
+        /**
+         * The controller's fabric label, pushed to every node.
+         * @description 409 `conflict` when the host refuses to change the label, a label
+         *     it pins (0.15.0).
+         */
         put: operations["setFabricLabel"];
         post?: never;
         delete?: never;
@@ -6230,6 +6234,7 @@ export interface operations {
             };
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
             500: components["responses"]["Problem"];

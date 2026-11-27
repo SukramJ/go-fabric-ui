@@ -1725,6 +1725,10 @@ func (s *controllerServer) SetFabricLabel(ctx context.Context, req api.SetFabric
 		return nil, badRequest("label: longer than %d bytes", maxFabricLabel)
 	}
 	if err := s.src.SetFabricLabel(ctx, req.Body.Label); err != nil {
+		if errors.Is(err, ErrConflict) {
+			// The host refuses the change, not a node (contract 0.15.0).
+			return nil, &apiProblem{http.StatusConflict, codeConflict, "Refused by the host", err.Error()}
+		}
 		return nil, err
 	}
 	return api.SetFabricLabel204Response{}, nil

@@ -69,6 +69,7 @@ const cases: [string, Call][] = [
   ["controller-credentials-remove.404", (c) => c.removeCredential("wifi", "none")],
   ["controller-fabric-label.204", (c, x) => c.setFabricLabel(b(x).label)],
   ["controller-fabric-label.400", (c, x) => c.setFabricLabel(b(x).label)],
+  ["controller-fabric-label.409", (c, x) => c.setFabricLabel(b(x).label)],
   ["controller-updates.200", (c) => c.updates()],
   ["controller-updates-consent.204", (c, x) => c.consentUpdate(b(x))],
   ["controller-updates-check.200", (c) => c.checkUpdates()],

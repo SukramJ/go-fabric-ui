@@ -4088,6 +4088,20 @@ func (response SetFabricLabel403ApplicationProblemPlusJSONResponse) VisitSetFabr
 	return err
 }
 
+type SetFabricLabel409ApplicationProblemPlusJSONResponse Problem
+
+func (response SetFabricLabel409ApplicationProblemPlusJSONResponse) VisitSetFabricLabelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetFabricLabel413ApplicationProblemPlusJSONResponse Problem
 
 func (response SetFabricLabel413ApplicationProblemPlusJSONResponse) VisitSetFabricLabelResponse(w http.ResponseWriter) error {

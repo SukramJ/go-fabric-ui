@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: go-fabric-ui
-  version: 0.14.0
+  version: 0.15.0
   summary: The HTTP API behind the go-fabric web interface.
   description: |
     Routes of the node page family and of the controller page family. Every path is relative to the mount prefix
@@ -22,7 +22,8 @@ info:
     problem's `type` URI to the base
     `https://thingfabric.dev/go-fabric-ui/problems#problem-` (the code
     after it unchanged); no route, field or code changes, but a client
-    that compares `type` as a string sees a new value.
+    that compares `type` as a string sees a new value. Contract 0.15.0 is
+    additive: `setFabricLabel` declares 409.
 
     Response integers that range over 32 bits unsigned or wider are
     `format: int64` (0.11.0), and the request field and query parameter
@@ -2038,6 +2039,9 @@ paths:
       operationId: setFabricLabel
       x-admin: true
       summary: The controller's fabric label, pushed to every node.
+      description: |
+        409 `conflict` when the host refuses to change the label, a label
+        it pins (0.15.0).
       requestBody:
         required: true
         content:
@@ -2047,6 +2051,7 @@ paths:
         "204": { description: The label is set; the nodes get it in the background. }
         "400": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
         "413": { $ref: "#/components/responses/Problem" }
         "415": { $ref: "#/components/responses/Problem" }
         "500": { $ref: "#/components/responses/Problem" }
