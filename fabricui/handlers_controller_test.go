@@ -117,6 +117,14 @@ func TestControllerFixtures_TermsRequired(t *testing.T) {
 
 // A host with a central reports capabilities.ble (contract 0.7.1): the
 // in-memory controller with BLE set.
+// A host that pins the fabric label refuses a new one: 409 conflict
+// (contract 0.15.0).
+func TestControllerFixtures_FabricLabelPinned(t *testing.T) {
+	_, mux, m := controllerHandler(t, nil)
+	m.FabricLabelPinned = true
+	runFixture(t, mux, "controller-fabric-label.409")
+}
+
 func TestControllerFixtures_BLE(t *testing.T) {
 	_, mux, m := controllerHandler(t, nil)
 	m.BLE = true

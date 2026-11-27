@@ -5,6 +5,26 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). The Go module and the npm package
 `@thingfabric/fabric-ui` (before 0.14.0 `@sukramj/fabric-ui`) share one version.
 
+## [0.15.0] - 2026-11-27
+
+Contract 0.15.0, additive: `PUT /controller/fabric/label` declares 409
+`conflict` (#85, UR-P4-api-391, owner decision 2026-11-23).
+
+### Added
+
+- `setFabricLabel` declares 409: a host's `ControllerSource.SetFabricLabel`
+  that refuses with an error wrapping `fabricui.ErrConflict` — a label the
+  host pins — answers 409 `conflict`, titled "Refused by the host"; before
+  it answered the same status undeclared, titled "Refused by the node".
+  Fixture `controller-fabric-label.409`, used on both sides.
+- `MemoryController.FabricLabelPinned` stands for such a host.
+
+### Hosts
+
+- No change required. A host that pins the fabric label (go-fabric-server,
+  `internal/daemon/controllerui.go`) keeps returning `fabricui.ErrConflict`;
+  the shipped adapter never does.
+
 ## [0.14.2] - 2026-11-27
 
 go-fabric v0.28.0 and the other dependencies brought up to date. No

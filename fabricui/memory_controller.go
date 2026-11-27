@@ -178,6 +178,9 @@ type MemoryController struct {
 	// routes answer 501 and capabilities.diagnostics is false. Set it
 	// before the handler serves.
 	NoDiagnostics bool
+	// FabricLabelPinned stands for a host that pins the fabric label:
+	// SetFabricLabel refuses with ErrConflict (contract 0.15.0).
+	FabricLabelPinned bool
 	// NoOnboardingCodes stands for a source that serves no onboarding
 	// inventory (contract 0.13.0): capabilities.onboarding_codes is false
 	// and the three routes answer 501. Set it before the handler serves.
@@ -552,6 +555,9 @@ func (m *MemoryController) ClearOnboardingCode(_ context.Context, id uint64) err
 
 // SetFabricLabel implements [ControllerSource].
 func (m *MemoryController) SetFabricLabel(_ context.Context, label string) error {
+	if m.FabricLabelPinned {
+		return fmt.Errorf("%w: the fabric label is pinned by the host", ErrConflict)
+	}
 	m.mu.Lock()
 	m.fabric.Label = label
 	m.mu.Unlock()

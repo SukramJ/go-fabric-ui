@@ -1,0 +1,24 @@
+{
+  "route": "PUT /controller/fabric/label",
+  "request": {
+    "method": "PUT",
+    "path": "/controller/fabric/label",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    },
+    "body": {
+      "label": "Home"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "code": "conflict",
+      "detail": "fabricui: conflict: the fabric label is pinned by the host",
+      "instance": "/api/v1/controller/fabric/label",
+      "status": 409,
+      "title": "Refused by the host",
+      "type": "https://thingfabric.dev/go-fabric-ui/problems#problem-conflict"
+    }
+  }
+}
