@@ -1480,7 +1480,10 @@ export interface paths {
          *     session, as go-fabric-server's `ping_node` does, and the one read
          *     stands for every address (`per_address: false`). A silent address
          *     or a failed read is `reachable: false`, not an error. 404 for an
-         *     unknown node.
+         *     unknown node. Since 0.16.0, as on every other acting route under
+         *     `/controller/nodes/{id}`: 409 when the host's controller refuses
+         *     the interaction, 502 when it failed — the go-fabric adapter's ping
+         *     answers 502 when the request's deadline ends it.
          */
         post: operations["pingNode"];
         delete?: never;
@@ -5516,7 +5519,9 @@ export interface operations {
             400: components["responses"]["Problem"];
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
             500: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
         };
     };
     enableNode: {

@@ -125,6 +125,18 @@ func TestControllerFixtures_FabricLabelPinned(t *testing.T) {
 	runFixture(t, mux, "controller-fabric-label.409")
 }
 
+// pingNode declares 409 and 502 (contract 0.16.0, UR-P4-api-391): a
+// source that refuses the ping, and one whose ping failed.
+func TestControllerFixtures_PingRefusedAndFailed(t *testing.T) {
+	for name, err := range map[string]error{
+		"controller-node-ping.409": fmt.Errorf("%w: the node is disabled", ErrConflict),
+		"controller-node-ping.502": fmt.Errorf("%w: no answer", ErrNodeFailed),
+	} {
+		_, mux := newTestHandler(t, testOptions{noNode: true, controller: errController{NewMemoryController(), err}})
+		runFixture(t, mux, name)
+	}
+}
+
 func TestControllerFixtures_BLE(t *testing.T) {
 	_, mux, m := controllerHandler(t, nil)
 	m.BLE = true

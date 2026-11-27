@@ -386,6 +386,16 @@ A host without go-fabric's controller — a test, a demonstration —
 implements `fabricui.ControllerSource` itself; `fabricui.NewMemoryController()`
 is an in-memory one with two nodes, one ICD and a pending update.
 
+Such a source's error kinds (0.16.0): an operation answers a kind with
+its status only where the contract declares that status — 404 for the
+not-found kinds, 400 for `ErrInvalidArgument` and `ErrInvalidCredential`,
+409 for `ErrConflict` (and `ErrICDMultiAdmin`), 502 for `ErrNodeFailed`
+and `context.DeadlineExceeded` — and 500 with the cause in the log
+elsewhere; the port's godoc names the kinds per method. A host source
+that answered, say, `ErrNodeFailed` from `CredentialStore.List` got 502
+before 0.16.0 and gets 500 now. `POST /controller/nodes/{id}/ping`
+declares 409 and 502 from 0.16.0.
+
 Two port changes of 0.7.0 concern such a source. `PairOptions` gains
 `TermsAndConditions` (the request's acknowledgement) and `Progress`, which
 the handler sets and the source calls with each `PairingStep` as it

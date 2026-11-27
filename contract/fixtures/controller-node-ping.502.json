@@ -1,0 +1,21 @@
+{
+  "route": "POST /controller/nodes/{id}/ping",
+  "request": {
+    "method": "POST",
+    "path": "/controller/nodes/0000000000000011/ping",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 502,
+    "body": {
+      "code": "node_error",
+      "detail": "fabricui: the node failed: no answer",
+      "instance": "/api/v1/controller/nodes/0000000000000011/ping",
+      "status": 502,
+      "title": "The node failed",
+      "type": "https://thingfabric.dev/go-fabric-ui/problems#problem-node_error"
+    }
+  }
+}

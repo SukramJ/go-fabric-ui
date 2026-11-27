@@ -1,0 +1,21 @@
+{
+  "route": "POST /controller/nodes/{id}/ping",
+  "request": {
+    "method": "POST",
+    "path": "/controller/nodes/0000000000000011/ping",
+    "headers": {
+      "X-Fabric-UI-Token": "test-token"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "code": "conflict",
+      "detail": "fabricui: conflict: the node is disabled",
+      "instance": "/api/v1/controller/nodes/0000000000000011/ping",
+      "status": 409,
+      "title": "Refused by the node",
+      "type": "https://thingfabric.dev/go-fabric-ui/problems#problem-conflict"
+    }
+  }
+}
