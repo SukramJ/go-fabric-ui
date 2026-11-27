@@ -478,13 +478,23 @@ export function createNodeStore(client: FabricClient, deps: NodeStoreDeps) {
         else void loadStatus().then(syncCommissioning);
         break;
       case "endpoints_changed":
-      case "surface_changed":
-        // An assembly ran: the node was rebuilt (another tab's apply, a
-        // reassemble, the host), so the stored selection is in effect and
-        // the last apply's notice is stale (UR-P4-ui-61, its other-tab
-        // path). A rebuild that changes no endpoint's surface sends
-        // neither; the notice then stays until a rebuild here.
+        // A rebuild returned nil: the handler publishes this only after
+        // the host's reassemble succeeded (PUT /node/exposure, the
+        // reassemble route — another tab's included) or the host
+        // publishes it for a rebuild of its own, so the stored selection
+        // is in effect and the last apply's notice is stale (UR-P4-ui-61,
+        // its other-tab path; UR-P4-ui-396).
         exposureNotInEffect = false;
+        void loadStatus();
+        topologyEpoch++;
+        break;
+      case "surface_changed":
+        // No sign that the selection is in effect (UR-P4-ui-396):
+        // go-fabric raises it for any assembly whose surface drifted
+        // from the persisted one — Node.Start and a partition's own
+        // reassembly included — it can precede a rebuild's error (a
+        // batch whose second reassembly fails), and a rebuild that
+        // changes no persisted surface raises none. The notice stays.
         void loadStatus();
         topologyEpoch++;
         break;

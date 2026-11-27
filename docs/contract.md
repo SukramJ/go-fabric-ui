@@ -264,7 +264,10 @@ Details the fixtures pin:
   that endpoint's key (`""` for the root endpoint). It arrives for a
   reassembly this handler runs (`POST /node/maintenance/reassemble`,
   `PUT /node/exposure`) and for one the host runs on its own; the routes
-  publish `endpoints_changed` alone. The session events are go-fabric's
+  publish `endpoints_changed` alone, and only after `reassemble` returned
+  nil; a host that rebuilds on its own publishes it through
+  `Options.Events`. The node page clears its "not in effect" notice on
+  `endpoints_changed` only, never on `surface_changed` (0.16.0). The session events are go-fabric's
   `Observers.OnSessionOpened`, `OnSessionClosed` and
   `OnSubscriptionsChanged`: CASE sessions only (a commissioning's PASE
   session raises none), the payload the session as `/node/sessions` lists

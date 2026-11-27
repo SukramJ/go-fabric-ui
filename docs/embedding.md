@@ -145,6 +145,12 @@ attribute change of a cluster server (`attribute_changed`, from
 also registers `Node.OnHealthSample` and `Node.OnDiagnosticEvent`
 (`health_sample`, `diagnostic_event`), so the status and diagnostics pages
 update without a reload.
+A reassembly the host runs on its own reaches the stream as
+`surface_changed` only; the node page clears its "not in effect" notice
+on `endpoints_changed` alone (0.16.0), which the routes publish after
+`Options.Reassemble` returned nil. A host that rebuilds on its own
+publishes `endpoints_changed` through `Options.Events` after its rebuild
+returned nil, or the notice stays until a rebuild through the routes.
 `node.Config.Observers` stays the host's own. A host that carries these
 events over a channel of its own registers them with
 `fabricui.ObserveNode(n, push)` — `NodeObservers` through `Node.Observe`

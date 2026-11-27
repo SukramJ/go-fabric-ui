@@ -86,7 +86,13 @@ response, and publishes `exposure_changed` with the keys, then
 `endpoints_changed`; an endpoint whose surface the reassembly changed
 reaches the stream as `surface_changed` from the node's observer. A host that
 changes its selection elsewhere publishes the same event through its
-`fabricui.Events`.
+`fabricui.Events`. A host that rebuilds the node on its own publishes
+`endpoints_changed` through its `fabricui.Events` once the rebuild
+returned nil: since 0.16.0 an open page clears its "not in effect" notice
+on `endpoints_changed` only, never on `surface_changed` (an assembly
+raises that whether or not the selection was rebuilt into effect, and a
+rebuild that changes no stored surface raises none), so without it the
+notice stays until a rebuild through the routes.
 
 ## An in-memory provider
 
